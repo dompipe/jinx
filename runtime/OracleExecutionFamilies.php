@@ -183,6 +183,38 @@ final class OracleExecutionFamilies
                     'strtoupper',
                 ],
             ],
+            'request-globals' => [
+                'state' => 'executable',
+                'owner' => OracleRequestExecutor::class,
+                'test' => 'scripts/test-oracle-request-globals-execution.php',
+                'ops' => [
+                    'O_DECLARE',
+                    'O_ASSIGN',
+                    'O_DIM_FETCH',
+                    'O_COALESCE',
+                    'O_ECHO',
+                    'O_PRINT',
+                    'O_RETURN',
+                ],
+                'superglobals' => [
+                    '$_SERVER',
+                    '$_GET',
+                    '$_POST',
+                    '$_REQUEST',
+                ],
+                'request_ops' => [
+                    'request_context',
+                    'query_params',
+                    'post_params',
+                    'request_params',
+                    'server_params',
+                    'isset',
+                    'empty',
+                ],
+                'builtins' => [
+                    'count',
+                ],
+            ],
         ];
     }
 
