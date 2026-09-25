@@ -21,6 +21,7 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $index = WebWindowIndex::withStandardDefaults();
 $fingerprintBefore = $index->residentIndexFingerprint();
+$versionBefore = $index->indexVersion();
 $state = [];
 
 $first = $index->feedWindow($state, 'main-window', 'app.shell', [
@@ -33,8 +34,10 @@ $first = $index->feedWindow($state, 'main-window', 'app.shell', [
 same($first['kind'] ?? null, 'JINX_WINDOW_INDEX_FRAME', 'first frame kind');
 same($first['window_id'] ?? null, 'main-window', 'first frame window id');
 same($first['page_key'] ?? null, 'app.shell', 'first frame page key');
+same($first['index_version'] ?? null, $versionBefore, 'first frame index version');
 same($first['arrangement']['components']['main']['text'] ?? null, 'First page body', 'first main text');
 same($state['main-window']['page_key'] ?? null, 'app.shell', 'window state page key after first feed');
+same($state['main-window']['index_version'] ?? null, $versionBefore, 'window state index version after first feed');
 
 $second = $index->feedWindow($state, 'main-window', 'feed.window', [
     'title' => 'Live Feed',
@@ -54,19 +57,39 @@ if (($second['arrangement']['components']['main']['text'] ?? null) === 'First pa
 }
 
 same($index->residentIndexFingerprint(), $fingerprintBefore, 'resident window index fingerprint stayed stable across feeds');
+same($index->indexVersion(), $versionBefore, 'resident window index version stayed stable across feeds');
 
-$script = WebWindowIndex::toBrowserScript($second);
-foreach (['window.__JINX_WINDOW_INDEX__', 'CustomEvent', 'jinx-window-frame', 'replaceText', 'Second page detail'] as $needle) {
+$index->patchPageDefault('feed.window', [
+    'title' => 'Updated Resident Feed',
+    'components' => [
+        'detail' => ['text' => 'Resident detail default updated'],
+        'status' => ['text' => 'updated-default'],
+    ],
+]);
+
+if ($index->residentIndexFingerprint() === $fingerprintBefore) {
+    fail('resident window index fingerprint did not change after explicit index patch');
+}
+same($index->indexVersion(), $versionBefore + 1, 'resident window index version increments after explicit index patch');
+
+$third = $index->feedWindow($state, 'main-window', 'feed.window');
+same($third['index_version'] ?? null, $versionBefore + 1, 'third frame uses updated index version');
+same($third['arrangement']['title'] ?? null, 'Updated Resident Feed', 'third title comes from updated resident index');
+same($third['arrangement']['components']['detail']['text'] ?? null, 'Resident detail default updated', 'third detail comes from updated resident index');
+same($state['main-window']['index_version'] ?? null, $versionBefore + 1, 'window state tracks updated index version');
+
+$script = WebWindowIndex::toBrowserScript($third);
+foreach (['window.__JINX_WINDOW_INDEX__', 'index_version', 'fingerprint', 'CustomEvent', 'jinx-window-frame', 'replaceText', 'Resident detail default updated'] as $needle) {
     if (!str_contains($script, $needle)) {
         fail('browser script missing expected browser-window programming marker: ' . $needle);
     }
 }
 
-$json = json_encode($second, JSON_UNESCAPED_SLASHES) ?: '';
+$json = json_encode($third, JSON_UNESCAPED_SLASHES) ?: '';
 foreach (['cookie', 'session', 'authorization', 'request_body'] as $forbidden) {
     if (str_contains(strtolower($json), $forbidden)) {
         fail('resident window frame contains forbidden request-state marker: ' . $forbidden);
     }
 }
 
-echo 'PASS: WebWindowIndex feeds resident page defaults into isolated browser window frames' . PHP_EOL;
+echo 'PASS: WebWindowIndex updates resident page defaults and feeds isolated browser window frames' . PHP_EOL;
