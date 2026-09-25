@@ -53,6 +53,8 @@ runtime/jinx_oracle_zend_array_builtins.h
 
 ./scripts/build-zend-opcode-vm-smoke.sh
 ./build/native/jinx-zend-opcode-vm-smoke
+./scripts/build-zend-scalar-vm-smoke.sh
+./build/native/jinx-zend-scalar-vm-smoke
 ./scripts/build-zend-lowering-fixture-smoke.sh
 ./build/native/jinx-zend-lowering-fixture-smoke
 ./scripts/build-zend-ir-fixture-smoke.sh
@@ -61,6 +63,8 @@ runtime/jinx_oracle_zend_array_builtins.h
 ./build/native/jinx-zend-statement-ir-smoke
 ./scripts/build-zend-variable-ir-smoke.sh
 ./build/native/jinx-zend-variable-ir-smoke
+./scripts/build-zend-variable-scalar-ir-smoke.sh
+./build/native/jinx-zend-variable-scalar-ir-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -105,7 +109,7 @@ JinxZendMethodCallFrame    INIT_METHOD_CALL/SEND_ARGS/DO_METHOD_CALL frame
 JinxZendErrorState         warning/error/exception state carrier
 JinxZendThrowable          throwable descriptor over Exception/Error-style objects
 JinxZendCatchFrame         CATCH lowering frame
-JinxZendVmState            combined register VM for foreach/method/throw/copy control flow
+JinxZendVmState            combined register VM for foreach/method/throw/copy/scalar control flow
 JinxZendIrFixture          tiny text fixture IR bridge
 JinxZendStatementIrProgram line-oriented statement/expression IR bridge
 JinxZendVariableIrProgram  variable-name-to-register lowering bridge
@@ -114,7 +118,7 @@ JinxValue carrier          Oracle/PASM value carrying Zend arrays
 
 ## Variable IR
 
-`runtime/jinx_zend_variable_ir.h` maps variable names onto VM registers and lowers assignment-like forms into VM ops. This is the bridge from raw register IR toward PHP-style `$name` slots.
+`runtime/jinx_zend_variable_ir.h` maps variable names onto VM registers and lowers assignment-like and scalar expression forms into VM ops. This is the bridge from raw register IR toward PHP-style `$name` slots.
 
 Supported forms:
 
@@ -122,6 +126,12 @@ Supported forms:
 var <name> <reg>
 load <name> <value-slot>
 set <dst-name> <src-name>
+addv <dst-name> <left-name> <right-name>
+subv <dst-name> <left-name> <right-name>
+eqv <dst-name> <left-name> <right-name>
+ltv <dst-name> <left-name> <right-name>
+jump_if_truev <name> <label>
+jump_if_falsev <name> <label>
 callv <dst-name> <object-name> <method> [arg-name]
 throwv <name> [file]
 catchv <name> <class-or-*> <miss-label>
@@ -131,19 +141,21 @@ jump_if_exception <label>
 halt
 ```
 
-`set` lowers into the VM `COPY` opcode. `load` still takes caller-provided value slots so runtime value construction stays separate from syntax lowering.
+`set` lowers into `COPY`. `addv/subv/eqv/ltv` lower into scalar VM opcodes. `jump_if_truev/jump_if_falsev` lower into boolean branch opcodes.
 
 Example:
 
 ```text
-var value 0
-var tmp 1
-var object 2
-var result 3
-load value 0
-set tmp value
-load object 1
-callv result object record tmp
+var a 0
+var b 1
+var sum 2
+var ok 3
+load a 0
+load b 1
+addv sum a b
+eqv ok sum a
+jump_if_falsev ok done
+label done
 halt
 ```
 
@@ -172,6 +184,10 @@ halt
 ```text
 LOAD_CONST
 COPY
+ADD
+SUB
+EQ
+LT
 FE_RESET
 FE_FETCH
 METHOD_CALL
@@ -180,10 +196,12 @@ CATCH
 CLEAR_EXCEPTION
 JMP
 JMP_IF_EXCEPTION
+JMP_IF_TRUE
+JMP_IF_FALSE
 HALT
 ```
 
-The VM ties together arrays, live foreach iteration, object method dispatch, throwable state, catch/clear control flow, variable assignment through register copy, and jumps.
+The VM ties together arrays, live foreach iteration, object method dispatch, throwable state, catch/clear control flow, variable assignment through register copy, scalar integer arithmetic/comparisons, boolean branches, and jumps.
 
 ## Oracle/PASM bridge
 
@@ -219,8 +237,8 @@ zend-array:2
 
 ## Next implementation steps
 
-1. Add scalar expression opcodes such as arithmetic and comparisons.
-2. Add real parser/AST lowering into variable IR / `JinxZendVmOp` streams.
+1. Add parser/AST lowering into variable IR / `JinxZendVmOp` streams.
+2. Add more scalar operators and type coercions.
 3. Wire small PHP examples through the native executor path.
 
 ## Rule
