@@ -39,11 +39,12 @@ Use the warmed web-request worker benchmark for route logic without socket overh
 ./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500 --json=build/benchmarks/web-request-worker.json
 ```
 
-Use the fair live HTTP benchmark when PHP and JINX should both look live over loopback HTTP:
+Use the fair live HTTP benchmark when PHP and JINX should both look live over loopback HTTP. The default JINX live worker mode is the optimized direct-response-template path:
 
 ```bash
-./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500
-./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --json=build/benchmarks/live-web-requests.json
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=plan
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template --json=build/benchmarks/live-web-requests.json
 ```
 
 See `docs/ORACLE_BENCHMARKS.md` for benchmark options, JSON output, and interpretation notes.
