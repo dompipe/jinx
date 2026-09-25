@@ -47,12 +47,12 @@ Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle wor
 
 ## 3. Web back-page hot benchmark
 
-`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. PHP stays as the direct route baseline. JINX can run either the response-envelope bridge or the raw route template inside one already-running process.
+`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. PHP stays as the direct route baseline. JINX can run the raw route body, the full response-envelope bridge, or a near-high-level typed frame inside one already-running process.
 
 This answers:
 
 ```text
-How fast is JINX's web-shaped JSON route path compared with direct PHP route logic when both are kept off the HTTP socket path?
+How fast is JINX's web-shaped route path compared with direct PHP route logic when both are kept off the HTTP socket path?
 ```
 
 Run the fastest small raw-template JINX mode:
@@ -61,17 +61,23 @@ Run the fastest small raw-template JINX mode:
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
 ```
 
-Run the large route workload with a capped shared frame deck. This prebuilds the request frames once, replays the same frames through PHP and JINX, and keeps frame construction out of both timed sections:
+Run the large route workload with a capped shared raw frame deck. This prebuilds request frames once, replays the same frames through PHP and JINX, and keeps frame construction out of both timed sections:
 
 ```bash
 ./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template
 ```
 
-Compare uncapped large frames against capped large frames:
+Run the high-level typed frame path. PHP still uses direct JSON route logic; JINX uses the prebuilt high frame with typed route fields, so it avoids JSON parsing in the hot loop:
 
 ```bash
-./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
-./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --frame-level=high --jinx-mode=raw-template
+```
+
+Compare raw large frames against high large frames:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --frame-level=raw --jinx-mode=raw-template
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --frame-level=high --jinx-mode=raw-template
 ```
 
 Compare the small route against the full back-page response-envelope bridge:
@@ -83,7 +89,7 @@ Compare the small route against the full back-page response-envelope bridge:
 Save JSON:
 
 ```bash
-./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --frame-level=high --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large-high.json
 ```
 
 This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page path, single process, prebuilt shared frames, no socket timing, and no process-spawn timing.
@@ -167,7 +173,7 @@ Use alternate ports if the defaults are busy:
 ./jinx scripts/benchmark-live-web-keepalive.php --php-port=18180 --jinx-port=18181 --requests=10000 --warmup=500 --jinx-mode=fast-template
 ```
 
-If a worker cannot start, the benchmark now waits for the health endpoint and prints captured stdout/stderr plus process status. A connection-refused message by itself usually means the previous script tried the socket before the worker finished starting; the hardened version retries before failing.
+If a worker cannot start, the benchmark waits for the health endpoint and prints captured stdout/stderr plus process status.
 
 The keep-alive benchmark reports average latency, p95 latency, min/max latency, requests per second, response checksums, and the PHP/JINX average latency ratio. Values above `1.00x` for `PHP/JINX avg latency ratio` mean the JINX live worker was faster.
 
@@ -215,12 +221,12 @@ Use the harness/process benchmark to catch broad regressions in the complete too
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
-Use the web back-page hot benchmark when checking the off-path route worker. The capped frame deck mode is the best current way to stop request-frame creation from bending the timing toward either side.
+Use the web back-page hot benchmark for the 89x-style route-engine comparison: PHP direct route logic versus JINX's precompiled back-page path.
 
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
 Use the fair live HTTP request benchmark for connection-close server behavior.
 
-Use the fair live keep-alive benchmark for the closest current answer to persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
+Use the fair live keep-alive benchmark for persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
 
 None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
