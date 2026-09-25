@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIncludeExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExitExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleObjectExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleObjectInheritanceExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleScalarBuiltinExecutor.php';
@@ -28,12 +29,12 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 
-if (count($families) < 69) {
-    fail('expected at least 69 executable Oracle families, found ' . count($families));
+if (count($families) < 70) {
+    fail('expected at least 70 executable Oracle families, found ' . count($families));
 }
 
 $requiredFamilies = [
-    'straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals', 'include-require', 'exit-die', 'object-basics',
+    'straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals', 'include-require', 'exit-die', 'object-basics', 'object-inheritance',
     'ternary-expressions', 'type-casts', 'string-builtins', 'math-builtins', 'comparison-expressions', 'boolean-expressions', 'magic-constants', 'array-literals', 'foreach-loops', 'for-loops',
     'str-replace-builtins', 'strpos-builtins', 'explode-builtins', 'in-array-builtins', 'array-key-exists-builtins', 'array-merge-builtins', 'array-reverse-builtins', 'array-unique-builtins', 'json-encode-builtins', 'hash-builtins',
     'ltrim-builtins', 'rtrim-builtins', 'ucfirst-builtins', 'lcfirst-builtins', 'strrev-builtins', 'str-repeat-builtins', 'str-pad-builtins', 'array-keys-builtins', 'array-values-builtins', 'array-slice-builtins',
