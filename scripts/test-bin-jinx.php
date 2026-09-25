@@ -120,6 +120,20 @@ if (!str_contains($out, 'PASS: Oracle executes conditional PHP subset')) {
 $out = run(sprintf(
     '%s %s',
     $jinxCommand,
+    escapeshellarg('scripts/test-oracle-loop-execution.php')
+), $code);
+
+if ($code !== 0) {
+    fail("bin/jinx Oracle loop execution PHP script path failed:\n{$out}");
+}
+
+if (!str_contains($out, 'PASS: Oracle executes loop PHP subset')) {
+    fail("bin/jinx Oracle loop execution PHP script path did not run expected test:\n{$out}");
+}
+
+$out = run(sprintf(
+    '%s %s',
+    $jinxCommand,
     escapeshellarg('scripts/test-oracle-execution-families.php')
 ), $code);
 
@@ -185,4 +199,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: bin/jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle execution families, web-plan, web-compile, and web-statements\n";
+echo "PASS: bin/jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle execution families, web-plan, web-compile, and web-statements\n";
