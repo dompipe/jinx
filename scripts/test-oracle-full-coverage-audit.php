@@ -66,7 +66,7 @@ foreach ($families as $family => $metadata) {
     }
 
     if (is_string($generatedBatch) && $generatedBatch !== '') {
-        if (!str_contains($docs, 'generated-pure-builtin-001 through generated-pure-builtin-175')) {
+        if (!str_contains($docs, 'generated-pure-builtin-001 through generated-pure-builtin-275')) {
             fail("{$family} generated batch range is not documented in supplemental Oracle docs");
         }
     } elseif (!str_contains($docs, "`{$family}`")) {
@@ -93,8 +93,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
         $metadata = $families[$family] ?? [];
         $generatedBatch = $metadata['generated_batch'] ?? null;
         if (is_string($generatedBatch) && $generatedBatch !== '') {
-            if (!str_contains($contents, 'for ($i = 1; $i <= 175; $i++)')) {
-                fail("{$test} generated batch test does not enumerate the generated family range");
+            if (!str_contains($contents, 'OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES')) {
+                fail("{$test} generated batch test does not enumerate the generated family manifest range");
             }
             continue;
         }
@@ -105,8 +105,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
     }
 }
 
-if (count($families) < 537) {
-    fail('coverage audit expected at least 537 executable families after generated merge');
+if (count($families) < 637) {
+    fail('coverage audit expected at least 637 executable families after generated merge');
 }
 
 $distinctTests = array_keys($testToFamilies);
