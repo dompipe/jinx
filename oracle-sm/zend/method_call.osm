@@ -1,0 +1,35 @@
+oracle_sm_family method_call_lowering
+
+purpose "INIT_METHOD_CALL / SEND_ARGS / DO_METHOD_CALL lowering over native object/class tables."
+replaces "Zend VM method-call opcode sequence for native object methods."
+
+native_files {
+  runtime/jinx_zend_method_opcode.h
+  runtime/jinx_zend_object.h
+}
+
+native_symbols {
+  JinxZendMethodCallFrame
+  JinxZendMethodOpcodeResult
+  jinx_zend_method_frame_init
+  jinx_zend_init_method_call
+  jinx_zend_send_method_args
+  jinx_zend_do_method_call
+  jinx_zend_call_method
+}
+
+oracle_sm_contract {
+  init_method_call validate_object_and_method_name
+  send_args        store_arg_span
+  do_method_call   class_table_lookup_then_handler_call
+  return_value     JinxZendValue
+  missing_method   executor_error_without_executed_method_body
+}
+
+proven_by {
+  scripts/build-zend-method-opcode-smoke.sh
+  build/native/jinx-zend-method-opcode-smoke
+}
+
+pasm_target "runtime/pasm/zend/method_call.pasm"
+status started
