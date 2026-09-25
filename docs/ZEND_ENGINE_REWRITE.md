@@ -82,6 +82,7 @@ array_values() producing a packed values array
 array_keys() producing numeric/string key values
 PHP builtin-name bridge for count, array_key_exists, array_is_list, array_values, array_keys
 array delete/unset tombstones for numeric and string keys
+live-aware PHP builtin-name bridge after tombstones
 live count/key_exists/is_list/values/keys after tombstones
 live iteration that skips tombstones
 array compaction after tombstones
@@ -103,7 +104,7 @@ jinx_zend_array_values_builtin
 jinx_zend_array_keys_builtin
 ```
 
-The standalone bridge smoke proves the PHP names below route to those helpers:
+The tombstone-safe bridge smoke now proves the PHP names below route to live-aware helpers after delete/unset tombstones:
 
 ```text
 count
@@ -148,17 +149,16 @@ Current delete smoke executable:
 ./build/native/jinx-zend-array-delete-smoke
 ```
 
-The next integration point is wiring these live-aware helpers into the builtin-name bridge and then the generated Oracle dispatch once `JinxValue` can carry native `JinxZendArray *` pointers.
+The next integration point is adding a `JinxValue` pointer-carrier for native `JinxZendArray *`, then wiring the generated Oracle dispatch so native `./jinx oracle-call` can route these PHP names to live-aware Zend arrays.
 
 ## Next implementation steps
 
-1. Wire live-aware tombstone helpers into the array builtin-name bridge.
-2. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
-3. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
-4. Lower `foreach` onto live array iteration.
-5. Add object class table and method dispatch.
-6. Add error/warning/exception objects.
-7. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+1. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
+2. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
+3. Lower `foreach` onto live array iteration.
+4. Add object class table and method dispatch.
+5. Add error/warning/exception objects.
+6. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
