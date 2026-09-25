@@ -45,7 +45,7 @@ The native Zend-shaped layer now has:
 ```text
 JinxZendValue       zval-like tagged value
 JinxZendString      borrowed views, owned buffers, refcount, COW, hashing
-JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, insertion-order iteration
+JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, insertion-order iteration, COW separation
 JinxZendBucket      numeric or string-key bucket carrying retained JinxZendValue
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
@@ -68,6 +68,8 @@ mixed string-key insertion
 string-key lookup
 string-key update without duplicate bucket growth
 insertion-order bucket iteration
+array clone and copy-on-write separation
+mutating a detached array without changing the original shared array
 array release/destruct of contained values and keys
 call-frame enter/leave
 return-value propagation
@@ -76,12 +78,11 @@ family manifest enumeration
 
 ## Next implementation steps
 
-1. Add array copy-on-write separation.
-2. Add deletion/tombstones and compaction rules.
-3. Lower `count`, `array_key_exists`, `array_values`, `array_keys`, and `foreach` onto native `JinxZendArray`.
-4. Add object class table and method dispatch.
-5. Add error/warning/exception objects.
-6. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+1. Add deletion/tombstones and compaction rules.
+2. Lower `count`, `array_key_exists`, `array_values`, `array_keys`, and `foreach` onto native `JinxZendArray`.
+3. Add object class table and method dispatch.
+4. Add error/warning/exception objects.
+5. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
