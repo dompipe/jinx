@@ -1,0 +1,53 @@
+oracle_sm_family zend_array_hash
+
+purpose "Native HashTable/zend_array family: packed and mixed buckets, COW, tombstones, live helpers."
+replaces "Zend/zend_hash.h, Zend/zend_hash.c, Zend/zend_array.c"
+
+native_files {
+  runtime/jinx_zend_engine.h
+  runtime/jinx_zend_engine.c
+  runtime/jinx_zend_array_delete.h
+}
+
+native_symbols {
+  JinxZendArray
+  JinxZendBucket
+  jinx_zend_array_new_packed
+  jinx_zend_array_append
+  jinx_zend_array_lookup_index
+  jinx_zend_array_update_index
+  jinx_zend_array_lookup_string
+  jinx_zend_array_update_string
+  jinx_zend_array_retain
+  jinx_zend_array_release
+  jinx_zend_array_clone
+  jinx_zend_array_separate
+  jinx_zend_array_delete_index
+  jinx_zend_array_delete_string
+  jinx_zend_array_live_count
+  jinx_zend_array_live_iter_at
+  jinx_zend_array_compact
+}
+
+oracle_sm_contract {
+  array.refcount        u32
+  array.count           size_t
+  array.capacity        size_t
+  array.buckets         pointer
+  bucket.key_kind       numeric_or_string_or_tombstone
+  bucket.key_index      i64
+  bucket.key_string     pointer_to_zend_string
+  bucket.value          JinxZendValue
+  tombstone             skip_in_live_iteration
+  cow_mutation          separate_before_write
+}
+
+proven_by {
+  scripts/build-zend-smoke.sh
+  build/native/jinx-zend-smoke
+  scripts/build-zend-array-delete-smoke.sh
+  build/native/jinx-zend-array-delete-smoke
+}
+
+pasm_target "runtime/pasm/zend/hash.pasm"
+status started
