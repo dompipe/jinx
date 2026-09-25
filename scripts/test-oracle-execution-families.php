@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/runtime/OracleConditionalExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleArrayExecutor;
@@ -14,6 +15,7 @@ use jinx\oracle\OracleConditionalExecutor;
 use jinx\oracle\OracleExecutionFamilies;
 use jinx\oracle\OracleFunctionExecutor;
 use jinx\oracle\OracleLoopExecutor;
+use jinx\oracle\OracleRequestExecutor;
 use jinx\oracle\OracleStraightLineExecutor;
 
 function fail(string $message): never
@@ -31,7 +33,7 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $families = OracleExecutionFamilies::all();
 
-foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions'] as $family) {
+foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals'] as $family) {
     if (!isset($families[$family])) {
         fail("missing {$family} execution family");
     }
@@ -145,4 +147,34 @@ foreach (['strlen', 'strtoupper'] as $builtin) {
     }
 }
 
-echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, and functions executable families" . PHP_EOL;
+$requestGlobals = OracleExecutionFamilies::get('request-globals');
+
+same($requestGlobals['state'] ?? null, 'executable', 'request-globals state');
+same($requestGlobals['owner'] ?? null, OracleRequestExecutor::class, 'request-globals owner');
+same($requestGlobals['test'] ?? null, 'scripts/test-oracle-request-globals-execution.php', 'request-globals test');
+
+foreach (['O_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_RETURN'] as $op) {
+    if (!in_array($op, $requestGlobals['ops'] ?? [], true)) {
+        fail("request-globals family missing {$op}");
+    }
+}
+
+foreach (['$_SERVER', '$_GET', '$_POST', '$_REQUEST'] as $superglobal) {
+    if (!in_array($superglobal, $requestGlobals['superglobals'] ?? [], true)) {
+        fail("request-globals family missing superglobal {$superglobal}");
+    }
+}
+
+foreach (['request_context', 'query_params', 'post_params', 'request_params', 'server_params', 'isset', 'empty'] as $requestOp) {
+    if (!in_array($requestOp, $requestGlobals['request_ops'] ?? [], true)) {
+        fail("request-globals family missing request op {$requestOp}");
+    }
+}
+
+foreach (['count'] as $builtin) {
+    if (!in_array($builtin, $requestGlobals['builtins'] ?? [], true)) {
+        fail("request-globals family missing builtin {$builtin}");
+    }
+}
+
+echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, functions, and request-globals executable families" . PHP_EOL;
