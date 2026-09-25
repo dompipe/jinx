@@ -6,6 +6,8 @@
 #include "../runtime/jinx_function_list.generated.h"
 #include "../runtime/jinx_pasm_machine.h"
 
+#define JINX_NATIVE_SAMPLE_ARGC 32u
+
 static void usage(const char *argv0) {
     printf("JINX native GCC CLI\n\n");
     printf("Usage:\n");
@@ -17,6 +19,7 @@ static void usage(const char *argv0) {
     printf("  %s first100\n", argv0);
     printf("  %s first100-list\n", argv0);
     printf("  %s bench-first100 [iterations]\n", argv0);
+    printf("  %s bench-all-functions [iterations] [--strict]\n", argv0);
     printf("  %s functions-count\n", argv0);
     printf("  %s functions\n", argv0);
     printf("  %s function-exists <name>\n", argv0);
@@ -248,11 +251,83 @@ static void first100_args(const char *name, JinxValue args[8]) {
     }
 }
 
+static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPLE_ARGC]) {
+    for (size_t i = 0; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        switch (i % 8u) {
+            case 0u:
+                args[i] = jinx_value_array_count(4);
+                break;
+            case 1u:
+                args[i] = jinx_value_int(2);
+                break;
+            case 2u:
+                args[i] = jinx_value_string("name", 4);
+                break;
+            case 3u:
+                args[i] = jinx_value_bool(1);
+                break;
+            case 4u:
+                args[i] = jinx_value_string("callback", 8);
+                break;
+            case 5u:
+                args[i] = jinx_value_int(0);
+                break;
+            case 6u:
+                args[i] = jinx_value_string("dompipe", 7);
+                break;
+            default:
+                args[i] = jinx_value_float(1.0);
+                break;
+        }
+    }
+
+    first100_args(name, args);
+
+    if (strstr(name, "strlen") != NULL) {
+        args[0] = jinx_value_string("oracle", 6);
+        return;
+    }
+
+    if (strstr(name, "count") != NULL || strstr(name, "length") != NULL || strstr(name, "num") != NULL) {
+        args[0] = jinx_value_array_count(4);
+        return;
+    }
+
+    if (strstr(name, "date") != NULL || strstr(name, "time") != NULL) {
+        args[0] = jinx_value_string("Y-m-d", 5);
+        args[1] = jinx_value_int(1704067200);
+        return;
+    }
+
+    if (strstr(name, "class") != NULL || strstr(name, "interface") != NULL || strstr(name, "trait") != NULL) {
+        args[0] = jinx_value_string("stdClass", 8);
+        return;
+    }
+
+    if (strstr(name, "json") != NULL) {
+        args[0] = jinx_value_string("{\"a\":1}", 7);
+        return;
+    }
+
+    if (strstr(name, "array") != NULL) {
+        args[0] = jinx_value_array_count(4);
+        return;
+    }
+}
+
 static int call_first100_name(const char *name, JinxValue *out) {
     JinxValue args[8];
     first100_args(name, args);
 
     *out = jinx_call_builtin_through_oracle(name, args, 8);
+    return out->type != 0u;
+}
+
+static int call_all_function_name(const char *name, JinxValue *out) {
+    JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    all_function_args(name, args);
+
+    *out = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
     return out->type != 0u;
 }
 
@@ -323,7 +398,7 @@ static int command_rc(void) {
     printf("dompipe/jinx native GCC CLI\n");
     printf("Status: RC native smoke executable\n");
     printf("Runtime: Oracle/PASM C dispatcher\n");
-    printf("Implemented native runtime calls: strlen, count\n");
+    printf("Implemented native runtime calls: strlen, count, hot first100 subset, full generated dispatch traversal\n");
     printf("Use the source package for the full PHP web/worker RC surface.\n");
     return 0;
 }
@@ -333,11 +408,12 @@ static int command_notes(void) {
     printf("- 3,527 PHP callable signatures have worker-style wrapper records.\n");
     printf("- The native GCC CLI includes a generated inventory for all 3,527 names.\n");
     printf("- functions-smoke verifies every generated name resolves to a C Oracle dispatch wrapper.\n");
+    printf("- bench-all-functions runs every generated name through the native ./jinx Oracle dispatch path with deterministic sample arguments.\n");
     printf("- Worker execution fails closed for unsafe, unavailable, by-reference, and method-only wrappers.\n");
     printf("- The PHP worker path uses a compact name -> id -> row table.\n");
     printf("- The first hot worker-safe benchmark set also has an Oracle-shaped PHP dispatch layer.\n");
     printf("- This native GCC CLI runs the current C Oracle/PASM dispatcher directly.\n");
-    printf("- Native runtime coverage is bounded to strlen, count, and PASM CALL_BUILTIN strlen.\n");
+    printf("- Native runtime coverage is bounded; unsupported builtins return null/fault placeholders during full traversal.\n");
     printf("- Full web/compiler RC tooling remains in the source package under bin/, runtime/, and scripts/.\n");
     return 0;
 }
@@ -358,9 +434,10 @@ static int command_benchmarks(void) {
     printf("  native php -S avg:         11.169 ms\n");
     printf("  jinx worker close avg:     5.555 ms\n");
     printf("  worker/native ratio:       0.50x\n\n");
-    printf("Native GCC benchmark command:\n");
-    printf("  jinx bench-oracle 1000000\n");
-    printf("  jinx bench-first100 100000\n");
+    printf("Native GCC benchmark commands:\n");
+    printf("  ./jinx bench-oracle 1000000\n");
+    printf("  ./jinx bench-first100 100000\n");
+    printf("  ./jinx bench-all-functions 1000\n");
     return 0;
 }
 
@@ -485,6 +562,85 @@ static int command_bench_first100(int argc, char **argv) {
     return 0;
 }
 
+static int command_bench_all_functions(int argc, char **argv) {
+    long iterations = 1000;
+    int strict = 0;
+    size_t calls = jinx_all_function_count;
+    size_t missing = 0;
+    size_t concrete = 0;
+    size_t null_or_fault = 0;
+
+    if (argc >= 3) {
+        iterations = atol(argv[2]);
+    }
+
+    if (argc >= 4 && strcmp(argv[3], "--strict") == 0) {
+        strict = 1;
+    }
+
+    if (iterations <= 0) {
+        iterations = 1;
+    }
+
+    for (size_t n = 0; n < calls; n++) {
+        const char *name = jinx_all_function_names[n];
+        JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
+        JinxValue result;
+
+        if (wrapper == NULL) {
+            if (missing < 20) {
+                fprintf(stderr, "missing dispatch wrapper: %s\n", name);
+            }
+            missing++;
+            continue;
+        }
+
+        if (call_all_function_name(name, &result)) {
+            concrete++;
+        } else {
+            if (null_or_fault < 20) {
+                fprintf(stderr, "null/fault placeholder: %s\n", name);
+            }
+            null_or_fault++;
+        }
+    }
+
+    if (missing != 0) {
+        fprintf(stderr, "FAIL: %zu/%zu names are missing native Oracle dispatch wrappers\n", missing, calls);
+        return 1;
+    }
+
+    if (strict && null_or_fault != 0) {
+        fprintf(stderr, "FAIL: %zu/%zu functions returned null/fault placeholders under --strict\n", null_or_fault, calls);
+        return 1;
+    }
+
+    clock_t start = clock();
+
+    for (long i = 0; i < iterations; i++) {
+        for (size_t n = 0; n < calls; n++) {
+            JinxValue result;
+            (void) call_all_function_name(jinx_all_function_names[n], &result);
+        }
+    }
+
+    clock_t elapsed = clock() - start;
+    double seconds = (double) elapsed / (double) CLOCKS_PER_SEC;
+    double total_calls = (double) iterations * (double) calls;
+
+    printf("JINX native all-functions Oracle dispatch benchmark\n");
+    printf("Functions: %zu\n", calls);
+    printf("Iterations per function: %ld\n", iterations);
+    printf("Sample args per call: %u\n", JINX_NATIVE_SAMPLE_ARGC);
+    printf("Dispatch wrappers present: %zu/%zu\n", calls - missing, calls);
+    printf("Concrete non-null first-pass returns: %zu/%zu\n", concrete, calls);
+    printf("Null/fault placeholder first-pass returns: %zu/%zu\n", null_or_fault, calls);
+    printf("Total dispatches: %.0f\n", total_calls);
+    printf("Elapsed ms: %.3f\n", seconds * 1000.0);
+    printf("Per dispatch ns: %.1f\n", seconds * 1000000000.0 / total_calls);
+    return 0;
+}
+
 static int command_oracle_smoke(void) {
     long long value = 0;
 
@@ -596,6 +752,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "bench-first100") == 0) {
         return command_bench_first100(argc, argv);
+    }
+
+    if (strcmp(argv[1], "bench-all-functions") == 0) {
+        return command_bench_all_functions(argc, argv);
     }
 
     if (strcmp(argv[1], "functions-count") == 0) {
