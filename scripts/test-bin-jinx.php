@@ -33,130 +33,29 @@ if (!str_contains($nativeSource, 'ends_with(argv[1], ".php")') ||
     fail('native ./jinx source does not route .php script paths through PHP');
 }
 
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-oracle-program-compiler.php')
-), $code);
+$tests = [
+    'scripts/test-oracle-program-compiler.php' => 'PASS: OracleProgramCompiler interprets PHP',
+    'scripts/test-zend-arbitrary-code-oracle.php' => 'PASS: Oracle records arbitrary Zend-shaped PHP constructs',
+    'scripts/test-zend-runtime-ops-oracle.php' => 'PASS: Oracle records Zend runtime body ops',
+    'scripts/test-zend-declaration-metadata-oracle.php' => 'PASS: Oracle records Zend declaration metadata',
+    'scripts/test-oracle-straightline-execution.php' => 'PASS: Oracle executes straight-line PHP subset',
+    'scripts/test-oracle-conditional-execution.php' => 'PASS: Oracle executes conditional PHP subset',
+    'scripts/test-oracle-loop-execution.php' => 'PASS: Oracle executes loop PHP subset',
+    'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
+    'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
+    'scripts/test-oracle-execution-families.php' => 'PASS: Oracle execution families expose',
+];
 
-if ($code !== 0) {
-    fail("./jinx PHP script path failed:\n{$out}");
-}
+foreach ($tests as $script => $expected) {
+    $out = run(sprintf('%s %s', $jinxCommand, escapeshellarg($script)), $code);
 
-if (!str_contains($out, 'PASS: OracleProgramCompiler interprets PHP')) {
-    fail("./jinx PHP script path did not run expected test:\n{$out}");
-}
+    if ($code !== 0) {
+        fail("./jinx {$script} failed:\n{$out}");
+    }
 
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-zend-arbitrary-code-oracle.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx arbitrary Zend PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle records arbitrary Zend-shaped PHP constructs')) {
-    fail("./jinx arbitrary Zend PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-zend-runtime-ops-oracle.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Zend runtime ops PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle records Zend runtime body ops')) {
-    fail("./jinx Zend runtime ops PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-zend-declaration-metadata-oracle.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Zend declaration metadata PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle records Zend declaration metadata')) {
-    fail("./jinx Zend declaration metadata PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-oracle-straightline-execution.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Oracle straight-line execution PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle executes straight-line PHP subset')) {
-    fail("./jinx Oracle straight-line execution PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-oracle-conditional-execution.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Oracle conditional execution PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle executes conditional PHP subset')) {
-    fail("./jinx Oracle conditional execution PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-oracle-loop-execution.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Oracle loop execution PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle executes loop PHP subset')) {
-    fail("./jinx Oracle loop execution PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-oracle-array-execution.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Oracle array execution PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle executes array PHP subset')) {
-    fail("./jinx Oracle array execution PHP script path did not run expected test:\n{$out}");
-}
-
-$out = run(sprintf(
-    '%s %s',
-    $jinxCommand,
-    escapeshellarg('scripts/test-oracle-execution-families.php')
-), $code);
-
-if ($code !== 0) {
-    fail("./jinx Oracle execution families PHP script path failed:\n{$out}");
-}
-
-if (!str_contains($out, 'PASS: Oracle execution families expose')) {
-    fail("./jinx Oracle execution families PHP script path did not run expected test:\n{$out}");
+    if (!str_contains($out, $expected)) {
+        fail("./jinx {$script} did not run expected test:\n{$out}");
+    }
 }
 
 $out = run(sprintf(
@@ -213,4 +112,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle execution families, web-plan, web-compile, and web-statements\n";
+echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle function execution, Oracle execution families, web-plan, web-compile, and web-statements\n";
