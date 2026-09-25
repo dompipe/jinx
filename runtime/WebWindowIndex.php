@@ -160,6 +160,42 @@ final class WebWindowIndex
         ], JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) ?: '');
     }
 
+    /** @return array<string,mixed> */
+    public function browserIndexSnapshot(): array
+    {
+        return [
+            'kind' => 'JINX_BROWSER_WINDOW_INDEX',
+            'index_version' => $this->indexVersion,
+            'fingerprint' => $this->residentIndexFingerprint(),
+            'defaults' => $this->pageDefaults,
+            'safety' => [
+                'resident_state' => 'page defaults and arrangements only',
+                'per_user_scale' => 'browser holds the user-visible index; server only sends index snapshots and frames',
+                'live_update_rule' => 'apply frames through JINXWindowIndex.liveUpdate/applyFrame',
+            ],
+        ];
+    }
+
+    public function toBrowserRegistrationScript(): string
+    {
+        $json = json_encode($this->browserIndexSnapshot(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json) || $json === '') {
+            throw new \RuntimeException('Could not encode JINX browser window index snapshot.');
+        }
+
+        return "(function(window){\n"
+            . "  const index = {$json};\n"
+            . "  if (window.JINXWindowIndex && typeof window.JINXWindowIndex.registerIndex === 'function') {\n"
+            . "    window.JINXWindowIndex.registerIndex(index);\n"
+            . "    return;\n"
+            . "  }\n"
+            . "  window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {frames:{}, defaults:{}, windows:{}, history:[]};\n"
+            . "  window.__JINX_WINDOW_INDEX__.index_version = index.index_version || 0;\n"
+            . "  window.__JINX_WINDOW_INDEX__.fingerprint = index.fingerprint || '';\n"
+            . "  window.__JINX_WINDOW_INDEX__.defaults = Object.assign(window.__JINX_WINDOW_INDEX__.defaults || {}, index.defaults || {});\n"
+            . "})(window);";
+    }
+
     /** @param array<string,mixed> $frame */
     public static function toBrowserScript(array $frame): string
     {
@@ -170,6 +206,10 @@ final class WebWindowIndex
 
         return "(function(window, document){\n"
             . "  const frame = {$json};\n"
+            . "  if (window.JINXWindowIndex && typeof window.JINXWindowIndex.liveUpdate === 'function') {\n"
+            . "    window.JINXWindowIndex.liveUpdate(frame);\n"
+            . "    return;\n"
+            . "  }\n"
             . "  window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {frames:{}, defaults:{}, index_version:0};\n"
             . "  window.__JINX_WINDOW_INDEX__.index_version = frame.index_version || window.__JINX_WINDOW_INDEX__.index_version || 0;\n"
             . "  window.__JINX_WINDOW_INDEX__.fingerprint = frame.resident_index_fingerprint || null;\n"
