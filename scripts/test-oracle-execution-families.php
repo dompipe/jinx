@@ -16,6 +16,7 @@ require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleScalarBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleAppBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleMathBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleExecutionFamilies;
@@ -29,8 +30,8 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 
-if (count($families) < 70) {
-    fail('expected at least 70 executable Oracle families, found ' . count($families));
+if (count($families) < 101) {
+    fail('expected at least 101 executable Oracle families, found ' . count($families));
 }
 
 $requiredFamilies = [
@@ -41,6 +42,8 @@ $requiredFamilies = [
     'is-string-builtins', 'is-int-builtins', 'is-array-builtins', 'is-bool-builtins', 'is-null-builtins', 'intval-builtins', 'strval-builtins', 'boolval-builtins', 'floatval-builtins', 'is-numeric-builtins',
     'str-contains-builtins', 'str-starts-with-builtins', 'str-ends-with-builtins', 'stripos-builtins', 'strrpos-builtins', 'strstr-builtins', 'substr-count-builtins', 'wordwrap-builtins', 'sprintf-builtins', 'number-format-builtins',
     'array-combine-builtins', 'array-flip-builtins', 'array-diff-builtins', 'array-intersect-builtins', 'array-search-builtins', 'array-column-builtins', 'array-chunk-builtins', 'range-builtins', 'array-change-key-case-builtins', 'array-fill-builtins',
+    'urlencode-builtins', 'urldecode-builtins', 'rawurlencode-builtins', 'rawurldecode-builtins', 'http-build-query-builtins', 'parse-url-builtins', 'htmlspecialchars-builtins', 'html-entity-decode-builtins', 'strip-tags-builtins', 'nl2br-builtins',
+    'floor-builtins', 'ceil-builtins', 'sqrt-builtins', 'pow-builtins', 'fmod-builtins', 'intdiv-builtins', 'deg2rad-builtins', 'rad2deg-builtins', 'sin-builtins', 'cos-builtins', 'tan-builtins', 'asin-builtins', 'acos-builtins', 'atan-builtins', 'log-builtins', 'exp-builtins', 'pi-builtins', 'hypot-builtins', 'is-finite-builtins', 'is-infinite-builtins', 'is-nan-builtins',
 ];
 
 foreach ($requiredFamilies as $family) {
