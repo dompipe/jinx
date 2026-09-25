@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/OracleStraightLineExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleConditionalExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleConditionalExecutor;
 use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleLoopExecutor;
 use jinx\oracle\OracleStraightLineExecutor;
 
 function fail(string $message): never
@@ -25,12 +27,10 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $families = OracleExecutionFamilies::all();
 
-if (!isset($families['straight-line'])) {
-    fail('missing straight-line execution family');
-}
-
-if (!isset($families['conditionals'])) {
-    fail('missing conditionals execution family');
+foreach (['straight-line', 'conditionals', 'loops'] as $family) {
+    if (!isset($families[$family])) {
+        fail("missing {$family} execution family");
+    }
 }
 
 $straightLine = OracleExecutionFamilies::get('straight-line');
@@ -75,4 +75,22 @@ foreach (['&&', '||', '!'] as $operator) {
     }
 }
 
-echo "PASS: Oracle execution families expose the straight-line and conditionals executable families" . PHP_EOL;
+$loops = OracleExecutionFamilies::get('loops');
+
+same($loops['state'] ?? null, 'executable', 'loops state');
+same($loops['owner'] ?? null, OracleLoopExecutor::class, 'loops owner');
+same($loops['test'] ?? null, 'scripts/test-oracle-loop-execution.php', 'loops test');
+
+foreach (['O_WHILE', 'O_BREAK', 'O_CONTINUE', 'O_IF', 'O_BLOCK_CLOSE', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_ECHO', 'O_RETURN'] as $op) {
+    if (!in_array($op, $loops['ops'] ?? [], true)) {
+        fail("loops family missing {$op}");
+    }
+}
+
+foreach (['while', 'break', 'continue'] as $flow) {
+    if (!in_array($flow, $loops['control_flow'] ?? [], true)) {
+        fail("loops family missing control flow {$flow}");
+    }
+}
+
+echo "PASS: Oracle execution families expose the straight-line, conditionals, and loops executable families" . PHP_EOL;
