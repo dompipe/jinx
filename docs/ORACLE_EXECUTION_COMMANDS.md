@@ -177,6 +177,12 @@ Runtime owner: `runtime/OracleRegexStringBuiltinExecutor.php`. PHP comparison te
 
 `preg-quote-builtins`, `preg-match-builtins`, `preg-match-all-builtins`, `preg-replace-builtins`, `preg-filter-builtins`, `preg-split-builtins`, `preg-grep-builtins`, `preg-last-error-builtins`, `preg-last-error-msg-builtins`, `fnmatch-builtins`, `strchr-builtins`, `strrchr-builtins`, `stristr-builtins`, `strpbrk-builtins`, `strtok-builtins`, `sscanf-builtins`, `pathinfo-builtins`, `htmlentities-builtins`, `htmlspecialchars-decode-builtins`, `get-html-translation-table-builtins`.
 
+## Array mutation/pointer builtin batch
+
+Runtime owner: `runtime/OracleArrayMutationBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-array-mutation-builtin-execution.php`.
+
+`sort-builtins`, `rsort-builtins`, `asort-builtins`, `arsort-builtins`, `ksort-builtins`, `krsort-builtins`, `natsort-builtins`, `natcasesort-builtins`, `array-push-builtins`, `array-pop-builtins`, `array-shift-builtins`, `array-unshift-builtins`, `array-splice-builtins`, `array-multisort-builtins`, `reset-builtins`, `end-builtins`, `next-builtins`, `prev-builtins`, `current-builtins`, `key-builtins`.
+
 ## Date/time builtin batch
 
 Runtime owner: `runtime/OracleDateTimeBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-date-time-builtin-execution.php`.
