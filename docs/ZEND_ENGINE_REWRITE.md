@@ -18,6 +18,7 @@ runtime/jinx_zend_method_opcode.h
 runtime/jinx_zend_error.h
 runtime/jinx_zend_throw_opcode.h
 runtime/jinx_zend_opcode_vm.h
+runtime/jinx_zend_lowering_fixture.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 native/jinx_zend_smoke.c
@@ -32,6 +33,7 @@ native/jinx_zend_method_opcode_smoke.c
 native/jinx_zend_error_smoke.c
 native/jinx_zend_throw_opcode_smoke.c
 native/jinx_zend_opcode_vm_smoke.c
+native/jinx_zend_lowering_fixture_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -73,6 +75,9 @@ Build and smoke test:
 
 ./scripts/build-zend-opcode-vm-smoke.sh
 ./build/native/jinx-zend-opcode-vm-smoke
+
+./scripts/build-zend-lowering-fixture-smoke.sh
+./build/native/jinx-zend-lowering-fixture-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -127,6 +132,7 @@ JinxZendErrorState warning/error/exception state carrier
 JinxZendThrowable throwable descriptor over Exception/Error-style objects
 JinxZendCatchFrame CATCH lowering frame over active throwable state
 JinxZendVmState combined register VM for foreach/method/throw control flow
+JinxZendVmOp fixture emitters for PHP-shaped foreach/method and throw/catch constructs
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
@@ -189,6 +195,8 @@ CATCH matches active throwable class names or catch-all handlers
 CLEAR_EXCEPTION clears executor and error-state exception slots
 combined opcode VM sequences foreach, method calls, throw/catch, clear-exception, jumps, and halt
 combined opcode VM uses one register stream over arrays, objects, methods, and throwable state
+lowering fixtures emit VM op streams for foreach-method and throw-catch PHP-shaped constructs
+lowered fixture programs run through the combined VM and produce expected register/error state
 executor error state can be cleared
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
@@ -203,13 +211,14 @@ family manifest enumeration
 
 ## Native opcode/control-flow helpers
 
-The combined opcode VM layer is:
+The combined opcode VM and lowering fixture layers are:
 
 ```text
 runtime/jinx_zend_opcode_vm.h
+runtime/jinx_zend_lowering_fixture.h
 ```
 
-It provides:
+They provide:
 
 ```text
 JinxZendVmOpcode
@@ -218,15 +227,18 @@ JinxZendVmOp
 JinxZendVmState
 jinx_zend_vm_state_init
 jinx_zend_vm_run
+jinx_zend_lower_foreach_method_fixture
+jinx_zend_lower_throw_catch_fixture
 ```
 
-Current combined VM smoke executable:
+Current combined VM smoke executables:
 
 ```bash
 ./build/native/jinx-zend-opcode-vm-smoke
+./build/native/jinx-zend-lowering-fixture-smoke
 ```
 
-The VM is register-based and currently sequences `LOAD_CONST`, `FE_RESET`, `FE_FETCH`, `METHOD_CALL`, `THROW`, `CATCH`, `CLEAR_EXCEPTION`, `JMP`, `JMP_IF_EXCEPTION`, and `HALT`. It is the first shared instruction-stream substrate for compiler lowering.
+The VM is register-based and currently sequences `LOAD_CONST`, `FE_RESET`, `FE_FETCH`, `METHOD_CALL`, `THROW`, `CATCH`, `CLEAR_EXCEPTION`, `JMP`, `JMP_IF_EXCEPTION`, and `HALT`. The lowering fixture layer emits stable `JinxZendVmOp` streams for small PHP-shaped constructs so parser/AST lowering can target the same instruction stream next.
 
 ## Native array builtin helpers
 
@@ -386,8 +398,8 @@ Run carried live arrays through `./jinx oracle-call`:
 
 ## Next implementation steps
 
-1. Add opcode/IR lowering fixtures that emit `JinxZendVmOp` streams from small PHP-shaped constructs.
-2. Add parser/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+1. Add parser/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+2. Lower more PHP statements and expressions into `JinxZendVmOp` streams.
 
 ## Rule
 
