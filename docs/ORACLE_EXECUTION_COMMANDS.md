@@ -32,13 +32,13 @@ Use the worker/hot benchmark when checking the speed path where startup and test
 ./jinx scripts/benchmark-oracle-worker-hot.php --only=chr-builtins --iterations=10000
 ```
 
-Use the web back-page hot benchmark for the 89x-style web request aura. PHP stays direct route logic; JINX can run the raw route template or the full response-envelope bridge:
+Use the web back-page hot benchmark for the 89x-style web request aura. PHP stays direct route logic; JINX can run the raw route template or the full response-envelope bridge. Use `--frame-cap` to prebuild and replay a capped shared frame deck so frame construction does not bend the timed section toward PHP:
 
 ```bash
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
-./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=bridge
-./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
 ```
 
 Use the warmed web-request worker benchmark for route logic without socket overhead:
