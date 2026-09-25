@@ -130,7 +130,7 @@ final class OracleObjectInheritanceExecutor
     {
         $methods = [];
         $offset = 0;
-        while (preg_match('/(?:public|protected|private)?\s*function\s+(\w+)\s*\(([^)]*)\)\s*\{/i', $classBody, $m, PREG_OFFSET_CAPTURE, $offset)) {
+        while (preg_match('/(?:public|protected|private)?\s*function\s+(\w+)\s*\(([^)]*)\)\s*(?::\s*[^\{]+)?\s*\{/i', $classBody, $m, PREG_OFFSET_CAPTURE, $offset)) {
             $method = $m[1][0];
             $params = [];
             foreach (array_filter(array_map('trim', explode(',', $m[2][0]))) as $param) {
