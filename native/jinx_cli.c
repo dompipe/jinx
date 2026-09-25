@@ -8,6 +8,8 @@
 
 #define JINX_NATIVE_SAMPLE_ARGC 32u
 
+static void print_value(JinxValue value);
+
 static void usage(const char *argv0) {
     printf("JINX native GCC CLI\n\n");
     printf("Usage:\n");
