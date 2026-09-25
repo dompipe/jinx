@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/WebWindowIndex.php';
+require_once dirname(__DIR__) . '/runtime/WebNoJsIslandRegistrar.php';
 
+use jinx\web\WebNoJsIslandRegistrar;
 use jinx\web\WebWindowIndex;
 
 function fail(string $message): never
@@ -150,6 +152,32 @@ foreach (['<script', 'window.', 'JINXWindowIndex'] as $forbidden) {
     }
 }
 
+$islandFrame = WebNoJsIslandRegistrar::islandFrame('main-window', 'detail', '/jinx/island?window=main-window&zone=detail');
+foreach (['<iframe', 'data-jinx-no-js-island', 'data-jinx-window="main-window"', 'data-jinx-zone="detail"', 'src="/jinx/island?window=main-window&amp;zone=detail"'] as $needle) {
+    if (!str_contains($islandFrame, $needle)) {
+        fail('no-JS island iframe missing expected marker: ' . $needle);
+    }
+}
+
+$islandSet = WebNoJsIslandRegistrar::islandSet('main-window', '/jinx/island', ['detail', 'status']);
+foreach (['data-jinx-no-js-island-set', 'zone=detail', 'zone=status', '<iframe'] as $needle) {
+    if (!str_contains($islandSet, $needle)) {
+        fail('no-JS island set missing expected marker: ' . $needle);
+    }
+}
+
+$islandDocument = WebNoJsIslandRegistrar::islandDocument($third, 'detail', '/jinx/island?window=main-window&zone=detail', 1);
+foreach (['<!doctype html>', 'data-jinx-no-js-island-document', 'http-equiv="refresh"', 'Resident detail default updated', 'data-jinx-island-frame-json'] as $needle) {
+    if (!str_contains($islandDocument, $needle)) {
+        fail('no-JS island document missing expected marker: ' . $needle);
+    }
+}
+foreach (['<script', 'window.', 'JINXWindowIndex', 'EventSource'] as $forbidden) {
+    if (str_contains($islandFrame . $islandSet . $islandDocument, $forbidden)) {
+        fail('no-JS island output contains forbidden script/runtime marker: ' . $forbidden);
+    }
+}
+
 $json = json_encode($third, JSON_UNESCAPED_SLASHES) ?: '';
 foreach (['cookie', 'session', 'authorization', 'request_body'] as $forbidden) {
     if (str_contains(strtolower($json), $forbidden)) {
@@ -157,4 +185,4 @@ foreach (['cookie', 'session', 'authorization', 'request_body'] as $forbidden) {
     }
 }
 
-echo 'PASS: WebWindowIndex emits JINX stream runtime and no-JS registrar DOM frames' . PHP_EOL;
+echo 'PASS: WebWindowIndex emits JINX stream runtime, no-JS registrar DOM frames, and no-JS live islands' . PHP_EOL;
