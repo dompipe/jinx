@@ -42,135 +42,27 @@ static int fail(const char *message) {
     return 1;
 }
 
-static int oracle_strlen(const char *text, long long *out) {
-    JinxValue args[1];
-    args[0] = jinx_value_string(text, (uint32_t) strlen(text));
-
-    JinxValue result = jinx_call_builtin_through_oracle("strlen", args, 1);
-
-    if (result.type != 1u) {
-        return 0;
-    }
-
-    *out = (long long) result.as.i64;
-    return 1;
-}
-
-static int oracle_count(long long count, long long *out) {
-    JinxValue args[1];
-    args[0] = jinx_value_array_count((uint32_t) count);
-
-    JinxValue result = jinx_call_builtin_through_oracle("count", args, 1);
-
-    if (result.type != 1u) {
-        return 0;
-    }
-
-    *out = (long long) result.as.i64;
-    return 1;
-}
-
 static const char *const first100_names[] = {
-    "abs",
-    "acos",
-    "acosh",
-    "addcslashes",
-    "addslashes",
-    "array_all",
-    "array_any",
-    "array_change_key_case",
-    "array_chunk",
-    "array_column",
-    "array_combine",
-    "array_count_values",
-    "array_diff",
-    "array_diff_assoc",
-    "array_diff_key",
-    "array_diff_uassoc",
-    "array_diff_ukey",
-    "array_fill",
-    "array_fill_keys",
-    "array_filter",
-    "array_find",
-    "array_find_key",
-    "array_flip",
-    "array_intersect",
-    "array_intersect_assoc",
-    "array_intersect_key",
-    "array_intersect_uassoc",
-    "array_intersect_ukey",
-    "array_is_list",
-    "array_key_exists",
-    "array_key_first",
-    "array_key_last",
-    "array_keys",
-    "array_map",
-    "array_merge",
-    "array_merge_recursive",
-    "array_pad",
-    "array_product",
-    "array_reduce",
-    "array_replace",
-    "array_replace_recursive",
-    "array_reverse",
-    "array_search",
-    "array_slice",
-    "array_sum",
-    "array_udiff",
-    "array_udiff_assoc",
-    "array_udiff_uassoc",
-    "array_uintersect",
-    "array_uintersect_assoc",
-    "array_uintersect_uassoc",
-    "array_values",
-    "asin",
-    "asinh",
-    "assert",
-    "atan",
-    "atan2",
-    "atanh",
-    "base64_decode",
-    "base64_encode",
-    "base_convert",
-    "basename",
-    "bin2hex",
-    "bindec",
-    "boolval",
-    "cal_days_in_month",
-    "cal_from_jd",
-    "cal_info",
-    "cal_to_jd",
-    "call_user_func",
-    "call_user_func_array",
-    "ceil",
-    "checkdate",
-    "checkdnsrr",
-    "chop",
-    "chr",
-    "chunk_split",
-    "class_exists",
-    "class_implements",
-    "class_parents",
-    "class_uses",
-    "connection_aborted",
-    "connection_status",
-    "constant",
-    "convert_uudecode",
-    "convert_uuencode",
-    "cos",
-    "cosh",
-    "count",
-    "count_chars",
-    "crc32",
-    "crypt",
-    "ctype_alnum",
-    "ctype_alpha",
-    "ctype_cntrl",
-    "ctype_digit",
-    "ctype_graph",
-    "ctype_lower",
-    "ctype_print",
-    "ctype_punct"
+    "abs", "acos", "acosh", "addcslashes", "addslashes",
+    "array_all", "array_any", "array_change_key_case", "array_chunk", "array_column",
+    "array_combine", "array_count_values", "array_diff", "array_diff_assoc", "array_diff_key",
+    "array_diff_uassoc", "array_diff_ukey", "array_fill", "array_fill_keys", "array_filter",
+    "array_find", "array_find_key", "array_flip", "array_intersect", "array_intersect_assoc",
+    "array_intersect_key", "array_intersect_uassoc", "array_intersect_ukey", "array_is_list", "array_key_exists",
+    "array_key_first", "array_key_last", "array_keys", "array_map", "array_merge",
+    "array_merge_recursive", "array_pad", "array_product", "array_reduce", "array_replace",
+    "array_replace_recursive", "array_reverse", "array_search", "array_slice", "array_sum",
+    "array_udiff", "array_udiff_assoc", "array_udiff_uassoc", "array_uintersect", "array_uintersect_assoc",
+    "array_uintersect_uassoc", "array_values", "asin", "asinh", "assert",
+    "atan", "atan2", "atanh", "base64_decode", "base64_encode",
+    "base_convert", "basename", "bin2hex", "bindec", "boolval",
+    "cal_days_in_month", "cal_from_jd", "cal_info", "cal_to_jd", "call_user_func",
+    "call_user_func_array", "ceil", "checkdate", "checkdnsrr", "chop",
+    "chr", "chunk_split", "class_exists", "class_implements", "class_parents",
+    "class_uses", "connection_aborted", "connection_status", "constant", "convert_uudecode",
+    "convert_uuencode", "cos", "cosh", "count", "count_chars",
+    "crc32", "crypt", "ctype_alnum", "ctype_alpha", "ctype_cntrl",
+    "ctype_digit", "ctype_graph", "ctype_lower", "ctype_print", "ctype_punct"
 };
 
 static size_t first100_count(void) {
@@ -208,18 +100,39 @@ static int is_string_name(const char *name) {
         strcmp(name, "crypt") == 0;
 }
 
-static void first100_args(const char *name, JinxValue args[8]) {
-    for (size_t i = 0; i < 8; i++) {
-        args[i] = jinx_value_array_count(4);
+static void seed_sample_args(JinxValue args[JINX_NATIVE_SAMPLE_ARGC]) {
+    for (size_t i = 0; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        switch (i % 8u) {
+            case 0u:
+                args[i] = jinx_value_array_count(4);
+                break;
+            case 1u:
+                args[i] = jinx_value_int(0);
+                break;
+            case 2u:
+                args[i] = jinx_value_string("name", 4);
+                break;
+            case 3u:
+                args[i] = jinx_value_bool(1);
+                break;
+            case 4u:
+                args[i] = jinx_value_string("callback", 8);
+                break;
+            case 5u:
+                args[i] = jinx_value_int(2);
+                break;
+            case 6u:
+                args[i] = jinx_value_string("dompipe", 7);
+                break;
+            default:
+                args[i] = jinx_value_float(1.0);
+                break;
+        }
     }
+}
 
-    args[1] = jinx_value_int(2);
-    args[2] = jinx_value_string("name", 4);
-    args[3] = jinx_value_bool(1);
-    args[4] = jinx_value_string("callback", 8);
-    args[5] = jinx_value_int(0);
-    args[6] = jinx_value_string("dompipe", 7);
-    args[7] = jinx_value_int(1);
+static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPLE_ARGC]) {
+    seed_sample_args(args);
 
     if (strcmp(name, "abs") == 0) {
         args[0] = jinx_value_int(-42);
@@ -241,6 +154,7 @@ static void first100_args(const char *name, JinxValue args[8]) {
 
     if (strcmp(name, "count") == 0) {
         args[0] = jinx_value_array_count(4);
+        args[1] = jinx_value_int(0);
         return;
     }
 
@@ -250,7 +164,8 @@ static void first100_args(const char *name, JinxValue args[8]) {
     }
 
     if (strncmp(name, "ctype_", 6) == 0) {
-        args[0] = jinx_value_string(strcmp(name, "ctype_cntrl") == 0 ? "\n" : "ABC123", strcmp(name, "ctype_cntrl") == 0 ? 1 : 6);
+        const char *text = strcmp(name, "ctype_cntrl") == 0 ? "\n" : "ABC123";
+        args[0] = jinx_value_string(text, (uint32_t) strlen(text));
         return;
     }
 
@@ -258,39 +173,6 @@ static void first100_args(const char *name, JinxValue args[8]) {
         args[0] = jinx_value_bool(1);
         return;
     }
-}
-
-static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPLE_ARGC]) {
-    for (size_t i = 0; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
-        switch (i % 8u) {
-            case 0u:
-                args[i] = jinx_value_array_count(4);
-                break;
-            case 1u:
-                args[i] = jinx_value_int(2);
-                break;
-            case 2u:
-                args[i] = jinx_value_string("name", 4);
-                break;
-            case 3u:
-                args[i] = jinx_value_bool(1);
-                break;
-            case 4u:
-                args[i] = jinx_value_string("callback", 8);
-                break;
-            case 5u:
-                args[i] = jinx_value_int(0);
-                break;
-            case 6u:
-                args[i] = jinx_value_string("dompipe", 7);
-                break;
-            default:
-                args[i] = jinx_value_float(1.0);
-                break;
-        }
-    }
-
-    first100_args(name, args);
 
     if (strstr(name, "strlen") != NULL) {
         args[0] = jinx_value_string("oracle", 6);
@@ -299,6 +181,7 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
 
     if (strstr(name, "count") != NULL || strstr(name, "length") != NULL || strstr(name, "num") != NULL) {
         args[0] = jinx_value_array_count(4);
+        args[1] = jinx_value_int(0);
         return;
     }
 
@@ -320,22 +203,26 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
 
     if (strstr(name, "array") != NULL) {
         args[0] = jinx_value_array_count(4);
+        args[1] = jinx_value_int(0);
         return;
     }
-}
-
-static int call_first100_name(const char *name, JinxValue *out) {
-    JinxValue args[8];
-    first100_args(name, args);
-
-    *out = jinx_call_builtin_through_oracle(name, args, 8);
-    return out->type != 0u;
 }
 
 static int call_all_function_name(const char *name, JinxValue *out) {
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
     all_function_args(name, args);
 
+    *out = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
+    return out->type != 0u;
+}
+
+static int call_first100_name(const char *name, JinxValue *out) {
+    return call_all_function_name(name, out);
+}
+
+static int call_oracle_with_samples(const char *name, JinxValue *out) {
+    JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    all_function_args(name, args);
     *out = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
     return out->type != 0u;
 }
@@ -403,24 +290,9 @@ static int pasm_strlen(const char *text, long long *out) {
     JinxValue result;
 
     const JinxPasmOp program[] = {
-        {
-            .op = JINX_PASM_PUSH_VALUE,
-            .name = NULL,
-            .value = {0},
-            .argc = 0
-        },
-        {
-            .op = JINX_PASM_CALL_BUILTIN,
-            .name = "strlen",
-            .value = {0},
-            .argc = 1
-        },
-        {
-            .op = JINX_PASM_HALT,
-            .name = NULL,
-            .value = {0},
-            .argc = 0
-        }
+        { .op = JINX_PASM_PUSH_VALUE, .name = NULL, .value = {0}, .argc = 0 },
+        { .op = JINX_PASM_CALL_BUILTIN, .name = "strlen", .value = {0}, .argc = 1 },
+        { .op = JINX_PASM_HALT, .name = NULL, .value = {0}, .argc = 0 }
     };
 
     JinxPasmOp mutable_program[3];
@@ -504,8 +376,7 @@ static int command_function_exists(int argc, char **argv) {
         return fail("function-exists requires a function name");
     }
 
-    JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(argv[2]);
-    if (wrapper == NULL) {
+    if (jinx_lookup_oracle_wrapper(argv[2]) == NULL) {
         printf("missing: %s\n", argv[2]);
         return 1;
     }
@@ -629,10 +500,9 @@ static int command_bench_all_functions(int argc, char **argv) {
 
     for (size_t n = 0; n < calls; n++) {
         const char *name = jinx_all_function_names[n];
-        JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
         JinxValue result;
 
-        if (wrapper == NULL) {
+        if (jinx_lookup_oracle_wrapper(name) == NULL) {
             if (missing < 20) {
                 fprintf(stderr, "missing dispatch wrapper: %s\n", name);
             }
@@ -688,13 +558,14 @@ static int command_bench_all_functions(int argc, char **argv) {
 
 static int command_oracle_smoke(void) {
     long long value = 0;
+    JinxValue result;
 
-    if (!oracle_strlen("oracle", &value) || value != 6) {
+    if (!call_oracle_with_samples("strlen", &result) || result.type != 1u || result.as.i64 != 6) {
         return fail("Oracle strlen did not return 6");
     }
 
-    if (!oracle_count(3, &value) || value != 3) {
-        return fail("Oracle count did not return 3");
+    if (!call_oracle_with_samples("count", &result) || result.type != 1u || result.as.i64 != 4) {
+        return fail("Oracle count did not return 4");
     }
 
     if (!pasm_strlen("oracle", &value) || value != 6) {
@@ -735,7 +606,7 @@ static int command_oracle_call(int argc, char **argv) {
         args[i] = parse_cli_value(argv[i + 3]);
     }
 
-    result = jinx_call_builtin_through_oracle(name, args, (size_t)supplied_argc > 0u ? (size_t)supplied_argc : JINX_NATIVE_SAMPLE_ARGC);
+    result = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
 
     if (result.type == 0u) {
         fprintf(stderr, "null/fault: %s\n", name);
@@ -748,7 +619,7 @@ static int command_oracle_call(int argc, char **argv) {
 
 static int command_bench_oracle(int argc, char **argv) {
     long iterations = 1000000;
-    long long value = 0;
+    JinxValue value;
 
     if (argc >= 3) {
         iterations = atol(argv[2]);
@@ -761,7 +632,7 @@ static int command_bench_oracle(int argc, char **argv) {
     clock_t start = clock();
 
     for (long i = 0; i < iterations; i++) {
-        if (!oracle_strlen("oracle", &value)) {
+        if (!call_oracle_with_samples("strlen", &value)) {
             return fail("Oracle strlen failed during benchmark");
         }
     }
@@ -772,7 +643,9 @@ static int command_bench_oracle(int argc, char **argv) {
 
     printf("JINX native Oracle strlen benchmark\n");
     printf("Iterations: %ld\n", iterations);
-    printf("Result: %lld\n", value);
+    printf("Result: ");
+    print_value(value);
+    printf("\n");
     printf("Elapsed ms: %.3f\n", seconds * 1000.0);
     printf("Per call ns: %.1f\n", ns_per_call);
     return 0;
