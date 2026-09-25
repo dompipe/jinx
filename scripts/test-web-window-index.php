@@ -97,6 +97,23 @@ foreach (['JINXWindowIndex.liveUpdate', 'window.__JINX_WINDOW_INDEX__', 'index_v
     }
 }
 
+$streamBoot = $index->toBrowserStreamBootScript('/jinx/window-stream', 'main-stream');
+foreach (['EventSource', 'connectStream', '/jinx/window-stream', 'main-stream', 'jinx-window-stream-connected', 'jinx-window-frame'] as $needle) {
+    if (!str_contains($streamBoot, $needle)) {
+        fail('browser stream boot script missing expected marker: ' . $needle);
+    }
+}
+
+$sse = WebWindowIndex::toServerSentEventFrame($third);
+foreach (['event: jinx-window-frame', 'data: {', 'JINX_WINDOW_INDEX_FRAME', 'Resident detail default updated'] as $needle) {
+    if (!str_contains($sse, $needle)) {
+        fail('server-sent event frame missing expected marker: ' . $needle);
+    }
+}
+if (!str_ends_with($sse, "\n\n")) {
+    fail('server-sent event frame does not terminate with a blank line');
+}
+
 $registrarHtml = $index->toNoJsRegistrarHtml();
 foreach (['data-jinx-no-js-registrar', 'data-jinx-index-json', 'data-jinx-page-default', 'Updated Resident Feed'] as $needle) {
     if (!str_contains($registrarHtml, $needle)) {
@@ -140,4 +157,4 @@ foreach (['cookie', 'session', 'authorization', 'request_body'] as $forbidden) {
     }
 }
 
-echo 'PASS: WebWindowIndex emits JINX browser runtime and no-JS registrar DOM frames' . PHP_EOL;
+echo 'PASS: WebWindowIndex emits JINX stream runtime and no-JS registrar DOM frames' . PHP_EOL;
