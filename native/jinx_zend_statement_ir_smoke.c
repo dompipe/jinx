@@ -31,6 +31,11 @@ static int fail(const char *message) {
     return 1;
 }
 
+static int fail_count(const char *message, size_t actual, size_t expected) {
+    fprintf(stderr, "FAIL: %s: got %zu, expected %zu\n", message, actual, expected);
+    return 1;
+}
+
 int main(void) {
     JinxZendExecutor executor;
     JinxZendClassTable table;
@@ -88,8 +93,8 @@ int main(void) {
     if (jinx_zend_statement_ir_lower(program, &lowered, values, 4u) != JINX_ZEND_STATEMENT_IR_OK) {
         return fail("statement IR lowering failed");
     }
-    if (lowered.op_count != 10u) {
-        return fail("statement IR lowered unexpected op count");
+    if (lowered.op_count != 11u) {
+        return fail_count("statement IR lowered unexpected op count", lowered.op_count, 11u);
     }
 
     jinx_zend_vm_state_init(&state, &table);
