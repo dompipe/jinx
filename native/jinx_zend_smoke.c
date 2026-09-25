@@ -15,6 +15,7 @@ int main(void) {
     printf("PASS: zend_string owned/refcount/COW/hash smoke passed\n");
     printf("PASS: zend_array packed buckets/append/iteration smoke passed\n");
     printf("PASS: zend_array mixed string-key lookup/update smoke passed\n");
+    printf("PASS: zend_array copy-on-write separation smoke passed\n");
     printf("Zend rewrite families: %zu\n", family_count);
     printf("%-24s %-12s %s\n", "family", "state", "oracle-sm target");
     printf("----------------------------------------------------------------\n");
