@@ -83,6 +83,32 @@ final class CoalescedOracleCompiler
 
                         continue;
                     }
+
+                    if ($type === 'interpolated') {
+                        $template = base64_decode($raw, true);
+                        if (!is_string($template)) {
+                            throw new \RuntimeException("Invalid interpolated assignment payload: {$line}");
+                        }
+
+                        $value = self::interpolateString($template, $knownLocals, false);
+                        if ($value !== null) {
+                            $knownLocals[$local] = $value;
+                            $ops[] = [
+                                'op' => 'OMOV_CONST_LOCAL',
+                                'dst' => $local,
+                                'value' => $value,
+                            ];
+                            continue;
+                        }
+
+                        unset($knownLocals[$local]);
+                        $ops[] = [
+                            'op' => 'OMOV_INTERPOLATED_STRING_LOCAL',
+                            'dst' => $local,
+                            'template' => $template,
+                        ];
+                        continue;
+                    }
                 }
 
                 if (count($parts) === 7 && in_array($type, ['add', 'sub', 'mul'], true)) {
@@ -255,6 +281,10 @@ final class CoalescedOracleCompiler
                     $locals[$op['dst']] = $op['value'];
                     break;
 
+                case 'OMOV_INTERPOLATED_STRING_LOCAL':
+                    $locals[$op['dst']] = self::interpolateString((string) $op['template'], $locals, true);
+                    break;
+
                 case 'OMOV_ADD_LOCAL':
                     $locals[$op['dst']] = $readLocal($op['left']) + $readLocal($op['right']);
                     break;
@@ -292,6 +322,44 @@ final class CoalescedOracleCompiler
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,mixed> $locals
+     */
+    private static function interpolateString(string $template, array $locals, bool $strict): ?string
+    {
+        $placeholder = "\0JINX_ESCAPED_DOLLAR\0";
+        $body = str_replace('\\$', $placeholder, $template);
+
+        $replace = static function (array $m) use ($locals, $strict): string {
+            $name = $m[1];
+            $local = 'LOCAL:' . $name;
+            if (!array_key_exists($local, $locals)) {
+                if ($strict) {
+                    throw new \RuntimeException("Missing interpolated local: {$name}");
+                }
+                throw new \UnexpectedValueException('unknown local');
+            }
+            return (string) $locals[$local];
+        };
+
+        try {
+            $body = preg_replace_callback('/\{\s*\$(\w+)\s*\}/', $replace, $body) ?? $body;
+            $body = preg_replace_callback('/\$(\w+)/', $replace, $body) ?? $body;
+        } catch (\UnexpectedValueException) {
+            return null;
+        }
+
+        $body = str_replace($placeholder, '$', $body);
+
+        return strtr($body, [
+            '\\n' => "\n",
+            '\\r' => "\r",
+            '\\t' => "\t",
+            '\\\\' => '\\',
+            '\\"' => '"',
+        ]);
     }
 
     public static function compileJinxToClosure(string $jinx): callable
