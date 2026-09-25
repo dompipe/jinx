@@ -34,13 +34,25 @@ It supports four browser output modes:
 Run this from the repository root:
 
 ```bash
-php -S 127.0.0.1:8099 scripts/demo-no-js-islands.php
+./jinx scripts/serve-no-js-islands-demo.php
 ```
 
 Then open:
 
 ```text
 http://127.0.0.1:8099/
+```
+
+Use this non-serving check in scripts and CI:
+
+```bash
+./jinx scripts/serve-no-js-islands-demo.php --check
+```
+
+The demo server helper starts the PHP built-in HTTP listener for the browser:
+
+```bash
+php -S 127.0.0.1:8099 scripts/demo-no-js-islands.php
 ```
 
 The demo shows:
@@ -116,13 +128,16 @@ The page arrangement/index is resident. The request context stays fresh and isol
 runtime/WebWindowIndex.php
 runtime/WebNoJsIslandRegistrar.php
 scripts/demo-no-js-islands.php
+scripts/serve-no-js-islands-demo.php
 ```
 
 `runtime/WebWindowIndex.php` owns the server-side resident index and emits the browser runtime, stream frames, and no-JS registrar documents.
 
 `runtime/WebNoJsIslandRegistrar.php` emits browser-native no-JS live islands.
 
-`scripts/demo-no-js-islands.php` is a runnable demo/router for seeing the definition and working island page.
+`scripts/demo-no-js-islands.php` is the demo/router for seeing the definition and working island page.
+
+`scripts/serve-no-js-islands-demo.php` is the `./jinx` entry point that starts the browser demo server.
 
 The old optional file remains available:
 
@@ -328,6 +343,7 @@ A normal `feedWindow()` call does not mutate the resident index. It only creates
 
 ```bash
 ./jinx scripts/test-web-window-index.php
+./jinx scripts/serve-no-js-islands-demo.php --check
 ./jinx scripts/test-jinx-native-suite.php
 ```
 
@@ -347,6 +363,7 @@ The test proves:
 - no-JS document output can include browser-native refresh
 - no-JS island output keeps the parent page loaded while islands refresh independently
 - the demo page emits a visible no-JS live-island definition
+- the demo server helper exposes a non-serving check mode
 - one page's arrangement does not leak into the next page
 - forbidden request-state fields are not resident in the frame
 ```
