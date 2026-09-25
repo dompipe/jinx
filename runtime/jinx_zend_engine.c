@@ -1,5 +1,6 @@
 #include "jinx_zend_engine.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 JinxZendValue jinx_zend_null(void) {
@@ -34,10 +35,94 @@ JinxZendValue jinx_zend_double(double v) {
 JinxZendString jinx_zend_string_view(const char *bytes, size_t len) {
     JinxZendString string;
     string.refcount = 1;
-    string.flags = 0;
+    string.flags = JINX_ZEND_STRING_INTERNED;
     string.len = len;
-    string.bytes = bytes;
+    string.capacity = len;
+    string.bytes = (char *)bytes;
     return string;
+}
+
+JinxZendString *jinx_zend_string_new(const char *bytes, size_t len) {
+    JinxZendString *string = (JinxZendString *)calloc(1, sizeof(JinxZendString));
+    if (string == 0) {
+        return 0;
+    }
+
+    string->bytes = (char *)calloc(len + 1u, sizeof(char));
+    if (string->bytes == 0) {
+        free(string);
+        return 0;
+    }
+
+    if (bytes != 0 && len != 0) {
+        memcpy(string->bytes, bytes, len);
+    }
+
+    string->refcount = 1;
+    string->flags = JINX_ZEND_STRING_OWNED;
+    string->len = len;
+    string->capacity = len;
+    string->bytes[len] = '\0';
+    return string;
+}
+
+JinxZendString *jinx_zend_string_retain(JinxZendString *string) {
+    if (string != 0 && (string->flags & JINX_ZEND_STRING_INTERNED) == 0) {
+        string->refcount++;
+    }
+
+    return string;
+}
+
+void jinx_zend_string_release(JinxZendString *string) {
+    if (string == 0 || (string->flags & JINX_ZEND_STRING_INTERNED) != 0) {
+        return;
+    }
+
+    if (string->refcount > 1u) {
+        string->refcount--;
+        return;
+    }
+
+    if ((string->flags & JINX_ZEND_STRING_OWNED) != 0) {
+        free(string->bytes);
+    }
+
+    free(string);
+}
+
+JinxZendString *jinx_zend_string_separate(JinxZendString **slot) {
+    JinxZendString *string;
+    JinxZendString *copy;
+
+    if (slot == 0 || *slot == 0) {
+        return 0;
+    }
+
+    string = *slot;
+    if ((string->flags & JINX_ZEND_STRING_INTERNED) == 0 && string->refcount == 1u &&
+        (string->flags & JINX_ZEND_STRING_OWNED) != 0) {
+        return string;
+    }
+
+    copy = jinx_zend_string_new(string->bytes, string->len);
+    if (copy == 0) {
+        return 0;
+    }
+
+    jinx_zend_string_release(string);
+    *slot = copy;
+    return copy;
+}
+
+int jinx_zend_string_set_byte(JinxZendString **slot, size_t offset, char byte) {
+    JinxZendString *string = jinx_zend_string_separate(slot);
+    if (string == 0 || offset >= string->len || string->bytes == 0) {
+        return 0;
+    }
+
+    string->bytes[offset] = byte;
+    return 1;
 }
 
 JinxZendValue jinx_zend_string_value(JinxZendString *string) {
@@ -114,7 +199,7 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "build/oracle-asm/zend/zval.oracle_asm.h",
         "runtime/pasm/zend/zval.pasm",
         "started",
-        "Native JinxZendValue exists; next step is copy-on-write/refcount semantics."
+        "Native JinxZendValue exists; next step is zval copy/destruct helpers for arrays, objects, and references."
     },
     {
         "zend_string",
@@ -123,7 +208,7 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "build/oracle-asm/zend/string.oracle_asm.h",
         "runtime/pasm/zend/string.pasm",
         "started",
-        "String view exists; next step is owned allocation, interned strings, hash cache, and binary-safe ops."
+        "Owned strings, borrowed views, retain/release, and copy-on-write separation exist. Next: interned-string table and hash cache."
     },
     {
         "HashTable/zend_array",
@@ -184,17 +269,42 @@ int jinx_zend_smoke(void) {
     JinxZendExecutor executor;
     JinxZendCallFrame frame;
     JinxZendValue args[2];
-    JinxZendString string = jinx_zend_string_view("oracle", 6);
+    JinxZendString view = jinx_zend_string_view("oracle", 6);
+    JinxZendString *owned = jinx_zend_string_new("dompipe", 7);
+    JinxZendString *alias;
     JinxZendArray array = jinx_zend_array_count_view(4);
     JinxZendValue result;
+    int ok;
+
+    if (owned == 0) {
+        return 0;
+    }
+
+    alias = jinx_zend_string_retain(owned);
+    if (alias == 0 || owned->refcount != 2u) {
+        jinx_zend_string_release(owned);
+        return 0;
+    }
+
+    ok = jinx_zend_string_set_byte(&alias, 0, 'J');
+    if (!ok || alias == owned || alias->refcount != 1u || owned->refcount != 1u ||
+        alias->bytes[0] != 'J' || owned->bytes[0] != 'd') {
+        jinx_zend_string_release(alias);
+        jinx_zend_string_release(owned);
+        return 0;
+    }
 
     jinx_zend_executor_init(&executor);
-    args[0] = jinx_zend_string_value(&string);
+    args[0] = jinx_zend_string_value(&view);
     args[1] = jinx_zend_array_value(&array);
 
     jinx_zend_frame_enter(&executor, &frame, "zend-smoke", args, 2);
-    result = jinx_zend_frame_leave(&executor, jinx_zend_long((int64_t)(string.len + array.count)));
+    result = jinx_zend_frame_leave(&executor, jinx_zend_long((int64_t)(view.len + array.count + alias->len)));
 
-    return executor.current_frame == 0 && executor.executed_ops == 2 &&
-        result.type == JINX_ZEND_LONG && result.value.lval == 10;
+    ok = executor.current_frame == 0 && executor.executed_ops == 2 &&
+        result.type == JINX_ZEND_LONG && result.value.lval == 17;
+
+    jinx_zend_string_release(alias);
+    jinx_zend_string_release(owned);
+    return ok;
 }
