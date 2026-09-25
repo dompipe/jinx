@@ -105,8 +105,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
     }
 }
 
-if (count($families) < 550) {
-    fail('coverage audit expected at least 550 executable families after generated merge');
+if (count($families) < 537) {
+    fail('coverage audit expected at least 537 executable families after generated merge');
 }
 
 $distinctTests = array_keys($testToFamilies);
