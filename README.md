@@ -9,6 +9,7 @@ The RC focuses on:
 - A generated compact wrapper dispatch table for 3,527 PHP callable signatures.
 - An Oracle-shaped PHP dispatch table for the first hot worker-safe builtin benchmark set.
 - A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
+- Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
 - PHP comparison benchmarks for validated callable builtin cases.
 - Benchmarks for endpoint execution, worker serving, PASM-shaped execution forms, generated wrapper overhead, and native Oracle dispatch.
@@ -23,6 +24,10 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx oracle-smoke
 ./jinx functions-count
 ./jinx functions-smoke
+./jinx function-exists strlen
+./jinx oracle-call strlen s:oracle
+./jinx oracle-call abs i:-42
+./jinx oracle-call array_values a:4
 ./jinx first100
 ./jinx first100-list
 ./jinx bench-first100 100000
@@ -37,7 +42,40 @@ Strict all-functions check:
 ./jinx bench-all-functions 1000 --strict
 ```
 
-`--strict` fails if any generated function returns a null/fault placeholder. Non-strict mode is the normal traversal benchmark while the C Oracle runtime is still filling in behavioral handlers for every imported PHP builtin.
+`--strict` fails if any generated function returns a null/fault placeholder. Non-strict mode is the normal traversal benchmark while the C Oracle runtime is still filling in exact behavioral handlers for every imported PHP builtin.
+
+## Native `oracle-call`
+
+`oracle-call` is the native direct-call entrypoint. It checks the generated Oracle dispatch table, converts CLI arguments into `JinxValue` slots, and calls the requested wrapper from the `./jinx` executable.
+
+```bash
+./jinx oracle-call <function> [typed-args...]
+```
+
+Typed CLI arguments:
+
+```text
+i:<int>       integer value
+f:<float>     floating point value
+b:true|false  boolean value
+s:<text>      string value
+a:<count>     array-count stand-in
+null          null value
+raw text      defaults to string
+```
+
+Examples:
+
+```bash
+./jinx oracle-call strlen s:oracle
+./jinx oracle-call count a:4
+./jinx oracle-call abs i:-42
+./jinx oracle-call acos f:1.0
+./jinx oracle-call str_contains s:dompipe s:pipe
+./jinx oracle-call DateTime::format s:Y-m-d
+```
+
+Important distinction: every generated name is callable through this entrypoint if it exists in the generated native dispatch table. Exact PHP-compatible behavior is still being filled in by replacing coarse native handler families with exact builtin implementations.
 
 ## PHP vs Native `./jinx` Benchmark
 
@@ -69,8 +107,9 @@ To compile an actual `jinx` executable with GCC in WSL or another GCC-compatible
 ```bash
 ./scripts/build-native-jinx.sh
 ./jinx oracle-smoke
-./jinx oracle-call strlen oracle
-./jinx oracle-call count 3
+./jinx oracle-call strlen s:oracle
+./jinx oracle-call count a:3
+./jinx oracle-call abs i:-42
 ./jinx bench-oracle 1000000
 ./jinx functions-count
 ./jinx functions-smoke
@@ -102,6 +141,7 @@ build/oracle-asm/stubs/runtime-reflection-8-4-23.oracle_asm.h
 Current native runtime behavior is intentionally explicit:
 
 - all 3,527 generated names can be checked for native Oracle dispatch-wrapper presence;
+- `oracle-call` can invoke any generated name through the native `./jinx` executable;
 - the first 100 benchmark functions execute through the C Oracle path with deterministic native sample values;
 - `bench-all-functions` traverses every generated wrapper with deterministic sample argument slots;
 - `bench-all-functions` reports concrete non-null returns separately from null/fault placeholder returns;
@@ -128,6 +168,7 @@ Implemented and verified in this package:
 - 3,527 worker-style native wrapper records are generated from `spec/php-functions.from-runtime.json`.
 - The native GCC CLI includes all 3,527 generated function names.
 - `functions-smoke` verifies that every generated name resolves to a generated Oracle wrapper.
+- `oracle-call` invokes any generated name through the native `./jinx` Oracle dispatch table.
 - `first100` executes the first 100 benchmark functions through C Oracle dispatch with deterministic sample values.
 - `bench-first100` times that first-100 C Oracle dispatch set.
 - `bench-all-functions` traverses the full generated native dispatch surface and reports concrete versus placeholder returns.
@@ -142,7 +183,7 @@ Not claimed as complete:
 - A full native PE/ELF compiler.
 - Full PHP behavioral parity for every imported signature.
 - Runtime execution of unsafe filesystem, process, network, session, database, or environment-mutating PHP functions in the worker.
-- Complete C behavior handlers for every generated PHP builtin.
+- Complete exact C behavior handlers for every generated PHP builtin.
 
 ## Important Files
 
@@ -202,7 +243,7 @@ php bin/jinx bench-worker
 php bin/jinx bench-endpoint
 ```
 
-Use the native `./jinx` executable for native Oracle/PASM timing.
+Use the native `./jinx` executable for native Oracle/PASM timing and direct generated-function calls.
 
 ## Package Contents
 
