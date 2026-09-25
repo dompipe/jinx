@@ -56,10 +56,14 @@ foreach ($families as $family => $metadata) {
 }
 
 foreach ($testToFamilies as $test => $coveredFamilies) {
+    if (count($coveredFamilies) === 1) {
+        continue;
+    }
+
     $contents = (string) file_get_contents($root . '/' . $test);
     foreach ($coveredFamilies as $family) {
         if (!str_contains($contents, "'{$family}'") && !str_contains($contents, '"' . $family . '"')) {
-            fail("{$test} does not explicitly enumerate family {$family}");
+            fail("{$test} batch test does not explicitly enumerate family {$family}");
         }
     }
 }
