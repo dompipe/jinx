@@ -46,7 +46,7 @@ for ($i = 1; $i <= 175; $i++) {
     }
 }
 
-foreach (['generated-pure-builtin-001', 'generated-pure-builtin-088', 'generated-pure-builtin-175'] as $marker) {
+foreach (['generated-pure-builtin-001', 'generated-pure-builtin-175', 'generated-pure-builtin-001 through generated-pure-builtin-175'] as $marker) {
     if (!str_contains($docs, $marker)) {
         fail("docs missing marker {$marker}");
     }
