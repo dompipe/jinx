@@ -105,7 +105,7 @@ foreach ($cases as $family => $expression) {
     clearstatcache(true, $extraFile);
     clearstatcache(true, $subDir);
     $php = run_php_fixture($fixture);
-    $program = OracleProgramCompiler::compileFile($fixture, $family);
+    $program = OracleProgramCompiler::interpretAnyPhpFileToOracleProgram($fixture);
     clearstatcache(true, $dataFile);
     clearstatcache(true, $extraFile);
     clearstatcache(true, $subDir);
