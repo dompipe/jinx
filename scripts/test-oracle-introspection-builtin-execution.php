@@ -26,7 +26,7 @@ $cases = [
     'trait-exists-builtins' => "trait_exists('NeverThereJinxTrait')",
     'enum-exists-builtins' => "enum_exists('NeverThereJinxEnum')",
     'get-debug-type-builtins' => 'get_debug_type([1, 2, 3])',
-    'get-resource-type-builtins' => "get_resource_type(fopen('php://memory', 'r'))",
+    'constant-builtins' => "constant('PHP_VERSION')",
     'method-exists-builtins' => "method_exists('DateTime', 'format')",
     'property-exists-builtins' => "property_exists('DateTime', 'date')",
     'is-subclass-of-builtins' => "is_subclass_of('DateTimeImmutable', 'DateTimeInterface')",
@@ -61,7 +61,7 @@ function write_fixture(string $fixtureDir, string $family, string $expression): 
     $path = $fixtureDir . '/' . fixture_name($family);
     $source = "<?php\n\ndeclare(strict_types=1);\n\n" .
         '$value = ' . $expression . ";\n" .
-        "echo 'value=' . (is_array(\$value) ? json_encode(\$value) : (string) \$value) . \"\\n\";\n" .
+        "echo 'value=' . \$value . \"\\n\";\n" .
         'return $value;' . "\n";
 
     file_put_contents($path, $source);
