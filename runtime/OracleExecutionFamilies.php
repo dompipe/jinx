@@ -146,6 +146,19 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'file-exists-builtins' => ['file_exists'], 'is-file-builtins' => ['is_file'], 'is-dir-builtins' => ['is_dir'],
+            'is-readable-builtins' => ['is_readable'], 'is-writable-builtins' => ['is_writable'], 'filesize-builtins' => ['filesize'],
+            'filetype-builtins' => ['filetype'], 'fileperms-builtins' => ['fileperms'], 'fileinode-builtins' => ['fileinode'],
+            'filemtime-builtins' => ['filemtime'], 'filectime-builtins' => ['filectime'], 'realpath-builtins' => ['realpath'],
+            'stat-builtins' => ['stat', 'json_encode'], 'lstat-builtins' => ['lstat', 'json_encode'],
+            'file-get-contents-builtins' => ['file_get_contents'], 'file-lines-builtins' => ['file', 'json_encode'],
+            'md5-file-builtins' => ['md5_file'], 'sha1-file-builtins' => ['sha1_file'],
+            'hash-file-builtins' => ['hash_file'], 'glob-builtins' => ['glob', 'json_encode'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleFilesystemBuiltinExecutor::class, 'scripts/test-oracle-filesystem-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'chr-builtins' => ['chr'], 'ord-builtins' => ['ord'], 'strcmp-builtins' => ['strcmp'], 'strcasecmp-builtins' => ['strcasecmp'],
             'strncmp-builtins' => ['strncmp'], 'strncasecmp-builtins' => ['strncasecmp'], 'substr-compare-builtins' => ['substr_compare'],
             'similar-text-builtins' => ['similar_text'], 'levenshtein-builtins' => ['levenshtein'], 'soundex-builtins' => ['soundex'],
