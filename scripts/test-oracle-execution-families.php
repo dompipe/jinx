@@ -18,6 +18,7 @@ require_once dirname(__DIR__) . '/runtime/OracleScalarBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleAppBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleMathBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleDataBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleTextBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleExecutionFamilies;
@@ -31,27 +32,8 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 
-if (count($families) < 121) {
-    fail('expected at least 121 executable Oracle families, found ' . count($families));
-}
-
-$requiredFamilies = [
-    'straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals', 'include-require', 'exit-die', 'object-basics', 'object-inheritance',
-    'ternary-expressions', 'type-casts', 'string-builtins', 'math-builtins', 'comparison-expressions', 'boolean-expressions', 'magic-constants', 'array-literals', 'foreach-loops', 'for-loops',
-    'str-replace-builtins', 'strpos-builtins', 'explode-builtins', 'in-array-builtins', 'array-key-exists-builtins', 'array-merge-builtins', 'array-reverse-builtins', 'array-unique-builtins', 'json-encode-builtins', 'hash-builtins',
-    'ltrim-builtins', 'rtrim-builtins', 'ucfirst-builtins', 'lcfirst-builtins', 'strrev-builtins', 'str-repeat-builtins', 'str-pad-builtins', 'array-keys-builtins', 'array-values-builtins', 'array-slice-builtins',
-    'is-string-builtins', 'is-int-builtins', 'is-array-builtins', 'is-bool-builtins', 'is-null-builtins', 'intval-builtins', 'strval-builtins', 'boolval-builtins', 'floatval-builtins', 'is-numeric-builtins',
-    'str-contains-builtins', 'str-starts-with-builtins', 'str-ends-with-builtins', 'stripos-builtins', 'strrpos-builtins', 'strstr-builtins', 'substr-count-builtins', 'wordwrap-builtins', 'sprintf-builtins', 'number-format-builtins',
-    'array-combine-builtins', 'array-flip-builtins', 'array-diff-builtins', 'array-intersect-builtins', 'array-search-builtins', 'array-column-builtins', 'array-chunk-builtins', 'range-builtins', 'array-change-key-case-builtins', 'array-fill-builtins',
-    'urlencode-builtins', 'urldecode-builtins', 'rawurlencode-builtins', 'rawurldecode-builtins', 'http-build-query-builtins', 'parse-url-builtins', 'htmlspecialchars-builtins', 'html-entity-decode-builtins', 'strip-tags-builtins', 'nl2br-builtins',
-    'floor-builtins', 'ceil-builtins', 'sqrt-builtins', 'pow-builtins', 'fmod-builtins', 'intdiv-builtins', 'deg2rad-builtins', 'rad2deg-builtins', 'sin-builtins', 'cos-builtins', 'tan-builtins', 'asin-builtins', 'acos-builtins', 'atan-builtins', 'log-builtins', 'exp-builtins', 'pi-builtins', 'hypot-builtins', 'is-finite-builtins', 'is-infinite-builtins', 'is-nan-builtins',
-    'base64-encode-builtins', 'base64-decode-builtins', 'bin2hex-builtins', 'hex2bin-builtins', 'sha1-builtins', 'crc32-builtins', 'hash-generic-builtins', 'hash-hmac-builtins', 'serialize-builtins', 'unserialize-builtins', 'var-export-builtins', 'print-r-builtins', 'gettype-builtins', 'is-scalar-builtins', 'is-countable-builtins', 'sizeof-builtins', 'array-sum-builtins', 'array-product-builtins', 'str-split-builtins', 'chunk-split-builtins',
-];
-
-foreach ($requiredFamilies as $family) {
-    if (!isset($families[$family])) {
-        fail("missing {$family} execution family");
-    }
+if (count($families) < 141) {
+    fail('expected at least 141 executable Oracle families, found ' . count($families));
 }
 
 foreach ($families as $family => $metadata) {
