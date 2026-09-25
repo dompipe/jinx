@@ -13,6 +13,7 @@
  *   - foreach FE_RESET / FE_FETCH
  *   - method INIT/SEND/DO lowering
  *   - throw / catch / clear-exception lowering
+ *   - register copy / assignment slots
  *   - jumps and halt
  *
  * It is not a PHP parser or full Zend VM yet. It is the first combined control
@@ -32,7 +33,8 @@ typedef enum JinxZendVmOpcode {
     JINX_ZEND_VM_CLEAR_EXCEPTION = 6,
     JINX_ZEND_VM_JMP = 7,
     JINX_ZEND_VM_JMP_IF_EXCEPTION = 8,
-    JINX_ZEND_VM_HALT = 9
+    JINX_ZEND_VM_HALT = 9,
+    JINX_ZEND_VM_COPY = 10
 } JinxZendVmOpcode;
 
 typedef enum JinxZendVmResult {
@@ -121,6 +123,14 @@ static inline JinxZendVmResult jinx_zend_vm_run(
                     return JINX_ZEND_VM_BAD_REGISTER;
                 }
                 state->registers[op->dst] = op->value;
+                state->pc++;
+                break;
+
+            case JINX_ZEND_VM_COPY:
+                if (!jinx_zend_vm_reg_ok(op->dst) || !jinx_zend_vm_reg_ok(op->src)) {
+                    return JINX_ZEND_VM_BAD_REGISTER;
+                }
+                state->registers[op->dst] = state->registers[op->src];
                 state->pc++;
                 break;
 
