@@ -28,6 +28,7 @@ $counts = [
     'JINX_PHP_MANUAL_PARTIAL' => 0,
     'JINX_PHP_MANUAL_PLACEHOLDER' => 0,
     'JINX_PHP_MANUAL_UNSAFE_NATIVE' => 0,
+    'JINX_PHP_MANUAL_PHP_FALLBACK' => 0,
 ];
 
 $notComplete = [];
@@ -47,12 +48,13 @@ printf("Exact: %d\n", $counts['JINX_PHP_MANUAL_EXACT']);
 printf("Partial: %d\n", $counts['JINX_PHP_MANUAL_PARTIAL']);
 printf("Placeholder: %d\n", $counts['JINX_PHP_MANUAL_PLACEHOLDER']);
 printf("Unsafe-native: %d\n", $counts['JINX_PHP_MANUAL_UNSAFE_NATIVE']);
+printf("PHP fallback: %d\n", $counts['JINX_PHP_MANUAL_PHP_FALLBACK']);
 printf("\n");
 
 if ($notComplete !== []) {
     fwrite(STDERR, "FAIL: native PHP mirror is not complete. Remaining manual states:\n");
     foreach ($notComplete as [$pattern, $state, $prototype, $notes]) {
-        $label = strtolower(str_replace('JINX_PHP_MANUAL_', '', $state));
+        $label = strtolower(str_replace('_', '-', str_replace('JINX_PHP_MANUAL_', '', $state)));
         fwrite(STDERR, "- {$pattern}: {$label}; {$prototype}; {$notes}\n");
     }
     exit(1);
