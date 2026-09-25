@@ -60,11 +60,12 @@ $scriptTests = [
     'data builtin families' => ['scripts/test-oracle-data-builtin-execution.php', 'PASS: Oracle executes data builtin PHP families'],
     'text builtin families' => ['scripts/test-oracle-text-builtin-execution.php', 'PASS: Oracle executes text builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
+    'benchmark command help' => ['scripts/benchmark-oracle-families.php --help', 'Oracle family benchmark'],
     'full coverage audit' => ['scripts/test-oracle-full-coverage-audit.php', 'PASS: Oracle full coverage audit validates'],
 ];
 
 foreach ($scriptTests as $label => [$script, $expected]) {
-    run_native_jinx($label, escapeshellarg($script), $expected);
+    run_native_jinx($label, $script, $expected);
 }
 
 run_native_jinx(
