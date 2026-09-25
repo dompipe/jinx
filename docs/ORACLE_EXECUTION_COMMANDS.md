@@ -15,6 +15,12 @@ git diff --check
 
 Do not run family tests with `php scripts/...` for release verification. Launch them through repository-root native `./jinx`.
 
+Run the facet audit when checking whether every declared family facet is represented by its parity test:
+
+```bash
+./jinx scripts/test-oracle-family-facet-audit.php
+```
+
 ## Native benchmarks
 
 Use the harness/process benchmark to time every executable family parity path against the PHP baseline and native `./jinx` path:
