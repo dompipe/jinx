@@ -18,13 +18,19 @@ require_once __DIR__ . '/WebApiCompiler.php';
  *
  * Envelope out:
  *   {"status":200,"headers":{"Content-Type":"application/json"},"body":"{...}"}
+ *
+ * Resident safety contract:
+ *   - The bridge may retain compiled route plan/template state.
+ *   - The bridge must not retain request body, headers, cookies, sessions,
+ *     output buffers, auth state, or user-local data between requests.
+ *   - Every request is copied into a fresh isolated context before execution.
  */
 final class WebBackPageBridge
 {
-    /** @var array<string,mixed> */
+    /** @var array<string,mixed> resident compiled plan, never request data */
     private array $plan;
 
-    /** @var array{required_key:string,success_prefix:string,success_suffix:string,error_body:string}|null */
+    /** @var array{required_key:string,success_prefix:string,success_suffix:string,error_body:string}|null resident compiled template, never request data */
     private ?array $template;
 
     /**
@@ -55,13 +61,38 @@ final class WebBackPageBridge
     }
 
     /**
+     * Returns a stable hash of the resident state that is allowed to survive
+     * between requests. Tests use this to prove per-request data is not being
+     * written back into the closed resident frame.
+     */
+    public function residentStateFingerprint(): string
+    {
+        return hash('sha256', serialize([$this->plan, $this->template]));
+    }
+
+    /** @return array<string,string|bool> */
+    public function residentSafetyContract(): array
+    {
+        return [
+            'resident_state' => 'compiled_route_plan_and_template_only',
+            'per_request_state' => 'fresh_isolated_context',
+            'stores_request_body' => false,
+            'stores_headers' => false,
+            'stores_cookies' => false,
+            'stores_session' => false,
+            'stores_auth_state' => false,
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public function handleRequestEnvelope(array $request): array
     {
-        $method = strtoupper((string) ($request['method'] ?? 'GET'));
-        $path = (string) ($request['path'] ?? '/');
-        $body = (string) ($request['body'] ?? '');
+        $context = self::isolatedRequestContext($request);
+        $method = strtoupper((string) $context['method']);
+        $path = (string) $context['path'];
+        $body = (string) $context['body'];
 
         if ($method === 'GET' && $path === '/__health') {
             return self::responseEnvelope(200, json_encode(['ok' => true, 'worker' => 'jinx-back-page']) ?: '');
@@ -86,6 +117,27 @@ final class WebBackPageBridge
         }
 
         return json_encode($this->handleRequestEnvelope($request), JSON_UNESCAPED_SLASHES) ?: '';
+    }
+
+    /**
+     * @param array<string,mixed> $request
+     * @return array{method:string,path:string,body:string,headers:array<string,string>}
+     */
+    private static function isolatedRequestContext(array $request): array
+    {
+        $headers = [];
+        foreach ((array) ($request['headers'] ?? []) as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $headers[strtolower((string) $key)] = (string) $value;
+            }
+        }
+
+        return [
+            'method' => (string) ($request['method'] ?? 'GET'),
+            'path' => (string) ($request['path'] ?? '/'),
+            'body' => (string) ($request['body'] ?? ''),
+            'headers' => $headers,
+        ];
     }
 
     /**
