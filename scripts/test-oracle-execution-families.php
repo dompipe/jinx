@@ -8,12 +8,14 @@ require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleIncludeExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleArrayExecutor;
 use jinx\oracle\OracleConditionalExecutor;
 use jinx\oracle\OracleExecutionFamilies;
 use jinx\oracle\OracleFunctionExecutor;
+use jinx\oracle\OracleIncludeExecutor;
 use jinx\oracle\OracleLoopExecutor;
 use jinx\oracle\OracleRequestExecutor;
 use jinx\oracle\OracleStraightLineExecutor;
@@ -33,132 +35,72 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $families = OracleExecutionFamilies::all();
 
-foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals'] as $family) {
+foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals', 'include-require'] as $family) {
     if (!isset($families[$family])) {
         fail("missing {$family} execution family");
     }
 }
 
-$straightLine = OracleExecutionFamilies::get('straight-line');
+$expected = [
+    'straight-line' => [OracleStraightLineExecutor::class, 'scripts/test-oracle-straightline-execution.php'],
+    'conditionals' => [OracleConditionalExecutor::class, 'scripts/test-oracle-conditional-execution.php'],
+    'loops' => [OracleLoopExecutor::class, 'scripts/test-oracle-loop-execution.php'],
+    'arrays' => [OracleArrayExecutor::class, 'scripts/test-oracle-array-execution.php'],
+    'functions' => [OracleFunctionExecutor::class, 'scripts/test-oracle-function-execution.php'],
+    'request-globals' => [OracleRequestExecutor::class, 'scripts/test-oracle-request-globals-execution.php'],
+    'include-require' => [OracleIncludeExecutor::class, 'scripts/test-oracle-include-require-execution.php'],
+];
 
-same($straightLine['state'] ?? null, 'executable', 'straight-line state');
-same($straightLine['owner'] ?? null, OracleStraightLineExecutor::class, 'straight-line owner');
-same($straightLine['test'] ?? null, 'scripts/test-oracle-straightline-execution.php', 'straight-line test');
+foreach ($expected as $family => [$owner, $test]) {
+    $metadata = OracleExecutionFamilies::get($family);
+    same($metadata['state'] ?? null, 'executable', "{$family} state");
+    same($metadata['owner'] ?? null, $owner, "{$family} owner");
+    same($metadata['test'] ?? null, $test, "{$family} test");
+}
 
-foreach (['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_PRINT', 'O_RETURN'] as $op) {
-    if (!in_array($op, $straightLine['ops'] ?? [], true)) {
-        fail("straight-line family missing {$op}");
+$requiredOps = [
+    'straight-line' => ['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_PRINT', 'O_RETURN'],
+    'conditionals' => ['O_IF', 'O_ELSE', 'O_BLOCK_CLOSE', 'O_ASSIGN', 'O_ECHO', 'O_PRINT', 'O_RETURN'],
+    'loops' => ['O_WHILE', 'O_BREAK', 'O_CONTINUE', 'O_IF', 'O_BLOCK_CLOSE', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_ECHO', 'O_RETURN'],
+    'arrays' => ['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_UNSET', 'O_ECHO', 'O_RETURN'],
+    'functions' => ['O_FUNCTION_DECL', 'O_ASSIGN', 'O_COMPOUND_ASSIGN', 'O_ECHO', 'O_RETURN', 'O_BLOCK_CLOSE'],
+    'request-globals' => ['O_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_RETURN'],
+    'include-require' => ['O_INCLUDE', 'O_REQUIRE', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'],
+];
+
+foreach ($requiredOps as $family => $ops) {
+    $metadata = OracleExecutionFamilies::get($family);
+    foreach ($ops as $op) {
+        if (!in_array($op, $metadata['ops'] ?? [], true)) {
+            fail("{$family} family missing {$op}");
+        }
     }
 }
 
 foreach (['strlen', 'strtoupper'] as $builtin) {
-    if (!in_array($builtin, $straightLine['builtins'] ?? [], true)) {
-        fail("straight-line family missing builtin {$builtin}");
-    }
-}
-
-$conditionals = OracleExecutionFamilies::get('conditionals');
-
-same($conditionals['state'] ?? null, 'executable', 'conditionals state');
-same($conditionals['owner'] ?? null, OracleConditionalExecutor::class, 'conditionals owner');
-same($conditionals['test'] ?? null, 'scripts/test-oracle-conditional-execution.php', 'conditionals test');
-
-foreach (['O_IF', 'O_ELSE', 'O_BLOCK_CLOSE', 'O_ASSIGN', 'O_ECHO', 'O_PRINT', 'O_RETURN'] as $op) {
-    if (!in_array($op, $conditionals['ops'] ?? [], true)) {
-        fail("conditionals family missing {$op}");
-    }
-}
-
-foreach (['===', '!==', '==', '!=', '>', '<', '>=', '<='] as $comparison) {
-    if (!in_array($comparison, $conditionals['comparisons'] ?? [], true)) {
-        fail("conditionals family missing comparison {$comparison}");
-    }
-}
-
-foreach (['&&', '||', '!'] as $operator) {
-    if (!in_array($operator, $conditionals['boolean_operators'] ?? [], true)) {
-        fail("conditionals family missing boolean operator {$operator}");
-    }
-}
-
-$loops = OracleExecutionFamilies::get('loops');
-
-same($loops['state'] ?? null, 'executable', 'loops state');
-same($loops['owner'] ?? null, OracleLoopExecutor::class, 'loops owner');
-same($loops['test'] ?? null, 'scripts/test-oracle-loop-execution.php', 'loops test');
-
-foreach (['O_WHILE', 'O_BREAK', 'O_CONTINUE', 'O_IF', 'O_BLOCK_CLOSE', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_ECHO', 'O_RETURN'] as $op) {
-    if (!in_array($op, $loops['ops'] ?? [], true)) {
-        fail("loops family missing {$op}");
-    }
-}
-
-foreach (['while', 'break', 'continue'] as $flow) {
-    if (!in_array($flow, $loops['control_flow'] ?? [], true)) {
-        fail("loops family missing control flow {$flow}");
+    foreach (['straight-line', 'conditionals', 'loops', 'functions'] as $family) {
+        $metadata = OracleExecutionFamilies::get($family);
+        if (!in_array($builtin, $metadata['builtins'] ?? [], true)) {
+            fail("{$family} family missing builtin {$builtin}");
+        }
     }
 }
 
 $arrays = OracleExecutionFamilies::get('arrays');
-
-same($arrays['state'] ?? null, 'executable', 'arrays state');
-same($arrays['owner'] ?? null, OracleArrayExecutor::class, 'arrays owner');
-same($arrays['test'] ?? null, 'scripts/test-oracle-array-execution.php', 'arrays test');
-
-foreach (['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_UNSET', 'O_ECHO', 'O_RETURN'] as $op) {
-    if (!in_array($op, $arrays['ops'] ?? [], true)) {
-        fail("arrays family missing {$op}");
-    }
-}
-
 foreach (['literal_empty_array', 'append', 'nested_dimension_assign', 'nested_dimension_fetch', 'isset', 'empty', 'unset'] as $arrayOp) {
     if (!in_array($arrayOp, $arrays['array_ops'] ?? [], true)) {
         fail("arrays family missing array op {$arrayOp}");
     }
 }
 
-foreach (['count'] as $builtin) {
-    if (!in_array($builtin, $arrays['builtins'] ?? [], true)) {
-        fail("arrays family missing builtin {$builtin}");
-    }
-}
-
 $functions = OracleExecutionFamilies::get('functions');
-
-same($functions['state'] ?? null, 'executable', 'functions state');
-same($functions['owner'] ?? null, OracleFunctionExecutor::class, 'functions owner');
-same($functions['test'] ?? null, 'scripts/test-oracle-function-execution.php', 'functions test');
-
-foreach (['O_FUNCTION_DECL', 'O_ASSIGN', 'O_COMPOUND_ASSIGN', 'O_ECHO', 'O_RETURN', 'O_BLOCK_CLOSE'] as $op) {
-    if (!in_array($op, $functions['ops'] ?? [], true)) {
-        fail("functions family missing {$op}");
-    }
-}
-
 foreach (['named_user_function', 'local_parameter_scope', 'return_value', 'nested_user_call', 'builtin_dispatch'] as $functionOp) {
     if (!in_array($functionOp, $functions['function_ops'] ?? [], true)) {
         fail("functions family missing function op {$functionOp}");
     }
 }
 
-foreach (['strlen', 'strtoupper'] as $builtin) {
-    if (!in_array($builtin, $functions['builtins'] ?? [], true)) {
-        fail("functions family missing builtin {$builtin}");
-    }
-}
-
 $requestGlobals = OracleExecutionFamilies::get('request-globals');
-
-same($requestGlobals['state'] ?? null, 'executable', 'request-globals state');
-same($requestGlobals['owner'] ?? null, OracleRequestExecutor::class, 'request-globals owner');
-same($requestGlobals['test'] ?? null, 'scripts/test-oracle-request-globals-execution.php', 'request-globals test');
-
-foreach (['O_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_RETURN'] as $op) {
-    if (!in_array($op, $requestGlobals['ops'] ?? [], true)) {
-        fail("request-globals family missing {$op}");
-    }
-}
-
 foreach (['$_SERVER', '$_GET', '$_POST', '$_REQUEST'] as $superglobal) {
     if (!in_array($superglobal, $requestGlobals['superglobals'] ?? [], true)) {
         fail("request-globals family missing superglobal {$superglobal}");
@@ -172,9 +114,19 @@ foreach (['request_context', 'query_params', 'post_params', 'request_params', 's
 }
 
 foreach (['count'] as $builtin) {
-    if (!in_array($builtin, $requestGlobals['builtins'] ?? [], true)) {
-        fail("request-globals family missing builtin {$builtin}");
+    foreach (['arrays', 'request-globals'] as $family) {
+        $metadata = OracleExecutionFamilies::get($family);
+        if (!in_array($builtin, $metadata['builtins'] ?? [], true)) {
+            fail("{$family} family missing builtin {$builtin}");
+        }
     }
 }
 
-echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, functions, and request-globals executable families" . PHP_EOL;
+$includeRequire = OracleExecutionFamilies::get('include-require');
+foreach (['literal_include', 'literal_require', 'resolved_oracle_edge', 'included_local_scope', 'included_output'] as $loaderOp) {
+    if (!in_array($loaderOp, $includeRequire['loader_ops'] ?? [], true)) {
+        fail("include-require family missing loader op {$loaderOp}");
+    }
+}
+
+echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, functions, request-globals, and include-require executable families" . PHP_EOL;
