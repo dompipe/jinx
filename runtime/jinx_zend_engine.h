@@ -30,7 +30,9 @@ typedef enum JinxZendFlags {
     JINX_ZEND_FLAG_NONE = 0u,
     JINX_ZEND_STRING_OWNED = 1u << 0,
     JINX_ZEND_STRING_INTERNED = 1u << 1,
-    JINX_ZEND_STRING_PERSISTENT = 1u << 2
+    JINX_ZEND_STRING_PERSISTENT = 1u << 2,
+    JINX_ZEND_ARRAY_PACKED = 1u << 8,
+    JINX_ZEND_ARRAY_MIXED = 1u << 9
 } JinxZendFlags;
 
 typedef struct JinxZendString {
@@ -41,22 +43,9 @@ typedef struct JinxZendString {
     char *bytes;
 } JinxZendString;
 
-typedef struct JinxZendArray {
-    uint32_t refcount;
-    uint32_t flags;
-    size_t count;
-    size_t capacity;
-    void *buckets;
-} JinxZendArray;
-
-typedef struct JinxZendObject {
-    uint32_t refcount;
-    uint32_t flags;
-    const char *class_name;
-    JinxZendArray *properties;
-} JinxZendObject;
-
 typedef struct JinxZendReference JinxZendReference;
+typedef struct JinxZendArray JinxZendArray;
+typedef struct JinxZendObject JinxZendObject;
 
 typedef struct JinxZendValue {
     JinxZendType type;
@@ -71,6 +60,28 @@ typedef struct JinxZendValue {
         void *ptr;
     } value;
 } JinxZendValue;
+
+typedef struct JinxZendBucket {
+    uint64_t h;
+    JinxZendString *key;
+    JinxZendValue value;
+} JinxZendBucket;
+
+struct JinxZendArray {
+    uint32_t refcount;
+    uint32_t flags;
+    size_t count;
+    size_t capacity;
+    size_t next_index;
+    JinxZendBucket *buckets;
+};
+
+struct JinxZendObject {
+    uint32_t refcount;
+    uint32_t flags;
+    const char *class_name;
+    JinxZendArray *properties;
+};
 
 struct JinxZendReference {
     uint32_t refcount;
@@ -108,6 +119,9 @@ JinxZendValue jinx_zend_null(void);
 JinxZendValue jinx_zend_bool(int value);
 JinxZendValue jinx_zend_long(int64_t value);
 JinxZendValue jinx_zend_double(double value);
+JinxZendValue jinx_zend_value_copy(JinxZendValue value);
+void jinx_zend_value_release(JinxZendValue value);
+
 JinxZendString jinx_zend_string_view(const char *bytes, size_t len);
 JinxZendString *jinx_zend_string_new(const char *bytes, size_t len);
 JinxZendString *jinx_zend_string_retain(JinxZendString *string);
@@ -115,8 +129,16 @@ void jinx_zend_string_release(JinxZendString *string);
 JinxZendString *jinx_zend_string_separate(JinxZendString **string);
 int jinx_zend_string_set_byte(JinxZendString **string, size_t offset, char byte);
 JinxZendValue jinx_zend_string_value(JinxZendString *string);
+
 JinxZendArray jinx_zend_array_count_view(size_t count);
+JinxZendArray *jinx_zend_array_new_packed(size_t capacity);
+JinxZendArray *jinx_zend_array_retain(JinxZendArray *array);
+void jinx_zend_array_release(JinxZendArray *array);
+int jinx_zend_array_append(JinxZendArray *array, JinxZendValue value);
+JinxZendValue *jinx_zend_array_index(JinxZendArray *array, size_t index);
+const JinxZendBucket *jinx_zend_array_iter_at(const JinxZendArray *array, size_t position);
 JinxZendValue jinx_zend_array_value(JinxZendArray *array);
+
 void jinx_zend_executor_init(JinxZendExecutor *executor);
 void jinx_zend_frame_enter(JinxZendExecutor *executor, JinxZendCallFrame *frame, const char *function_name, JinxZendValue *args, size_t argc);
 JinxZendValue jinx_zend_frame_leave(JinxZendExecutor *executor, JinxZendValue return_value);
