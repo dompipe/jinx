@@ -54,6 +54,7 @@ runtime/jinx_oracle_zend_array_builtins.h
 ./jinx scripts/test-zend-runtime-ops-oracle.php
 ./jinx scripts/test-zend-declaration-metadata-oracle.php
 ./jinx scripts/test-oracle-straightline-execution.php
+./jinx scripts/test-oracle-execution-families.php
 
 ./scripts/build-zend-smoke.sh
 ./build/native/jinx-zend-smoke
@@ -133,6 +134,7 @@ Full native build:
 | Oracle carrier | accelerated call bridge for native Zend arrays | started | `oracle-sm/zend/oracle_carrier.osm` | `runtime/pasm/zend/oracle_carrier.pasm` |
 | CLI/dispatch | PHP-call acceleration entry points | started | `oracle-sm/zend/cli_dispatch.osm` | `runtime/pasm/zend/cli_dispatch.pasm` |
 | arbitrary Zend records | Oracle interpreter records for broad PHP/Zend source | started | `runtime/OracleProgramCompiler.php` | optional later backend |
+| straight-line execution | executable Oracle subset for assignments, output, simple builtins, and returns | executable | `runtime/OracleStraightLineExecutor.php` | optional later backend |
 
 ## Family ledger
 

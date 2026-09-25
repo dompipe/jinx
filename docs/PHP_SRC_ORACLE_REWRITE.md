@@ -15,6 +15,8 @@ The current arbitrary-code front door is `OracleProgramCompiler::interpretAnyPhp
 
 Oracle execution has started for a narrow straight-line PHP subset: scalar and array assignment, dimension fetch/assignment, null coalescing, compound assignment, increment/decrement, `echo`, `print`, `strlen`, `strtoupper`, and `return`. Unsupported Zend records still fail closed or require PHP fallback until their runtime family is mirrored.
 
+Executable families must have a dedicated runtime owner, a family entry in `runtime/OracleExecutionFamilies.php`, and a PHP comparison test before they can be called executable.
+
 Coverage is only complete for a family when:
 
 1. PHP/Zend behavior is known.
@@ -34,4 +36,5 @@ Proof commands:
 ./jinx scripts/test-zend-runtime-ops-oracle.php
 ./jinx scripts/test-zend-declaration-metadata-oracle.php
 ./jinx scripts/test-oracle-straightline-execution.php
+./jinx scripts/test-oracle-execution-families.php
 ```

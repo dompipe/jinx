@@ -47,6 +47,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx scripts/test-zend-runtime-ops-oracle.php
 ./jinx scripts/test-zend-declaration-metadata-oracle.php
 ./jinx scripts/test-oracle-straightline-execution.php
+./jinx scripts/test-oracle-execution-families.php
 php scripts/report-php-families.php
 php scripts/benchmark-true-all-functions.php 1000
 ./jinx notes
