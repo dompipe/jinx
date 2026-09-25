@@ -26,24 +26,26 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 function run_php_fixture(string $fixture): array
 {
-    $result = [
-        'output' => '',
-        'return' => null,
-        'error_class' => null,
-        'error_message' => null,
-    ];
+    $__jinx_capture_return = null;
+    $__jinx_capture_error_class = null;
+    $__jinx_capture_error_message = null;
 
     ob_start();
     try {
-        $result['return'] = require $fixture;
+        $__jinx_capture_return = require $fixture;
     } catch (Throwable $e) {
-        $result['error_class'] = $e::class;
-        $result['error_message'] = $e->getMessage();
+        $__jinx_capture_error_class = $e::class;
+        $__jinx_capture_error_message = $e->getMessage();
     } finally {
-        $result['output'] = (string) ob_get_clean();
+        $__jinx_capture_output = (string) ob_get_clean();
     }
 
-    return $result;
+    return [
+        'output' => $__jinx_capture_output,
+        'return' => $__jinx_capture_return,
+        'error_class' => $__jinx_capture_error_class,
+        'error_message' => $__jinx_capture_error_message,
+    ];
 }
 
 function run_oracle_fixture(string $fixture): array
