@@ -143,6 +143,36 @@ int jinx_zend_string_set_byte(JinxZendString **slot, size_t offset, char byte) {
     return 1;
 }
 
+uint64_t jinx_zend_string_hash_bytes(const char *bytes, size_t len) {
+    uint64_t hash = 1469598103934665603ull;
+    if (bytes == 0) {
+        return hash;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        hash ^= (unsigned char)bytes[i];
+        hash *= 1099511628211ull;
+    }
+
+    return hash == 0u ? 1u : hash;
+}
+
+uint64_t jinx_zend_string_hash(const JinxZendString *string) {
+    if (string == 0) {
+        return jinx_zend_string_hash_bytes(0, 0);
+    }
+
+    return jinx_zend_string_hash_bytes(string->bytes, string->len);
+}
+
+int jinx_zend_string_equals_bytes(const JinxZendString *string, const char *bytes, size_t len) {
+    if (string == 0 || bytes == 0 || string->bytes == 0 || string->len != len) {
+        return 0;
+    }
+
+    return memcmp(string->bytes, bytes, len) == 0;
+}
+
 JinxZendValue jinx_zend_string_value(JinxZendString *string) {
     JinxZendValue value = jinx_zend_null();
     value.type = JINX_ZEND_STRING;
@@ -257,16 +287,75 @@ int jinx_zend_array_append(JinxZendArray *array, JinxZendValue value) {
     bucket->value = jinx_zend_value_copy(value);
     array->count++;
     array->next_index++;
-    array->flags = (array->flags & ~JINX_ZEND_ARRAY_MIXED) | JINX_ZEND_ARRAY_PACKED;
+    if ((array->flags & JINX_ZEND_ARRAY_MIXED) == 0) {
+        array->flags = (array->flags & ~JINX_ZEND_ARRAY_MIXED) | JINX_ZEND_ARRAY_PACKED;
+    }
+    return 1;
+}
+
+int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value) {
+    uint64_t hash;
+    JinxZendBucket *bucket;
+    JinxZendString *owned_key;
+
+    if (array == 0 || key == 0 || !jinx_zend_array_reserve(array, array->count + 1u)) {
+        return 0;
+    }
+
+    hash = jinx_zend_string_hash_bytes(key, key_len);
+    for (size_t i = 0; i < array->count; i++) {
+        bucket = &array->buckets[i];
+        if (bucket->key != 0 && bucket->h == hash && jinx_zend_string_equals_bytes(bucket->key, key, key_len)) {
+            jinx_zend_value_release(bucket->value);
+            bucket->value = jinx_zend_value_copy(value);
+            return 1;
+        }
+    }
+
+    owned_key = jinx_zend_string_new(key, key_len);
+    if (owned_key == 0) {
+        return 0;
+    }
+
+    bucket = &array->buckets[array->count];
+    bucket->h = hash;
+    bucket->key = owned_key;
+    bucket->value = jinx_zend_value_copy(value);
+    array->count++;
+    array->flags = (array->flags & ~JINX_ZEND_ARRAY_PACKED) | JINX_ZEND_ARRAY_MIXED;
     return 1;
 }
 
 JinxZendValue *jinx_zend_array_index(JinxZendArray *array, size_t index) {
-    if (array == 0 || index >= array->count || array->buckets == 0) {
+    if (array == 0 || array->buckets == 0) {
         return 0;
     }
 
-    return &array->buckets[index].value;
+    for (size_t i = 0; i < array->count; i++) {
+        if (array->buckets[i].key == 0 && array->buckets[i].h == index) {
+            return &array->buckets[i].value;
+        }
+    }
+
+    return 0;
+}
+
+JinxZendValue *jinx_zend_array_find(JinxZendArray *array, const char *key, size_t key_len) {
+    uint64_t hash;
+
+    if (array == 0 || key == 0 || array->buckets == 0) {
+        return 0;
+    }
+
+    hash = jinx_zend_string_hash_bytes(key, key_len);
+    for (size_t i = 0; i < array->count; i++) {
+        if (array->buckets[i].key != 0 && array->buckets[i].h == hash &&
+            jinx_zend_string_equals_bytes(array->buckets[i].key, key, key_len)) {
+            return &array->buckets[i].value;
+        }
+    }
+
+    return 0;
 }
 
 const JinxZendBucket *jinx_zend_array_iter_at(const JinxZendArray *array, size_t position) {
@@ -343,7 +432,7 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "build/oracle-asm/zend/string.oracle_asm.h",
         "runtime/pasm/zend/string.pasm",
         "started",
-        "Owned strings, borrowed views, retain/release, and copy-on-write separation exist. Next: interned-string table and hash cache."
+        "Owned strings, borrowed views, retain/release, copy-on-write separation, and string hashing exist. Next: interned-string table and hash cache."
     },
     {
         "HashTable/zend_array",
@@ -352,7 +441,7 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "build/oracle-asm/zend/hash.oracle_asm.h",
         "runtime/pasm/zend/hash.pasm",
         "started",
-        "Packed buckets, append, index lookup, insertion-order iteration, and value retain/release now exist. Next: mixed string-key buckets and array COW."
+        "Packed numeric buckets, mixed string-key buckets, append, assoc update, lookup, insertion-order iteration, and value retain/release now exist. Next: array COW and deletion tombstones."
     },
     {
         "executor/call-frame",
@@ -409,8 +498,10 @@ int jinx_zend_smoke(void) {
     JinxZendString *alias;
     JinxZendArray *packed;
     JinxZendValue *slot;
+    JinxZendValue *assoc;
     const JinxZendBucket *bucket0;
     const JinxZendBucket *bucket1;
+    const JinxZendBucket *bucket2;
     JinxZendValue result;
     int ok;
 
@@ -440,7 +531,8 @@ int jinx_zend_smoke(void) {
     }
 
     if (!jinx_zend_array_append(packed, jinx_zend_long(7)) ||
-        !jinx_zend_array_append(packed, jinx_zend_string_value(alias))) {
+        !jinx_zend_array_append(packed, jinx_zend_string_value(alias)) ||
+        !jinx_zend_array_add_assoc(packed, "name", 4, jinx_zend_string_value(owned))) {
         jinx_zend_array_release(packed);
         jinx_zend_string_release(alias);
         jinx_zend_string_release(owned);
@@ -448,12 +540,35 @@ int jinx_zend_smoke(void) {
     }
 
     slot = jinx_zend_array_index(packed, 0);
+    assoc = jinx_zend_array_find(packed, "name", 4);
     bucket0 = jinx_zend_array_iter_at(packed, 0);
     bucket1 = jinx_zend_array_iter_at(packed, 1);
+    bucket2 = jinx_zend_array_iter_at(packed, 2);
 
-    if (packed->count != 2u || packed->next_index != 2u || slot == 0 || slot->type != JINX_ZEND_LONG ||
-        slot->value.lval != 7 || bucket0 == 0 || bucket0->h != 0u || bucket1 == 0 || bucket1->h != 1u ||
-        bucket1->value.type != JINX_ZEND_STRING || bucket1->value.value.str != alias || alias->refcount != 2u) {
+    if (packed->count != 3u || packed->next_index != 2u ||
+        (packed->flags & JINX_ZEND_ARRAY_MIXED) == 0 ||
+        slot == 0 || slot->type != JINX_ZEND_LONG || slot->value.lval != 7 ||
+        assoc == 0 || assoc->type != JINX_ZEND_STRING || assoc->value.str != owned ||
+        bucket0 == 0 || bucket0->h != 0u || bucket0->key != 0 ||
+        bucket1 == 0 || bucket1->h != 1u || bucket1->key != 0 ||
+        bucket1->value.type != JINX_ZEND_STRING || bucket1->value.value.str != alias || alias->refcount != 2u ||
+        bucket2 == 0 || bucket2->key == 0 || !jinx_zend_string_equals_bytes(bucket2->key, "name", 4) ||
+        bucket2->value.type != JINX_ZEND_STRING || bucket2->value.value.str != owned || owned->refcount != 2u) {
+        jinx_zend_array_release(packed);
+        jinx_zend_string_release(alias);
+        jinx_zend_string_release(owned);
+        return 0;
+    }
+
+    if (!jinx_zend_array_add_assoc(packed, "name", 4, jinx_zend_long(99))) {
+        jinx_zend_array_release(packed);
+        jinx_zend_string_release(alias);
+        jinx_zend_string_release(owned);
+        return 0;
+    }
+
+    assoc = jinx_zend_array_find(packed, "name", 4);
+    if (packed->count != 3u || assoc == 0 || assoc->type != JINX_ZEND_LONG || assoc->value.lval != 99 || owned->refcount != 1u) {
         jinx_zend_array_release(packed);
         jinx_zend_string_release(alias);
         jinx_zend_string_release(owned);
@@ -468,7 +583,7 @@ int jinx_zend_smoke(void) {
     result = jinx_zend_frame_leave(&executor, jinx_zend_long((int64_t)(view.len + packed->count + alias->len)));
 
     ok = executor.current_frame == 0 && executor.executed_ops == 2 &&
-        result.type == JINX_ZEND_LONG && result.value.lval == 15;
+        result.type == JINX_ZEND_LONG && result.value.lval == 16;
 
     jinx_zend_array_release(packed);
     jinx_zend_string_release(alias);
