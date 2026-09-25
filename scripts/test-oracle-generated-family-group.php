@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
 use jinx\oracle\OracleGeneratedBuiltinExecutor;
 use jinx\oracle\OracleGeneratedExecutionFamilies;
+use jinx\oracle\OracleMergedExecutionFamilies;
 
 function fail(string $message): never
 {
@@ -16,6 +19,7 @@ function fail(string $message): never
 
 $root = dirname(__DIR__);
 $families = OracleGeneratedExecutionFamilies::all();
+$mergedFamilies = OracleMergedExecutionFamilies::all();
 
 if (count($families) !== 175) {
     fail('expected exactly 175 generated executable families, found ' . count($families));
@@ -30,8 +34,12 @@ for ($i = 1; $i <= 175; $i++) {
     if (!array_key_exists($family, $families)) {
         fail("missing generated family {$family}");
     }
+    if (!array_key_exists($family, $mergedFamilies)) {
+        fail("generated family {$family} is not present in merged Oracle execution families");
+    }
 
     $metadata = $families[$family];
+    $mergedMetadata = $mergedFamilies[$family];
     if (($metadata['state'] ?? null) !== 'executable') {
         fail("{$family} is not executable");
     }
@@ -43,6 +51,9 @@ for ($i = 1; $i <= 175; $i++) {
     }
     if (($metadata['builtins'] ?? []) === []) {
         fail("{$family} has no builtin facet list");
+    }
+    if ($mergedMetadata !== $metadata) {
+        fail("{$family} merged metadata does not match generated metadata");
     }
 }
 
@@ -60,4 +71,4 @@ if (!class_exists(OracleGeneratedBuiltinExecutor::class)) {
     fail('generated builtin executor is not loadable');
 }
 
-echo 'PASS: Oracle generated 175 family group exposes 175 executable PHP/Zend parity families' . PHP_EOL;
+echo 'PASS: Oracle generated 175 family group exposes 175 executable PHP/Zend parity families merged into the normal family set' . PHP_EOL;
