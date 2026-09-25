@@ -1,0 +1,52 @@
+oracle_sm_family foreach_lowering
+
+purpose "Foreach live iteration and FE_RESET/FE_FETCH lowering over native Zend arrays."
+replaces "Zend VM foreach opcode behavior for native JINX arrays."
+
+native_files {
+  runtime/jinx_zend_foreach.h
+  runtime/jinx_zend_foreach_opcode.h
+  runtime/jinx_zend_foreach_program.h
+  runtime/jinx_zend_array_delete.h
+}
+
+native_symbols {
+  JinxZendForeachIterator
+  JinxZendForeachEntry
+  JinxZendForeachFrame
+  JinxZendForeachProgramState
+  jinx_zend_foreach_init
+  jinx_zend_foreach_next
+  jinx_zend_foreach_bucket_key
+  jinx_zend_foreach_execute
+  jinx_zend_fe_frame_init
+  jinx_zend_fe_reset
+  jinx_zend_fe_fetch
+  jinx_zend_fe_run_all
+  jinx_zend_foreach_program_run
+}
+
+oracle_sm_contract {
+  source          JinxZendArray
+  iteration_order physical_bucket_order
+  tombstones      skipped
+  yielded_key     numeric_or_string_zval
+  yielded_value   retained_bucket_value
+  fe_reset        initialize_frame
+  fe_fetch        produce_key_value_or_done
+  loop_program    FE_RESET_FE_FETCH_BODY_JMP_HALT
+}
+
+proven_by {
+  scripts/build-zend-foreach-smoke.sh
+  build/native/jinx-zend-foreach-smoke
+  scripts/build-zend-foreach-execute-smoke.sh
+  build/native/jinx-zend-foreach-execute-smoke
+  scripts/build-zend-foreach-opcode-smoke.sh
+  build/native/jinx-zend-foreach-opcode-smoke
+  scripts/build-zend-foreach-program-smoke.sh
+  build/native/jinx-zend-foreach-program-smoke
+}
+
+pasm_target "runtime/pasm/zend/foreach.pasm"
+status started
