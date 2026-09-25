@@ -174,7 +174,7 @@ final class OracleIntrospectionBuiltinExecutor
             'trait_exists' => trait_exists((string) ($args[0] ?? '')),
             'enum_exists' => function_exists('enum_exists') ? enum_exists((string) ($args[0] ?? '')) : false,
             'get_debug_type' => get_debug_type($args[0] ?? null),
-            'get_resource_type' => 'Unknown',
+            'constant' => constant((string) ($args[0] ?? '')),
             'method_exists' => method_exists((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
             'property_exists' => property_exists((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
             'is_subclass_of' => is_subclass_of((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
