@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIncludeExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExitExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleObjectExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
@@ -25,8 +26,8 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 
-if (count($families) < 38) {
-    fail('expected at least 38 executable Oracle families, found ' . count($families));
+if (count($families) < 39) {
+    fail('expected at least 39 executable Oracle families, found ' . count($families));
 }
 
 $requiredFamilies = [
@@ -38,6 +39,7 @@ $requiredFamilies = [
     'request-globals',
     'include-require',
     'exit-die',
+    'object-basics',
     'ternary-expressions',
     'type-casts',
     'string-builtins',
@@ -97,7 +99,7 @@ foreach ($families as $family => $metadata) {
     }
 
     $hasCoverageDimension = false;
-    foreach (['builtins', 'control_flow', 'array_ops', 'function_ops', 'request_ops', 'loader_ops', 'termination_ops', 'expression_ops', 'casts', 'comparisons', 'boolean_operators', 'magic_constants', 'superglobals'] as $field) {
+    foreach (['builtins', 'control_flow', 'array_ops', 'function_ops', 'object_ops', 'request_ops', 'loader_ops', 'termination_ops', 'expression_ops', 'casts', 'comparisons', 'boolean_operators', 'magic_constants', 'superglobals'] as $field) {
         if (($metadata[$field] ?? []) !== []) {
             $hasCoverageDimension = true;
             break;
