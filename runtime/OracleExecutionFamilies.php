@@ -176,6 +176,20 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'filter-var-email-builtins' => ['filter_var'], 'filter-var-int-builtins' => ['filter_var'], 'filter-id-builtins' => ['filter_id'],
+            'filter-list-builtins' => ['filter_list'], 'hash-algos-builtins' => ['hash_algos'], 'hash-equals-builtins' => ['hash_equals'],
+            'hash-hkdf-builtins' => ['hash_hkdf'], 'hash-pbkdf2-builtins' => ['hash_pbkdf2'],
+            'password-get-info-builtins' => ['password_get_info'], 'password-needs-rehash-builtins' => ['password_needs_rehash'],
+            'password-verify-builtins' => ['password_verify'], 'inet-pton-builtins' => ['inet_pton', 'bin2hex'],
+            'inet-ntop-builtins' => ['inet_ntop', 'hex2bin'], 'ip2long-builtins' => ['ip2long'], 'long2ip-builtins' => ['long2ip'],
+            'extension-loaded-builtins' => ['extension_loaded'], 'get-loaded-extensions-builtins' => ['get_loaded_extensions'],
+            'get-extension-funcs-builtins' => ['get_extension_funcs', 'in_array'], 'phpversion-builtins' => ['phpversion'],
+            'version-compare-builtins' => ['version_compare'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleSecurityNetworkBuiltinExecutor::class, 'scripts/test-oracle-security-network-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'is-float-builtins' => ['is_float'], 'is-double-builtins' => ['is_double'], 'is-real-builtins' => ['is_real'],
             'is-long-builtins' => ['is_long'], 'is-integer-builtins' => ['is_integer'], 'is-iterable-builtins' => ['is_iterable'],
             'is-resource-builtins' => ['is_resource'], 'is-callable-builtins' => ['is_callable'], 'function-exists-builtins' => ['function_exists'],
