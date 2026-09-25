@@ -23,6 +23,8 @@ final class OracleExecutionFamilies
         $builtinTest = 'scripts/test-oracle-builtin-batch-execution.php';
         $builtinTwoTest = 'scripts/test-oracle-builtin-batch-two-execution.php';
         $builtinOwner = OracleBuiltinBatchExecutor::class;
+        $scalarTest = 'scripts/test-oracle-scalar-builtin-execution.php';
+        $scalarOwner = OracleScalarBuiltinExecutor::class;
 
         return [
             'straight-line' => [
@@ -131,6 +133,17 @@ final class OracleExecutionFamilies
             'array-keys-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['array_keys', 'implode']),
             'array-values-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['array_values', 'implode']),
             'array-slice-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['array_slice', 'implode']),
+
+            'is-string-builtins' => self::builtin($scalarOwner, $scalarTest, ['is_string']),
+            'is-int-builtins' => self::builtin($scalarOwner, $scalarTest, ['is_int']),
+            'is-array-builtins' => self::builtin($scalarOwner, $scalarTest, ['is_array']),
+            'is-bool-builtins' => self::builtin($scalarOwner, $scalarTest, ['is_bool']),
+            'is-null-builtins' => self::builtin($scalarOwner, $scalarTest, ['is_null']),
+            'intval-builtins' => self::builtin($scalarOwner, $scalarTest, ['intval']),
+            'strval-builtins' => self::builtin($scalarOwner, $scalarTest, ['strval']),
+            'boolval-builtins' => self::builtin($scalarOwner, $scalarTest, ['boolval']),
+            'floatval-builtins' => self::builtin($scalarOwner, $scalarTest, ['floatval']),
+            'is-numeric-builtins' => self::builtin($scalarOwner, $scalarTest, ['is_numeric']),
         ];
     }
 
