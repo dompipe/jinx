@@ -123,6 +123,12 @@ Runtime owner: `runtime/OracleScalarBuiltinExecutor.php`. PHP comparison test: `
 
 `is-string-builtins`, `is-int-builtins`, `is-array-builtins`, `is-bool-builtins`, `is-null-builtins`, `intval-builtins`, `strval-builtins`, `boolval-builtins`, `floatval-builtins`, `is-numeric-builtins`.
 
+## Introspection/type builtin batch
+
+Runtime owner: `runtime/OracleIntrospectionBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-introspection-builtin-execution.php`.
+
+`is-float-builtins`, `is-double-builtins`, `is-real-builtins`, `is-long-builtins`, `is-integer-builtins`, `is-iterable-builtins`, `is-resource-builtins`, `is-callable-builtins`, `function-exists-builtins`, `class-exists-builtins`, `interface-exists-builtins`, `trait-exists-builtins`, `enum-exists-builtins`, `get-debug-type-builtins`, `constant-builtins`, `method-exists-builtins`, `property-exists-builtins`, `is-subclass-of-builtins`, `is-a-builtins`, `defined-builtins`.
+
 ## App builtin batch
 
 Runtime owner: `runtime/OracleAppBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-app-builtin-execution.php`.
