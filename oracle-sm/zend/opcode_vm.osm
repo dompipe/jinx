@@ -1,0 +1,49 @@
+oracle_sm_family opcode_vm
+
+purpose "Combined register VM for arrays, methods, exceptions, assignment, scalar expressions, and branches."
+replaces "Zend/zend_vm_def.h instruction sequencing subset for native JINX runtime."
+
+native_files {
+  runtime/jinx_zend_opcode_vm.h
+}
+
+native_symbols {
+  JinxZendVmOpcode
+  JinxZendVmResult
+  JinxZendVmOp
+  JinxZendVmState
+  jinx_zend_vm_state_init
+  jinx_zend_vm_run
+}
+
+oracle_sm_contract {
+  register_count     16
+  max_args           8
+  op_LOAD_CONST      dst_value_slot
+  op_COPY            dst_from_src
+  op_ADD             long_plus_long_to_long
+  op_SUB             long_minus_long_to_long
+  op_EQ              long_equal_long_to_bool
+  op_LT              long_less_than_long_to_bool
+  op_FE_RESET        foreach_frame_init
+  op_FE_FETCH        foreach_next_or_jump_done
+  op_METHOD_CALL     object_method_dispatch
+  op_THROW           error_state_throw
+  op_CATCH           catch_or_jump_miss
+  op_CLEAR_EXCEPTION reset_error_state
+  op_JMP             absolute_pc
+  op_JMP_IF_EXCEPTION branch_on_throwable
+  op_JMP_IF_TRUE     branch_on_bool_true
+  op_JMP_IF_FALSE    branch_on_bool_false
+  op_HALT            stop_vm
+}
+
+proven_by {
+  scripts/build-zend-opcode-vm-smoke.sh
+  build/native/jinx-zend-opcode-vm-smoke
+  scripts/build-zend-scalar-vm-smoke.sh
+  build/native/jinx-zend-scalar-vm-smoke
+}
+
+pasm_target "runtime/pasm/zend/opcode_vm.pasm"
+status started
