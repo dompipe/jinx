@@ -1,0 +1,46 @@
+oracle_sm_family zval
+
+purpose "JINX-owned zval-like tagged value family."
+replaces "Zend/zend_types.h, Zend/zend.h value carriers"
+
+native_files {
+  runtime/jinx_zend_engine.h
+  runtime/jinx_zend_engine.c
+}
+
+native_symbols {
+  JinxZendValue
+  JinxZendValueType
+  jinx_zend_null
+  jinx_zend_long
+  jinx_zend_bool
+  jinx_zend_double
+  jinx_zend_string_value
+  jinx_zend_array_value
+  jinx_zend_object_value
+  jinx_zend_value_retain
+  jinx_zend_value_release
+}
+
+oracle_sm_contract {
+  value.type     u32
+  value.flags    u32
+  value.payload  machine_word
+  retain         explicit
+  release        explicit
+  null           type_null
+  bool           type_bool
+  long           type_long
+  double         type_double
+  string         pointer_to_zend_string
+  array          pointer_to_zend_array
+  object         pointer_to_zend_object
+}
+
+proven_by {
+  scripts/build-zend-smoke.sh
+  build/native/jinx-zend-smoke
+}
+
+pasm_target "runtime/pasm/zend/zval.pasm"
+status started
