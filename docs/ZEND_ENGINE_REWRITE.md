@@ -51,6 +51,7 @@ runtime/jinx_oracle_zend_array_builtins.h
 ./scripts/build-native-jinx.sh
 ./jinx scripts/test-oracle-program-compiler.php
 ./jinx scripts/test-zend-arbitrary-code-oracle.php
+./jinx scripts/test-zend-runtime-ops-oracle.php
 
 ./scripts/build-zend-smoke.sh
 ./build/native/jinx-zend-smoke

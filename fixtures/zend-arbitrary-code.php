@@ -52,6 +52,7 @@ function arbitrary_entry(array $payload): string
     $next = $object->bump(2);
     $rendered = $object->render();
     $mode = FixtureMode::One;
+    $property = $object->value;
     $value = $object->value ?? null;
 
     if (isset($payload['name']) && !empty($payload['name'])) {
