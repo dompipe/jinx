@@ -11,27 +11,27 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `loops` | `runtime/OracleLoopExecutor.php` | `scripts/test-oracle-loop-execution.php` | narrow `while` loops, `break`, `continue`, nested conditionals, plus the straight-line operations needed inside loop bodies |
 | `arrays` | `runtime/OracleArrayExecutor.php` | `scripts/test-oracle-array-execution.php` | empty array literals, append writes, nested dimension assigns/fetches, `isset`, `empty`, `unset`, `count`, echo, print, return |
 
-## Verification
+## Native `./jinx` verification
 
-Run these from a clean local checkout after pulling `master`:
+Run these from a clean local checkout after pulling `master`. Do not run the executable-family tests with `php scripts/...`; run them through the repository-root native `./jinx` binary.
 
 ```bash
 git pull origin master
 ./scripts/build-native-jinx.sh
-php scripts/test-oracle-execution-families.php
-php scripts/test-oracle-straightline-execution.php
-php scripts/test-oracle-conditional-execution.php
-php scripts/test-oracle-loop-execution.php
-php scripts/test-oracle-array-execution.php
-php scripts/test-bin-jinx.php
-php scripts/test-oracle-program-compiler.php
+./jinx scripts/test-oracle-execution-families.php
+./jinx scripts/test-oracle-straightline-execution.php
+./jinx scripts/test-oracle-conditional-execution.php
+./jinx scripts/test-oracle-loop-execution.php
+./jinx scripts/test-oracle-array-execution.php
+./jinx scripts/test-bin-jinx.php
+./jinx scripts/test-oracle-program-compiler.php
 git diff --check
 ```
 
-The family execution tests compare Oracle execution to PHP for:
+The family execution tests compare Oracle execution to PHP/Zend behavior for:
 
 - captured output;
 - returned value;
 - thrown error status/message class shape.
 
-Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family.
+Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family. For release verification, those comparison tests must be launched through `./jinx`.
