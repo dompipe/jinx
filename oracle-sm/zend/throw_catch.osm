@@ -1,0 +1,35 @@
+oracle_sm_family throw_catch_lowering
+
+purpose "THROW, CATCH, and CLEAR_EXCEPTION lowering over JinxZendErrorState."
+replaces "Zend VM exception-control primitives for native throwable objects."
+
+native_files {
+  runtime/jinx_zend_throw_opcode.h
+  runtime/jinx_zend_error.h
+}
+
+native_symbols {
+  JinxZendThrowOpcodeResult
+  JinxZendCatchFrame
+  jinx_zend_catch_frame_init
+  jinx_zend_throw_value
+  jinx_zend_catch_exception
+  jinx_zend_clear_exception
+}
+
+oracle_sm_contract {
+  throw            require_object_zval
+  throw_state      store_throwable_in_error_state
+  catch_match      exact_class_name_or_catch_all
+  catch_miss       branch_to_miss_target
+  clear_exception  reset_error_state_and_executor_error
+  ownership        non_owning_throwable_pointer
+}
+
+proven_by {
+  scripts/build-zend-throw-opcode-smoke.sh
+  build/native/jinx-zend-throw-opcode-smoke
+}
+
+pasm_target "runtime/pasm/zend/throw_catch.pasm"
+status started
