@@ -13,6 +13,7 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `functions` | `runtime/OracleFunctionExecutor.php` | `scripts/test-oracle-function-execution.php` | named user functions, local parameter scope, return values, nested user calls, builtin dispatch for `strlen` and `strtoupper` |
 | `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` | explicit Oracle request context for `$_SERVER`, `$_GET`, `$_POST`, `$_REQUEST`, coalesce, `isset`, `empty`, `count`, echo, print, return |
 | `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` | literal `include` and `require` edges resolved by OracleProgramCompiler, included local scope, included output, caller return parity |
+| `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` | `exit`/`die` termination, string output, exit status, terminated flag, and unreachable-code stopping behavior |
 
 ## Native `./jinx` verification
 
@@ -28,13 +29,14 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-include-require-execution.php
+./jinx scripts/test-oracle-exit-die-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
 
 - captured output;
 - returned value;
-- thrown error status/message class shape.
+- thrown error status/message class shape;
+- exit status and termination behavior where applicable.
 
 Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family. For release verification, those comparison tests must be launched through `./jinx`.
