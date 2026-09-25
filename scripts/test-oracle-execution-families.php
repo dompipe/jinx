@@ -5,8 +5,10 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/runtime/OracleStraightLineExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleConditionalExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
+use jinx\oracle\OracleArrayExecutor;
 use jinx\oracle\OracleConditionalExecutor;
 use jinx\oracle\OracleExecutionFamilies;
 use jinx\oracle\OracleLoopExecutor;
@@ -27,7 +29,7 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $families = OracleExecutionFamilies::all();
 
-foreach (['straight-line', 'conditionals', 'loops'] as $family) {
+foreach (['straight-line', 'conditionals', 'loops', 'arrays'] as $family) {
     if (!isset($families[$family])) {
         fail("missing {$family} execution family");
     }
@@ -93,4 +95,28 @@ foreach (['while', 'break', 'continue'] as $flow) {
     }
 }
 
-echo "PASS: Oracle execution families expose the straight-line, conditionals, and loops executable families" . PHP_EOL;
+$arrays = OracleExecutionFamilies::get('arrays');
+
+same($arrays['state'] ?? null, 'executable', 'arrays state');
+same($arrays['owner'] ?? null, OracleArrayExecutor::class, 'arrays owner');
+same($arrays['test'] ?? null, 'scripts/test-oracle-array-execution.php', 'arrays test');
+
+foreach (['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_UNSET', 'O_ECHO', 'O_RETURN'] as $op) {
+    if (!in_array($op, $arrays['ops'] ?? [], true)) {
+        fail("arrays family missing {$op}");
+    }
+}
+
+foreach (['literal_empty_array', 'append', 'nested_dimension_assign', 'nested_dimension_fetch', 'isset', 'empty', 'unset'] as $arrayOp) {
+    if (!in_array($arrayOp, $arrays['array_ops'] ?? [], true)) {
+        fail("arrays family missing array op {$arrayOp}");
+    }
+}
+
+foreach (['count'] as $builtin) {
+    if (!in_array($builtin, $arrays['builtins'] ?? [], true)) {
+        fail("arrays family missing builtin {$builtin}");
+    }
+}
+
+echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, and arrays executable families" . PHP_EOL;
