@@ -61,10 +61,17 @@ Run the fastest small raw-template JINX mode:
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
 ```
 
-Run the large route workload, which uses bigger JSON bodies plus string, array, math, hash, and response-shaping work:
+Run the large route workload with a capped shared frame deck. This prebuilds the request frames once, replays the same frames through PHP and JINX, and keeps frame construction out of both timed sections:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template
+```
+
+Compare uncapped large frames against capped large frames:
 
 ```bash
 ./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template
 ```
 
 Compare the small route against the full back-page response-envelope bridge:
@@ -76,10 +83,10 @@ Compare the small route against the full back-page response-envelope bridge:
 Save JSON:
 
 ```bash
-./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --frame-cap=256 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
 ```
 
-This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page path, single process, no socket timing, and no process-spawn timing.
+This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page path, single process, prebuilt shared frames, no socket timing, and no process-spawn timing.
 
 ## 4. Warmed web-request worker benchmark
 
@@ -208,7 +215,7 @@ Use the harness/process benchmark to catch broad regressions in the complete too
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
-Use the web back-page hot benchmark when checking the off-path route engine where the speed aura can show.
+Use the web back-page hot benchmark when checking the off-path route worker. The capped frame deck mode is the best current way to stop request-frame creation from bending the timing toward either side.
 
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
