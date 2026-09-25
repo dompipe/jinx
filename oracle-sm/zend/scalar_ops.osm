@@ -1,0 +1,38 @@
+oracle_sm_family scalar_ops
+
+purpose "Scalar integer expression and boolean branch opcodes in the combined VM."
+replaces "Subset of Zend arithmetic/comparison opcode behavior for native long/bool values."
+
+native_files {
+  runtime/jinx_zend_opcode_vm.h
+  runtime/jinx_zend_variable_ir.h
+}
+
+native_symbols {
+  JINX_ZEND_VM_ADD
+  JINX_ZEND_VM_SUB
+  JINX_ZEND_VM_EQ
+  JINX_ZEND_VM_LT
+  JINX_ZEND_VM_JMP_IF_TRUE
+  JINX_ZEND_VM_JMP_IF_FALSE
+}
+
+oracle_sm_contract {
+  ADD          long_plus_long_to_long
+  SUB          long_minus_long_to_long
+  EQ           long_equal_long_to_bool
+  LT           long_less_than_long_to_bool
+  JMP_IF_TRUE  branch_only_on_bool_true
+  JMP_IF_FALSE branch_only_on_bool_false
+  type_rule    fail_closed_on_non_long_arithmetic_or_non_bool_branch
+}
+
+proven_by {
+  scripts/build-zend-scalar-vm-smoke.sh
+  build/native/jinx-zend-scalar-vm-smoke
+  scripts/build-zend-variable-scalar-ir-smoke.sh
+  build/native/jinx-zend-variable-scalar-ir-smoke
+}
+
+pasm_target "runtime/pasm/zend/scalar_ops.pasm"
+status started
