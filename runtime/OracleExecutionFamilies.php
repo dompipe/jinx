@@ -137,6 +137,21 @@ final class OracleExecutionFamilies
             $families[$family] = self::builtin(OracleTextBuiltinExecutor::class, 'scripts/test-oracle-text-builtin-two-execution.php', $builtins);
         }
 
+        foreach ([
+            'date-builtins' => ['date'], 'gmdate-builtins' => ['gmdate'], 'strtotime-builtins' => ['strtotime'],
+            'mktime-builtins' => ['mktime'], 'gmmktime-builtins' => ['gmmktime'], 'checkdate-builtins' => ['checkdate'],
+            'idate-builtins' => ['idate'], 'getdate-builtins' => ['getdate', 'json_encode'], 'localtime-builtins' => ['localtime', 'json_encode'],
+            'date-parse-builtins' => ['date_parse', 'json_encode'], 'date-parse-from-format-builtins' => ['date_parse_from_format', 'json_encode'],
+            'timezone-name-from-abbr-builtins' => ['timezone_name_from_abbr'], 'timezone-version-get-builtins' => ['timezone_version_get'],
+            'timezone-open-builtins' => ['timezone_open', 'timezone_name_get'], 'timezone-name-get-builtins' => ['timezone_name_get', 'timezone_open'],
+            'date-create-builtins' => ['date_create', 'date_format'], 'date-format-builtins' => ['date_format', 'date_create'],
+            'date-timestamp-get-builtins' => ['date_timestamp_get', 'date_create'],
+            'date-timezone-get-builtins' => ['date_timezone_get', 'timezone_name_get', 'date_create'],
+            'timezone-offset-get-builtins' => ['timezone_offset_get', 'timezone_open', 'date_create'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleDateTimeBuiltinExecutor::class, 'scripts/test-oracle-date-time-builtin-execution.php', $builtins);
+        }
+
         return $families;
     }
 
