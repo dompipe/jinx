@@ -14,6 +14,7 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` | explicit Oracle request context for `$_SERVER`, `$_GET`, `$_POST`, `$_REQUEST`, coalesce, `isset`, `empty`, `count`, echo, print, return |
 | `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` | literal `include` and `require` edges resolved by OracleProgramCompiler, included local scope, included output, caller return parity |
 | `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` | `exit`/`die` termination, string output, exit status, terminated flag, and unreachable-code stopping behavior |
+| `object-basics` | `runtime/OracleObjectExecutor.php` | `scripts/test-oracle-object-basics-execution.php` | class declaration, constructor call, method call, `$this` property write/fetch, method return, echo, return |
 | `ternary-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | ternary `?:` expression execution and branch parity |
 | `type-casts` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `(int)`, `(string)`, `(bool)`, `(float)`, and `(array)` casts |
 | `string-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `strlen`, `strtoupper`, `strtolower`, `trim`, and `substr` |
@@ -59,7 +60,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-builtin-batch-two-execution.php
+./jinx scripts/test-oracle-object-basics-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
