@@ -87,6 +87,18 @@ final class OracleExecutionFamilies
             $families[$family] = self::builtin(OracleMathBuiltinExecutor::class, 'scripts/test-oracle-math-builtin-execution.php', $builtins);
         }
 
+        foreach ([
+            'base64-encode-builtins' => ['base64_encode'], 'base64-decode-builtins' => ['base64_decode'],
+            'bin2hex-builtins' => ['bin2hex'], 'hex2bin-builtins' => ['hex2bin'], 'sha1-builtins' => ['sha1'], 'crc32-builtins' => ['crc32'],
+            'hash-generic-builtins' => ['hash'], 'hash-hmac-builtins' => ['hash_hmac'], 'serialize-builtins' => ['serialize'], 'unserialize-builtins' => ['unserialize', 'json_encode'],
+            'var-export-builtins' => ['var_export'], 'print-r-builtins' => ['print_r'], 'gettype-builtins' => ['gettype'],
+            'is-scalar-builtins' => ['is_scalar'], 'is-countable-builtins' => ['is_countable'], 'sizeof-builtins' => ['sizeof'],
+            'array-sum-builtins' => ['array_sum'], 'array-product-builtins' => ['array_product'], 'str-split-builtins' => ['str_split', 'implode'],
+            'chunk-split-builtins' => ['chunk_split'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleDataBuiltinExecutor::class, 'scripts/test-oracle-data-builtin-execution.php', $builtins);
+        }
+
         return $families;
     }
 
