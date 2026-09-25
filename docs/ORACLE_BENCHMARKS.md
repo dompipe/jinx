@@ -1,17 +1,20 @@
 # Oracle benchmark commands
 
-This benchmark measures every executable Oracle family that has been added so far by using the Oracle execution family ledger as the source of truth.
+There are two benchmark layers. Use the one that matches the question.
 
-It compares two paths:
+## 1. Harness/process benchmark
 
-1. **PHP baseline**: runs each parity test directly through PHP.
-2. **Native JINX path**: runs the same parity test through repository-root native `./jinx`.
+`scripts/benchmark-oracle-families.php` measures the full verification path for every executable Oracle family. It launches each parity test through direct PHP and through repository-root native `./jinx`.
 
-The benchmark groups families by their PHP parity test, because many builtin families are intentionally tested in batches.
+This answers:
 
-## Run the full benchmark
+```text
+How fast does the whole parity verification harness run?
+```
 
-Run from a clean checkout after building native `./jinx`:
+It includes process startup, script loading, parser/compiler setup, fixture execution, Oracle execution, and parity assertions. It is broad and honest, but it hides worker-level speed because startup and test harness cost dominate small functions.
+
+Run it from a clean checkout after building native `./jinx`:
 
 ```bash
 git pull origin master
@@ -20,27 +23,13 @@ git pull origin master
 git diff --check
 ```
 
-The benchmark script itself must be launched through `./jinx`. Inside the benchmark, the PHP baseline is measured separately and the JINX path is measured by launching repository-root `./jinx` for each parity test.
-
-## Save machine-readable JSON
+Save machine-readable JSON:
 
 ```bash
 ./jinx scripts/benchmark-oracle-families.php --iterations=5 --json=build/benchmarks/oracle-family-benchmark.json
 ```
 
-The JSON includes:
-
-- total executable family count
-- benchmarked family count
-- parity test group count
-- PHP average/best/run timings
-- JINX average/best/run timings
-- JINX-over-PHP ratio per group
-- aggregate timing totals
-
-## Focus one family or group
-
-Use `--only=` with a family name, test path, or part of a test path:
+Focus one family or group:
 
 ```bash
 ./jinx scripts/benchmark-oracle-families.php --only=text --iterations=10
@@ -48,7 +37,7 @@ Use `--only=` with a family name, test path, or part of a test path:
 ./jinx scripts/benchmark-oracle-families.php --only=scripts/test-oracle-math-builtin-execution.php --iterations=10
 ```
 
-## Useful options
+Useful options:
 
 ```text
 --iterations=N    measured runs per side, default 3
@@ -58,8 +47,45 @@ Use `--only=` with a family name, test path, or part of a test path:
 --fail-fast       stop at the first failed group
 ```
 
-## Interpreting the results
+## 2. Worker/hot benchmark
 
-The benchmark reports process-level wall-clock time. That means it includes startup cost, parser/compiler setup, and the full parity harness work. It is useful for comparing the current native `./jinx` path against direct PHP for the same verification workload.
+`scripts/benchmark-oracle-worker-hot.php` measures the in-process worker path. It compiles each selected fixture once, warms the worker, then loops inside the same running `./jinx` process.
 
-For lower-level opcode or builtin microbenchmarks, add a dedicated fixture runner later that loops inside one process. This benchmark is the broad coverage benchmark for everything executable so far.
+This answers:
+
+```text
+How fast is the already-running Oracle worker path after startup/compiler overhead is removed?
+```
+
+This is the benchmark layer where prior worker-level speedups, including near-30x measurements, should be visible again.
+
+Run all representative hot cases:
+
+```bash
+./jinx scripts/benchmark-oracle-worker-hot.php --iterations=1000 --warmup=100
+```
+
+Save JSON:
+
+```bash
+./jinx scripts/benchmark-oracle-worker-hot.php --iterations=1000 --warmup=100 --json=build/benchmarks/oracle-worker-hot.json
+```
+
+Focus one group:
+
+```bash
+./jinx scripts/benchmark-oracle-worker-hot.php --only=text --iterations=10000
+./jinx scripts/benchmark-oracle-worker-hot.php --only=math --iterations=10000
+./jinx scripts/benchmark-oracle-worker-hot.php --only=data --iterations=10000
+./jinx scripts/benchmark-oracle-worker-hot.php --only=chr-builtins --iterations=10000
+```
+
+Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle worker loop was faster than repeatedly requiring the equivalent PHP fixture in the same process.
+
+## Interpreting both numbers
+
+Use the harness/process benchmark to catch broad regressions in the complete toolchain.
+
+Use the worker/hot benchmark when checking the executor-level speed path. The worker benchmark avoids the problem where thousands of tiny function calls are drowned by shell process startup and parity-test bookkeeping.
+
+Neither benchmark claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
