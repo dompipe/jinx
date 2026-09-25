@@ -4,11 +4,16 @@
 #include <time.h>
 
 #include "../runtime/jinx_function_list.generated.h"
+#include "../runtime/jinx_oracle_zend_array_carrier.h"
+#include "../runtime/jinx_zend_array_delete.h"
 #include "../runtime/jinx_pasm_machine.h"
 
 #define JINX_NATIVE_SAMPLE_ARGC 32u
 
 static void print_value(JinxValue value);
+static JinxValue make_zend_array_fixture(int deleted);
+static void release_cli_value(JinxValue value);
+static void release_cli_values(JinxValue *values, size_t count);
 
 static void usage(const char *argv0) {
     printf("JINX native GCC CLI\n\n");
@@ -33,6 +38,8 @@ static void usage(const char *argv0) {
     printf("  b:true|false  boolean value\n");
     printf("  s:<text>      string value\n");
     printf("  a:<count>     array-count stand-in\n");
+    printf("  za:sample     native Zend array [10, 20, \"name\" => 30, \"keep\" => 40]\n");
+    printf("  za:deleted    same native Zend array with index 1 and key \"name\" tombstoned\n");
     printf("  null          null value\n");
     printf("  raw text defaults to string\n");
 }
@@ -227,6 +234,32 @@ static int call_oracle_with_samples(const char *name, JinxValue *out) {
     return out->type != 0u;
 }
 
+static JinxValue make_zend_array_fixture(int deleted) {
+    JinxZendArray *array = jinx_zend_array_new_packed(4);
+    JinxValue value;
+
+    if (array == 0) {
+        return jinx_value_null();
+    }
+
+    if (!jinx_zend_array_append(array, jinx_zend_long(10)) ||
+        !jinx_zend_array_append(array, jinx_zend_long(20)) ||
+        !jinx_zend_array_add_assoc(array, "name", 4, jinx_zend_long(30)) ||
+        !jinx_zend_array_add_assoc(array, "keep", 4, jinx_zend_long(40))) {
+        jinx_zend_array_release(array);
+        return jinx_value_null();
+    }
+
+    if (deleted) {
+        (void)jinx_zend_array_delete_index(array, 1u);
+        (void)jinx_zend_array_delete_string(array, "name", 4);
+    }
+
+    value = jinx_oracle_zend_array_value_retained(array);
+    jinx_zend_array_release(array);
+    return value;
+}
+
 static JinxValue parse_cli_value(const char *text) {
     if (text == NULL || strcmp(text, "null") == 0) {
         return jinx_value_null();
@@ -254,6 +287,14 @@ static JinxValue parse_cli_value(const char *text) {
         return jinx_value_array_count(count < 0 ? 0u : (uint32_t) count);
     }
 
+    if (strcmp(text, "za:sample") == 0) {
+        return make_zend_array_fixture(0);
+    }
+
+    if (strcmp(text, "za:deleted") == 0) {
+        return make_zend_array_fixture(1);
+    }
+
     return jinx_value_string(text, (uint32_t) strlen(text));
 }
 
@@ -279,9 +320,26 @@ static void print_value(JinxValue value) {
         case 5u:
             printf("float:%g", value.as.f64);
             break;
+        case JINX_ORACLE_VALUE_ZEND_ARRAY:
+            printf("zend-array:%zu", jinx_zend_array_live_count(jinx_oracle_zend_array_ptr(value)));
+            break;
         default:
             printf("null");
             break;
+    }
+}
+
+static void release_cli_value(JinxValue value) {
+    jinx_oracle_zend_array_value_release(value);
+}
+
+static void release_cli_values(JinxValue *values, size_t count) {
+    if (values == 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        release_cli_value(values[i]);
     }
 }
 
@@ -581,6 +639,7 @@ static int command_oracle_call(int argc, char **argv) {
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
     JinxValue result;
     int supplied_argc;
+    int exit_code = 0;
 
     if (argc < 3) {
         return fail("oracle-call requires a function name");
@@ -610,11 +669,14 @@ static int command_oracle_call(int argc, char **argv) {
 
     if (result.type == 0u) {
         fprintf(stderr, "null/fault: %s\n", name);
-        return 1;
+        exit_code = 1;
+    } else {
+        print_value_line(result);
     }
 
-    print_value_line(result);
-    return 0;
+    release_cli_value(result);
+    release_cli_values(args, JINX_NATIVE_SAMPLE_ARGC);
+    return exit_code;
 }
 
 static int command_bench_oracle(int argc, char **argv) {
