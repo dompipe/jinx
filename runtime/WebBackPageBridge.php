@@ -49,6 +49,11 @@ final class WebBackPageBridge
         return new self($plan, $template);
     }
 
+    public static function fromRouteFile(string $routePath, string $mode = 'fast-template'): self
+    {
+        return self::fromRoute($routePath, $mode);
+    }
+
     /**
      * @return array<string,mixed>
      */
