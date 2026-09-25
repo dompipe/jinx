@@ -76,6 +76,7 @@ $scriptTests = [
     'benchmark command help' => ['scripts/benchmark-oracle-families.php --help', 'Oracle family benchmark'],
     'worker benchmark help' => ['scripts/benchmark-oracle-worker-hot.php --help', 'Oracle worker hot benchmark'],
     'web back-page hot benchmark help' => ['scripts/benchmark-web-back-page-hot.php --help', 'Web back-page hot benchmark'],
+    '89x resident frame benchmark help' => ['scripts/benchmark-web-89x-resident-frames.php --help', '89x resident high-frame benchmark'],
     'web request worker benchmark help' => ['scripts/benchmark-web-request-worker.php --help', 'JINX warmed web request worker benchmark'],
     'live web request benchmark help' => ['scripts/benchmark-live-web-requests.php --help', 'Live web request benchmark'],
     'live keep-alive benchmark help' => ['scripts/benchmark-live-web-keepalive.php --help', 'Live web keep-alive benchmark'],
