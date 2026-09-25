@@ -32,6 +32,24 @@ JinxZendValue jinx_zend_double(double v) {
     return value;
 }
 
+JinxZendValue jinx_zend_value_copy(JinxZendValue value) {
+    if (value.type == JINX_ZEND_STRING) {
+        value.value.str = jinx_zend_string_retain(value.value.str);
+    } else if (value.type == JINX_ZEND_ARRAY) {
+        value.value.array = jinx_zend_array_retain(value.value.array);
+    }
+
+    return value;
+}
+
+void jinx_zend_value_release(JinxZendValue value) {
+    if (value.type == JINX_ZEND_STRING) {
+        jinx_zend_string_release(value.value.str);
+    } else if (value.type == JINX_ZEND_ARRAY) {
+        jinx_zend_array_release(value.value.array);
+    }
+}
+
 JinxZendString jinx_zend_string_view(const char *bytes, size_t len) {
     JinxZendString string;
     string.refcount = 1;
@@ -135,11 +153,128 @@ JinxZendValue jinx_zend_string_value(JinxZendString *string) {
 JinxZendArray jinx_zend_array_count_view(size_t count) {
     JinxZendArray array;
     array.refcount = 1;
-    array.flags = 0;
+    array.flags = JINX_ZEND_ARRAY_PACKED;
     array.count = count;
     array.capacity = count;
+    array.next_index = count;
     array.buckets = 0;
     return array;
+}
+
+JinxZendArray *jinx_zend_array_new_packed(size_t capacity) {
+    JinxZendArray *array;
+
+    if (capacity == 0u) {
+        capacity = 4u;
+    }
+
+    array = (JinxZendArray *)calloc(1, sizeof(JinxZendArray));
+    if (array == 0) {
+        return 0;
+    }
+
+    array->buckets = (JinxZendBucket *)calloc(capacity, sizeof(JinxZendBucket));
+    if (array->buckets == 0) {
+        free(array);
+        return 0;
+    }
+
+    array->refcount = 1;
+    array->flags = JINX_ZEND_ARRAY_PACKED;
+    array->count = 0;
+    array->capacity = capacity;
+    array->next_index = 0;
+    return array;
+}
+
+JinxZendArray *jinx_zend_array_retain(JinxZendArray *array) {
+    if (array != 0) {
+        array->refcount++;
+    }
+
+    return array;
+}
+
+void jinx_zend_array_release(JinxZendArray *array) {
+    if (array == 0) {
+        return;
+    }
+
+    if (array->refcount > 1u) {
+        array->refcount--;
+        return;
+    }
+
+    if (array->buckets != 0) {
+        for (size_t i = 0; i < array->count; i++) {
+            jinx_zend_string_release(array->buckets[i].key);
+            jinx_zend_value_release(array->buckets[i].value);
+        }
+        free(array->buckets);
+    }
+
+    free(array);
+}
+
+static int jinx_zend_array_reserve(JinxZendArray *array, size_t needed) {
+    size_t new_capacity;
+    JinxZendBucket *new_buckets;
+
+    if (array == 0) {
+        return 0;
+    }
+
+    if (needed <= array->capacity) {
+        return 1;
+    }
+
+    new_capacity = array->capacity == 0u ? 4u : array->capacity;
+    while (new_capacity < needed) {
+        new_capacity *= 2u;
+    }
+
+    new_buckets = (JinxZendBucket *)realloc(array->buckets, new_capacity * sizeof(JinxZendBucket));
+    if (new_buckets == 0) {
+        return 0;
+    }
+
+    memset(new_buckets + array->capacity, 0, (new_capacity - array->capacity) * sizeof(JinxZendBucket));
+    array->buckets = new_buckets;
+    array->capacity = new_capacity;
+    return 1;
+}
+
+int jinx_zend_array_append(JinxZendArray *array, JinxZendValue value) {
+    JinxZendBucket *bucket;
+
+    if (array == 0 || !jinx_zend_array_reserve(array, array->count + 1u)) {
+        return 0;
+    }
+
+    bucket = &array->buckets[array->count];
+    bucket->h = array->next_index;
+    bucket->key = 0;
+    bucket->value = jinx_zend_value_copy(value);
+    array->count++;
+    array->next_index++;
+    array->flags = (array->flags & ~JINX_ZEND_ARRAY_MIXED) | JINX_ZEND_ARRAY_PACKED;
+    return 1;
+}
+
+JinxZendValue *jinx_zend_array_index(JinxZendArray *array, size_t index) {
+    if (array == 0 || index >= array->count || array->buckets == 0) {
+        return 0;
+    }
+
+    return &array->buckets[index].value;
+}
+
+const JinxZendBucket *jinx_zend_array_iter_at(const JinxZendArray *array, size_t position) {
+    if (array == 0 || position >= array->count || array->buckets == 0) {
+        return 0;
+    }
+
+    return &array->buckets[position];
 }
 
 JinxZendValue jinx_zend_array_value(JinxZendArray *array) {
@@ -199,7 +334,7 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "build/oracle-asm/zend/zval.oracle_asm.h",
         "runtime/pasm/zend/zval.pasm",
         "started",
-        "Native JinxZendValue exists; next step is zval copy/destruct helpers for arrays, objects, and references."
+        "Native JinxZendValue copy/destruct exists for strings and arrays. Next: object/reference/resource destructors."
     },
     {
         "zend_string",
@@ -216,8 +351,8 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "oracle-sm/zend/hash.osm",
         "build/oracle-asm/zend/hash.oracle_asm.h",
         "runtime/pasm/zend/hash.pasm",
-        "planned",
-        "Array count view exists; real buckets, packed/mixed arrays, insertion order, and COW are next."
+        "started",
+        "Packed buckets, append, index lookup, insertion-order iteration, and value retain/release now exist. Next: mixed string-key buckets and array COW."
     },
     {
         "executor/call-frame",
@@ -272,7 +407,10 @@ int jinx_zend_smoke(void) {
     JinxZendString view = jinx_zend_string_view("oracle", 6);
     JinxZendString *owned = jinx_zend_string_new("dompipe", 7);
     JinxZendString *alias;
-    JinxZendArray array = jinx_zend_array_count_view(4);
+    JinxZendArray *packed;
+    JinxZendValue *slot;
+    const JinxZendBucket *bucket0;
+    const JinxZendBucket *bucket1;
     JinxZendValue result;
     int ok;
 
@@ -294,16 +432,45 @@ int jinx_zend_smoke(void) {
         return 0;
     }
 
+    packed = jinx_zend_array_new_packed(2);
+    if (packed == 0) {
+        jinx_zend_string_release(alias);
+        jinx_zend_string_release(owned);
+        return 0;
+    }
+
+    if (!jinx_zend_array_append(packed, jinx_zend_long(7)) ||
+        !jinx_zend_array_append(packed, jinx_zend_string_value(alias))) {
+        jinx_zend_array_release(packed);
+        jinx_zend_string_release(alias);
+        jinx_zend_string_release(owned);
+        return 0;
+    }
+
+    slot = jinx_zend_array_index(packed, 0);
+    bucket0 = jinx_zend_array_iter_at(packed, 0);
+    bucket1 = jinx_zend_array_iter_at(packed, 1);
+
+    if (packed->count != 2u || packed->next_index != 2u || slot == 0 || slot->type != JINX_ZEND_LONG ||
+        slot->value.lval != 7 || bucket0 == 0 || bucket0->h != 0u || bucket1 == 0 || bucket1->h != 1u ||
+        bucket1->value.type != JINX_ZEND_STRING || bucket1->value.value.str != alias || alias->refcount != 2u) {
+        jinx_zend_array_release(packed);
+        jinx_zend_string_release(alias);
+        jinx_zend_string_release(owned);
+        return 0;
+    }
+
     jinx_zend_executor_init(&executor);
     args[0] = jinx_zend_string_value(&view);
-    args[1] = jinx_zend_array_value(&array);
+    args[1] = jinx_zend_array_value(packed);
 
     jinx_zend_frame_enter(&executor, &frame, "zend-smoke", args, 2);
-    result = jinx_zend_frame_leave(&executor, jinx_zend_long((int64_t)(view.len + array.count + alias->len)));
+    result = jinx_zend_frame_leave(&executor, jinx_zend_long((int64_t)(view.len + packed->count + alias->len)));
 
     ok = executor.current_frame == 0 && executor.executed_ops == 2 &&
-        result.type == JINX_ZEND_LONG && result.value.lval == 17;
+        result.type == JINX_ZEND_LONG && result.value.lval == 15;
 
+    jinx_zend_array_release(packed);
     jinx_zend_string_release(alias);
     jinx_zend_string_release(owned);
     return ok;
