@@ -17,11 +17,13 @@ final class WebWindowIndex
     /** @var array<string,array<string,mixed>> */
     private array $pageDefaults = [];
 
+    private int $indexVersion = 1;
+
     /** @param array<string,array<string,mixed>> $pageDefaults */
     public function __construct(array $pageDefaults = [])
     {
         foreach ($pageDefaults as $pageKey => $defaults) {
-            $this->registerPageDefault((string) $pageKey, $defaults);
+            $this->upsertPageDefault((string) $pageKey, $defaults, false);
         }
     }
 
@@ -55,6 +57,33 @@ final class WebWindowIndex
     /** @param array<string,mixed> $defaults */
     public function registerPageDefault(string $pageKey, array $defaults): void
     {
+        $this->upsertPageDefault($pageKey, $defaults, true);
+    }
+
+    /** @param array<string,mixed> $defaults */
+    public function updatePageDefault(string $pageKey, array $defaults): void
+    {
+        if (!isset($this->pageDefaults[trim($pageKey)])) {
+            throw new \RuntimeException("Cannot update unknown JINX window page key: {$pageKey}");
+        }
+
+        $this->upsertPageDefault($pageKey, $defaults, true);
+    }
+
+    /** @param array<string,mixed> $patch */
+    public function patchPageDefault(string $pageKey, array $patch): void
+    {
+        $pageKey = trim($pageKey);
+        if (!isset($this->pageDefaults[$pageKey])) {
+            throw new \RuntimeException("Cannot patch unknown JINX window page key: {$pageKey}");
+        }
+
+        $this->upsertPageDefault($pageKey, self::mergeArrangement($this->pageDefaults[$pageKey], $patch), true);
+    }
+
+    /** @param array<string,mixed> $defaults */
+    private function upsertPageDefault(string $pageKey, array $defaults, bool $bumpVersion): void
+    {
         $pageKey = trim($pageKey);
         if ($pageKey === '') {
             throw new \InvalidArgumentException('Window page key cannot be empty.');
@@ -62,13 +91,23 @@ final class WebWindowIndex
 
         $defaults['page_key'] = $pageKey;
         $defaults['resident'] = true;
+        $defaults['index_mutable'] = true;
         $this->pageDefaults[$pageKey] = self::normalizePageDefaults($defaults);
+
+        if ($bumpVersion) {
+            $this->indexVersion++;
+        }
     }
 
     /** @return array<string,array<string,mixed>> */
     public function pageDefaults(): array
     {
         return $this->pageDefaults;
+    }
+
+    public function indexVersion(): int
+    {
+        return $this->indexVersion;
     }
 
     /** @return array<string,mixed> */
@@ -85,6 +124,7 @@ final class WebWindowIndex
         return [
             'kind' => 'JINX_WINDOW_INDEX_FRAME',
             'version' => 1,
+            'index_version' => $this->indexVersion,
             'window_id' => $windowId,
             'page_key' => $pageKey,
             'resident_index_fingerprint' => $this->residentIndexFingerprint(),
@@ -93,6 +133,7 @@ final class WebWindowIndex
             'safety' => [
                 'resident_state' => 'page defaults and arrangements only',
                 'request_state' => 'must be isolated outside the resident window index',
+                'index_update_rule' => 'only explicit register/update/patch calls mutate the resident index',
             ],
         ];
     }
@@ -103,6 +144,8 @@ final class WebWindowIndex
         $frame = $this->arrangeWindow($windowId, $pageKey, $overrides);
         $windowState[$windowId] = [
             'page_key' => $pageKey,
+            'index_version' => $frame['index_version'],
+            'resident_index_fingerprint' => $frame['resident_index_fingerprint'],
             'arrangement' => $frame['arrangement'],
             'last_patch_count' => count($frame['patches']),
         ];
@@ -111,7 +154,10 @@ final class WebWindowIndex
 
     public function residentIndexFingerprint(): string
     {
-        return hash('sha256', json_encode($this->pageDefaults, JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) ?: '');
+        return hash('sha256', json_encode([
+            'version' => $this->indexVersion,
+            'page_defaults' => $this->pageDefaults,
+        ], JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) ?: '');
     }
 
     /** @param array<string,mixed> $frame */
@@ -124,7 +170,9 @@ final class WebWindowIndex
 
         return "(function(window, document){\n"
             . "  const frame = {$json};\n"
-            . "  window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {frames:{}, defaults:{}};\n"
+            . "  window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {frames:{}, defaults:{}, index_version:0};\n"
+            . "  window.__JINX_WINDOW_INDEX__.index_version = frame.index_version || window.__JINX_WINDOW_INDEX__.index_version || 0;\n"
+            . "  window.__JINX_WINDOW_INDEX__.fingerprint = frame.resident_index_fingerprint || null;\n"
             . "  window.__JINX_WINDOW_INDEX__.frames[frame.window_id] = frame;\n"
             . "  window.__JINX_WINDOW_INDEX__.defaults[frame.page_key] = frame.arrangement;\n"
             . "  for (const patch of frame.patches || []) {\n"
