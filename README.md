@@ -7,12 +7,11 @@ The RC focuses on:
 - JINX web compilation for validated JSON endpoints.
 - Worker-style native wrapper registration for the imported PHP runtime surface.
 - A generated compact wrapper dispatch table for 3,527 PHP callable signatures.
-- An Oracle-shaped PHP dispatch table for the first hot worker-safe builtin benchmark set.
 - A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
+- A compiled PHP-manual implementation manifest for moving under-construction builtins into exact native handlers.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
 - PHP comparison benchmarks for validated callable builtin cases.
-- Benchmarks for endpoint execution, worker serving, PASM-shaped execution forms, generated wrapper overhead, and native Oracle dispatch.
 
 ## Quick Native Commands
 
@@ -75,7 +74,38 @@ Examples:
 ./jinx oracle-call DateTime::format s:Y-m-d
 ```
 
-Important distinction: every generated name is callable through this entrypoint if it exists in the generated native dispatch table. Exact PHP-compatible behavior is still being filled in by replacing coarse native handler families with exact builtin implementations.
+Important distinction: every generated name is callable through this entrypoint if it exists in the generated native dispatch table. Exact PHP-compatible behavior is filled in by replacing coarse native handler families with manual-derived builtin implementations.
+
+## PHP Manual Native Implementation Rule
+
+Under-construction functions must be moved to native behavior by reading the PHP manual first, recording the manual contract, and then adding source code used by the executable.
+
+The compiled C manifest is:
+
+```text
+runtime/jinx_php_manual_manifest.h
+```
+
+The native build force-includes that manifest:
+
+```text
+scripts/build-native-jinx.sh
+```
+
+So the manual implementation map is part of the native executable source path. Handler states are:
+
+```text
+exact          Manual behavior is implemented for supported native value types.
+partial        Manual page was read and the native handler covers a documented subset.
+placeholder    Callable native carrier exists, but exact manual behavior still needs implementation.
+unsafe-native  Must not become a blind native host call; sandbox policy is required first.
+```
+
+Full process:
+
+```text
+docs/PHP_MANUAL_NATIVE_IMPLEMENTATION.md
+```
 
 ## PHP vs Native `./jinx` Benchmark
 
@@ -130,6 +160,7 @@ This native binary uses the C Oracle/PASM runtime:
 
 ```text
 native/jinx_cli.c
+runtime/jinx_php_manual_manifest.h
 runtime/jinx_oracle_asm_context.c
 runtime/jinx_builtin_dispatch.generated.c
 runtime/jinx_pasm_machine.c
@@ -144,24 +175,10 @@ Current native runtime behavior is intentionally explicit:
 - `oracle-call` can invoke any generated name through the native `./jinx` executable;
 - the first 100 benchmark functions execute through the C Oracle path with deterministic native sample values;
 - `bench-all-functions` traverses every generated wrapper with deterministic sample argument slots;
-- `bench-all-functions` reports concrete non-null returns separately from null/fault placeholder returns;
-- lower PASM smoke currently covers `CALL_BUILTIN strlen`;
-- full PHP behavioral parity for every imported function is still not claimed.
-
-To install the compiled native command on WSL:
-
-```bash
-chmod +x scripts/build-native-jinx.sh scripts/install-wsl-cli.sh
-./scripts/install-wsl-cli.sh
-jinx rc
-jinx bench-all-functions 1000
-```
-
-After that, use `jinx ...` directly. The installed `jinx` is the GCC-built executable.
+- the PHP manual manifest records exact, partial, placeholder, and unsafe-native implementation states;
+- full PHP behavioral parity for every imported function is still not claimed until each handler is promoted from the manifest.
 
 ## RC Status
-
-This package is an RC, not a final native compiler claim.
 
 Implemented and verified in this package:
 
@@ -169,14 +186,10 @@ Implemented and verified in this package:
 - The native GCC CLI includes all 3,527 generated function names.
 - `functions-smoke` verifies that every generated name resolves to a generated Oracle wrapper.
 - `oracle-call` invokes any generated name through the native `./jinx` Oracle dispatch table.
-- `first100` executes the first 100 benchmark functions through C Oracle dispatch with deterministic sample values.
-- `bench-first100` times that first-100 C Oracle dispatch set.
 - `bench-all-functions` traverses the full generated native dispatch surface and reports concrete versus placeholder returns.
-- `scripts/benchmark-native-jinx-vs-php.php` compares validated PHP builtin calls against native `./jinx bench-all-functions` output.
-- The hot wrapper dispatch path uses a compact `name -> id -> row` table.
+- `runtime/jinx_php_manual_manifest.h` records manual-derived native implementation states.
+- `scripts/build-native-jinx.sh` force-includes the manual manifest during native compilation.
 - Unsafe, unavailable, by-reference, and method-only wrappers fail closed at runtime.
-- Hand wrappers remain for functions that need custom PHP value handling.
-- The web worker benchmark and wrapper registry tests pass in the active Windows PHP runtime.
 
 Not claimed as complete:
 
@@ -190,6 +203,7 @@ Not claimed as complete:
 ```text
 native/jinx_cli.c
 bin/jinx
+runtime/jinx_php_manual_manifest.h
 runtime/WebNativeFunctions.php
 runtime/WebNativeFunctionRegistry.generated.php
 runtime/WebNativeOracleDispatch.generated.php
@@ -204,6 +218,7 @@ scripts/test-web-native-function-registry.php
 docs/RC_NOTES.md
 docs/BENCHMARKS.md
 docs/NATIVE_VS_PHP_BENCHMARK.md
+docs/PHP_MANUAL_NATIVE_IMPLEMENTATION.md
 ```
 
 ## Current Benchmark Snapshot
@@ -229,6 +244,7 @@ For current benchmark instructions, read:
 ./jinx benchmarks
 cat docs/BENCHMARKS.md
 cat docs/NATIVE_VS_PHP_BENCHMARK.md
+cat docs/PHP_MANUAL_NATIVE_IMPLEMENTATION.md
 ```
 
 ## PHP Helper Commands
@@ -243,7 +259,7 @@ php bin/jinx bench-worker
 php bin/jinx bench-endpoint
 ```
 
-Use the native `./jinx` executable for native Oracle/PASM timing and direct generated-function calls.
+Use the native `./jinx` executable for native Oracle/PASM timing.
 
 ## Package Contents
 
