@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 /**
- * Minimal live PHP web worker used by the fair live-request benchmark.
+ * Minimal live PHP web worker used by live-request benchmarks.
  *
  * This intentionally uses the same tiny loopback socket server shape as the JINX
  * web worker so the benchmark compares route execution instead of comparing two
- * unrelated HTTP stacks.
+ * unrelated HTTP stacks. It supports both connection-close and keep-alive mode.
  */
 
 function fail(string $message): never
@@ -49,25 +49,24 @@ function parse_server_args(array $argv): array
     return $options;
 }
 
-/** @return array{method:string,path:string,headers:array<string,string>,body:string}|null */
-function read_http_request($conn): ?array
+/** @return array{method:string,path:string,headers:array<string,string>,body:string,protocol:string}|null */
+function read_http_request($conn, string &$buffer): ?array
 {
-    $headersRaw = '';
-    while (!str_contains($headersRaw, "\r\n\r\n")) {
+    while (!str_contains($buffer, "\r\n\r\n")) {
         $chunk = fread($conn, 8192);
         if ($chunk === '' || $chunk === false) {
             return null;
         }
-        $headersRaw .= $chunk;
-        if (strlen($headersRaw) > 1024 * 1024) {
+        $buffer .= $chunk;
+        if (strlen($buffer) > 1024 * 1024) {
             return null;
         }
     }
 
-    [$headerBlock, $body] = explode("\r\n\r\n", $headersRaw, 2);
+    [$headerBlock, $rest] = explode("\r\n\r\n", $buffer, 2);
     $lines = explode("\r\n", $headerBlock);
     $requestLine = array_shift($lines) ?? '';
-    if (!preg_match('/^(\S+)\s+(\S+)\s+HTTP\/\d(?:\.\d)?$/', $requestLine, $m)) {
+    if (!preg_match('/^(\S+)\s+(\S+)\s+(HTTP\/\d(?:\.\d)?)$/', $requestLine, $m)) {
         return null;
     }
 
@@ -81,29 +80,45 @@ function read_http_request($conn): ?array
     }
 
     $length = isset($headers['content-length']) ? max(0, (int) $headers['content-length']) : 0;
-    while (strlen($body) < $length) {
-        $chunk = fread($conn, $length - strlen($body));
+    while (strlen($rest) < $length) {
+        $chunk = fread($conn, $length - strlen($rest));
         if ($chunk === '' || $chunk === false) {
-            break;
+            return null;
         }
-        $body .= $chunk;
+        $rest .= $chunk;
     }
+
+    $body = substr($rest, 0, $length);
+    $buffer = substr($rest, $length);
 
     return [
         'method' => strtoupper($m[1]),
         'path' => $m[2],
+        'protocol' => $m[3],
         'headers' => $headers,
-        'body' => substr($body, 0, $length),
+        'body' => $body,
     ];
 }
 
-function write_response($conn, int $status, string $body): void
+function wants_keep_alive(array $request): bool
 {
-    $reason = $status === 200 ? 'OK' : ($status === 400 ? 'Bad Request' : 'Error');
+    $connection = strtolower((string) ($request['headers']['connection'] ?? ''));
+    if ($connection === 'close') {
+        return false;
+    }
+    if ($connection === 'keep-alive') {
+        return true;
+    }
+    return (string) ($request['protocol'] ?? '') === 'HTTP/1.1';
+}
+
+function write_response($conn, int $status, string $body, bool $keepAlive): void
+{
+    $reason = $status === 200 ? 'OK' : ($status === 400 ? 'Bad Request' : ($status === 404 ? 'Not Found' : 'Error'));
     $response = "HTTP/1.1 {$status} {$reason}\r\n"
         . "Content-Type: application/json\r\n"
         . "Content-Length: " . strlen($body) . "\r\n"
-        . "Connection: close\r\n"
+        . "Connection: " . ($keepAlive ? 'keep-alive' : 'close') . "\r\n"
         . "\r\n"
         . $body;
     fwrite($conn, $response);
@@ -136,21 +151,27 @@ while ($maxRequests === 0 || $handled < $maxRequests) {
     if (!is_resource($conn)) {
         continue;
     }
-    $request = read_http_request($conn);
-    if ($request === null) {
-        fclose($conn);
-        continue;
-    }
+    $buffer = '';
+    while ($maxRequests === 0 || $handled < $maxRequests) {
+        $request = read_http_request($conn, $buffer);
+        if ($request === null) {
+            break;
+        }
+        $keepAlive = wants_keep_alive($request);
 
-    if ($request['method'] === 'GET' && $request['path'] === '/__health') {
-        write_response($conn, 200, json_encode(['ok' => true, 'worker' => 'php']) ?: '');
-    } elseif ($request['method'] === 'POST') {
-        $response = run_php_route($request['body']);
-        write_response($conn, $response['status'], $response['body']);
-    } else {
-        write_response($conn, 404, json_encode(['ok' => false, 'error' => 'Not found']) ?: '');
-    }
+        if ($request['method'] === 'GET' && $request['path'] === '/__health') {
+            write_response($conn, 200, json_encode(['ok' => true, 'worker' => 'php']) ?: '', $keepAlive);
+        } elseif ($request['method'] === 'POST') {
+            $response = run_php_route($request['body']);
+            write_response($conn, $response['status'], $response['body'], $keepAlive);
+        } else {
+            write_response($conn, 404, json_encode(['ok' => false, 'error' => 'Not found']) ?: '', $keepAlive);
+        }
 
+        $handled++;
+        if (!$keepAlive) {
+            break;
+        }
+    }
     fclose($conn);
-    $handled++;
 }
