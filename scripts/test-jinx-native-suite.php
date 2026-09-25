@@ -57,6 +57,7 @@ $scriptTests = [
     'scalar builtin families' => ['scripts/test-oracle-scalar-builtin-execution.php', 'PASS: Oracle executes scalar builtin PHP families'],
     'app builtin families' => ['scripts/test-oracle-app-builtin-execution.php', 'PASS: Oracle executes app builtin PHP families'],
     'math builtin families' => ['scripts/test-oracle-math-builtin-execution.php', 'PASS: Oracle executes math builtin PHP families'],
+    'data builtin families' => ['scripts/test-oracle-data-builtin-execution.php', 'PASS: Oracle executes data builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
     'full coverage audit' => ['scripts/test-oracle-full-coverage-audit.php', 'PASS: Oracle full coverage audit validates'],
 ];
