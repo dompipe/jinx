@@ -15,6 +15,17 @@ git diff --check
 
 Do not run family tests with `php scripts/...` for release verification. Launch them through repository-root native `./jinx`.
 
+## Native benchmark
+
+Use the benchmark script to time every executable family parity path against the PHP baseline and native `./jinx` path:
+
+```bash
+./jinx scripts/benchmark-oracle-families.php --iterations=5
+./jinx scripts/benchmark-oracle-families.php --iterations=5 --json=build/benchmarks/oracle-family-benchmark.json
+```
+
+See `docs/ORACLE_BENCHMARKS.md` for benchmark options, JSON output, and interpretation notes.
+
 ## Core language/runtime families
 
 Runtime owners are the corresponding files under `runtime/`. PHP comparison tests are shown beside each family.
