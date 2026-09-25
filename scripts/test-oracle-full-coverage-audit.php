@@ -40,6 +40,7 @@ $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 $nativeSuite = (string) file_get_contents($root . '/scripts/test-jinx-native-suite.php');
 $docs = (string) file_get_contents($root . '/docs/ORACLE_EXECUTION_COMMANDS.md');
+$docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_ARRAY_SET_BUILTINS.md');
 
 $testToFamilies = [];
 
@@ -57,10 +58,10 @@ foreach ($families as $family => $metadata) {
         fail("{$family} comparison test is not wired into native suite: {$test}");
     }
     if (!str_contains($docs, "`{$family}`")) {
-        fail("{$family} is not documented in ORACLE_EXECUTION_COMMANDS.md");
+        fail("{$family} is not documented in ORACLE_EXECUTION_COMMANDS.md or supplemental Oracle docs");
     }
     if (!str_contains($docs, "`{$test}`")) {
-        fail("{$family} test path is not documented in ORACLE_EXECUTION_COMMANDS.md: {$test}");
+        fail("{$family} test path is not documented in ORACLE_EXECUTION_COMMANDS.md or supplemental Oracle docs: {$test}");
     }
     if (!is_string($owner) || !class_exists($owner)) {
         fail("{$family} owner class is not loadable: " . var_export($owner, true));
