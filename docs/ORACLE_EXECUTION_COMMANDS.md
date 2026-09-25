@@ -4,57 +4,106 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 
 ## Current executable Oracle families
 
-| Family | Runtime owner | PHP comparison test | Scope |
-|---|---|---|---|
-| `straight-line` | `runtime/OracleStraightLineExecutor.php` | `scripts/test-oracle-straightline-execution.php` | assignments, dimension writes/fetches, coalesce, compound assignment, inc/dec, echo, print, return, `strlen`, `strtoupper` |
-| `conditionals` | `runtime/OracleConditionalExecutor.php` | `scripts/test-oracle-conditional-execution.php` | narrow `if`/`else`, comparisons, `&&`, `||`, `!`, PHP-like truthiness, plus the straight-line operations needed inside branches |
-| `loops` | `runtime/OracleLoopExecutor.php` | `scripts/test-oracle-loop-execution.php` | narrow `while` loops, `break`, `continue`, nested conditionals, plus the straight-line operations needed inside loop bodies |
-| `arrays` | `runtime/OracleArrayExecutor.php` | `scripts/test-oracle-array-execution.php` | empty array literals, append writes, nested dimension assigns/fetches, `isset`, `empty`, `unset`, `count`, echo, print, return |
-| `functions` | `runtime/OracleFunctionExecutor.php` | `scripts/test-oracle-function-execution.php` | named user functions, local parameter scope, return values, nested user calls, builtin dispatch for `strlen` and `strtoupper` |
-| `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` | explicit Oracle request context for `$_SERVER`, `$_GET`, `$_POST`, `$_REQUEST`, coalesce, `isset`, `empty`, `count`, echo, print, return |
-| `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` | literal `include` and `require` edges resolved by OracleProgramCompiler, included local scope, included output, caller return parity |
-| `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` | `exit`/`die` termination, string output, exit status, terminated flag, and unreachable-code stopping behavior |
-| `object-basics` | `runtime/OracleObjectExecutor.php` | `scripts/test-oracle-object-basics-execution.php` | class declaration, constructor call, method call, `$this` property write/fetch, method return, echo, return |
-| `ternary-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | ternary `?:` expression execution and branch parity |
-| `type-casts` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `(int)`, `(string)`, `(bool)`, `(float)`, and `(array)` casts |
-| `string-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `strlen`, `strtoupper`, `strtolower`, `trim`, and `substr` |
-| `math-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `abs`, `max`, `min`, and `round` |
-| `comparison-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | comparison operators including strict equality and spaceship `<=>` |
-| `boolean-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `&&`, `||`, `!`, and PHP-like truthiness |
-| `magic-constants` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `__FILE__`, `__DIR__`, and `PHP_VERSION` |
-| `array-literals` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | list literals, associative literals, `count`, `implode`, and `array_sum` |
-| `foreach-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow key/value `foreach` loops and body execution |
-| `for-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow `for` init, condition, iteration, and body execution |
-| `str-replace-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `str_replace` output and return parity |
-| `strpos-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `strpos` integer result parity through PHP string concatenation |
-| `explode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `explode`, `implode`, and `count` working together |
-| `in-array-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `in_array` boolean result parity |
-| `array-key-exists-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_key_exists` boolean result parity |
-| `array-merge-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_merge` list merging parity |
-| `array-reverse-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_reverse` list ordering parity |
-| `array-unique-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_unique` value preservation parity |
-| `json-encode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `json_encode` array encoding parity |
-| `hash-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `md5` hash output parity |
-| `ltrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `ltrim` leading trim parity |
-| `rtrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `rtrim` trailing trim parity |
-| `ucfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `ucfirst` first-character uppercase parity |
-| `lcfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `lcfirst` first-character lowercase parity |
-| `strrev-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `strrev` string reverse parity |
-| `str-repeat-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `str_repeat` repeated string parity |
-| `str-pad-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `str_pad` padded string parity |
-| `array-keys-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_keys` key extraction parity |
-| `array-values-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_values` value reindex parity |
-| `array-slice-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_slice` offset and length parity |
-| `is-string-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_string` type-check parity |
-| `is-int-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_int` type-check parity |
-| `is-array-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_array` type-check parity |
-| `is-bool-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_bool` type-check parity |
-| `is-null-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_null` type-check parity |
-| `intval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `intval` conversion parity |
-| `strval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `strval` conversion parity |
-| `boolval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `boolval` conversion parity |
-| `floatval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `floatval` conversion parity |
-| `is-numeric-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_numeric` numeric-string check parity |
+Every family listed here is executable only because it has a runtime owner and a PHP parity comparison test. The full native suite also runs a coverage audit that checks this ledger, the parity tests, the native suite wiring, and this document stay synchronized.
+
+### Core language/runtime families
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `straight-line` | `runtime/OracleStraightLineExecutor.php` | `scripts/test-oracle-straightline-execution.php` |
+| `conditionals` | `runtime/OracleConditionalExecutor.php` | `scripts/test-oracle-conditional-execution.php` |
+| `loops` | `runtime/OracleLoopExecutor.php` | `scripts/test-oracle-loop-execution.php` |
+| `arrays` | `runtime/OracleArrayExecutor.php` | `scripts/test-oracle-array-execution.php` |
+| `functions` | `runtime/OracleFunctionExecutor.php` | `scripts/test-oracle-function-execution.php` |
+| `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` |
+| `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` |
+| `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` |
+| `object-basics` | `runtime/OracleObjectExecutor.php` | `scripts/test-oracle-object-basics-execution.php` |
+
+### Expression/control-flow batch
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `ternary-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `type-casts` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `string-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `math-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `comparison-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `boolean-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `magic-constants` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `array-literals` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `foreach-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+| `for-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
+
+### Builtin batch one
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `str-replace-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `strpos-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `explode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `in-array-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `array-key-exists-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `array-merge-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `array-reverse-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `array-unique-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `json-encode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+| `hash-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
+
+### Builtin batch two
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `ltrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `rtrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `ucfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `lcfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `strrev-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `str-repeat-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `str-pad-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `array-keys-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `array-values-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+| `array-slice-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
+
+### Scalar/type builtin batch
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `is-string-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `is-int-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `is-array-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `is-bool-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `is-null-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `intval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `strval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `boolval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `floatval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+| `is-numeric-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
+
+### App builtin batch
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `str-contains-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `str-starts-with-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `str-ends-with-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `stripos-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `strrpos-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `strstr-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `substr-count-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `wordwrap-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `sprintf-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `number-format-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-combine-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-flip-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-diff-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-intersect-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-search-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-column-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-chunk-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `range-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-change-key-case-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `array-fill-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 
 ## Native `./jinx` verification
 
@@ -70,14 +119,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-scalar-builtin-execution.php
+./jinx scripts/test-oracle-app-builtin-execution.php
 ```
 
-The family execution tests compare Oracle execution to PHP/Zend behavior for:
-
-- captured output;
-- returned value;
-- thrown error status/message class shape;
-- exit status and termination behavior where applicable.
-
-Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family. For release verification, those comparison tests must be launched through `./jinx`.
+The family execution tests compare Oracle execution to PHP/Zend behavior for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable. Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family.
