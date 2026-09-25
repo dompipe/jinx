@@ -176,6 +176,7 @@ final class OracleRegexStringBuiltinExecutor
             'strrchr' => strrchr((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
             'stristr' => stristr((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
             'strpbrk' => strpbrk((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
+            'strtok' => strtok((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
             'sscanf' => sscanf((string) ($args[0] ?? ''), (string) ($args[1] ?? '')),
             'pathinfo' => pathinfo((string) ($args[0] ?? '')),
             'htmlentities' => htmlentities((string) ($args[0] ?? '')),
