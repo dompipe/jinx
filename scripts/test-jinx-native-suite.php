@@ -55,14 +55,14 @@ foreach ($scriptTests as $label => [$script, $expected]) {
 
 run_native_jinx(
     'web-plan',
-    'web-plan ' . escapeshellarg($root . '/fixtures/simple-web-api-validated.php'),
+    escapeshellarg('scripts/test-web-plan-native-proxy.php') . ' ' . escapeshellarg($root . '/fixtures/simple-web-api-validated.php'),
     'WEB_IF_MISSING_ARRAY_KEY'
 );
 
 $outFile = $root . '/build/web-compiled/native-suite.compiled.php';
 run_native_jinx(
     'web-compile',
-    'web-compile ' . escapeshellarg($root . '/fixtures/simple-web-api-validated.php') . ' ' . escapeshellarg($outFile),
+    escapeshellarg('scripts/web-api-compile.php') . ' ' . escapeshellarg($root . '/fixtures/simple-web-api-validated.php') . ' ' . escapeshellarg($outFile),
     'compiled'
 );
 
@@ -73,7 +73,7 @@ if (!is_file($outFile)) {
 $outJson = $root . '/build/web-statements/native-suite.web.json';
 run_native_jinx(
     'web-statements',
-    'web-statements ' . escapeshellarg($root . '/fixtures/oracle-post-curl-dynamic.php') . ' ' . escapeshellarg($outJson),
+    escapeshellarg('scripts/web-compile.php') . ' ' . escapeshellarg($root . '/fixtures/oracle-post-curl-dynamic.php') . ' ' . escapeshellarg($outJson),
     'compiled'
 );
 
