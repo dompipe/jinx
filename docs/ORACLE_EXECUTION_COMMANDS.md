@@ -74,6 +74,12 @@ Runtime owner: `runtime/OracleDataBuiltinExecutor.php`. PHP comparison test: `sc
 
 `base64-encode-builtins`, `base64-decode-builtins`, `bin2hex-builtins`, `hex2bin-builtins`, `sha1-builtins`, `crc32-builtins`, `hash-generic-builtins`, `hash-hmac-builtins`, `serialize-builtins`, `unserialize-builtins`, `var-export-builtins`, `print-r-builtins`, `gettype-builtins`, `is-scalar-builtins`, `is-countable-builtins`, `sizeof-builtins`, `array-sum-builtins`, `array-product-builtins`, `str-split-builtins`, `chunk-split-builtins`.
 
+## Text/string builtin batch
+
+Runtime owner: `runtime/OracleTextBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-text-builtin-execution.php`.
+
+`chr-builtins`, `ord-builtins`, `strcmp-builtins`, `strcasecmp-builtins`, `strncmp-builtins`, `strncasecmp-builtins`, `substr-compare-builtins`, `similar-text-builtins`, `levenshtein-builtins`, `soundex-builtins`, `metaphone-builtins`, `str-rot13-builtins`, `addslashes-builtins`, `stripslashes-builtins`, `quotemeta-builtins`, `addcslashes-builtins`, `substr-replace-builtins`, `strtr-builtins`, `str-getcsv-builtins`, `str-word-count-builtins`.
+
 ## Coverage rule
 
 Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
