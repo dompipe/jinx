@@ -8,7 +8,8 @@ namespace jinx\oracle;
  * Executable Oracle family ledger.
  *
  * A family is listed here only when it has a runtime owner and a test that
- * compares Oracle behavior with PHP behavior.
+ * compares Oracle behavior with PHP behavior. Broad PHP constructs may be
+ * catalogued elsewhere without being marked executable here.
  */
 final class OracleExecutionFamilies
 {
@@ -17,8 +18,11 @@ final class OracleExecutionFamilies
      */
     public static function all(): array
     {
-        $nextTenTest = 'scripts/test-oracle-next-ten-execution.php';
-        $nextTenOwner = OracleNextTenExecutor::class;
+        $expressionTest = 'scripts/test-oracle-next-ten-execution.php';
+        $expressionOwner = OracleExpressionBatchExecutor::class;
+        $builtinTest = 'scripts/test-oracle-builtin-batch-execution.php';
+        $builtinTwoTest = 'scripts/test-oracle-builtin-batch-two-execution.php';
+        $builtinOwner = OracleBuiltinBatchExecutor::class;
 
         return [
             'straight-line' => [
@@ -86,58 +90,63 @@ final class OracleExecutionFamilies
                 'ops' => ['O_DECLARE', 'O_ASSIGN', 'O_ECHO', 'O_PRINT', 'O_EXIT', 'O_RETURN'],
                 'termination_ops' => ['exit_string_output', 'die_alias', 'termination_flag', 'exit_code', 'unreachable_code_stops'],
             ],
-            'ternary-expressions' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_TERNARY', 'O_ECHO', 'O_RETURN'],
-                'expression_ops' => ['ternary_true_branch', 'ternary_false_branch'],
-            ],
-            'type-casts' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_ECHO', 'O_RETURN'],
-                'casts' => ['int', 'string', 'bool', 'float', 'array'],
-            ],
-            'string-builtins' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_ECHO', 'O_RETURN'],
-                'builtins' => ['strlen', 'strtoupper', 'strtolower', 'trim', 'substr'],
-            ],
-            'math-builtins' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_ECHO', 'O_RETURN'],
-                'builtins' => ['abs', 'max', 'min', 'round'],
-            ],
-            'comparison-expressions' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_ECHO', 'O_RETURN'],
-                'comparisons' => ['===', '!==', '==', '!=', '>', '<', '>=', '<=', '<=>'],
-            ],
-            'boolean-expressions' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_TERNARY', 'O_ECHO', 'O_RETURN'],
-                'boolean_operators' => ['&&', '||', '!'],
-            ],
-            'magic-constants' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_ECHO', 'O_RETURN'],
-                'magic_constants' => ['__FILE__', '__DIR__', 'PHP_VERSION'],
-            ],
-            'array-literals' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_ECHO', 'O_RETURN'],
-                'array_ops' => ['list_literal', 'assoc_literal'],
-                'builtins' => ['count', 'implode', 'array_sum'],
-            ],
-            'foreach-loops' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_FOREACH', 'O_COMPOUND_ASSIGN', 'O_BLOCK_CLOSE', 'O_ECHO', 'O_RETURN'],
-                'control_flow' => ['foreach_key_value', 'foreach_value_scope'],
-            ],
-            'for-loops' => [
-                'state' => 'executable', 'owner' => $nextTenOwner, 'test' => $nextTenTest,
-                'ops' => ['O_ASSIGN', 'O_FOR', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_BLOCK_CLOSE', 'O_ECHO', 'O_RETURN'],
-                'control_flow' => ['for_init', 'for_condition', 'for_iteration'],
-            ],
+
+            'ternary-expressions' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_TERNARY', 'O_ECHO', 'O_RETURN'], ['expression_ops' => ['ternary_true_branch', 'ternary_false_branch']]),
+            'type-casts' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['casts' => ['int', 'string', 'bool', 'float', 'array']]),
+            'string-builtins' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['builtins' => ['strlen', 'strtoupper', 'strtolower', 'trim', 'substr']]),
+            'math-builtins' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['builtins' => ['abs', 'max', 'min', 'round']]),
+            'comparison-expressions' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['comparisons' => ['===', '!==', '==', '!=', '>', '<', '>=', '<=', '<=>']]),
+            'boolean-expressions' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_TERNARY', 'O_ECHO', 'O_RETURN'], ['boolean_operators' => ['&&', '||', '!']]),
+            'magic-constants' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['magic_constants' => ['__FILE__', '__DIR__', 'PHP_VERSION']]),
+            'array-literals' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['array_ops' => ['list_literal', 'assoc_literal'], 'builtins' => ['count', 'implode', 'array_sum']]),
+            'foreach-loops' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_FOREACH', 'O_COMPOUND_ASSIGN', 'O_BLOCK_CLOSE', 'O_ECHO', 'O_RETURN'], ['control_flow' => ['foreach_key_value', 'foreach_value_scope']]),
+            'for-loops' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_FOR', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_BLOCK_CLOSE', 'O_ECHO', 'O_RETURN'], ['control_flow' => ['for_init', 'for_condition', 'for_iteration']]),
+
+            'str-replace-builtins' => self::builtin($builtinOwner, $builtinTest, ['str_replace']),
+            'strpos-builtins' => self::builtin($builtinOwner, $builtinTest, ['strpos']),
+            'explode-builtins' => self::builtin($builtinOwner, $builtinTest, ['explode', 'implode', 'count']),
+            'in-array-builtins' => self::builtin($builtinOwner, $builtinTest, ['in_array']),
+            'array-key-exists-builtins' => self::builtin($builtinOwner, $builtinTest, ['array_key_exists']),
+            'array-merge-builtins' => self::builtin($builtinOwner, $builtinTest, ['array_merge', 'implode']),
+            'array-reverse-builtins' => self::builtin($builtinOwner, $builtinTest, ['array_reverse', 'implode']),
+            'array-unique-builtins' => self::builtin($builtinOwner, $builtinTest, ['array_unique', 'implode', 'count']),
+            'json-encode-builtins' => self::builtin($builtinOwner, $builtinTest, ['json_encode']),
+            'hash-builtins' => self::builtin($builtinOwner, $builtinTest, ['md5']),
+
+            'ltrim-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['ltrim']),
+            'rtrim-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['rtrim']),
+            'ucfirst-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['ucfirst']),
+            'lcfirst-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['lcfirst']),
+            'strrev-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['strrev']),
+            'str-repeat-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['str_repeat']),
+            'str-pad-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['str_pad']),
+            'array-keys-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['array_keys', 'implode']),
+            'array-values-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['array_values', 'implode']),
+            'array-slice-builtins' => self::builtin($builtinOwner, $builtinTwoTest, ['array_slice', 'implode']),
         ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function family(string $owner, string $test, array $ops, array $extra = []): array
+    {
+        return array_merge([
+            'state' => 'executable',
+            'owner' => $owner,
+            'test' => $test,
+            'ops' => $ops,
+        ], $extra);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function builtin(string $owner, string $test, array $builtins): array
+    {
+        return self::family($owner, $test, ['O_DECLARE', 'O_ASSIGN', 'O_ECHO', 'O_PRINT', 'O_RETURN'], [
+            'builtins' => $builtins,
+        ]);
     }
 
     /**
