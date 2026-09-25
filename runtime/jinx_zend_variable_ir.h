@@ -7,14 +7,17 @@
  * Variable-slot IR lowering for the combined Zend opcode VM.
  *
  * This layer moves beyond raw register numbers. It maps variable names onto VM
- * registers, then lowers assignment-like forms into real VM instructions:
+ * registers, then lowers assignment-like and scalar expression forms into VM
+ * instructions:
  *
  *   var <name> <reg>
  *   load <name> <value-slot>
  *   set <dst-name> <src-name>
+ *   addv|subv|eqv|ltv <dst-name> <left-name> <right-name>
  *   callv <dst-name> <object-name> <method> [arg-name]
  *   throwv <name> [file]
  *   catchv <name> <class-or-*> <miss-label>
+ *   jump_if_truev|jump_if_falsev <name> <label>
  *   clear
  *   jump <label>
  *   jump_if_exception <label>
@@ -127,6 +130,81 @@ static inline JinxZendVariableIrResult jinx_zend_variable_ir_emit_copy(
     return JINX_ZEND_VARIABLE_IR_OK;
 }
 
+static inline JinxZendVariableIrResult jinx_zend_variable_ir_emit_binary(
+    JinxZendVariableIrProgram *program,
+    JinxZendVmOpcode opcode,
+    int dst,
+    int left,
+    int right
+) {
+    JinxZendVmOp *op = jinx_zend_statement_ir_emit(&program->statement);
+    if (op == 0) {
+        return JINX_ZEND_VARIABLE_IR_STATEMENT_ERROR;
+    }
+    op->op = opcode;
+    op->dst = dst;
+    op->src = left;
+    op->arg_start = right;
+    return JINX_ZEND_VARIABLE_IR_OK;
+}
+
+static inline JinxZendVariableIrResult jinx_zend_variable_ir_lower_binary_line(
+    JinxZendVariableIrProgram *program,
+    const char *cursor,
+    JinxZendVmOpcode opcode
+) {
+    const char *dst_name;
+    const char *left_name;
+    const char *right_name;
+    size_t dst_len;
+    size_t left_len;
+    size_t right_len;
+    int dst;
+    int left;
+    int right;
+
+    if (!jinx_zend_statement_ir_next_token(&cursor, &dst_name, &dst_len) ||
+        !jinx_zend_statement_ir_next_token(&cursor, &left_name, &left_len) ||
+        !jinx_zend_statement_ir_next_token(&cursor, &right_name, &right_len) ||
+        !jinx_zend_variable_ir_find(program, dst_name, dst_len, &dst) ||
+        !jinx_zend_variable_ir_find(program, left_name, left_len, &left) ||
+        !jinx_zend_variable_ir_find(program, right_name, right_len, &right)) {
+        return JINX_ZEND_VARIABLE_IR_UNKNOWN_VAR;
+    }
+
+    return jinx_zend_variable_ir_emit_binary(program, opcode, dst, left, right);
+}
+
+static inline JinxZendVariableIrResult jinx_zend_variable_ir_lower_bool_jump(
+    JinxZendVariableIrProgram *program,
+    const char *cursor,
+    JinxZendVmOpcode opcode
+) {
+    const char *name;
+    const char *label;
+    size_t name_len;
+    size_t label_len;
+    int src;
+    JinxZendVmOp *vmop;
+
+    if (!jinx_zend_statement_ir_next_token(&cursor, &name, &name_len) ||
+        !jinx_zend_statement_ir_next_token(&cursor, &label, &label_len) ||
+        !jinx_zend_variable_ir_find(program, name, name_len, &src)) {
+        return JINX_ZEND_VARIABLE_IR_UNKNOWN_VAR;
+    }
+
+    vmop = jinx_zend_statement_ir_emit(&program->statement);
+    if (vmop == 0) {
+        return JINX_ZEND_VARIABLE_IR_STATEMENT_ERROR;
+    }
+    vmop->op = opcode;
+    vmop->src = src;
+    if (!jinx_zend_statement_ir_add_patch(&program->statement, program->statement.op_count - 1u, label, label_len)) {
+        return JINX_ZEND_VARIABLE_IR_STATEMENT_ERROR;
+    }
+    return JINX_ZEND_VARIABLE_IR_OK;
+}
+
 static inline JinxZendVariableIrResult jinx_zend_variable_ir_lower_line(
     JinxZendVariableIrProgram *program,
     const char *line,
@@ -197,6 +275,26 @@ static inline JinxZendVariableIrResult jinx_zend_variable_ir_lower_line(
             return JINX_ZEND_VARIABLE_IR_UNKNOWN_VAR;
         }
         return jinx_zend_variable_ir_emit_copy(program, dst, src);
+    }
+
+    if (jinx_zend_statement_ir_token_is(op_token, op_len, "addv")) {
+        return jinx_zend_variable_ir_lower_binary_line(program, cursor, JINX_ZEND_VM_ADD);
+    }
+    if (jinx_zend_statement_ir_token_is(op_token, op_len, "subv")) {
+        return jinx_zend_variable_ir_lower_binary_line(program, cursor, JINX_ZEND_VM_SUB);
+    }
+    if (jinx_zend_statement_ir_token_is(op_token, op_len, "eqv")) {
+        return jinx_zend_variable_ir_lower_binary_line(program, cursor, JINX_ZEND_VM_EQ);
+    }
+    if (jinx_zend_statement_ir_token_is(op_token, op_len, "ltv")) {
+        return jinx_zend_variable_ir_lower_binary_line(program, cursor, JINX_ZEND_VM_LT);
+    }
+
+    if (jinx_zend_statement_ir_token_is(op_token, op_len, "jump_if_truev")) {
+        return jinx_zend_variable_ir_lower_bool_jump(program, cursor, JINX_ZEND_VM_JMP_IF_TRUE);
+    }
+    if (jinx_zend_statement_ir_token_is(op_token, op_len, "jump_if_falsev")) {
+        return jinx_zend_variable_ir_lower_bool_jump(program, cursor, JINX_ZEND_VM_JMP_IF_FALSE);
     }
 
     if (jinx_zend_statement_ir_token_is(op_token, op_len, "callv")) {
