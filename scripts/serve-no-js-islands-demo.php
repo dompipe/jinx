@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 $host = getenv('JINX_DEMO_HOST') ?: '127.0.0.1';
 $port = getenv('JINX_DEMO_PORT') ?: '8099';
+$workers = getenv('JINX_DEMO_WORKERS') ?: '4';
 $router = dirname(__DIR__) . '/scripts/demo-no-js-islands.php';
 $url = "http://{$host}:{$port}/";
-$command = 'php -S ' . escapeshellarg("{$host}:{$port}") . ' ' . escapeshellarg($router);
+putenv('PHP_CLI_SERVER_WORKERS=' . $workers);
+$command = 'PHP_CLI_SERVER_WORKERS=' . escapeshellarg($workers) . ' php -S ' . escapeshellarg("{$host}:{$port}") . ' ' . escapeshellarg($router);
 
 if (isset($argv[1]) && ($argv[1] === '--help' || $argv[1] === '-h')) {
     echo "JINX no-JS islands demo server" . PHP_EOL;
     echo PHP_EOL;
     echo "Starts the browser demo HTTP listener from ./jinx." . PHP_EOL;
+    echo "The worker setting keeps the EventSource invalidation stream from blocking API updates in the dev server." . PHP_EOL;
     echo PHP_EOL;
     echo "Usage:" . PHP_EOL;
     echo "  ./jinx scripts/serve-no-js-islands-demo.php" . PHP_EOL;
@@ -20,6 +23,7 @@ if (isset($argv[1]) && ($argv[1] === '--help' || $argv[1] === '-h')) {
     echo "Environment:" . PHP_EOL;
     echo "  JINX_DEMO_HOST=127.0.0.1" . PHP_EOL;
     echo "  JINX_DEMO_PORT=8099" . PHP_EOL;
+    echo "  JINX_DEMO_WORKERS=4" . PHP_EOL;
     exit(0);
 }
 
@@ -43,6 +47,7 @@ if (!function_exists('passthru')) {
 
 echo "JINX no-JS islands demo server" . PHP_EOL;
 echo "URL: {$url}" . PHP_EOL;
+echo "Workers: {$workers}" . PHP_EOL;
 echo "Command: {$command}" . PHP_EOL;
 echo PHP_EOL;
 echo "Press Ctrl+C to stop." . PHP_EOL;
