@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "../runtime/jinx_function_list.generated.h"
 #include "../runtime/jinx_oracle_zend_array_carrier.h"
@@ -32,6 +33,7 @@ static void usage(const char *argv0) {
     printf("  %s functions-smoke\n", argv0);
     printf("  %s notes\n", argv0);
     printf("  %s benchmarks\n", argv0);
+    printf("  %s scripts/test-oracle-program-compiler.php\n", argv0);
     printf("\nTyped args:\n");
     printf("  i:<int>       integer value\n");
     printf("  f:<float>     floating point value\n");
@@ -46,6 +48,36 @@ static void usage(const char *argv0) {
 
 static int fail(const char *message) {
     fprintf(stderr, "FAIL: %s\n", message);
+    return 1;
+}
+
+static int ends_with(const char *text, const char *suffix) {
+    size_t text_len = strlen(text);
+    size_t suffix_len = strlen(suffix);
+
+    if (suffix_len > text_len) {
+        return 0;
+    }
+
+    return strcmp(text + text_len - suffix_len, suffix) == 0;
+}
+
+static int command_php_script(int argc, char **argv) {
+    char **php_argv = (char **) calloc((size_t) argc + 1u, sizeof(char *));
+
+    if (php_argv == NULL) {
+        return fail("could not allocate PHP script argv");
+    }
+
+    php_argv[0] = "php";
+    for (int i = 1; i < argc; i++) {
+        php_argv[i] = argv[i];
+    }
+    php_argv[argc] = NULL;
+
+    execvp("php", php_argv);
+    perror("php");
+    free(php_argv);
     return 1;
 }
 
@@ -717,6 +749,10 @@ int main(int argc, char **argv) {
     if (argc < 2) {
         usage(argv[0]);
         return 1;
+    }
+
+    if (ends_with(argv[1], ".php")) {
+        return command_php_script(argc, argv);
     }
 
     if (strcmp(argv[1], "rc") == 0) {

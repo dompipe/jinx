@@ -1,18 +1,25 @@
 # Lower-Level PASM Profile
 
-This branch tightens PASM so it is closer to an assembly target and easier to emit into C/ASM.
+This branch tightens PASM so it is closer to an assembly target and easier to emit into C/ASM. PASM is a later output path, not the primary compatibility target.
 
 ## Purpose
 
-PASM is not a PHP-shaped tree. PASM is the portable assembly contract after PHP has already been normalized through the Oracle-shaped ASM form.
+The primary target is PHP-compatible JINX execution with Oracle interpretation, mirroring, and acceleration. PHP behavior remains authoritative. JINX should keep mirroring Zend/PHP runtime families even when there is no PASM/native emission for that family yet.
+
+Oracle is where php-src behavior is meant to be rewritten: commands, language constructs, builtins, extension calls, loader paths, and arbitrary PHP code should ultimately be represented there for faster execution. PASM/native output is downstream of that Oracle ownership, not the definition of completion.
+
+PASM is not a PHP-shaped tree. PASM is an optional portable assembly contract after PHP behavior has already been interpreted by JINX/Oracle and normalized into a lower Oracle-shaped form.
 
 ```text
 PHP source
-→ JINX structural IR
-→ Oracle-shaped ASM normal form
-→ lower-level PASM
-→ evaluator or native C/ASM backend
+→ PHP-compatible JINX runtime behavior
+→ Oracle interpretation/mirroring records
+→ optional lower Oracle-shaped ASM normal form
+→ optional lower-level PASM
+→ optional evaluator or native C/ASM backend
 ```
+
+`require`, `require_once`, `include`, and `include_once` feed the same Oracle interpretation records when the target is a literal local PHP file. Dynamic loader expressions, unresolved paths, and cycles remain PHP-compatible fallback cases rather than native/PASM obligations.
 
 ## Required shape
 
@@ -51,7 +58,7 @@ CALL_PHP_FUNCTION_MAGICALLY
 READ_THIS_PROPERTY_BY_NAME_AT_RUNTIME
 ```
 
-Those forms may exist in parser/JINX metadata, but not in the canonical PASM execution layer.
+Those forms may exist in parser/JINX metadata, PHP compatibility fixtures, or Oracle mirror records, but not in the optional PASM execution layer.
 
 ## Register/stack convention
 
@@ -134,7 +141,7 @@ ITER_FREE IT0
 
 ## Native emission rule
 
-The C/ASM backend emits from this lower-level PASM only. It may choose to emit C statements, macros, compiler intrinsics, or inline assembly, but the source operation must be PASM.
+The C/ASM backend is a secondary output path. When native emission is requested, it emits from this lower-level PASM profile. It may choose to emit C statements, macros, compiler intrinsics, or inline assembly, but that backend source operation must be PASM.
 
 ```text
 PASM: LOAD_SLOT ACC, SELF, 1
@@ -142,16 +149,19 @@ C:    acc = self->slots[1];
 ASM:  mov acc, [self + slot_offset]
 ```
 
+This rule does not mean PASM is required before JINX can mirror a PHP/Zend behavior family. A family can be implemented, tested, and accelerated through the JINX/Oracle path first; PASM/native output can arrive later.
+
 ## Imported builtins
 
 php-src imported function/method signatures are only inventory. A function is not implemented until it has:
 
 ```text
 signature imported
-PASM lowering selected
-evaluator behavior implemented
-native strategy chosen
+PHP behavior known
+JINX/Oracle mirror implemented
+PHP-compatible fallback or fail-closed rule selected
 parity fixture passing
+optional PASM/native lowering selected when ready
 ```
 
 ## Builtin call lowering
@@ -198,4 +208,4 @@ CALL_BUILTIN or CALL_METHOD_BUILTIN name, argc=N
 MOV ACC, RET
 ```
 
-The generated C wrapper preserves that exact sequence with `JINX_ORA_*` operations. That keeps the eventual GCC/ASM backend as a consumer of PASM-shaped operations instead of a shortcut around PASM.
+The generated C wrapper preserves that exact sequence with `JINX_ORA_*` operations. That keeps the eventual GCC/ASM backend as a consumer of PASM-shaped operations while leaving PHP-compatible JINX/Oracle mirroring as the primary runtime target.

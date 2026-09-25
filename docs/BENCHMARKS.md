@@ -197,7 +197,7 @@ runtime/WebNativeOracleDispatch.generated.php
 runtime/jinx_builtin_dispatch.generated.c
 ```
 
-`WebNativeOracleDispatch.generated.php` is the PHP-carried Oracle-shaped dispatch table used by `WebNativeFunctions::call()` for the first hot worker-safe benchmark set.
+`WebNativeOracleDispatch.generated.php` is the PHP-carried Oracle interpreter-shaped dispatch table used by `WebNativeFunctions::call()` for the first hot worker-safe benchmark set.
 
 `runtime/jinx_builtin_dispatch.generated.c` is the lower native C Oracle/PASM dispatch table used by the built `./jinx` executable.
 

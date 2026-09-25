@@ -10,16 +10,20 @@ require_once __DIR__ . '/CoalescedOracleCompiler.php';
 use jinx\lowering\PhpToJinxLowerer;
 
 /**
- * Canonical Oracle compiler entrypoint.
+ * Canonical Oracle interpreter entrypoint.
  *
  * This file makes the architecture explicit:
  *
  *   PHP source
- *   -> Oracle statement stream
+ *   -> Oracle interpreter statement stream, including literal local require/include edges
  *   -> executable coalesced Oracle ops only when supported
  *
- * The compiler is allowed to represent any PHP as Oracle statements.
+ * The Oracle layer is an interpreter/mirroring path, not a source compiler.
+ * It is allowed to represent any PHP as Oracle statements.
  * It is NOT allowed to pretend unsupported PHP is executable.
+ *
+ * The class name is retained for older scripts, but new code should treat
+ * Oracle as interpretation, not compilation.
  */
 final class OracleProgramCompiler
 {
@@ -46,7 +50,7 @@ final class OracleProgramCompiler
     /**
      * Turn any PHP file into Oracle-level statement records.
      *
-     * This is the broad compiler front door.
+     * This is the broad interpreter front door.
      *
      * For unsupported PHP, it still emits Oracle statements like:
      *
@@ -54,24 +58,39 @@ final class OracleProgramCompiler
      *   O_IF
      *   O_RETURN
      *   O_CALL
+     *   O_REQUIRE / O_INCLUDE
      *   O_CURL_CALL
      *   O_JSON_CALL
      *   O_RAW_PHP_STMT
      *
-     * That means the compiler can see and catalog the program without
+     * That means Oracle can see and catalog the program without
      * claiming it can execute every statement yet.
      *
      * @return array<string,mixed>
      */
-    public static function compileAnyPhpFileToOracleProgram(string $path): array
+    public static function compileAnyPhpFileToOracleProgram(string $path, array $seen = []): array
+    {
+        return self::interpretAnyPhpFileToOracleProgram($path, $seen);
+    }
+
+    /**
+     * Interpret any PHP file into Oracle-level statement records.
+     *
+     * This is the broad interpreter front door.
+     *
+     * @return array<string,mixed>
+     */
+    public static function interpretAnyPhpFileToOracleProgram(string $path, array $seen = []): array
     {
         if (!is_file($path)) {
             throw new \RuntimeException("Missing PHP source file: {$path}");
         }
 
+        $realPath = realpath($path) ?: $path;
         $source = (string) file_get_contents($path);
+        $seen[$realPath] = true;
 
-        $oracleStatements = self::sourceToOracleStatements($source);
+        $oracleStatements = self::sourceToOracleStatements($source, dirname($realPath), $seen);
 
         $executable = null;
         $executableError = null;
@@ -85,6 +104,7 @@ final class OracleProgramCompiler
         return [
             'kind' => 'JINX_ORACLE_PROGRAM',
             'source_file' => $path,
+            'source_realpath' => $realPath,
             'source_sha1' => sha1($source),
             'statement_count' => count($oracleStatements),
             'statements' => $oracleStatements,
@@ -98,7 +118,7 @@ final class OracleProgramCompiler
     /**
      * @return list<array<string,mixed>>
      */
-    private static function sourceToOracleStatements(string $source): array
+    private static function sourceToOracleStatements(string $source, string $baseDir, array $seen): array
     {
         $tokens = token_get_all($source);
         $chunks = [];
@@ -147,7 +167,7 @@ final class OracleProgramCompiler
                 continue;
             }
 
-            $statements[] = self::classifyStatement($index, $chunk, $normalized);
+            $statements[] = self::classifyStatement($index, $chunk, $normalized, $baseDir, $seen);
             $index++;
         }
 
@@ -174,14 +194,20 @@ final class OracleProgramCompiler
     /**
      * @return array<string,mixed>
      */
-    private static function classifyStatement(int $index, string $raw, string $normalized): array
+    private static function classifyStatement(int $index, string $raw, string $normalized, string $baseDir, array $seen): array
     {
         $kind = 'O_RAW_PHP_STMT';
         $features = [];
+        $extra = [];
 
         if (preg_match('/^function\s+(\w+)\s*\(/i', $normalized, $m)) {
             $kind = 'O_FUNCTION_DECL';
             $features['name'] = $m[1];
+        } elseif (preg_match('/^(require_once|require|include_once|include)\s*(?:\(\s*)?([\'"])([^\'"]+)\2\s*\)?\s*;?$/i', $normalized, $m)) {
+            $loader = strtolower($m[1]);
+            [$kind, $features, $extra] = self::classifyLoaderStatement($loader, $m[3], $baseDir, $seen, true);
+        } elseif (preg_match('/^(require_once|require|include_once|include)\b/i', $normalized, $m)) {
+            [$kind, $features, $extra] = self::classifyLoaderStatement(strtolower($m[1]), null, $baseDir, $seen, false);
         } elseif (preg_match('/^if\s*\(/i', $normalized)) {
             $kind = 'O_IF';
         } elseif (preg_match('/^else\b/i', $normalized)) {
@@ -232,12 +258,81 @@ final class OracleProgramCompiler
             $features['calls'] = array_values(array_unique($calls[1]));
         }
 
-        return [
+        return array_merge([
             'op' => $kind,
             'index' => $index,
             'source' => $normalized,
             'sha1' => sha1($normalized),
             'features' => (object) $features,
+        ], $extra);
+    }
+
+    /**
+     * @return array{0:string,1:array<string,mixed>,2:array<string,mixed>}
+     */
+    private static function classifyLoaderStatement(string $loader, ?string $target, string $baseDir, array $seen, bool $literal): array
+    {
+        $kind = str_starts_with($loader, 'require') ? 'O_REQUIRE' : 'O_INCLUDE';
+        $features = [
+            'php_loader' => true,
+            'loader' => $loader,
+            'once' => str_ends_with($loader, '_once'),
+            'literal_target' => $literal,
         ];
+        $extra = [];
+
+        if ($target === null) {
+            $features['dynamic_target'] = true;
+            $features['php_fallback_required'] = true;
+
+            return [$kind, $features, $extra];
+        }
+
+        $features['target'] = $target;
+
+        $resolved = self::resolveLiteralIncludeTarget($baseDir, $target);
+        if ($resolved !== null) {
+            $features['literal_target_resolved'] = true;
+            $features['target_realpath'] = $resolved;
+
+            if (isset($seen[$resolved])) {
+                $features['oracle_include_cycle'] = true;
+                $features['php_fallback_required'] = true;
+            } else {
+                $included = self::interpretAnyPhpFileToOracleProgram($resolved, $seen);
+                $features['enters_oracle_program'] = true;
+                $features['included_statement_count'] = $included['statement_count'];
+                $features['included_executable'] = $included['executable'];
+                $extra['included_oracle_program'] = $included;
+            }
+        } else {
+            $features['literal_target_resolved'] = false;
+            $features['php_fallback_required'] = true;
+        }
+
+        return [$kind, $features, $extra];
+    }
+
+    private static function resolveLiteralIncludeTarget(string $baseDir, string $target): ?string
+    {
+        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $target)) {
+            return null;
+        }
+
+        $candidate = self::isAbsolutePath($target) ? $target : $baseDir . DIRECTORY_SEPARATOR . $target;
+        $real = realpath($candidate);
+
+        if ($real === false || !is_file($real)) {
+            return null;
+        }
+
+        return $real;
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/') ||
+            str_starts_with($path, '\\') ||
+            (bool) preg_match('/^[A-Za-z]:[\\\\\/]/', $path);
     }
 }

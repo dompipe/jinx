@@ -1,12 +1,15 @@
 # JINX PHP Stub → C Inline Oracle-ASM Branch
 
-This branch adds the next backend step:
+This branch adds a later backend representation step. The primary project target remains PHP-compatible JINX execution: PHP behavior is authoritative, JINX mirrors and accelerates selected Zend/PHP families through the Oracle interpreter path, and unsupported or unsafe behavior must stay PHP-compatible or fail closed.
+
+PASM/native binary emission is secondary. It is a possible output path after a PHP/Zend family has a known behavior contract, a JINX/Oracle representation, and parity evidence; it should not block mirroring PHP behavior inside JINX.
 
 ```text
 php-src *.stub.php
 → function manifest
-→ lower-level PASM call skeleton
-→ C inline Oracle-ASM representation
+→ PHP-compatible JINX/Oracle call contract
+→ optional lower-level PASM call skeleton
+→ optional C inline Oracle-ASM representation
 ```
 
 ## New files
@@ -52,8 +55,9 @@ MOV ACC, RET
 
 ## Doctrine
 
-This is still not a shortcut to native behavior. It is PASM-shaped Oracle ASM carried in C.
+This is still not a shortcut to native behavior. It is an optional backend representation for call families that are already understood by PHP-compatible JINX/Oracle execution.
 
 ```text
-PHP → JINX → Oracle ASM normal form → PASM → C inline Oracle-ASM → native backend
+Primary:   PHP behavior → JINX executable → Oracle interpretation/mirroring/acceleration
+Secondary: Oracle form → PASM/C inline Oracle-ASM → native backend
 ```

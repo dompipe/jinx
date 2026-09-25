@@ -9,8 +9,10 @@ declare(strict_types=1);
  *
  * php-src treats *.stub.php files as the canonical source for internal
  * signatures/arginfo. This importer deliberately imports signatures and
- * parameter flags only; every callable still requires an explicit PASM
- * lowering/native strategy before support is considered implemented.
+ * parameter flags only; every callable still requires known PHP behavior,
+ * JINX/Oracle mirroring, fallback/fail-closed behavior, and parity evidence
+ * before support is considered implemented. PASM/native lowering is optional
+ * later output.
  */
 
 $root = $argv[1] ?? null;
@@ -45,7 +47,7 @@ $manifest = [
         'source' => 'Imported from php-src *.stub.php files. Stubs are the canonical arginfo source inside php-src.',
         'source_root' => $root,
         'generated_at' => gmdate('c'),
-        'doctrine' => 'Imported signatures are inventory only. A callable is not implemented until PASM lowering, evaluator behavior, native strategy, and parity tests exist.',
+        'doctrine' => 'Imported signatures are inventory only. A callable is not implemented until PHP behavior is known, JINX/Oracle mirroring exists, fallback or fail-closed behavior is defined, and parity tests pass. PASM/native lowering is optional later output.',
         'pasm_level' => 'oracle-lower-register-stack-label',
     ],
     'functions' => array_values($callables),

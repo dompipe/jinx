@@ -3,7 +3,7 @@
     "name": "jinx-php-functions",
     "version": "0.2",
     "source": "Seeded manually, with full inventory intended to be generated from php-src *.stub.php using scripts/import-php-src-stubs.php",
-    "doctrine": "Every callable must have an official/imported signature record before PASM/native support is claimed; imported signatures are inventory until PASM lowering, evaluator behavior, native strategy, and parity tests exist.",
+    "doctrine": "Every callable must have an official/imported signature record before support is claimed; imported signatures are inventory until PHP behavior is known, JINX/Oracle mirroring exists, fallback or fail-closed behavior is defined, and parity tests pass. PASM/native lowering is optional later output.",
     "pasm_level": "oracle-lower-register-stack-label"
   },
   "functions": [

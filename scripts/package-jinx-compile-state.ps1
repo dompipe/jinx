@@ -47,7 +47,7 @@ $readme = @(
     "Created: $stamp",
     "Source workspace: $root",
     '',
-    'This package contains the current PHP -> JINX JSON -> PASM -> C native attachment prototype files from the compiling state in this session.',
+    'This package contains the current PHP -> JINX JSON -> Oracle-backed mirroring files, plus optional PASM -> C native attachment prototype files from the compiling state in this session.',
     '',
     '## Included',
     '',

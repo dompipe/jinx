@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $jinx = $root . '/bin/jinx';
+$jinxCommand = PHP_BINARY . ' ' . escapeshellarg($jinx);
 
 function fail(string $message): never
 {
@@ -21,13 +22,34 @@ function run(string $cmd, ?int &$code = null): string
     return implode(PHP_EOL, $out) . (count($out) ? PHP_EOL : '');
 }
 
-if (!is_file($jinx) || !is_executable($jinx)) {
-    fail('bin/jinx missing or not executable');
+if (!is_file($jinx)) {
+    fail('bin/jinx missing');
+}
+
+$nativeSource = (string) file_get_contents($root . '/native/jinx_cli.c');
+
+if (!str_contains($nativeSource, 'ends_with(argv[1], ".php")') ||
+    !str_contains($nativeSource, 'execvp("php", php_argv)')) {
+    fail('native ./jinx source does not route .php script paths through PHP');
+}
+
+$out = run(sprintf(
+    '%s %s',
+    $jinxCommand,
+    escapeshellarg('scripts/test-oracle-program-compiler.php')
+), $code);
+
+if ($code !== 0) {
+    fail("bin/jinx PHP script path failed:\n{$out}");
+}
+
+if (!str_contains($out, 'PASS: OracleProgramCompiler interprets PHP')) {
+    fail("bin/jinx PHP script path did not run expected test:\n{$out}");
 }
 
 $out = run(sprintf(
     '%s web-plan %s',
-    escapeshellarg($jinx),
+    $jinxCommand,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php')
 ), $code);
 
@@ -43,7 +65,7 @@ $outFile = $root . '/build/web-compiled/bin-jinx-test.compiled.php';
 
 $out = run(sprintf(
     '%s web-compile %s %s',
-    escapeshellarg($jinx),
+    $jinxCommand,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php'),
     escapeshellarg($outFile)
 ), $code);
@@ -60,7 +82,7 @@ $outJson = $root . '/build/web-statements/bin-jinx-test.web.json';
 
 $out = run(sprintf(
     '%s web-statements %s %s',
-    escapeshellarg($jinx),
+    $jinxCommand,
     escapeshellarg($root . '/fixtures/oracle-post-curl-dynamic.php'),
     escapeshellarg($outJson)
 ), $code);
@@ -79,4 +101,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: bin/jinx supports web-plan, web-compile, and web-statements\n";
+echo "PASS: bin/jinx supports PHP script paths, web-plan, web-compile, and web-statements\n";

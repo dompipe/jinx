@@ -52,7 +52,7 @@ foreach ($json['functions'] ?? [] as $index => $function) {
         }
     }
     if (!is_array($function['pasm_lowering'] ?? null) || count($function['pasm_lowering']) < 1) {
-        $errors[] = "{$name} must declare at least one PASM lowering operation";
+        $errors[] = "{$name} must declare at least one PASM lowering operation in this seed manifest profile";
     }
 }
 

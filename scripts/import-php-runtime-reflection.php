@@ -69,7 +69,7 @@ $manifest = [
         'source' => 'Imported from the current PHP runtime with Reflection. Use php-src stubs for the final canonical manifest.',
         'generated_at' => gmdate('c'),
         'php_version' => PHP_VERSION,
-        'doctrine' => 'Runtime Reflection imports are broad inventory only. A callable is not implemented until PASM lowering, evaluator behavior, native strategy, and parity tests exist.',
+        'doctrine' => 'Runtime Reflection imports are broad inventory only. A callable is not implemented until PHP behavior is known, JINX/Oracle mirroring exists, fallback or fail-closed behavior is defined, and parity tests pass. PASM/native lowering is optional later output.',
         'pasm_level' => 'oracle-lower-register-stack-label',
     ],
     'functions' => array_values($functions),

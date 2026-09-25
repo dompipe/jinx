@@ -1,15 +1,16 @@
 # C Inline Oracle-ASM Stub Representation
 
-The `.stub.php` files in `php-src` describe internal function and method signatures. JINX uses them as an inventory source, then lowers each callable into a C inline Oracle-ASM representation.
+The `.stub.php` files in `php-src` describe internal function and method signatures. JINX uses them as an inventory source for PHP-compatible Oracle interpreter call mirroring. C inline Oracle-ASM is a later representation backend, not the condition for mirroring a PHP/Zend behavior family.
 
 The direction is:
 
 ```text
 php-src *.stub.php
 → php-functions manifest
-→ lower-level PASM call skeleton
-→ C inline Oracle-ASM wrapper
-→ runtime helper / intrinsic / future GCC inline asm backend
+→ PHP-compatible JINX/Oracle call contract
+→ optional lower-level PASM call skeleton
+→ optional C inline Oracle-ASM wrapper
+→ runtime helper / intrinsic / future GCC inline asm backend when ready
 ```
 
 A generated wrapper does not guess PHP behavior. It only expresses the calling convention:
@@ -41,7 +42,7 @@ PUSH_ARG_VARIADIC R1
 
 Those forms are critical because a correct PHP compiler cannot treat normal arguments, by-reference arguments, and variadic spread arguments as the same machine operation.
 
-The first implementation is a representation backend. Later, the same macros can expand to:
+The first implementation is a representation backend. PHP behavior still has to be known, mirrored through JINX/Oracle, and proven against PHP-compatible fixtures before a callable should be treated as implemented. Later, the same macros can expand to:
 
 1. hosted PASM/runtime calls for web execution,
 2. ASM-shaped C for portability,
@@ -50,6 +51,7 @@ The first implementation is a representation backend. Later, the same macros can
 The doctrine remains:
 
 ```text
-No native behavior without PASM shape first.
-No direct PHP metadata → native shortcut.
+PHP behavior first.
+JINX/Oracle mirroring and fallback before native claims.
+PASM/native emission only when that family is ready for a secondary backend.
 ```

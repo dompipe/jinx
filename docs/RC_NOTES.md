@@ -4,6 +4,10 @@
 
 This release candidate packages the current JINX web/worker branch as a runnable source package with the worker-style native wrapper work included.
 
+The intended destination is direct and broad: rewrite php-src behavior in Oracle so PHP commands, language constructs, builtins, extension calls, loader paths, and arbitrary PHP execution can be handled by Oracle and run faster without breaking PHP/Zend compatibility. Current fail-closed or fallback behavior marks coverage that still needs Oracle ownership.
+
+Literal local `require`, `require_once`, `include`, and `include_once` statements are part of that interpreter path. Resolved targets can enter Oracle records from the loader statement; dynamic targets, unresolved paths, and include cycles stay PHP-compatible and require fallback.
+
 The main RC goal is to make the current state inspectable:
 
 - Read the project notes from the package.

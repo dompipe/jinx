@@ -17,8 +17,9 @@ use jinx\oracle\OracleProgramCompiler;
  *   -> Web statement stream
  *   -> coalesced/executable web ops where supported
  *
- * The old Oracle compiler is still used underneath as a compatibility bridge
- * for executable coalesced ops, but this class owns the web statement names.
+ * The legacy OracleProgramCompiler class name is still used underneath as a
+ * compatibility bridge, but Oracle itself is the interpreter/mirroring path.
+ * This class owns the web statement names.
  */
 final class WebProgramCompiler
 {
@@ -27,7 +28,7 @@ final class WebProgramCompiler
      */
     public static function compileAnyPhpFileToWebProgram(string $path): array
     {
-        $program = OracleProgramCompiler::compileAnyPhpFileToOracleProgram($path);
+        $program = OracleProgramCompiler::interpretAnyPhpFileToOracleProgram($path);
 
         // JINX_WEB_SUPPRESS_OLD_BRIDGE_ERRORS_FOR_FULL_WEB_FILES
         // WebProgramCompiler's job is the WEB_* statement stream. The old coalesced
@@ -118,6 +119,22 @@ final class WebProgramCompiler
 
         if (preg_match('/^function\s+(\w+)\s*\(/i', $source, $m)) {
             $push('WEB_FUNCTION_DECL', ['name' => $m[1]]);
+            return $out;
+        }
+
+        if ($fromOracle === 'O_REQUIRE' || $fromOracle === 'O_INCLUDE') {
+            $push(
+                $fromOracle === 'O_REQUIRE' ? 'WEB_REQUIRE_ORACLE' : 'WEB_INCLUDE_ORACLE',
+                [
+                    'target' => $features['target'] ?? null,
+                    'loader' => $features['loader'] ?? null,
+                    'once' => $features['once'] ?? false,
+                    'literal_target' => $features['literal_target'] ?? false,
+                    'enters_oracle_program' => $features['enters_oracle_program'] ?? false,
+                    'php_fallback_required' => $features['php_fallback_required'] ?? false,
+                    'included_statement_count' => $features['included_statement_count'] ?? null,
+                ]
+            );
             return $out;
         }
 

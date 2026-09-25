@@ -2,6 +2,10 @@
 
 This is a release-candidate source package for the dompipe/JINX worker and web compiler branch.
 
+The end goal is to rewrite the php-src behavior surface in Oracle: PHP commands, language constructs, builtins, extension calls, loader paths, and arbitrary PHP execution should enter Oracle and run faster while preserving PHP/Zend behavior. Anything not represented in Oracle yet is incomplete coverage, not a different architecture.
+
+Literal local `require`, `require_once`, `include`, and `include_once` statements are Oracle entry points. When a target can be resolved safely, JINX interprets the included PHP file into Oracle records. Dynamic targets, unresolved paths, and include cycles stay PHP-compatible and require fallback.
+
 The RC focuses on:
 
 - JINX web compilation for validated JSON endpoints.
@@ -36,6 +40,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx first100
 ./jinx bench-first100 100000
 ./jinx bench-all-functions 1000
+./jinx scripts/test-oracle-program-compiler.php
 php scripts/report-php-families.php
 php scripts/benchmark-true-all-functions.php 1000
 ./jinx notes

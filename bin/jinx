@@ -37,6 +37,7 @@ Usage:
   bin/jinx run-compiled <compiled.php>
   bin/jinx -S <host:port> <docroot-or-router>
   bin/jinx -S <host:port> --jinx-cache <docroot> [cache-root]
+  bin/jinx scripts/test-oracle-program-compiler.php
 
 Examples:
   bin/jinx rc
@@ -84,6 +85,27 @@ if ($args === []) {
 }
 
 $cmd = array_shift($args);
+
+if (str_ends_with($cmd, '.php')) {
+    $script = $cmd;
+
+    if (!is_file($script)) {
+        $script = $root . '/' . ltrim(str_replace('\\', '/', $cmd), '/');
+    }
+
+    if (!is_file($script)) {
+        fwrite(STDERR, "Missing PHP script: {$cmd}" . PHP_EOL);
+        exit(1);
+    }
+
+    $shell = 'php ' . escapeshellarg($script);
+
+    foreach ($args as $arg) {
+        $shell .= ' ' . escapeshellarg($arg);
+    }
+
+    exit(runCommand($shell));
+}
 
 if ($cmd === 'rc') {
     printProjectFile($root . '/README.md');
