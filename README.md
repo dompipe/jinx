@@ -11,6 +11,7 @@ The RC focuses on:
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
 - Manual-driven handler states: `exact`, `php-fallback`, and `sandbox-blocked` are resolved; `partial`, `placeholder`, and `unsafe-native` are not.
 - Correctness-first PHP fallback for crypto/hash/password/random functions until exact native crypto exists.
+- True all-functions benchmark tooling that runs every generated JINX function `X` times and direct PHP benchmarkable functions `X` times.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
 - PHP comparison benchmarks for validated callable builtin cases.
 
@@ -32,6 +33,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx first100
 ./jinx bench-first100 100000
 ./jinx bench-all-functions 1000
+php scripts/benchmark-true-all-functions.php 1000
 ./jinx notes
 ./jinx benchmarks
 ```
@@ -63,6 +65,39 @@ Crypto fallback regression test:
 ```bash
 php scripts/test-php-crypto-fallback.php
 ```
+
+## True All-Functions Benchmark
+
+Use this when you want every generated JINX function run the same number of times and stats below it:
+
+```bash
+php scripts/benchmark-true-all-functions.php 1000
+```
+
+Fast rerun without rebuilding `./jinx`:
+
+```bash
+JINX_SKIP_BUILD=1 php scripts/benchmark-true-all-functions.php 1000
+```
+
+What it does:
+
+```text
+1. Builds ./jinx unless JINX_SKIP_BUILD=1.
+2. Reads every generated function name from ./jinx functions.
+3. Runs ./jinx bench-all-functions <iterations>, which dispatches every generated JINX function <iterations> times inside the native executable.
+4. Runs every benchmarkable direct PHP global function <iterations> times with deterministic sample arguments.
+5. Prints totals, elapsed ms, ns/call, calls/sec, speed ratio, concrete native returns, null/fault counts, and skipped PHP cases.
+```
+
+Important benchmark distinction:
+
+```text
+./jinx native numbers = native executable dispatch over all generated names.
+php direct numbers   = only global PHP functions that are safe and parameter-validated in the current PHP runtime.
+```
+
+So the native side is the true all-generated-functions run; the PHP side is the fair direct-PHP subset that can actually be called with safe deterministic inputs.
 
 ## Native `oracle-call`
 
@@ -175,6 +210,7 @@ runtime/jinx_function_list.generated.h
 runtime/jinx_oracle_asm_context.c
 scripts/check-native-manual-complete.php
 scripts/test-php-crypto-fallback.php
+scripts/benchmark-true-all-functions.php
 scripts/benchmark-native-jinx-vs-php.php
 scripts/build-native-jinx.sh
 docs/RC_NOTES.md
