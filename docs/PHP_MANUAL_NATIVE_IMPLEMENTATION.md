@@ -26,6 +26,28 @@ scripts/build-native-jinx.sh
 
 So the manual implementation map is part of the native executable source path, not just documentation.
 
+## Completion gate
+
+Use this command before calling JINX a complete native PHP mirror:
+
+```bash
+php scripts/check-native-manual-complete.php
+```
+
+The gate fails if any manifest entry is not `exact`. That is intentional. It prevents the project from claiming “PHP-equal native ASM” while any handler remains `partial`, `placeholder`, or `unsafe-native`.
+
+Expected during construction:
+
+```text
+FAIL: native PHP mirror is not complete. Remaining manual states:
+```
+
+Expected only when the mirror is actually complete:
+
+```text
+PASS: every manual manifest entry is exact. Native mirror gate passed.
+```
+
 ## States
 
 ```text
@@ -46,6 +68,7 @@ unsafe-native  Must not become a blind native host call. Needs sandbox/security 
 | `str_contains` | `str_contains(string $haystack, string $needle): bool` | partial | Needs exact empty-needle and binary-safe behavior. |
 | `str_starts_with` | `str_starts_with(string $haystack, string $needle): bool` | partial | Needs exact empty-needle byte-prefix behavior. |
 | `str_ends_with` | `str_ends_with(string $haystack, string $needle): bool` | partial | Needs exact empty-needle byte-suffix behavior. |
+| `ctype_*` | PHP ctype reference | partial | Native bool carrier exists; exact byte-class behavior is next. |
 | string transform family | PHP string reference | placeholder | Coarse native carriers exist; exact per-function behavior is next. |
 | array family | PHP array reference | placeholder | Requires native array storage beyond array-count stand-ins. |
 | class/object/reflection | PHP class/object reference | placeholder | Requires class table and object model. |
