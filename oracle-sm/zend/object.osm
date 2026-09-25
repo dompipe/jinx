@@ -1,0 +1,43 @@
+oracle_sm_family objects_classes
+
+purpose "Native class metadata, object allocation, and property storage."
+replaces "Zend/zend_object_handlers.c, Zend/zend_objects_API.c class/object basics."
+
+native_files {
+  runtime/jinx_zend_object.h
+  runtime/jinx_zend_engine.h
+}
+
+native_symbols {
+  JinxZendClassEntry
+  JinxZendClassTable
+  JinxZendObject
+  JinxZendMethodEntry
+  jinx_zend_object_new
+  jinx_zend_object_retain
+  jinx_zend_object_release
+  jinx_zend_class_table_init
+  jinx_zend_class_table_register
+  jinx_zend_class_table_find
+  jinx_zend_class_find_method
+  jinx_zend_object_set_property
+  jinx_zend_object_get_property
+}
+
+oracle_sm_contract {
+  class.name        pointer_to_symbol
+  class.methods     method_table
+  object.class_name pointer_to_symbol
+  object.properties JinxZendArray
+  property_keys     string_keys
+  property_values   JinxZendValue
+  refcount          explicit_retain_release
+}
+
+proven_by {
+  scripts/build-zend-object-smoke.sh
+  build/native/jinx-zend-object-smoke
+}
+
+pasm_target "runtime/pasm/zend/object.pasm"
+status started
