@@ -61,6 +61,7 @@ $scriptTests = [
     'app builtin families' => ['scripts/test-oracle-app-builtin-execution.php', 'PASS: Oracle executes app builtin PHP families'],
     'math builtin families' => ['scripts/test-oracle-math-builtin-execution.php', 'PASS: Oracle executes math builtin PHP families'],
     'data builtin families' => ['scripts/test-oracle-data-builtin-execution.php', 'PASS: Oracle executes data builtin PHP families'],
+    'data builtin batch two families' => ['scripts/test-oracle-data-builtin-two-execution.php', 'PASS: Oracle executes data builtin batch two PHP families'],
     'text builtin families' => ['scripts/test-oracle-text-builtin-execution.php', 'PASS: Oracle executes text builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
     'web back-page bridge' => ['scripts/test-web-back-page-bridge.php', 'PASS: WebBackPageBridge handles request/response envelopes'],
