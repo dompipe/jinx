@@ -39,7 +39,7 @@ Use the warmed web-request worker benchmark for route logic without socket overh
 ./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500 --json=build/benchmarks/web-request-worker.json
 ```
 
-Use the fair live HTTP benchmark when PHP and JINX should both look live over loopback HTTP. The default JINX live worker mode is the optimized direct-response-template path:
+Use the fair live HTTP benchmark when PHP and JINX should both look live over loopback HTTP. The JINX live worker uses `runtime/WebBackPageBridge.php`: HTTP front request in, back-page envelope execution, response envelope back out. The default JINX live worker mode is the optimized direct-response-template path:
 
 ```bash
 ./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template
