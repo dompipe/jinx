@@ -165,6 +165,17 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'sort-builtins' => ['sort'], 'rsort-builtins' => ['rsort'], 'asort-builtins' => ['asort'], 'arsort-builtins' => ['arsort'],
+            'ksort-builtins' => ['ksort'], 'krsort-builtins' => ['krsort'], 'natsort-builtins' => ['natsort'], 'natcasesort-builtins' => ['natcasesort'],
+            'array-push-builtins' => ['array_push'], 'array-pop-builtins' => ['array_pop'], 'array-shift-builtins' => ['array_shift'],
+            'array-unshift-builtins' => ['array_unshift'], 'array-splice-builtins' => ['array_splice'],
+            'array-multisort-builtins' => ['array_multisort'], 'reset-builtins' => ['reset'], 'end-builtins' => ['end'],
+            'next-builtins' => ['next'], 'prev-builtins' => ['prev'], 'current-builtins' => ['current'], 'key-builtins' => ['key'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleArrayMutationBuiltinExecutor::class, 'scripts/test-oracle-array-mutation-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'is-float-builtins' => ['is_float'], 'is-double-builtins' => ['is_double'], 'is-real-builtins' => ['is_real'],
             'is-long-builtins' => ['is_long'], 'is-integer-builtins' => ['is_integer'], 'is-iterable-builtins' => ['is_iterable'],
             'is-resource-builtins' => ['is_resource'], 'is-callable-builtins' => ['is_callable'], 'function-exists-builtins' => ['function_exists'],
