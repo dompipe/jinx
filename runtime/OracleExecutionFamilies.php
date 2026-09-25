@@ -126,6 +126,26 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'array-diff-assoc-builtins' => ['array_diff_assoc', 'json_encode'],
+            'array-diff-key-builtins' => ['array_diff_key', 'json_encode'],
+            'array-intersect-assoc-builtins' => ['array_intersect_assoc', 'json_encode'],
+            'array-intersect-key-builtins' => ['array_intersect_key', 'json_encode'],
+            'array-merge-recursive-builtins' => ['array_merge_recursive', 'json_encode'],
+            'array-fill-keys-builtins' => ['array_fill_keys', 'json_encode'],
+            'array-key-first-builtins' => ['array_key_first'], 'array-key-last-builtins' => ['array_key_last'],
+            'array-keys-strict-builtins' => ['array_keys', 'json_encode'],
+            'array-reverse-preserve-builtins' => ['array_reverse', 'json_encode'],
+            'array-slice-preserve-builtins' => ['array_slice', 'json_encode'],
+            'array-pad-negative-builtins' => ['array_pad', 'json_encode'],
+            'array-search-strict-builtins' => ['array_search'], 'in-array-strict-builtins' => ['in_array'],
+            'count-recursive-builtins' => ['count'], 'array-column-index-builtins' => ['array_column', 'json_encode'],
+            'array-chunk-preserve-builtins' => ['array_chunk', 'json_encode'], 'range-step-builtins' => ['range', 'json_encode'],
+            'array-filter-null-builtins' => ['array_filter', 'json_encode'], 'array-unique-string-builtins' => ['array_unique', 'json_encode'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleArraySetBuiltinExecutor::class, 'scripts/test-oracle-array-set-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'chr-builtins' => ['chr'], 'ord-builtins' => ['ord'], 'strcmp-builtins' => ['strcmp'], 'strcasecmp-builtins' => ['strcasecmp'],
             'strncmp-builtins' => ['strncmp'], 'strncasecmp-builtins' => ['strncasecmp'], 'substr-compare-builtins' => ['substr_compare'],
             'similar-text-builtins' => ['similar_text'], 'levenshtein-builtins' => ['levenshtein'], 'soundex-builtins' => ['soundex'],
