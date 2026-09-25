@@ -13,9 +13,13 @@ use jinx\web\WebBackPageBridge;
  * either the response-envelope bridge path or the raw template path. No shell
  * spawning or socket timing is included.
  *
+ * Frame construction is deliberately outside the measured loops. The same
+ * prebuilt request frame deck is replayed by PHP and JINX so frame generation
+ * cannot bend the result toward either side.
+ *
  * Run through repository-root native ./jinx:
  *   ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
- *   ./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
+ *   ./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template --frame-cap=256
  */
 
 function fail(string $message): never
@@ -32,6 +36,7 @@ function parse_args(array $argv): array
         'warmup' => 1000,
         'jinx_mode' => 'raw-template',
         'workload' => 'tiny',
+        'frame_cap' => 0,
         'json' => null,
         'fail_fast' => false,
     ];
@@ -39,7 +44,7 @@ function parse_args(array $argv): array
     foreach (array_slice($argv, 1) as $arg) {
         if ($arg === '--help' || $arg === '-h') {
             echo "Web back-page hot benchmark" . PHP_EOL;
-            echo "Usage: ./jinx scripts/benchmark-web-back-page-hot.php [--workload=tiny|large] [--requests=N] [--warmup=N] [--jinx-mode=raw-template|bridge] [--json=path] [--fail-fast]" . PHP_EOL;
+            echo "Usage: ./jinx scripts/benchmark-web-back-page-hot.php [--workload=tiny|large] [--requests=N] [--warmup=N] [--frame-cap=N] [--jinx-mode=raw-template|bridge] [--json=path] [--fail-fast]" . PHP_EOL;
             exit(0);
         }
         if ($arg === '--fail-fast') {
@@ -52,6 +57,10 @@ function parse_args(array $argv): array
         }
         if (preg_match('/^--warmup=(\d+)$/', $arg, $m)) {
             $options['warmup'] = max(0, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^--frame-cap=(\d+)$/', $arg, $m)) {
+            $options['frame_cap'] = max(0, (int) $m[1]);
             continue;
         }
         if (preg_match('/^--jinx-mode=(raw-template|bridge)$/', $arg, $m)) {
@@ -131,6 +140,23 @@ function make_large_request_envelope(int $i): array
 function make_request_envelope(int $i, string $workload): array
 {
     return $workload === 'large' ? make_large_request_envelope($i) : make_tiny_request_envelope($i);
+}
+
+/** @return list<array<string,mixed>> */
+function build_frame_deck(int $start, int $count, int $frameCap, string $workload): array
+{
+    $deckSize = $frameCap > 0 ? min($count, $frameCap) : $count;
+    $frames = [];
+    for ($i = 0; $i < $deckSize; $i++) {
+        $frames[] = make_request_envelope($start + $i, $workload);
+    }
+    return $frames;
+}
+
+/** @return array<string,mixed> */
+function frame_at(array $frames, int $i): array
+{
+    return $frames[$i % max(1, count($frames))];
 }
 
 /** @return array{status:int,headers:array<string,string>,body:string} */
@@ -316,15 +342,15 @@ function jinx_large_raw_route(string $body): array
     ];
 }
 
-/** @return array{seconds:float,digest:string,mismatches:int,requests:int} */
-function run_php_side(int $start, int $count, bool $failFast, string $workload): array
+/** @return array{seconds:float,digest:string,mismatches:int,requests:int,frame_count:int} */
+function run_php_side(array $frames, int $count, bool $failFast, string $workload): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $request = make_request_envelope($start + $i, $workload);
+        $request = frame_at($frames, $i);
         $response = php_direct_route($request, $workload);
         $line = $response['status'] . ':' . $response['body'];
         hash_update($hash, $line . "\n");
@@ -332,7 +358,7 @@ function run_php_side(int $start, int $count, bool $failFast, string $workload):
         if (!in_array($response['status'], [200, 400], true)) {
             $mismatches++;
             if ($failFast) {
-                fail('unexpected PHP status at request ' . ($start + $i));
+                fail('unexpected PHP status at request frame ' . $i);
             }
         }
     }
@@ -342,18 +368,19 @@ function run_php_side(int $start, int $count, bool $failFast, string $workload):
         'digest' => hash_final($hash),
         'mismatches' => $mismatches,
         'requests' => $count,
+        'frame_count' => count($frames),
     ];
 }
 
-/** @return array{seconds:float,digest:string,mismatches:int,requests:int} */
-function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count, bool $failFast, string $workload): array
+/** @return array{seconds:float,digest:string,mismatches:int,requests:int,frame_count:int} */
+function run_jinx_bridge_side(WebBackPageBridge $bridge, array $frames, int $count, bool $failFast): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $request = make_request_envelope($start + $i, $workload);
+        $request = frame_at($frames, $i);
         $response = $bridge->handleRequestEnvelope($request);
         $line = ((int) ($response['status'] ?? 0)) . ':' . (string) ($response['body'] ?? '');
         hash_update($hash, $line . "\n");
@@ -361,7 +388,7 @@ function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count,
         if (!in_array((int) ($response['status'] ?? 0), [200, 400], true)) {
             $mismatches++;
             if ($failFast) {
-                fail('unexpected JINX status at request ' . ($start + $i));
+                fail('unexpected JINX status at request frame ' . $i);
             }
         }
     }
@@ -371,21 +398,22 @@ function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count,
         'digest' => hash_final($hash),
         'mismatches' => $mismatches,
         'requests' => $count,
+        'frame_count' => count($frames),
     ];
 }
 
 /**
  * @param array{required_key:string,success_prefix:string,success_suffix:string,error_body:string} $template
- * @return array{seconds:float,digest:string,mismatches:int,requests:int}
+ * @return array{seconds:float,digest:string,mismatches:int,requests:int,frame_count:int}
  */
-function run_jinx_raw_template_side(?array $template, int $start, int $count, bool $failFast, string $workload): array
+function run_jinx_raw_template_side(?array $template, array $frames, int $count, bool $failFast, string $workload): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $request = make_request_envelope($start + $i, $workload);
+        $request = frame_at($frames, $i);
         $body = (string) ($request['body'] ?? '');
         $response = $workload === 'large'
             ? jinx_large_raw_route($body)
@@ -396,7 +424,7 @@ function run_jinx_raw_template_side(?array $template, int $start, int $count, bo
         if (!in_array($response['status'], [200, 400], true)) {
             $mismatches++;
             if ($failFast) {
-                fail('unexpected JINX raw-template status at request ' . ($start + $i));
+                fail('unexpected JINX raw-template status at request frame ' . $i);
             }
         }
     }
@@ -406,6 +434,7 @@ function run_jinx_raw_template_side(?array $template, int $start, int $count, bo
         'digest' => hash_final($hash),
         'mismatches' => $mismatches,
         'requests' => $count,
+        'frame_count' => count($frames),
     ];
 }
 
@@ -430,6 +459,7 @@ $requests = (int) $options['requests'];
 $warmup = (int) $options['warmup'];
 $jinxMode = (string) $options['jinx_mode'];
 $workload = (string) $options['workload'];
+$frameCap = (int) $options['frame_cap'];
 $failFast = (bool) $options['fail_fast'];
 $route = $root . '/fixtures/simple-web-api-validated.php';
 $bridge = null;
@@ -450,30 +480,35 @@ if ($jinxMode === 'bridge') {
     }
 }
 
-$runJinx = static function (int $start, int $count) use ($jinxMode, $failFast, $workload, &$bridge, &$template): array {
+$warmupFrames = $warmup > 0 ? build_frame_deck(0, $warmup, $frameCap, $workload) : [];
+$measureFrames = build_frame_deck($warmup, $requests, $frameCap, $workload);
+
+$runJinx = static function (array $frames, int $count) use ($jinxMode, $failFast, $workload, &$bridge, &$template): array {
     if ($jinxMode === 'bridge') {
-        return run_jinx_bridge_side($bridge, $start, $count, $failFast, $workload);
+        return run_jinx_bridge_side($bridge, $frames, $count, $failFast);
     }
-    return run_jinx_raw_template_side($template, $start, $count, $failFast, $workload);
+    return run_jinx_raw_template_side($template, $frames, $count, $failFast, $workload);
 };
 
 if ($warmup > 0) {
-    run_php_side(0, $warmup, $failFast, $workload);
-    $runJinx(0, $warmup);
+    run_php_side($warmupFrames, $warmup, $failFast, $workload);
+    $runJinx($warmupFrames, $warmup);
 }
 
-$php = run_php_side($warmup, $requests, $failFast, $workload);
-$jinx = $runJinx($warmup, $requests);
+$php = run_php_side($measureFrames, $requests, $failFast, $workload);
+$jinx = $runJinx($measureFrames, $requests);
 $ratio = $jinx['seconds'] > 0.0 ? $php['seconds'] / $jinx['seconds'] : 0.0;
 $mismatches = $php['mismatches'] + $jinx['mismatches'] + ($php['digest'] === $jinx['digest'] ? 0 : 1);
 $jinxLabel = $jinxMode === 'bridge' ? 'JINX-bridge' : 'JINX-raw';
 $modeText = $jinxMode === 'bridge'
-    ? 'PHP direct route baseline / JINX response-envelope back-page bridge / no socket timing / no process-spawn timing'
-    : 'PHP direct route baseline / JINX raw body-to-status-body template / no response envelope timing / no socket timing / no process-spawn timing';
+    ? 'PHP direct route baseline / JINX response-envelope back-page bridge / prebuilt shared frames / no socket timing / no process-spawn timing'
+    : 'PHP direct route baseline / JINX raw body-to-status-body template / prebuilt shared frames / no response envelope timing / no socket timing / no process-spawn timing';
 
 printf("Web back-page hot benchmark\n");
 printf("Requests measured: %d, warmup: %d\n", $requests, $warmup);
 printf("Workload: %s\n", $workload);
+printf("Frame cap: %s\n", $frameCap > 0 ? (string) $frameCap : 'off');
+printf("Measured frame deck: %d\n", count($measureFrames));
 printf("JINX mode: %s\n", $jinxMode);
 printf("Mode: %s\n\n", $modeText);
 printf("%-12s %14s %14s %14s %14s\n", 'Worker', 'total ms', 'us/request', 'req/sec', 'checksum');
@@ -491,6 +526,8 @@ $payload = [
     'requests' => $requests,
     'warmup' => $warmup,
     'workload' => $workload,
+    'frame_cap' => $frameCap,
+    'measured_frame_deck' => count($measureFrames),
     'jinx_mode' => $jinxMode,
     'mode' => $modeText,
     'php' => $php,
