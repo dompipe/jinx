@@ -9,6 +9,7 @@ The RC focuses on:
 - A generated compact wrapper dispatch table for 3,527 PHP callable signatures.
 - A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
+- A native Zend-shaped engine skeleton for rewriting `Zend/` concepts into Oracle SM, Oracle ASM, and PASM.
 - Manual-driven handler states: `exact`, `php-fallback`, and `sandbox-blocked` are resolved; `partial`, `placeholder`, and `unsafe-native` are not.
 - PHP-source implementation families that map generated callables to Oracle/PASM target families and php-src source areas.
 - Correctness-first PHP fallback for crypto/hash/password/random functions until exact native crypto exists.
@@ -18,12 +19,13 @@ The RC focuses on:
 
 ## Quick Native Commands
 
-Build the native executable first. This creates the repository-root `./jinx` binary and also copies it to `./build/native/jinx`.
+Build the native executable first. This creates the repository-root `./jinx` binary, copies it to `./build/native/jinx`, and builds the Zend smoke binary.
 
 ```bash
 ./scripts/build-native-jinx.sh
 ./jinx rc
 ./jinx oracle-smoke
+./build/native/jinx-zend-smoke
 ./jinx functions-count
 ./jinx functions-smoke
 ./jinx function-exists strlen
@@ -67,6 +69,50 @@ Crypto fallback regression test:
 ```bash
 php scripts/test-php-crypto-fallback.php
 ```
+
+## Zend Engine Rewrite Layer
+
+The Zend rewrite starts with a JINX-owned native engine layer instead of linking against PHP. This gives Oracle SM / Oracle ASM / PASM a stable target for PHP's core runtime concepts.
+
+Native sources:
+
+```text
+runtime/jinx_zend_engine.h
+runtime/jinx_zend_engine.c
+native/jinx_zend_smoke.c
+docs/ZEND_ENGINE_REWRITE.md
+```
+
+Build and smoke test:
+
+```bash
+./scripts/build-native-jinx.sh
+./build/native/jinx-zend-smoke
+```
+
+Current Zend-shaped native structures:
+
+```text
+JinxZendValue       zval-like tagged value
+JinxZendString      zend_string-like string view
+JinxZendArray       HashTable/zend_array count shell
+JinxZendObject      object/class shell
+JinxZendReference   reference shell
+JinxZendCallFrame   function call frame shell
+JinxZendExecutor    executor/request state shell
+```
+
+Zend rewrite families now have explicit targets:
+
+| Family | State | Oracle SM target | PASM target |
+|---|---:|---|---|
+| zval | started | `oracle-sm/zend/zval.osm` | `runtime/pasm/zend/zval.pasm` |
+| zend_string | started | `oracle-sm/zend/string.osm` | `runtime/pasm/zend/string.pasm` |
+| HashTable/zend_array | planned | `oracle-sm/zend/hash.osm` | `runtime/pasm/zend/hash.pasm` |
+| executor/call-frame | started | `oracle-sm/zend/executor.osm` | `runtime/pasm/zend/executor.pasm` |
+| objects/classes | planned | `oracle-sm/zend/object.osm` | `runtime/pasm/zend/object.pasm` |
+| errors/exceptions | planned | `oracle-sm/zend/errors.osm` | `runtime/pasm/zend/errors.pasm` |
+| compiler/opcodes | planned | `oracle-sm/zend/opcodes.osm` | `runtime/pasm/zend/opcodes.pasm` |
 
 ## PHP Source Families
 
@@ -302,7 +348,10 @@ It does **not** call `php bin/jinx` for the JINX timing path.
 
 ```text
 native/jinx_cli.c
+native/jinx_zend_smoke.c
 bin/jinx
+runtime/jinx_zend_engine.h
+runtime/jinx_zend_engine.c
 runtime/jinx_php_manual_manifest.h
 runtime/jinx_php_family_manifest.php
 runtime/WebNativeFunctions.php
@@ -317,6 +366,7 @@ scripts/test-php-crypto-fallback.php
 scripts/benchmark-true-all-functions.php
 scripts/benchmark-native-jinx-vs-php.php
 scripts/build-native-jinx.sh
+docs/ZEND_ENGINE_REWRITE.md
 docs/RC_NOTES.md
 docs/BENCHMARKS.md
 docs/NATIVE_VS_PHP_BENCHMARK.md
