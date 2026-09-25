@@ -57,7 +57,7 @@ foreach ($families as $family => $metadata) {
     }
 
     $hasCoverageDimension = false;
-    foreach (['builtins', 'control_flow', 'array_ops', 'function_ops', 'object_ops', 'request_ops', 'loader_ops', 'termination_ops', 'expression_ops', 'casts', 'comparisons', 'boolean_operators', 'magic_constants', 'superglobals'] as $field) {
+    foreach (['builtins', 'control_flow', 'array_ops', 'function_ops', 'object_ops', 'request_ops', 'loader_ops', 'termination_ops', 'expression_ops', 'casts', 'comparisons', 'boolean_operators', 'magic_constants', 'superglobals', 'string_ops'] as $field) {
         if (($metadata[$field] ?? []) !== []) {
             $hasCoverageDimension = true;
             break;
