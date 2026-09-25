@@ -9,7 +9,7 @@ namespace jinx\oracle;
  *
  * This family intentionally avoids by-reference mutation, IO, global state, and
  * nondeterminism. It proves output/return parity for common string, formatting,
- * and array helpers before those helpers are lowered to PASM/native paths.
+ * URL/HTML, and array helpers before those helpers are lowered to PASM/native paths.
  */
 final class OracleAppBuiltinExecutor
 {
@@ -124,12 +124,12 @@ final class OracleAppBuiltinExecutor
             return stripcslashes($m[2]);
         }
 
-        if (strcasecmp($expr, 'CASE_LOWER') === 0) {
-            return CASE_LOWER;
+        foreach (self::constants() as $constant => $value) {
+            if (strcasecmp($expr, $constant) === 0) {
+                return $value;
+            }
         }
-        if (strcasecmp($expr, 'CASE_UPPER') === 0) {
-            return CASE_UPPER;
-        }
+
         if (strcasecmp($expr, 'true') === 0) {
             return true;
         }
@@ -145,6 +145,23 @@ final class OracleAppBuiltinExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle app builtin expression: {$expr}");
+    }
+
+    /** @return array<string,int> */
+    private static function constants(): array
+    {
+        return [
+            'CASE_LOWER' => CASE_LOWER,
+            'CASE_UPPER' => CASE_UPPER,
+            'PHP_URL_SCHEME' => PHP_URL_SCHEME,
+            'PHP_URL_HOST' => PHP_URL_HOST,
+            'PHP_URL_PORT' => PHP_URL_PORT,
+            'PHP_URL_USER' => PHP_URL_USER,
+            'PHP_URL_PASS' => PHP_URL_PASS,
+            'PHP_URL_PATH' => PHP_URL_PATH,
+            'PHP_URL_QUERY' => PHP_URL_QUERY,
+            'PHP_URL_FRAGMENT' => PHP_URL_FRAGMENT,
+        ];
     }
 
     /** @param array<string,mixed> $locals */
@@ -182,6 +199,16 @@ final class OracleAppBuiltinExecutor
             'wordwrap' => wordwrap((string) ($args[0] ?? ''), (int) ($args[1] ?? 75), (string) ($args[2] ?? "\n"), (bool) ($args[3] ?? false)),
             'sprintf' => sprintf((string) ($args[0] ?? ''), ...array_slice($args, 1)),
             'number_format' => number_format((float) ($args[0] ?? 0), (int) ($args[1] ?? 0), (string) ($args[2] ?? '.'), (string) ($args[3] ?? ',')),
+            'urlencode' => urlencode((string) ($args[0] ?? '')),
+            'urldecode' => urldecode((string) ($args[0] ?? '')),
+            'rawurlencode' => rawurlencode((string) ($args[0] ?? '')),
+            'rawurldecode' => rawurldecode((string) ($args[0] ?? '')),
+            'http_build_query' => http_build_query((array) ($args[0] ?? [])),
+            'parse_url' => parse_url((string) ($args[0] ?? ''), isset($args[1]) ? (int) $args[1] : -1),
+            'htmlspecialchars' => htmlspecialchars((string) ($args[0] ?? '')),
+            'html_entity_decode' => html_entity_decode((string) ($args[0] ?? '')),
+            'strip_tags' => strip_tags((string) ($args[0] ?? '')),
+            'nl2br' => nl2br((string) ($args[0] ?? ''), (bool) ($args[1] ?? true)),
             'array_combine' => array_combine((array) ($args[0] ?? []), (array) ($args[1] ?? [])),
             'array_flip' => array_flip((array) ($args[0] ?? [])),
             'array_diff' => array_diff((array) ($args[0] ?? []), (array) ($args[1] ?? [])),
