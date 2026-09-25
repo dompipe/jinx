@@ -19,6 +19,7 @@ require_once dirname(__DIR__) . '/runtime/OracleAppBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleMathBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleDataBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleTextBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleDateTimeBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleExecutionFamilies;
@@ -112,10 +113,6 @@ function owner_path_from_class(string $owner): ?string
 $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 
-// These fields describe the behavior surface that each family claims. Generic
-// Oracle op records are verified by the full coverage audit and by the runtime
-// parity tests themselves; checking them as raw strings in every shared batch
-// test produces noise rather than useful gaps.
 $behaviorFacetFields = [
     'builtins',
     'control_flow',
@@ -158,9 +155,6 @@ foreach ($families as $family => $metadata) {
         }
     }
 
-    // Also include this family's explicit ledger metadata. That makes batch
-    // ledger entries auditable without forcing every shared test file to repeat
-    // every generic support op name.
     $coverageSource .= "\n// family-metadata\n" . var_export($metadata, true);
 
     foreach ($behaviorFacetFields as $field) {
