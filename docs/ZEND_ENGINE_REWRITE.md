@@ -17,6 +17,7 @@ native/jinx_zend_array_builtin_smoke.c
 native/jinx_zend_array_delete_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
+native/jinx_oracle_dispatch_zend_array_smoke.c
 ```
 
 Build and smoke test:
@@ -32,13 +33,16 @@ Build and smoke test:
 
 ./scripts/build-oracle-zend-array-builtin-smoke.sh
 ./build/native/jinx-oracle-zend-array-builtin-smoke
+
+./scripts/build-oracle-dispatch-zend-array-smoke.sh
+./build/native/jinx-oracle-dispatch-zend-array-smoke
 ```
 
-Full native build also compiles the Zend smoke binary:
+Full native build regenerates Oracle dispatch and compiles the native binary:
 
 ```bash
 ./scripts/build-native-jinx.sh
-./build/native/jinx-zend-smoke
+./build/native/jinx
 ```
 
 ## Rewrite families
@@ -64,6 +68,7 @@ JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, up
 JinxZendBucket      numeric, string-key, or tombstone bucket carrying retained JinxZendValue
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
+Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
@@ -100,6 +105,7 @@ live iteration that skips tombstones
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 Oracle array builtin bridge for carried JinxZendArray values
+generated `jinx_call_builtin_through_oracle` routes carried Zend arrays before generated fallbacks
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
@@ -195,11 +201,25 @@ Current Oracle array builtin smoke executable:
 ./build/native/jinx-oracle-zend-array-builtin-smoke
 ```
 
-The next integration point is calling `jinx_oracle_zend_array_dispatch_builtin` from generated/native Oracle builtin dispatch before falling back to generic count-only array stand-ins.
+Current generated-dispatch smoke executable:
+
+```bash
+./build/native/jinx-oracle-dispatch-zend-array-smoke
+```
+
+`build-native-jinx.sh` now regenerates `runtime/jinx_builtin_dispatch.generated.c` so the generated `jinx_call_builtin_through_oracle` function checks carried Zend arrays first for:
+
+```text
+count
+array_key_exists
+array_is_list
+array_values
+array_keys
+```
 
 ## Next implementation steps
 
-1. Call `jinx_oracle_zend_array_dispatch_builtin` from the Oracle builtin dispatch path for carried Zend arrays.
+1. Add CLI/native fixtures that create carried Zend arrays and invoke `./jinx oracle-call` through the regenerated dispatch.
 2. Lower `foreach` onto live array iteration.
 3. Add object class table and method dispatch.
 4. Add error/warning/exception objects.
