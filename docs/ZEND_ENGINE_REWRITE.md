@@ -17,6 +17,7 @@ runtime/jinx_zend_object.h
 runtime/jinx_zend_method_opcode.h
 runtime/jinx_zend_error.h
 runtime/jinx_zend_throw_opcode.h
+runtime/jinx_zend_opcode_vm.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 native/jinx_zend_smoke.c
@@ -30,6 +31,7 @@ native/jinx_zend_object_smoke.c
 native/jinx_zend_method_opcode_smoke.c
 native/jinx_zend_error_smoke.c
 native/jinx_zend_throw_opcode_smoke.c
+native/jinx_zend_opcode_vm_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -68,6 +70,9 @@ Build and smoke test:
 
 ./scripts/build-zend-throw-opcode-smoke.sh
 ./build/native/jinx-zend-throw-opcode-smoke
+
+./scripts/build-zend-opcode-vm-smoke.sh
+./build/native/jinx-zend-opcode-vm-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -121,6 +126,7 @@ JinxZendMethodCallFrame INIT_METHOD_CALL/SEND_ARGS/DO_METHOD_CALL lowering frame
 JinxZendErrorState warning/error/exception state carrier
 JinxZendThrowable throwable descriptor over Exception/Error-style objects
 JinxZendCatchFrame CATCH lowering frame over active throwable state
+JinxZendVmState combined register VM for foreach/method/throw control flow
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
@@ -181,6 +187,8 @@ THROW stores throwable objects into active exception state
 THROW rejects non-object values as errors
 CATCH matches active throwable class names or catch-all handlers
 CLEAR_EXCEPTION clears executor and error-state exception slots
+combined opcode VM sequences foreach, method calls, throw/catch, clear-exception, jumps, and halt
+combined opcode VM uses one register stream over arrays, objects, methods, and throwable state
 executor error state can be cleared
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
@@ -192,6 +200,33 @@ call-frame enter/leave
 return-value propagation
 family manifest enumeration
 ```
+
+## Native opcode/control-flow helpers
+
+The combined opcode VM layer is:
+
+```text
+runtime/jinx_zend_opcode_vm.h
+```
+
+It provides:
+
+```text
+JinxZendVmOpcode
+JinxZendVmResult
+JinxZendVmOp
+JinxZendVmState
+jinx_zend_vm_state_init
+jinx_zend_vm_run
+```
+
+Current combined VM smoke executable:
+
+```bash
+./build/native/jinx-zend-opcode-vm-smoke
+```
+
+The VM is register-based and currently sequences `LOAD_CONST`, `FE_RESET`, `FE_FETCH`, `METHOD_CALL`, `THROW`, `CATCH`, `CLEAR_EXCEPTION`, `JMP`, `JMP_IF_EXCEPTION`, and `HALT`. It is the first shared instruction-stream substrate for compiler lowering.
 
 ## Native array builtin helpers
 
@@ -351,8 +386,8 @@ Run carried live arrays through `./jinx oracle-call`:
 
 ## Next implementation steps
 
-1. Add a combined minimal opcode VM that can run foreach, method calls, and throw/catch primitives in one instruction stream.
-2. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+1. Add opcode/IR lowering fixtures that emit `JinxZendVmOp` streams from small PHP-shaped constructs.
+2. Add parser/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
