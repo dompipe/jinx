@@ -134,7 +134,7 @@ final class WebWindowIndex
                 'resident_state' => 'page defaults and arrangements only',
                 'request_state' => 'must be isolated outside the resident window index',
                 'index_update_rule' => 'only explicit register/update/patch calls mutate the resident index',
-                'browser_runtime_rule' => 'JINX can emit either inline browser runtime or no-JS HTML registrar output',
+                'browser_runtime_rule' => 'JINX can emit inline runtime, stream runtime, or no-JS HTML registrar output',
             ],
         ];
     }
@@ -172,7 +172,7 @@ final class WebWindowIndex
             'safety' => [
                 'resident_state' => 'page defaults and arrangements only',
                 'per_user_scale' => 'browser holds the user-visible index; server only sends index snapshots and frames',
-                'live_update_rule' => 'use inline runtime for in-place updates, or no-JS registrar output for browser-native reload/swap flows',
+                'live_update_rule' => 'use the JINX-emitted stream runtime for in-place server-pushed frames, inline runtime for direct frames, or no-JS registrar output for browser-native reload/swap flows',
                 'external_js_required' => false,
             ],
         ];
@@ -194,7 +194,7 @@ final class WebWindowIndex
 
   function root() {
     window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {
-      frames: {}, defaults: {}, windows: {}, history: [], index_version: 0, fingerprint: ''
+      frames: {}, defaults: {}, windows: {}, history: [], streams: {}, index_version: 0, fingerprint: ''
     };
     return window.__JINX_WINDOW_INDEX__;
   }
@@ -261,7 +261,27 @@ final class WebWindowIndex
   function liveUpdate(frame) { var applied = applyFrame(frame); dispatch('jinx-window-live-update', applied); return applied; }
   function mount(windowId, pageKey, arrangement) { return liveUpdate({kind: 'JINX_WINDOW_INDEX_FRAME', version: 1, index_version: root().index_version || 0, window_id: windowId || 'window:default', page_key: pageKey || 'page:default', arrangement: arrangement || {}, patches: []}); }
 
-  window.JINXWindowIndex = {__jinx_emitted_runtime: true, registerIndex: registerIndex, applyFrame: applyFrame, liveUpdate: liveUpdate, mount: mount, applyPatch: applyPatch, state: root};
+  function connectStream(url, name) {
+    var state = root();
+    var streamName = name || 'default';
+    if (!url) throw new Error('JINX stream URL is required.');
+    if (state.streams[streamName] && state.streams[streamName].close) state.streams[streamName].close();
+    if (typeof window.EventSource !== 'function') throw new Error('EventSource is not available in this browser.');
+    var source = new EventSource(url);
+    source.addEventListener('jinx-window-frame', function(event) {
+      try { liveUpdate(JSON.parse(event.data || '{}')); } catch (e) { dispatch('jinx-window-stream-error', {stream: streamName, error: String(e)}); }
+    });
+    source.addEventListener('jinx-window-index', function(event) {
+      try { registerIndex(JSON.parse(event.data || '{}')); } catch (e) { dispatch('jinx-window-stream-error', {stream: streamName, error: String(e)}); }
+    });
+    source.addEventListener('error', function() { dispatch('jinx-window-stream-error', {stream: streamName, url: url}); });
+    state.streams[streamName] = source;
+    remember('connectStream', {stream: streamName, url: url});
+    dispatch('jinx-window-stream-connected', {stream: streamName, url: url});
+    return source;
+  }
+
+  window.JINXWindowIndex = {__jinx_emitted_runtime: true, registerIndex: registerIndex, applyFrame: applyFrame, liveUpdate: liveUpdate, mount: mount, applyPatch: applyPatch, connectStream: connectStream, state: root};
 })(window, document);
 JS;
     }
@@ -286,6 +306,18 @@ JS;
         return $this->toBrowserRegistrationScript(true);
     }
 
+    public function toBrowserStreamBootScript(string $streamUrl, string $streamName = 'default', bool $includeRuntime = true): string
+    {
+        $streamJson = json_encode($streamUrl, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $nameJson = json_encode($streamName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($streamJson) || !is_string($nameJson)) {
+            throw new \RuntimeException('Could not encode JINX browser stream boot arguments.');
+        }
+
+        return $this->toBrowserRegistrationScript($includeRuntime)
+            . "\n(function(window){ window.JINXWindowIndex.connectStream({$streamJson}, {$nameJson}); })(window);";
+    }
+
     /** @param array<string,mixed> $frame */
     public static function toBrowserScript(array $frame, bool $includeRuntime = true): string
     {
@@ -300,6 +332,18 @@ JS;
             . "})(window);";
 
         return ($includeRuntime ? self::inlineBrowserRuntimeScript() . "\n" : '') . $script;
+    }
+
+    /** @param array<string,mixed> $frame */
+    public static function toServerSentEventFrame(array $frame, string $event = 'jinx-window-frame'): string
+    {
+        $json = json_encode($frame, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json) || $json === '') {
+            throw new \RuntimeException('Could not encode JINX server-sent frame.');
+        }
+
+        $event = preg_replace('/[^A-Za-z0-9_.-]/', '-', $event) ?: 'jinx-window-frame';
+        return 'event: ' . $event . "\n" . 'data: ' . str_replace("\n", "\ndata: ", $json) . "\n\n";
     }
 
     /** @return string */
