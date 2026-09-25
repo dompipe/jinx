@@ -190,6 +190,19 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'php-uname-builtins' => ['php_uname'], 'php-sapi-name-builtins' => ['php_sapi_name'], 'zend-version-builtins' => ['zend_version'],
+            'ini-get-builtins' => ['ini_get'], 'ini-get-all-builtins' => ['ini_get_all'], 'get-cfg-var-builtins' => ['get_cfg_var'],
+            'php-ini-loaded-file-builtins' => ['php_ini_loaded_file'], 'php-ini-scanned-files-builtins' => ['php_ini_scanned_files'],
+            'get-include-path-builtins' => ['get_include_path'], 'stream-get-wrappers-builtins' => ['stream_get_wrappers'],
+            'stream-get-transports-builtins' => ['stream_get_transports'], 'stream-get-filters-builtins' => ['stream_get_filters'],
+            'sys-get-temp-dir-builtins' => ['sys_get_temp_dir'], 'get-current-user-builtins' => ['get_current_user'],
+            'getmyuid-builtins' => ['getmyuid'], 'getmygid-builtins' => ['getmygid'], 'getmypid-builtins' => ['getmypid'],
+            'getmyinode-builtins' => ['getmyinode'], 'getlastmod-builtins' => ['getlastmod'], 'umask-builtins' => ['umask'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleRuntimeInfoBuiltinExecutor::class, 'scripts/test-oracle-runtime-info-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'is-float-builtins' => ['is_float'], 'is-double-builtins' => ['is_double'], 'is-real-builtins' => ['is_real'],
             'is-long-builtins' => ['is_long'], 'is-integer-builtins' => ['is_integer'], 'is-iterable-builtins' => ['is_iterable'],
             'is-resource-builtins' => ['is_resource'], 'is-callable-builtins' => ['is_callable'], 'function-exists-builtins' => ['function_exists'],
