@@ -95,6 +95,13 @@ final class OracleAppBuiltinExecutor
             return null;
         }
 
+        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
+            return (float) $expr;
+        }
+        if (preg_match('/^-?\d+$/', $expr)) {
+            return (int) $expr;
+        }
+
         if (self::isWrappedInOuterParens($expr)) {
             return self::evaluate(substr($expr, 1, -1), $locals, $program);
         }
@@ -117,13 +124,12 @@ final class OracleAppBuiltinExecutor
             return stripcslashes($m[2]);
         }
 
-        if (preg_match('/^-?\d+$/', $expr)) {
-            return (int) $expr;
+        if (strcasecmp($expr, 'CASE_LOWER') === 0) {
+            return CASE_LOWER;
         }
-        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
-            return (float) $expr;
+        if (strcasecmp($expr, 'CASE_UPPER') === 0) {
+            return CASE_UPPER;
         }
-
         if (strcasecmp($expr, 'true') === 0) {
             return true;
         }
