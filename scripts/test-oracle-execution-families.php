@@ -9,11 +9,13 @@ require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIncludeExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleExitExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleArrayExecutor;
 use jinx\oracle\OracleConditionalExecutor;
 use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleExitExecutor;
 use jinx\oracle\OracleFunctionExecutor;
 use jinx\oracle\OracleIncludeExecutor;
 use jinx\oracle\OracleLoopExecutor;
@@ -35,7 +37,7 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $families = OracleExecutionFamilies::all();
 
-foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals', 'include-require'] as $family) {
+foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions', 'request-globals', 'include-require', 'exit-die'] as $family) {
     if (!isset($families[$family])) {
         fail("missing {$family} execution family");
     }
@@ -49,6 +51,7 @@ $expected = [
     'functions' => [OracleFunctionExecutor::class, 'scripts/test-oracle-function-execution.php'],
     'request-globals' => [OracleRequestExecutor::class, 'scripts/test-oracle-request-globals-execution.php'],
     'include-require' => [OracleIncludeExecutor::class, 'scripts/test-oracle-include-require-execution.php'],
+    'exit-die' => [OracleExitExecutor::class, 'scripts/test-oracle-exit-die-execution.php'],
 ];
 
 foreach ($expected as $family => [$owner, $test]) {
@@ -66,6 +69,7 @@ $requiredOps = [
     'functions' => ['O_FUNCTION_DECL', 'O_ASSIGN', 'O_COMPOUND_ASSIGN', 'O_ECHO', 'O_RETURN', 'O_BLOCK_CLOSE'],
     'request-globals' => ['O_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_RETURN'],
     'include-require' => ['O_INCLUDE', 'O_REQUIRE', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'],
+    'exit-die' => ['O_ASSIGN', 'O_ECHO', 'O_EXIT', 'O_RETURN'],
 ];
 
 foreach ($requiredOps as $family => $ops) {
@@ -129,4 +133,11 @@ foreach (['literal_include', 'literal_require', 'resolved_oracle_edge', 'include
     }
 }
 
-echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, functions, request-globals, and include-require executable families" . PHP_EOL;
+$exitDie = OracleExecutionFamilies::get('exit-die');
+foreach (['exit_string_output', 'die_alias', 'termination_flag', 'exit_code', 'unreachable_code_stops'] as $terminationOp) {
+    if (!in_array($terminationOp, $exitDie['termination_ops'] ?? [], true)) {
+        fail("exit-die family missing termination op {$terminationOp}");
+    }
+}
+
+echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, functions, request-globals, include-require, and exit-die executable families" . PHP_EOL;
