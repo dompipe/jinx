@@ -6,11 +6,13 @@ require_once dirname(__DIR__) . '/runtime/OracleStraightLineExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleConditionalExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleArrayExecutor;
 use jinx\oracle\OracleConditionalExecutor;
 use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleFunctionExecutor;
 use jinx\oracle\OracleLoopExecutor;
 use jinx\oracle\OracleStraightLineExecutor;
 
@@ -29,7 +31,7 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 $families = OracleExecutionFamilies::all();
 
-foreach (['straight-line', 'conditionals', 'loops', 'arrays'] as $family) {
+foreach (['straight-line', 'conditionals', 'loops', 'arrays', 'functions'] as $family) {
     if (!isset($families[$family])) {
         fail("missing {$family} execution family");
     }
@@ -119,4 +121,28 @@ foreach (['count'] as $builtin) {
     }
 }
 
-echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, and arrays executable families" . PHP_EOL;
+$functions = OracleExecutionFamilies::get('functions');
+
+same($functions['state'] ?? null, 'executable', 'functions state');
+same($functions['owner'] ?? null, OracleFunctionExecutor::class, 'functions owner');
+same($functions['test'] ?? null, 'scripts/test-oracle-function-execution.php', 'functions test');
+
+foreach (['O_FUNCTION_DECL', 'O_ASSIGN', 'O_COMPOUND_ASSIGN', 'O_ECHO', 'O_RETURN', 'O_BLOCK_CLOSE'] as $op) {
+    if (!in_array($op, $functions['ops'] ?? [], true)) {
+        fail("functions family missing {$op}");
+    }
+}
+
+foreach (['named_user_function', 'local_parameter_scope', 'return_value', 'nested_user_call', 'builtin_dispatch'] as $functionOp) {
+    if (!in_array($functionOp, $functions['function_ops'] ?? [], true)) {
+        fail("functions family missing function op {$functionOp}");
+    }
+}
+
+foreach (['strlen', 'strtoupper'] as $builtin) {
+    if (!in_array($builtin, $functions['builtins'] ?? [], true)) {
+        fail("functions family missing builtin {$builtin}");
+    }
+}
+
+echo "PASS: Oracle execution families expose the straight-line, conditionals, loops, arrays, and functions executable families" . PHP_EOL;
