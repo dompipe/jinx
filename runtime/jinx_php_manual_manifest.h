@@ -9,24 +9,17 @@
  * This file is intentionally source-code, not prose-only documentation. It is
  * compiled into the native jinx executable through scripts/build-native-jinx.sh
  * and records which PHP-manual behavior families have exact native handlers,
- * which ones are approximation carriers, and which ones still need exact C /
- * Oracle / PASM lowering work.
- *
- * Manual source policy:
- *   1. Read the PHP manual page for a function or function family first.
- *   2. Record the manual contract here: prototype shape, return family,
- *      notable edge behavior, and native handler state.
- *   3. Add or replace the native behavior in build/oracle-asm/
- *      jinx_oracle_asm_runtime.h or a future split handler file.
- *   4. Only move a family to exact/manual-complete when the JINX return value
- *      follows the documented PHP behavior for the supported JinxValue types.
+ * which ones are approximation carriers, which ones intentionally fall back to
+ * original PHP for correctness, and which ones still need exact C / Oracle /
+ * PASM lowering work.
  */
 
 typedef enum JinxPhpManualHandlerState {
     JINX_PHP_MANUAL_EXACT = 1,
     JINX_PHP_MANUAL_PARTIAL = 2,
     JINX_PHP_MANUAL_PLACEHOLDER = 3,
-    JINX_PHP_MANUAL_UNSAFE_NATIVE = 4
+    JINX_PHP_MANUAL_UNSAFE_NATIVE = 4,
+    JINX_PHP_MANUAL_PHP_FALLBACK = 5
 } JinxPhpManualHandlerState;
 
 typedef struct JinxPhpManualHandlerSpec {
@@ -113,9 +106,18 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "Native bool carrier exists. Exact locale/byte-class behavior needs per-function handlers."
     },
     {
+        "crypto-php-fallback",
+        "https://www.php.net/manual/en/refs.crypto.php",
+        "hash/md5/sha1/crypt/password_*/random_*/openssl_* selected pure value functions",
+        "string|bool|int|array depending on function",
+        "WebNativeFunctions::callPhpCryptoFallback",
+        JINX_PHP_MANUAL_PHP_FALLBACK,
+        "Crypto-sensitive behavior uses original PHP directly for correctness until exact native crypto handlers exist. This is not native ASM-complete."
+    },
+    {
         "string-transform",
         "https://www.php.net/manual/en/ref.strings.php",
-        "basename/bin2hex/chr/dirname/md5/sha1/strtolower/strtoupper/trim/etc.",
+        "basename/bin2hex/chr/dirname/strtolower/strtoupper/trim/etc.",
         "string|array|bool|int depending on function",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_PLACEHOLDER,
@@ -160,6 +162,8 @@ static inline const char *jinx_php_manual_state_name(JinxPhpManualHandlerState s
             return "placeholder";
         case JINX_PHP_MANUAL_UNSAFE_NATIVE:
             return "unsafe-native";
+        case JINX_PHP_MANUAL_PHP_FALLBACK:
+            return "php-fallback";
         default:
             return "unknown";
     }
@@ -189,6 +193,17 @@ static inline int jinx_php_manual_name_is_math_trig_log(const char *name) {
         strcmp(name, "log") == 0 || strcmp(name, "log10") == 0;
 }
 
+static inline int jinx_php_manual_name_is_crypto(const char *name) {
+    return strcmp(name, "crc32") == 0 || strcmp(name, "crypt") == 0 ||
+        strcmp(name, "md5") == 0 || strcmp(name, "md5_file") == 0 ||
+        strcmp(name, "sha1") == 0 || strcmp(name, "sha1_file") == 0 ||
+        jinx_php_manual_name_starts(name, "hash") ||
+        jinx_php_manual_name_starts(name, "password_") ||
+        jinx_php_manual_name_starts(name, "random_") ||
+        jinx_php_manual_name_starts(name, "openssl_") ||
+        jinx_php_manual_name_starts(name, "sodium_");
+}
+
 static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char *name) {
     unsigned long i;
 
@@ -203,6 +218,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         }
     }
 
+    if (jinx_php_manual_name_is_crypto(name)) {
+        return &jinx_php_manual_handler_specs[8];
+    }
+
     if (jinx_php_manual_name_is_math_trig_log(name)) {
         return &jinx_php_manual_handler_specs[3];
     }
@@ -212,12 +231,12 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
     }
 
     if (jinx_php_manual_name_starts(name, "array_")) {
-        return &jinx_php_manual_handler_specs[9];
+        return &jinx_php_manual_handler_specs[10];
     }
 
     if (jinx_php_manual_name_has(name, "class") || jinx_php_manual_name_has(name, "Class") ||
         jinx_php_manual_name_has(name, "Reflection") || jinx_php_manual_name_has(name, "::")) {
-        return &jinx_php_manual_handler_specs[10];
+        return &jinx_php_manual_handler_specs[11];
     }
 
     if (jinx_php_manual_name_has(name, "file") || jinx_php_manual_name_has(name, "stream") ||
@@ -225,10 +244,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         jinx_php_manual_name_has(name, "exec") || jinx_php_manual_name_has(name, "proc") ||
         jinx_php_manual_name_has(name, "curl") || jinx_php_manual_name_has(name, "pdo") ||
         jinx_php_manual_name_has(name, "mysqli") || jinx_php_manual_name_has(name, "mysql")) {
-        return &jinx_php_manual_handler_specs[11];
+        return &jinx_php_manual_handler_specs[12];
     }
 
-    return &jinx_php_manual_handler_specs[8];
+    return &jinx_php_manual_handler_specs[9];
 }
 
 static inline int jinx_php_manual_is_exact(const char *name) {
