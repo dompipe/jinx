@@ -229,8 +229,12 @@ final class OracleStraightLineExecutor
             return (int) $expr;
         }
 
-        if (preg_match('/^([\'"])(.*)\1$/', $expr, $m)) {
-            return stripcslashes($m[2]);
+        if (preg_match('/^\'(.*)\'$/s', $expr, $m)) {
+            return stripcslashes($m[1]);
+        }
+
+        if (preg_match('/^"(.*)"$/s', $expr, $m)) {
+            return self::interpolateDoubleQuotedString($m[1], $locals);
         }
 
         if ($expr === 'true') {
@@ -265,6 +269,123 @@ final class OracleStraightLineExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle expression: {$expr}");
+    }
+
+    /**
+     * @param array<string,mixed> $locals
+     */
+    private static function interpolateDoubleQuotedString(string $body, array &$locals): string
+    {
+        $placeholder = "\0JINX_ESCAPED_DOLLAR\0";
+        $body = str_replace('\\$', $placeholder, $body);
+
+        $body = preg_replace_callback(
+            '/\{\s*(\$[A-Za-z_]\w*(?:(?:\[[^\]]+\])|(?:->\w+))*)\s*\}/',
+            static fn(array $m): string => (string) self::evaluateInterpolatedVariable($m[1], $locals),
+            $body
+        ) ?? $body;
+
+        $body = preg_replace_callback(
+            '/\$([A-Za-z_]\w*)(?:\[([^\]]+)\]|->(\w+))?/',
+            static function (array $m) use (&$locals): string {
+                $path = '$' . $m[1];
+                if (($m[2] ?? '') !== '') {
+                    $path .= '[' . $m[2] . ']';
+                } elseif (($m[3] ?? '') !== '') {
+                    $path .= '->' . $m[3];
+                }
+
+                return (string) self::evaluateInterpolatedVariable($path, $locals);
+            },
+            $body
+        ) ?? $body;
+
+        $body = str_replace($placeholder, '$', $body);
+
+        return self::decodeDoubleQuotedEscapes($body);
+    }
+
+    /**
+     * @param array<string,mixed> $locals
+     */
+    private static function evaluateInterpolatedVariable(string $path, array &$locals): mixed
+    {
+        if (!preg_match('/^\$(\w+)/', $path, $m)) {
+            throw new \RuntimeException("Unsupported Oracle interpolation segment: {$path}");
+        }
+
+        $value = $locals[$m[1]] ?? null;
+        if (!array_key_exists($m[1], $locals)) {
+            throw new \RuntimeException("Missing Oracle interpolated local: {$path}");
+        }
+
+        $rest = substr($path, strlen($m[0]));
+        while ($rest !== '') {
+            if (preg_match('/^\[([^\]]+)\]/', $rest, $dim)) {
+                if (!is_array($value)) {
+                    throw new \RuntimeException("Interpolated local is not array: {$path}");
+                }
+                $key = self::interpolationKey($dim[1], $locals);
+                if (!array_key_exists($key, $value)) {
+                    throw new \RuntimeException("Missing Oracle interpolated array dimension: {$path}");
+                }
+                $value = $value[$key];
+                $rest = substr($rest, strlen($dim[0]));
+                continue;
+            }
+
+            if (preg_match('/^->(\w+)/', $rest, $prop)) {
+                if (!is_object($value) || !isset($value->{$prop[1]})) {
+                    throw new \RuntimeException("Missing Oracle interpolated object property: {$path}");
+                }
+                $value = $value->{$prop[1]};
+                $rest = substr($rest, strlen($prop[0]));
+                continue;
+            }
+
+            throw new \RuntimeException("Unsupported Oracle interpolation tail: {$path}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $locals
+     */
+    private static function interpolationKey(string $raw, array &$locals): int|string
+    {
+        $key = trim($raw);
+        if (preg_match('/^-?\d+$/', $key)) {
+            return (int) $key;
+        }
+        if (preg_match('/^\'(.*)\'$/s', $key, $m)) {
+            return stripcslashes($m[1]);
+        }
+        if (preg_match('/^"(.*)"$/s', $key, $m)) {
+            return self::interpolateDoubleQuotedString($m[1], $locals);
+        }
+        if (preg_match('/^\$(\w+)$/', $key, $m)) {
+            if (!array_key_exists($m[1], $locals)) {
+                throw new \RuntimeException("Missing Oracle interpolation key local: {$raw}");
+            }
+            return (string) $locals[$m[1]];
+        }
+
+        return $key;
+    }
+
+    private static function decodeDoubleQuotedEscapes(string $body): string
+    {
+        return strtr($body, [
+            '\\n' => "\n",
+            '\\r' => "\r",
+            '\\t' => "\t",
+            '\\v' => "\v",
+            '\\e' => "\e",
+            '\\f' => "\f",
+            '\\\\' => '\\',
+            '\\"' => '"',
+        ]);
     }
 
     /**
