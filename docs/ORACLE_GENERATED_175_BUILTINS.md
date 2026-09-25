@@ -8,6 +8,14 @@ Generated family manifest:
 runtime/OracleGeneratedExecutionFamilies.php
 ```
 
+Merged family ledger:
+
+```text
+runtime/OracleMergedExecutionFamilies.php
+```
+
+The merged ledger folds `OracleGeneratedExecutionFamilies::all()` into the regular `OracleExecutionFamilies::all()` result, so suite-level audits count the generated batch as first-class executable Oracle/PHP parity families.
+
 Parity tests:
 
 ```bash
@@ -17,7 +25,7 @@ Parity tests:
 
 This batch is wired into the native verification group through `scripts/test-jinx-native-suite.php`.
 
-The group audit exposes exactly 175 executable generated PHP/Zend parity families, each using `runtime/OracleGeneratedBuiltinExecutor.php` as owner and `scripts/test-oracle-generated-175-builtin-execution.php` as the comparison test.
+The group audit exposes exactly 175 executable generated PHP/Zend parity families, confirms each generated family is also present in `runtime/OracleMergedExecutionFamilies.php`, and verifies each uses `runtime/OracleGeneratedBuiltinExecutor.php` as owner and `scripts/test-oracle-generated-175-builtin-execution.php` as the comparison test.
 
 This batch generates 175 deterministic PHP fixtures under `build/generated/oracle-generated-175-builtin/` and compares each fixture against Oracle execution through repository-root native `./jinx`.
 
@@ -47,8 +55,10 @@ Verification:
 ```bash
 git pull origin master
 ./scripts/build-native-jinx.sh
+./jinx scripts/test-oracle-execution-families.php
 ./jinx scripts/test-oracle-generated-family-group.php
 ./jinx scripts/test-oracle-generated-175-builtin-execution.php
+./jinx scripts/test-oracle-full-coverage-audit.php
 ./jinx scripts/test-jinx-native-suite.php
 git diff --check
 ```
