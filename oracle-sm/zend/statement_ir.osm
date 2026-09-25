@@ -1,0 +1,40 @@
+oracle_sm_family statement_ir
+
+purpose "Line-oriented raw-register statement/expression IR lowering into VM ops."
+replaces "Manual raw-register VM op assembly for label/jump/call/throw/catch programs."
+
+native_files {
+  runtime/jinx_zend_statement_ir.h
+}
+
+native_symbols {
+  JinxZendStatementIrResult
+  JinxZendStatementIrLabel
+  JinxZendStatementIrPatch
+  JinxZendStatementIrProgram
+  jinx_zend_statement_ir_program_init
+  jinx_zend_statement_ir_lower_line
+  jinx_zend_statement_ir_lower
+  jinx_zend_statement_ir_resolve_patches
+}
+
+oracle_sm_contract {
+  label                 binds_current_op_index
+  const                 LOAD_CONST
+  call                  METHOD_CALL
+  throw                 THROW
+  catch                 CATCH_with_label_patch
+  clear                 CLEAR_EXCEPTION
+  jump                  JMP_with_label_patch
+  jump_if_exception     JMP_IF_EXCEPTION_with_label_patch
+  halt                  HALT
+  unknown_label         fail_closed
+}
+
+proven_by {
+  scripts/build-zend-statement-ir-smoke.sh
+  build/native/jinx-zend-statement-ir-smoke
+}
+
+pasm_target "runtime/pasm/zend/statement_ir.pasm"
+status started
