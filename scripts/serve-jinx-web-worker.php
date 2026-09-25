@@ -7,13 +7,14 @@ require_once dirname(__DIR__) . '/runtime/WebApiCompiler.php';
 use jinx\web\WebApiCompiler;
 
 /**
- * Minimal live JINX web worker used by the fair live-request benchmark.
+ * Minimal live JINX web worker used by live-request benchmarks.
  *
  * Run through repository-root native ./jinx:
  *   ./jinx scripts/serve-jinx-web-worker.php --port=18081
  *
  * It compiles the route fixture once at startup, then serves requests from a
  * direct web response template when the plan matches the supported route shape.
+ * It supports both connection-close and keep-alive mode.
  */
 
 function fail(string $message): never
@@ -66,25 +67,24 @@ function parse_server_args(array $argv): array
     return $options;
 }
 
-/** @return array{method:string,path:string,headers:array<string,string>,body:string}|null */
-function read_http_request($conn): ?array
+/** @return array{method:string,path:string,headers:array<string,string>,body:string,protocol:string}|null */
+function read_http_request($conn, string &$buffer): ?array
 {
-    $headersRaw = '';
-    while (!str_contains($headersRaw, "\r\n\r\n")) {
+    while (!str_contains($buffer, "\r\n\r\n")) {
         $chunk = fread($conn, 8192);
         if ($chunk === '' || $chunk === false) {
             return null;
         }
-        $headersRaw .= $chunk;
-        if (strlen($headersRaw) > 1024 * 1024) {
+        $buffer .= $chunk;
+        if (strlen($buffer) > 1024 * 1024) {
             return null;
         }
     }
 
-    [$headerBlock, $body] = explode("\r\n\r\n", $headersRaw, 2);
+    [$headerBlock, $rest] = explode("\r\n\r\n", $buffer, 2);
     $lines = explode("\r\n", $headerBlock);
     $requestLine = array_shift($lines) ?? '';
-    if (!preg_match('/^(\S+)\s+(\S+)\s+HTTP\/\d(?:\.\d)?$/', $requestLine, $m)) {
+    if (!preg_match('/^(\S+)\s+(\S+)\s+(HTTP\/\d(?:\.\d)?)$/', $requestLine, $m)) {
         return null;
     }
 
@@ -98,29 +98,45 @@ function read_http_request($conn): ?array
     }
 
     $length = isset($headers['content-length']) ? max(0, (int) $headers['content-length']) : 0;
-    while (strlen($body) < $length) {
-        $chunk = fread($conn, $length - strlen($body));
+    while (strlen($rest) < $length) {
+        $chunk = fread($conn, $length - strlen($rest));
         if ($chunk === '' || $chunk === false) {
-            break;
+            return null;
         }
-        $body .= $chunk;
+        $rest .= $chunk;
     }
+
+    $body = substr($rest, 0, $length);
+    $buffer = substr($rest, $length);
 
     return [
         'method' => strtoupper($m[1]),
         'path' => $m[2],
+        'protocol' => $m[3],
         'headers' => $headers,
-        'body' => substr($body, 0, $length),
+        'body' => $body,
     ];
 }
 
-function write_response($conn, int $status, string $body): void
+function wants_keep_alive(array $request): bool
 {
-    $reason = $status === 200 ? 'OK' : ($status === 400 ? 'Bad Request' : 'Error');
+    $connection = strtolower((string) ($request['headers']['connection'] ?? ''));
+    if ($connection === 'close') {
+        return false;
+    }
+    if ($connection === 'keep-alive') {
+        return true;
+    }
+    return (string) ($request['protocol'] ?? '') === 'HTTP/1.1';
+}
+
+function write_response($conn, int $status, string $body, bool $keepAlive): void
+{
+    $reason = $status === 200 ? 'OK' : ($status === 400 ? 'Bad Request' : ($status === 404 ? 'Not Found' : 'Error'));
     $response = "HTTP/1.1 {$status} {$reason}\r\n"
         . "Content-Type: application/json\r\n"
         . "Content-Length: " . strlen($body) . "\r\n"
-        . "Connection: close\r\n"
+        . "Connection: " . ($keepAlive ? 'keep-alive' : 'close') . "\r\n"
         . "\r\n"
         . $body;
     fwrite($conn, $response);
@@ -134,16 +150,7 @@ function compile_fast_template(array $plan): ?array
         return null;
     }
 
-    if (($ops[0]['op'] ?? null) !== 'WEB_READ_BODY_JSON') {
-        return null;
-    }
-    if (($ops[1]['op'] ?? null) !== 'WEB_IF_MISSING_ARRAY_KEY') {
-        return null;
-    }
-    if (($ops[2]['op'] ?? null) !== 'WEB_ARRAY_GET') {
-        return null;
-    }
-    if (($ops[3]['op'] ?? null) !== 'WEB_ECHO_JSON_ARRAY') {
+    if (($ops[0]['op'] ?? null) !== 'WEB_READ_BODY_JSON' || ($ops[1]['op'] ?? null) !== 'WEB_IF_MISSING_ARRAY_KEY' || ($ops[2]['op'] ?? null) !== 'WEB_ARRAY_GET' || ($ops[3]['op'] ?? null) !== 'WEB_ECHO_JSON_ARRAY') {
         return null;
     }
 
@@ -156,7 +163,6 @@ function compile_fast_template(array $plan): ?array
     if (!is_array($then) || count($then) < 3) {
         return null;
     }
-
     $errorStatus = (int) ($then[0]['code'] ?? 0);
     if (($then[0]['op'] ?? null) !== 'WEB_STATUS_CODE' || $errorStatus !== 400 || ($then[1]['op'] ?? null) !== 'WEB_ECHO_JSON_ARRAY' || ($then[2]['op'] ?? null) !== 'WEB_RETURN') {
         return null;
@@ -234,7 +240,6 @@ function execute_jinx_web_plan(array $plan, string $body): array
                     $decoded = json_decode($body, true);
                     $locals[(string) $op['dst']] = is_array($decoded) ? $decoded : null;
                     break;
-
                 case 'WEB_IF_MISSING_ARRAY_KEY':
                     $array = $locals[(string) $op['array']] ?? null;
                     $key = (string) $op['key'];
@@ -244,16 +249,13 @@ function execute_jinx_web_plan(array $plan, string $body): array
                         }
                     }
                     break;
-
                 case 'WEB_ARRAY_GET':
                     $array = $locals[(string) $op['array']] ?? [];
                     $locals[(string) $op['dst']] = is_array($array) ? ($array[(string) $op['key']] ?? null) : null;
                     break;
-
                 case 'WEB_STATUS_CODE':
                     $status = (int) $op['code'];
                     break;
-
                 case 'WEB_ECHO_JSON_ARRAY':
                     $payload = [];
                     foreach ((array) ($op['items'] ?? []) as $item) {
@@ -270,15 +272,12 @@ function execute_jinx_web_plan(array $plan, string $body): array
                     }
                     $output .= json_encode($payload) ?: '';
                     break;
-
                 case 'WEB_RETURN':
                     return false;
-
                 default:
                     throw new RuntimeException('Unsupported web plan op: ' . (string) ($op['op'] ?? 'UNKNOWN'));
             }
         }
-
         return true;
     };
 
@@ -309,23 +308,29 @@ while ($maxRequests === 0 || $handled < $maxRequests) {
     if (!is_resource($conn)) {
         continue;
     }
-    $request = read_http_request($conn);
-    if ($request === null) {
-        fclose($conn);
-        continue;
-    }
+    $buffer = '';
+    while ($maxRequests === 0 || $handled < $maxRequests) {
+        $request = read_http_request($conn, $buffer);
+        if ($request === null) {
+            break;
+        }
+        $keepAlive = wants_keep_alive($request);
 
-    if ($request['method'] === 'GET' && $request['path'] === '/__health') {
-        write_response($conn, 200, json_encode(['ok' => true, 'worker' => 'jinx']) ?: '');
-    } elseif ($request['method'] === 'POST') {
-        $response = $template !== null
-            ? execute_fast_template($template, $request['body'])
-            : execute_jinx_web_plan($plan, $request['body']);
-        write_response($conn, $response['status'], $response['body']);
-    } else {
-        write_response($conn, 404, json_encode(['ok' => false, 'error' => 'Not found']) ?: '');
-    }
+        if ($request['method'] === 'GET' && $request['path'] === '/__health') {
+            write_response($conn, 200, json_encode(['ok' => true, 'worker' => 'jinx']) ?: '', $keepAlive);
+        } elseif ($request['method'] === 'POST') {
+            $response = $template !== null
+                ? execute_fast_template($template, $request['body'])
+                : execute_jinx_web_plan($plan, $request['body']);
+            write_response($conn, $response['status'], $response['body'], $keepAlive);
+        } else {
+            write_response($conn, 404, json_encode(['ok' => false, 'error' => 'Not found']) ?: '', $keepAlive);
+        }
 
+        $handled++;
+        if (!$keepAlive) {
+            break;
+        }
+    }
     fclose($conn);
-    $handled++;
 }
