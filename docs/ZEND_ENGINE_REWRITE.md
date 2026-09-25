@@ -9,8 +9,10 @@ This is not a wholesale import of php-src headers. The point is to mirror the Ze
 ```text
 runtime/jinx_zend_engine.h
 runtime/jinx_zend_engine.c
+runtime/jinx_zend_array_delete.h
 native/jinx_zend_smoke.c
 native/jinx_zend_array_builtin_smoke.c
+native/jinx_zend_array_delete_smoke.c
 ```
 
 Build and smoke test:
@@ -19,6 +21,7 @@ Build and smoke test:
 ./scripts/build-zend-smoke.sh
 ./build/native/jinx-zend-smoke
 ./build/native/jinx-zend-array-builtin-smoke
+./build/native/jinx-zend-array-delete-smoke
 ```
 
 Full native build also compiles the Zend smoke binary:
@@ -48,7 +51,7 @@ The native Zend-shaped layer now has:
 JinxZendValue       zval-like tagged value
 JinxZendString      borrowed views, owned buffers, refcount, COW, hashing
 JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, COW, insertion-order iteration
-JinxZendBucket      numeric or string-key bucket carrying retained JinxZendValue
+JinxZendBucket      numeric, string-key, or tombstone bucket carrying retained JinxZendValue
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
@@ -78,6 +81,9 @@ array_is_list() over packed/insertion-order buckets
 array_values() producing a packed values array
 array_keys() producing numeric/string key values
 PHP builtin-name bridge for count, array_key_exists, array_is_list, array_values, array_keys
+array delete/unset tombstones for numeric and string keys
+live iteration that skips tombstones
+array compaction after tombstones
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
@@ -112,14 +118,38 @@ Current bridge executable:
 ./build/native/jinx-zend-array-builtin-smoke
 ```
 
-The next integration point is the generated Oracle builtin dispatch header so native `./jinx oracle-call` can route these PHP names to Zend arrays once CLI/Oracle values can carry `JinxZendArray *` pointers.
+## Native delete/tombstone helpers
+
+The additive tombstone layer is:
+
+```text
+runtime/jinx_zend_array_delete.h
+```
+
+It currently proves:
+
+```text
+jinx_zend_array_delete_index
+jinx_zend_array_delete_string
+jinx_zend_array_live_count
+jinx_zend_array_live_iter_at
+jinx_zend_array_compact
+```
+
+Current delete smoke executable:
+
+```bash
+./build/native/jinx-zend-array-delete-smoke
+```
+
+The next integration point is folding tombstone checks into the native array builtin helpers and foreach lowering so deleted buckets disappear from `count`, `array_values`, `array_keys`, and iteration.
 
 ## Next implementation steps
 
-1. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
-2. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
-3. Add deletion/tombstones and compaction rules.
-4. Lower `foreach` onto `jinx_zend_array_iter_at`.
+1. Fold tombstone awareness into `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list`.
+2. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
+3. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
+4. Lower `foreach` onto live array iteration.
 5. Add object class table and method dispatch.
 6. Add error/warning/exception objects.
 7. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
