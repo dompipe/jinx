@@ -12,6 +12,7 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `arrays` | `runtime/OracleArrayExecutor.php` | `scripts/test-oracle-array-execution.php` | empty array literals, append writes, nested dimension assigns/fetches, `isset`, `empty`, `unset`, `count`, echo, print, return |
 | `functions` | `runtime/OracleFunctionExecutor.php` | `scripts/test-oracle-function-execution.php` | named user functions, local parameter scope, return values, nested user calls, builtin dispatch for `strlen` and `strtoupper` |
 | `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` | explicit Oracle request context for `$_SERVER`, `$_GET`, `$_POST`, `$_REQUEST`, coalesce, `isset`, `empty`, `count`, echo, print, return |
+| `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` | literal `include` and `require` edges resolved by OracleProgramCompiler, included local scope, included output, caller return parity |
 
 ## Native `./jinx` verification
 
@@ -27,7 +28,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-request-globals-execution.php
+./jinx scripts/test-oracle-include-require-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
