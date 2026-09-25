@@ -26,12 +26,30 @@ function same(mixed $actual, mixed $expected, string $label): void
 
 function run_php_exit_fixture(string $fixture): array
 {
-    $out = [];
-    $code = 0;
-    exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($fixture) . ' 2>&1', $out, $code);
+    $process = proc_open(
+        [PHP_BINARY, $fixture],
+        [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ],
+        $pipes
+    );
+
+    if (!is_resource($process)) {
+        fail('could not start PHP fixture subprocess');
+    }
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $code = proc_close($process);
 
     return [
-        'output' => implode(PHP_EOL, $out) . (count($out) ? PHP_EOL : ''),
+        'output' => (string) $stdout . (string) $stderr,
         'exit_code' => $code,
     ];
 }
