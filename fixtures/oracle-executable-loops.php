@@ -14,7 +14,7 @@ while ($i < 7) {
     }
 
     $sum += $i;
-    $text .= (string) $i;
+    $text .= $i;
 
     if ($sum > 10) {
         break;
