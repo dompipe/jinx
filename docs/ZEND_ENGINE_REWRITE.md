@@ -17,6 +17,7 @@ native/jinx_zend_smoke.c
 native/jinx_zend_array_builtin_smoke.c
 native/jinx_zend_array_delete_smoke.c
 native/jinx_zend_foreach_smoke.c
+native/jinx_zend_foreach_execute_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -34,6 +35,9 @@ Build and smoke test:
 
 ./scripts/build-zend-foreach-smoke.sh
 ./build/native/jinx-zend-foreach-smoke
+
+./scripts/build-zend-foreach-execute-smoke.sh
+./build/native/jinx-zend-foreach-execute-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -77,6 +81,7 @@ JinxZendString      borrowed views, owned buffers, refcount, COW, hashing
 JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, COW, insertion-order iteration
 JinxZendBucket      numeric, string-key, or tombstone bucket carrying retained JinxZendValue
 JinxZendForeachIterator live foreach cursor over Zend-array buckets
+JinxZendForeachBody executor-style foreach body callback
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
@@ -115,6 +120,7 @@ live-aware PHP builtin-name bridge after tombstones
 live count/key_exists/is_list/values/keys after tombstones
 live iteration that skips tombstones
 foreach iterator skips tombstones and yields live keys/values in insertion order
+foreach_execute invokes an executor body once per live entry and advances executed_ops
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 Oracle array builtin bridge for carried JinxZendArray values
@@ -197,18 +203,21 @@ It provides:
 ```text
 JinxZendForeachIterator
 JinxZendForeachEntry
+JinxZendForeachBody
 jinx_zend_foreach_init
 jinx_zend_foreach_next
 jinx_zend_foreach_bucket_key
+jinx_zend_foreach_execute
 ```
 
-Current foreach smoke executable:
+Current foreach smoke executables:
 
 ```bash
 ./build/native/jinx-zend-foreach-smoke
+./build/native/jinx-zend-foreach-execute-smoke
 ```
 
-The iterator walks physical bucket order, skips tombstones without compaction, and returns a live-position counter plus PHP-style numeric/string keys and values.
+The iterator walks physical bucket order, skips tombstones without compaction, and returns a live-position counter plus PHP-style numeric/string keys and values. The executor-style helper calls a lowered foreach body once per live entry and increments `JinxZendExecutor.executed_ops` per body execution.
 
 ## Oracle/PASM JinxValue carrier and array builtin bridge
 
@@ -326,7 +335,7 @@ Run carried live arrays through generated Oracle dispatch:
 
 ## Next implementation steps
 
-1. Connect `JinxZendForeachIterator` to executor/opcode-style foreach lowering.
+1. Add opcode/IR primitives for `FE_RESET`, `FE_FETCH`, and foreach body dispatch using `jinx_zend_foreach_execute`.
 2. Add object class table and method dispatch.
 3. Add error/warning/exception objects.
 4. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
