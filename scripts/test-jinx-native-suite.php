@@ -77,6 +77,7 @@ $scriptTests = [
     'introspection builtin families' => ['scripts/test-oracle-introspection-builtin-execution.php', 'PASS: Oracle executes introspection builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
     'web back-page bridge' => ['scripts/test-web-back-page-bridge.php', 'PASS: WebBackPageBridge handles request/response envelopes'],
+    'web window index' => ['scripts/test-web-window-index.php', 'PASS: WebWindowIndex feeds resident page defaults into isolated browser window frames'],
     'benchmark command help' => ['scripts/benchmark-oracle-families.php --help', 'Oracle family benchmark'],
     'worker benchmark help' => ['scripts/benchmark-oracle-worker-hot.php --help', 'Oracle worker hot benchmark'],
     'web back-page hot benchmark help' => ['scripts/benchmark-web-back-page-hot.php --help', 'Web back-page hot benchmark'],
