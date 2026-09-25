@@ -10,6 +10,7 @@ The RC focuses on:
 - A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
 - A compiled PHP-manual implementation manifest for moving under-construction builtins into exact native handlers.
+- A correctness-first PHP fallback for crypto/hash/password/random functions until exact native crypto exists.
 - A completion gate that refuses to call the native mirror done until every manual manifest entry is exact.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
 - PHP comparison benchmarks for validated callable builtin cases.
@@ -48,7 +49,13 @@ Manual-completion gate:
 php scripts/check-native-manual-complete.php
 ```
 
-The completion gate fails until every PHP-manual manifest entry is `exact`. This prevents the project from claiming “full PHP-equal native ASM” while any native handler remains partial, placeholder, or unsafe-native.
+The completion gate fails until every PHP-manual manifest entry is `exact`. This prevents the project from claiming “full PHP-equal native ASM” while any native handler remains partial, placeholder, PHP-fallback, or unsafe-native.
+
+Crypto fallback regression test:
+
+```bash
+php scripts/test-php-crypto-fallback.php
+```
 
 ## Native `oracle-call`
 
@@ -83,6 +90,20 @@ Examples:
 
 Important distinction: every generated name is callable through this entrypoint if it exists in the generated native dispatch table. Exact PHP-compatible behavior is filled in by replacing coarse native handler families with manual-derived builtin implementations.
 
+## Crypto PHP Fallback
+
+Crypto-sensitive behavior should be correct before it is fast. The PHP worker path therefore routes selected crypto/hash/password/random functions directly to original PHP before the Oracle/native dispatch path:
+
+```text
+hash, hash_hmac, md5, sha1, crc32, crypt,
+password_hash, password_verify, password_needs_rehash, password_get_info,
+random_bytes, random_int,
+openssl_digest, openssl_encrypt, openssl_decrypt, openssl_random_pseudo_bytes,
+sodium_bin2hex, sodium_hex2bin
+```
+
+This is intentionally marked as `php-fallback` in `runtime/jinx_php_manual_manifest.h`. It is not considered native ASM completion. It preserves correctness while exact native crypto handlers are still under construction.
+
 ## PHP Manual Native Implementation Rule
 
 Under-construction functions must be moved to native behavior by reading the PHP manual first, recording the manual contract, and then adding source code used by the executable.
@@ -105,6 +126,7 @@ So the manual implementation map is part of the native executable source path. H
 exact          Manual behavior is implemented for supported native value types.
 partial        Manual page was read and the native handler covers a documented subset.
 placeholder    Callable native carrier exists, but exact manual behavior still needs implementation.
+php-fallback   Original PHP is used for correctness until exact native behavior exists.
 unsafe-native  Must not become a blind native host call; sandbox policy is required first.
 ```
 
@@ -182,7 +204,7 @@ Current native runtime behavior is intentionally explicit:
 - `oracle-call` can invoke any generated name through the native `./jinx` executable;
 - the first 100 benchmark functions execute through the C Oracle path with deterministic native sample values;
 - `bench-all-functions` traverses every generated wrapper with deterministic sample argument slots;
-- the PHP manual manifest records exact, partial, placeholder, and unsafe-native implementation states;
+- the PHP manual manifest records exact, partial, placeholder, php-fallback, and unsafe-native implementation states;
 - `scripts/check-native-manual-complete.php` fails until every manual handler is exact;
 - full PHP behavioral parity for every imported function is still not claimed until each handler is promoted from the manifest.
 
@@ -198,6 +220,7 @@ Implemented and verified in this package:
 - `runtime/jinx_php_manual_manifest.h` records manual-derived native implementation states.
 - `scripts/build-native-jinx.sh` force-includes the manual manifest during native compilation.
 - `scripts/check-native-manual-complete.php` is the hard gate for claiming complete PHP-native parity.
+- `scripts/test-php-crypto-fallback.php` verifies crypto fallback matches original PHP for core cases.
 - Unsafe, unavailable, by-reference, and method-only wrappers fail closed at runtime.
 
 Not claimed as complete:
@@ -206,6 +229,7 @@ Not claimed as complete:
 - Full PHP behavioral parity for every imported signature.
 - Runtime execution of unsafe filesystem, process, network, session, database, or environment-mutating PHP functions in the worker.
 - Complete exact C behavior handlers for every generated PHP builtin.
+- Native ASM crypto implementation; crypto currently uses PHP fallback for correctness.
 
 ## Important Files
 
@@ -220,6 +244,7 @@ runtime/jinx_builtin_dispatch.generated.c
 runtime/jinx_function_list.generated.h
 runtime/jinx_oracle_asm_context.c
 scripts/check-native-manual-complete.php
+scripts/test-php-crypto-fallback.php
 scripts/benchmark-native-jinx-vs-php.php
 scripts/generate-web-native-function-registry.php
 scripts/generate-native-function-list.php
