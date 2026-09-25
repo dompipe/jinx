@@ -1,0 +1,305 @@
+<?php
+
+declare(strict_types=1);
+
+namespace jinx\oracle;
+
+/**
+ * Generated pure-builtin Oracle executor.
+ *
+ * This owner is intentionally narrow: deterministic literal/array expressions,
+ * nested whitelisted builtin calls, assignments, echo/print, and return.
+ * It avoids IO, randomness, process mutation, callbacks, resources, and refs.
+ */
+final class OracleGeneratedBuiltinExecutor
+{
+    /**
+     * @param array<string,mixed> $program
+     * @return array{kind:string,family:string,output:string,return:mixed,executed_ops:int}
+     */
+    public static function execute(array $program, string $family): array
+    {
+        $locals = [];
+        $output = '';
+        $executed = 0;
+
+        foreach ($program['statements'] ?? [] as $statement) {
+            if (!is_array($statement)) {
+                continue;
+            }
+
+            $op = (string) ($statement['op'] ?? 'O_RAW_PHP_STMT');
+            $source = (string) ($statement['source'] ?? '');
+
+            switch ($op) {
+                case 'O_DECLARE':
+                    continue 2;
+                case 'O_ASSIGN':
+                case 'O_COALESCE':
+                case 'O_DIM_FETCH':
+                    self::executeAssignment($source, $locals, $program);
+                    $executed++;
+                    continue 2;
+                case 'O_ECHO':
+                    $output .= self::phpString(self::evaluate(self::stripKeyword($source, 'echo'), $locals, $program));
+                    $executed++;
+                    continue 2;
+                case 'O_PRINT':
+                    $output .= self::phpString(self::evaluate(self::stripKeyword($source, 'print'), $locals, $program));
+                    $executed++;
+                    continue 2;
+                case 'O_RETURN':
+                    $return = self::evaluate(self::stripKeyword($source, 'return'), $locals, $program);
+                    $executed++;
+                    return [
+                        'kind' => 'JINX_ORACLE_EXECUTION',
+                        'family' => $family,
+                        'output' => $output,
+                        'return' => $return,
+                        'executed_ops' => $executed,
+                    ];
+            }
+
+            throw new \RuntimeException("Generated builtin execution does not support {$op}: {$source}");
+        }
+
+        return [
+            'kind' => 'JINX_ORACLE_EXECUTION',
+            'family' => $family,
+            'output' => $output,
+            'return' => null,
+            'executed_ops' => $executed,
+        ];
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function executeAssignment(string $source, array &$locals, array $program): void
+    {
+        if (!preg_match('/^\$(\w+)\s*=\s*(.+);?$/s', trim($source), $m)) {
+            throw new \RuntimeException("Unsupported generated builtin assignment: {$source}");
+        }
+
+        $locals[$m[1]] = self::evaluate($m[2], $locals, $program);
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function evaluate(string $expression, array &$locals, array $program): mixed
+    {
+        $expr = trim(rtrim(trim($expression), ';'));
+        if ($expr === '') {
+            return null;
+        }
+
+        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
+            return (float) $expr;
+        }
+        if (preg_match('/^-?\d+$/', $expr)) {
+            return (int) $expr;
+        }
+        if (strcasecmp($expr, 'true') === 0) {
+            return true;
+        }
+        if (strcasecmp($expr, 'false') === 0) {
+            return false;
+        }
+        if (strcasecmp($expr, 'null') === 0) {
+            return null;
+        }
+        if (preg_match('/^\$(\w+)$/', $expr, $m)) {
+            return $locals[$m[1]] ?? null;
+        }
+        if (self::isWrappedInOuterParens($expr)) {
+            return self::evaluate(substr($expr, 1, -1), $locals, $program);
+        }
+
+        $concat = self::splitTopLevelByOperators($expr, ['.']);
+        if ($concat !== null) {
+            [$leftExpr, , $rightExpr] = $concat;
+            return self::phpString(self::evaluate($leftExpr, $locals, $program)) . self::phpString(self::evaluate($rightExpr, $locals, $program));
+        }
+
+        if (str_starts_with($expr, '[') && str_ends_with($expr, ']')) {
+            return self::evaluateArrayLiteral(substr($expr, 1, -1), $locals, $program);
+        }
+
+        if (preg_match('/^(\w+)\s*\((.*)\)$/s', $expr, $m)) {
+            return self::callBuiltin(strtolower($m[1]), self::evaluateArguments($m[2], $locals, $program));
+        }
+
+        if (preg_match('/^([\'\"])(.*)\1$/s', $expr, $m)) {
+            return stripcslashes($m[2]);
+        }
+
+        throw new \RuntimeException("Unsupported generated builtin expression: {$expr}");
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function evaluateArrayLiteral(string $body, array &$locals, array $program): array
+    {
+        $result = [];
+        foreach (self::splitTopLevel($body, ',') as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+            $pair = self::splitTopLevelByOperators($part, ['=>']);
+            if ($pair !== null) {
+                [$keyExpr, , $valueExpr] = $pair;
+                $result[self::evaluate($keyExpr, $locals, $program)] = self::evaluate($valueExpr, $locals, $program);
+            } else {
+                $result[] = self::evaluate($part, $locals, $program);
+            }
+        }
+        return $result;
+    }
+
+    /** @param list<mixed> $args */
+    private static function callBuiltin(string $name, array $args): mixed
+    {
+        $allowed = [
+            'abs' => true, 'array_product' => true, 'array_sum' => true, 'base64_encode' => true,
+            'count' => true, 'implode' => true, 'json_encode' => true, 'lcfirst' => true,
+            'max' => true, 'md5' => true, 'min' => true, 'round' => true, 'sha1' => true,
+            'str_pad' => true, 'str_repeat' => true, 'str_replace' => true, 'strrev' => true,
+            'strlen' => true, 'strtolower' => true, 'strtoupper' => true, 'substr' => true,
+            'trim' => true, 'ucfirst' => true,
+        ];
+
+        if (!isset($allowed[$name])) {
+            throw new \RuntimeException("Unsupported generated pure builtin: {$name}");
+        }
+
+        return $name(...$args);
+    }
+
+    /** @return list<mixed> */
+    private static function evaluateArguments(string $body, array &$locals, array $program): array
+    {
+        $args = [];
+        foreach (self::splitTopLevel($body, ',') as $arg) {
+            if (trim($arg) !== '') {
+                $args[] = self::evaluate($arg, $locals, $program);
+            }
+        }
+        return $args;
+    }
+
+    private static function stripKeyword(string $source, string $keyword): string
+    {
+        return rtrim(trim((string) preg_replace('/^' . preg_quote($keyword, '/') . '\b/i', '', $source, 1)), ';');
+    }
+
+    private static function phpString(mixed $value): string
+    {
+        if ($value === true) {
+            return '1';
+        }
+        if ($value === false || $value === null) {
+            return '';
+        }
+        return (string) $value;
+    }
+
+    /** @param list<string> $operators @return array{0:string,1:string,2:string}|null */
+    private static function splitTopLevelByOperators(string $expr, array $operators): ?array
+    {
+        usort($operators, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        foreach ($operators as $operator) {
+            $pos = self::findTopLevelToken($expr, $operator);
+            if ($pos !== null && $pos > 0) {
+                return [substr($expr, 0, $pos), $operator, substr($expr, $pos + strlen($operator))];
+            }
+        }
+        return null;
+    }
+
+    /** @return list<string> */
+    private static function splitTopLevel(string $expr, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $offset = 0;
+        while (($pos = self::findTopLevelToken(substr($expr, $offset), $delimiter)) !== null) {
+            $pos += $offset;
+            $parts[] = substr($expr, $start, $pos - $start);
+            $start = $pos + strlen($delimiter);
+            $offset = $start;
+        }
+        $parts[] = substr($expr, $start);
+        return $parts;
+    }
+
+    private static function findTopLevelToken(string $expr, string $token): ?int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(' || $char === '[') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' || $char === ']') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($depth === 0 && substr($expr, $i, strlen($token)) === $token) {
+                return $i;
+            }
+        }
+        return null;
+    }
+
+    private static function isWrappedInOuterParens(string $expr): bool
+    {
+        if (!str_starts_with($expr, '(') || !str_ends_with($expr, ')')) {
+            return false;
+        }
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(' || $char === '[') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' || $char === ']') {
+                $depth--;
+                if ($depth === 0 && $i < $length - 1) {
+                    return false;
+                }
+            }
+        }
+        return $depth === 0;
+    }
+}
