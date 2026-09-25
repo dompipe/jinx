@@ -61,7 +61,7 @@ function write_fixture(string $fixtureDir, string $family, string $expression): 
     $path = $fixtureDir . '/' . fixture_name($family);
     $source = "<?php\n\ndeclare(strict_types=1);\n\n" .
         '$value = ' . $expression . ";\n" .
-        "echo 'value=' . (is_bool(\$value) ? (\$value ? 'true' : 'false') : (string) \$value) . \"\\n\";\n" .
+        "echo 'value=' . \$value . \"\\n\";\n" .
         'return $value;' . "\n";
 
     file_put_contents($path, $source);
