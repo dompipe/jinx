@@ -125,6 +125,18 @@ final class OracleExecutionFamilies
             $families[$family] = self::builtin(OracleTextBuiltinExecutor::class, 'scripts/test-oracle-text-builtin-execution.php', $builtins);
         }
 
+        foreach ([
+            'strlen-builtins' => ['strlen'], 'strtolower-builtins' => ['strtolower'], 'strtoupper-builtins' => ['strtoupper'],
+            'trim-builtins' => ['trim'], 'substr-builtins' => ['substr'], 'basename-builtins' => ['basename'], 'dirname-builtins' => ['dirname'],
+            'ucwords-builtins' => ['ucwords'], 'stripcslashes-builtins' => ['stripcslashes'], 'ctype-alnum-builtins' => ['ctype_alnum'],
+            'ctype-alpha-builtins' => ['ctype_alpha'], 'ctype-cntrl-builtins' => ['ctype_cntrl'], 'ctype-digit-builtins' => ['ctype_digit'],
+            'ctype-graph-builtins' => ['ctype_graph'], 'ctype-lower-builtins' => ['ctype_lower'], 'ctype-print-builtins' => ['ctype_print'],
+            'ctype-punct-builtins' => ['ctype_punct'], 'ctype-space-builtins' => ['ctype_space'], 'ctype-upper-builtins' => ['ctype_upper'],
+            'ctype-xdigit-builtins' => ['ctype_xdigit'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleTextBuiltinExecutor::class, 'scripts/test-oracle-text-builtin-two-execution.php', $builtins);
+        }
+
         return $families;
     }
 
