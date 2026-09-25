@@ -1,31 +1,31 @@
 # Oracle SM Zend Family Stubs
 
-These `.osm` files are the stable Oracle SM targets for the JINX-owned Zend-shaped runtime families documented in `docs/ZEND_ENGINE_REWRITE.md`.
+These `.osm` files are stable Oracle SM targets for the JINX-owned Zend-shaped runtime families documented in `docs/ZEND_ENGINE_REWRITE.md`.
 
-They are intentionally declarative stubs first: each file names the native family, the C runtime files that currently implement it, the VM/IR surfaces that exercise it, and the PASM path that should receive the next-lower lowering.
+PHP remains the source language and compatibility contract. Oracle SM does not replace PHP syntax, PHP behavior, or PHP fallback. These files describe lower-level acceleration targets for selected PHP calls and hot runtime families after the matching native family has been implemented and smoke-tested.
 
 ## Families
 
 ```text
-zval.osm                 zval / JinxZendValue tagged value model
-string.osm               zend_string view/owned/refcount/COW/hash model
-hash.osm                 HashTable / zend_array buckets, COW, tombstones, live helpers
-array_builtins.osm       PHP array builtin bridge over native Zend arrays
-foreach.osm              foreach iterator, FE_RESET/FE_FETCH, foreach program lowering
-object.osm               classes, objects, properties
-method_call.osm          method INIT/SEND/DO lowering
-errors.osm               warnings, errors, throwable objects
-throw_catch.osm          THROW/CATCH/CLEAR_EXCEPTION lowering
-opcode_vm.osm            combined VM instruction stream
+zval.osm                 PHP value carrier / JinxZendValue tagged value model
+string.osm               PHP string storage: view/owned/refcount/COW/hash model
+hash.osm                 PHP array storage: buckets, COW, tombstones, live helpers
+array_builtins.osm       accelerated PHP array calls over native Zend arrays
+foreach.osm              accelerated PHP foreach over native arrays
+object.osm               PHP classes, objects, properties
+method_call.osm          accelerated PHP method INIT/SEND/DO dispatch path
+errors.osm               PHP warnings, errors, throwable objects
+throw_catch.osm          PHP THROW/CATCH/CLEAR_EXCEPTION control flow
+opcode_vm.osm            native VM substrate for accelerated PHP fragments
 fixture_lowering.osm     fixture emitters into VM ops
 ir_fixture.osm           tiny fixture text IR
 statement_ir.osm         raw-register statement IR
-variable_ir.osm          variable-name-to-register assignment IR
-scalar_ops.osm           ADD/SUB/EQ/LT and boolean jump scalar ops
-oracle_carrier.osm       Oracle/PASM JinxValue Zend-array carrier
+variable_ir.osm          PHP-style variable-name-to-register assignment IR
+scalar_ops.osm           accelerated integer ADD/SUB/EQ/LT and boolean jumps
+oracle_carrier.osm       Oracle/PASM JinxValue Zend-array carrier for accelerated calls
 cli_dispatch.osm         main CLI fixtures and generated Oracle dispatch integration
 ```
 
 ## Rule
 
-Each `.osm` file must stay aligned with its native smoke tests before it is lowered into PASM. Oracle SM is the middle form, not a second source of truth.
+Each `.osm` file must stay aligned with its native smoke tests before it is lowered into PASM. Oracle SM is a middle acceleration form, not a second source of truth. PHP semantics remain authoritative.
