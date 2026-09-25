@@ -141,6 +141,12 @@ Runtime owner: `runtime/OracleDataBuiltinExecutor.php`. PHP comparison test: `sc
 
 `base64-encode-builtins`, `base64-decode-builtins`, `bin2hex-builtins`, `hex2bin-builtins`, `sha1-builtins`, `crc32-builtins`, `hash-generic-builtins`, `hash-hmac-builtins`, `serialize-builtins`, `unserialize-builtins`, `var-export-builtins`, `print-r-builtins`, `gettype-builtins`, `is-scalar-builtins`, `is-countable-builtins`, `sizeof-builtins`, `array-sum-builtins`, `array-product-builtins`, `str-split-builtins`, `chunk-split-builtins`.
 
+## Data/encoding/introspection builtin batch two
+
+Runtime owner: `runtime/OracleDataBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-data-builtin-two-execution.php`.
+
+`join-builtins`, `count-builtins`, `array-count-values-builtins`, `array-pad-builtins`, `array-replace-builtins`, `array-replace-recursive-builtins`, `array-is-list-builtins`, `array-filter-builtins`, `quoted-printable-encode-builtins`, `quoted-printable-decode-builtins`, `convert-uuencode-builtins`, `convert-uudecode-builtins`, `pack-builtins`, `unpack-builtins`, `decbin-builtins`, `dechex-builtins`, `decoct-builtins`, `bindec-builtins`, `hexdec-builtins`, `base-convert-builtins`.
+
 ## Text/string builtin batch
 
 Runtime owner: `runtime/OracleTextBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-text-builtin-execution.php`.
