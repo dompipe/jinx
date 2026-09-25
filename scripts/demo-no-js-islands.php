@@ -13,34 +13,59 @@ function demo_html(string $value): string
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function demo_now(): array
+{
+    $micro = microtime(true);
+    return [
+        'unix' => (int) $micro,
+        'millis' => (int) round(($micro - floor($micro)) * 1000),
+        'stamp' => date('H:i:s', (int) $micro) . '.' . str_pad((string) ((int) round(($micro - floor($micro)) * 1000)), 3, '0', STR_PAD_LEFT),
+    ];
+}
+
 function demo_index_frame(): array
 {
     $index = WebWindowIndex::withStandardDefaults();
     $state = [];
-    $tick = time();
+    $now = demo_now();
+    $tick = $now['unix'];
+    $stamp = $now['stamp'];
 
     return $index->feedWindow($state, 'demo-window', 'feed.window', [
         'title' => 'JINX no-JS island demo',
         'components' => [
             'detail' => [
                 'kind' => 'slot',
-                'text' => 'Detail island refreshed by its own browser-native document at ' . date('H:i:s', $tick),
+                'text' => 'Detail island refreshed by its own browser-native document at ' . $stamp,
             ],
             'status' => [
                 'kind' => 'text',
-                'text' => 'Status island tick: ' . $tick,
+                'text' => 'Status island tick: ' . $tick . ' / ' . $stamp,
             ],
         ],
     ]);
+}
+
+function demo_no_cache_headers(): void
+{
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
 }
 
 function demo_island_response(string $zone): void
 {
     $window = preg_replace('/[^A-Za-z0-9_-]/', '-', (string) ($_GET['window'] ?? 'demo-window')) ?: 'demo-window';
     $zone = preg_replace('/[^A-Za-z0-9_-]/', '-', $zone) ?: 'detail';
-    $refresh = '/island?window=' . rawurlencode($window) . '&zone=' . rawurlencode($zone);
+    $next = microtime(true) + 2.0;
+    $refresh = '/island?window=' . rawurlencode($window)
+        . '&zone=' . rawurlencode($zone)
+        . '&_=' . rawurlencode((string) $next);
 
     header('Content-Type: text/html; charset=utf-8');
+    demo_no_cache_headers();
+    header('Refresh: 2; url=' . $refresh);
+
     echo WebNoJsIslandRegistrar::islandDocument(demo_index_frame(), $zone, $refresh, 2);
 }
 
@@ -52,6 +77,7 @@ if ($path === '/island') {
 
 if ($path === '/definition') {
     header('Content-Type: text/plain; charset=utf-8');
+    demo_no_cache_headers();
     echo "JINX no-JS live islands\n";
     echo "\n";
     echo "Definition:\n";
@@ -59,15 +85,16 @@ if ($path === '/definition') {
     echo "- They are used as first-party JINX page islands, not third-party ad frames.\n";
     echo "- The parent page stays loaded. Each island document refreshes itself.\n";
     echo "- No app JavaScript, EventSource, or window runtime is needed.\n";
+    echo "- The island endpoint sends no-cache headers and a browser-native Refresh header.\n";
     echo "- Full arbitrary parent-DOM mutation still needs browser-side execution; this mode avoids that by making the island its own small document.\n";
     return;
 }
 
 $frame = demo_index_frame();
 $islands = WebNoJsIslandRegistrar::islandSet('demo-window', '/island', ['detail', 'status']);
-$definition = trim((string) file_get_contents(__FILE__));
 
 header('Content-Type: text/html; charset=utf-8');
+demo_no_cache_headers();
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -108,13 +135,14 @@ pre { overflow: auto; max-height: 420px; padding: 12px; border-radius: 12px; bac
       <span class="badge">No EventSource</span>
       <span class="badge">No parent-page refresh</span>
       <span class="badge">Standard iframe primitive</span>
+      <span class="badge">No-cache island responses</span>
     </p>
   </section>
 
   <section class="grid">
     <article class="card">
       <h2>Working islands</h2>
-      <p class="note">Watch the two boxes update independently. View source and you will see ordinary iframe tags, not ad scripts.</p>
+      <p class="note">Watch the two boxes update independently. The parent page remains still. Each island uses a browser-native Refresh header and a changing cache-bust URL.</p>
       <?= $islands ?>
     </article>
 
@@ -133,7 +161,8 @@ pre { overflow: auto; max-height: 420px; padding: 12px; border-radius: 12px; bac
   </section>
 
   <section class="card" style="margin-top:18px">
-    <h2>Current frame data</h2>
+    <h2>Current parent frame data</h2>
+    <p class="note">This parent data only changes when the whole page is reloaded. The island boxes above change independently.</p>
     <pre><?= demo_html(json_encode($frame, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}') ?></pre>
   </section>
 </main>
