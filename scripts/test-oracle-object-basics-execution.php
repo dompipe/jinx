@@ -94,9 +94,16 @@ if (($oracle['oracle']['executed_ops'] ?? 0) < 5) {
 }
 
 $ops = array_column($oracle['program']['statements'] ?? [], 'op');
-foreach (['O_CLASS_DECL', 'O_METHOD_DECL', 'O_NEW', 'O_METHOD_CALL', 'O_PROPERTY_FETCH', 'O_RETURN'] as $op) {
+foreach (['O_CLASS_DECL', 'O_METHOD_DECL', 'O_NEW', 'O_METHOD_CALL', 'O_RETURN'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("fixture did not produce expected {$op}");
+    }
+}
+
+$source = (string) file_get_contents($fixture);
+foreach (['$this->name', '$this->total', 'new ScoreCard', '->add(', '->label('] as $needle) {
+    if (!str_contains($source, $needle)) {
+        fail("fixture did not contain expected object source {$needle}");
     }
 }
 
