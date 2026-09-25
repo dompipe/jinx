@@ -129,9 +129,20 @@ if (($oracle['oracle']['executed_ops'] ?? 0) < 6) {
 
 $ops = array_column($oracle['program']['statements'] ?? [], 'op');
 
-foreach (['O_ASSIGN', 'O_DIM_FETCH', 'O_COALESCE', 'O_ECHO', 'O_RETURN'] as $op) {
+foreach (['O_ASSIGN', 'O_COALESCE', 'O_ECHO', 'O_RETURN'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("fixture did not produce expected {$op}");
+    }
+}
+
+$source = implode("\n", array_map(
+    static fn (array $statement): string => (string) ($statement['source'] ?? ''),
+    array_filter($oracle['program']['statements'] ?? [], 'is_array')
+));
+
+foreach (['$_SERVER[', '$_GET[', '$_POST[', '$_REQUEST['] as $needle) {
+    if (!str_contains($source, $needle)) {
+        fail("fixture did not use expected request source {$needle}");
     }
 }
 
