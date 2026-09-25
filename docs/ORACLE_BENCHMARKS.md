@@ -1,6 +1,6 @@
 # Oracle benchmark commands
 
-There are four benchmark layers. Use the one that matches the question.
+There are five benchmark layers. Use the one that matches the question.
 
 ## 1. Harness/process benchmark
 
@@ -75,7 +75,7 @@ Both workers use the same tiny socket-server harness. The PHP worker runs the PH
 This answers:
 
 ```text
-When PHP and JINX both look like live warmed web workers, which responds faster over real local HTTP?
+When PHP and JINX both look like live warmed web workers, which responds faster over real local HTTP when each measured request opens and closes a socket?
 ```
 
 Run the optimized JINX direct-response-template path:
@@ -90,19 +90,41 @@ Compare against the older generic web-plan interpreter path:
 ./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=plan
 ```
 
+## 5. Fair live keep-alive HTTP request benchmark
+
+`scripts/benchmark-live-web-keepalive.php` starts the same two live loopback HTTP workers, but it keeps one TCP socket open to each worker and sends all warmup and measured POST requests over those persistent sockets.
+
+This answers:
+
+```text
+When PHP and JINX both look live and connection churn is removed, can JINX carry the worker-level speed advantage across web requests?
+```
+
+Run the optimized JINX direct-response-template path over keep-alive:
+
+```bash
+./jinx scripts/benchmark-live-web-keepalive.php --requests=10000 --warmup=500 --jinx-mode=fast-template
+```
+
+Compare against the generic web-plan interpreter path over keep-alive:
+
+```bash
+./jinx scripts/benchmark-live-web-keepalive.php --requests=10000 --warmup=500 --jinx-mode=plan
+```
+
 Save JSON:
 
 ```bash
-./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template --json=build/benchmarks/live-web-requests.json
+./jinx scripts/benchmark-live-web-keepalive.php --requests=10000 --warmup=500 --jinx-mode=fast-template --json=build/benchmarks/live-web-keepalive.json
 ```
 
 Use alternate ports if the defaults are busy:
 
 ```bash
-./jinx scripts/benchmark-live-web-requests.php --php-port=18180 --jinx-port=18181 --requests=10000 --warmup=500 --jinx-mode=fast-template
+./jinx scripts/benchmark-live-web-keepalive.php --php-port=18180 --jinx-port=18181 --requests=10000 --warmup=500 --jinx-mode=fast-template
 ```
 
-The live benchmark reports average latency, p95 latency, min/max latency, requests per second, response checksums, and the PHP/JINX average latency ratio. Values above `1.00x` for `PHP/JINX avg latency ratio` mean the JINX live worker was faster.
+The keep-alive benchmark reports average latency, p95 latency, min/max latency, requests per second, response checksums, and the PHP/JINX average latency ratio. Values above `1.00x` for `PHP/JINX avg latency ratio` mean the JINX live worker was faster.
 
 ## Why 89x may not show on connection-per-request HTTP yet
 
@@ -118,7 +140,7 @@ process-level PHP socket functions
 client fsockopen cost
 ```
 
-The current live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. To make an 89x route-execution advantage visible across real web requests, the next web benchmark layer needs persistent keep-alive connections or HTTP pipelining, and the JINX side ultimately needs a native socket loop rather than a worker script implemented in PHP.
+The connection-close live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. The keep-alive benchmark removes connection churn. To push toward an 89x route-execution advantage across live web requests after keep-alive, the next layer is HTTP pipelining/batching and then a native socket loop rather than a worker script implemented in PHP.
 
 ## Interpreting the numbers
 
@@ -128,6 +150,8 @@ Use the worker/hot benchmark when checking executor-level speed. It avoids the p
 
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
-Use the fair live HTTP request benchmark for the closest current answer to internet/server behavior: both sides are live workers, both receive loopback HTTP requests, and both produce comparable HTTP responses.
+Use the fair live HTTP request benchmark for connection-close server behavior.
+
+Use the fair live keep-alive benchmark for the closest current answer to persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
 
 None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
