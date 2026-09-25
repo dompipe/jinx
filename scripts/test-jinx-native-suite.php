@@ -65,6 +65,7 @@ $scriptTests = [
     'data builtin batch two families' => ['scripts/test-oracle-data-builtin-two-execution.php', 'PASS: Oracle executes data builtin batch two PHP families'],
     'text builtin families' => ['scripts/test-oracle-text-builtin-execution.php', 'PASS: Oracle executes text builtin PHP families'],
     'text builtin batch two families' => ['scripts/test-oracle-text-builtin-two-execution.php', 'PASS: Oracle executes text builtin batch two PHP families'],
+    'regex string builtin families' => ['scripts/test-oracle-regex-string-builtin-execution.php', 'PASS: Oracle executes regex/string builtin PHP families'],
     'date time builtin families' => ['scripts/test-oracle-date-time-builtin-execution.php', 'PASS: Oracle executes date/time builtin PHP families'],
     'introspection builtin families' => ['scripts/test-oracle-introspection-builtin-execution.php', 'PASS: Oracle executes introspection builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
