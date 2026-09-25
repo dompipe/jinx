@@ -47,6 +47,14 @@ Use the fair live HTTP benchmark when PHP and JINX should both look live over lo
 ./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template --json=build/benchmarks/live-web-requests.json
 ```
 
+Use the fair live keep-alive HTTP benchmark when PHP and JINX should both look live but reuse one persistent socket per worker:
+
+```bash
+./jinx scripts/benchmark-live-web-keepalive.php --requests=10000 --warmup=500 --jinx-mode=fast-template
+./jinx scripts/benchmark-live-web-keepalive.php --requests=10000 --warmup=500 --jinx-mode=plan
+./jinx scripts/benchmark-live-web-keepalive.php --requests=10000 --warmup=500 --jinx-mode=fast-template --json=build/benchmarks/live-web-keepalive.json
+```
+
 See `docs/ORACLE_BENCHMARKS.md` for benchmark options, JSON output, and interpretation notes.
 
 ## Core language/runtime families
