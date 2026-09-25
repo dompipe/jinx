@@ -183,6 +183,12 @@ Runtime owner: `runtime/OracleArrayMutationBuiltinExecutor.php`. PHP comparison 
 
 `sort-builtins`, `rsort-builtins`, `asort-builtins`, `arsort-builtins`, `ksort-builtins`, `krsort-builtins`, `natsort-builtins`, `natcasesort-builtins`, `array-push-builtins`, `array-pop-builtins`, `array-shift-builtins`, `array-unshift-builtins`, `array-splice-builtins`, `array-multisort-builtins`, `reset-builtins`, `end-builtins`, `next-builtins`, `prev-builtins`, `current-builtins`, `key-builtins`.
 
+## Security/network/environment builtin batch
+
+Runtime owner: `runtime/OracleSecurityNetworkBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-security-network-builtin-execution.php`.
+
+`filter-var-email-builtins`, `filter-var-int-builtins`, `filter-id-builtins`, `filter-list-builtins`, `hash-algos-builtins`, `hash-equals-builtins`, `hash-hkdf-builtins`, `hash-pbkdf2-builtins`, `password-get-info-builtins`, `password-needs-rehash-builtins`, `password-verify-builtins`, `inet-pton-builtins`, `inet-ntop-builtins`, `ip2long-builtins`, `long2ip-builtins`, `extension-loaded-builtins`, `get-loaded-extensions-builtins`, `get-extension-funcs-builtins`, `phpversion-builtins`, `version-compare-builtins`.
+
 ## Date/time builtin batch
 
 Runtime owner: `runtime/OracleDateTimeBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-date-time-builtin-execution.php`.
