@@ -1,6 +1,6 @@
 # Oracle benchmark commands
 
-There are five benchmark layers. Use the one that matches the question.
+There are six benchmark layers. Use the one that matches the question.
 
 ## 1. Harness/process benchmark
 
@@ -45,7 +45,31 @@ How fast is the already-running Oracle worker path after startup/compiler overhe
 
 Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle worker loop was faster than repeatedly requiring the equivalent PHP fixture in the same process.
 
-## 3. Warmed web-request worker benchmark
+## 3. Web back-page hot benchmark
+
+`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. It compiles the route once, creates request envelopes shaped like the HTTP front page would create, and runs those envelopes through `WebBackPageBridge` inside one already-running process.
+
+This answers:
+
+```text
+How fast is the web-shaped JSON-in / JSON-out back page when it is kept off the HTTP socket path?
+```
+
+Run it:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000
+```
+
+Save JSON:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --json=build/benchmarks/web-back-page-hot.json
+```
+
+This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: single process, precompiled back-page bridge, no socket timing, and no process-spawn timing.
+
+## 4. Warmed web-request worker benchmark
 
 `scripts/benchmark-web-request-worker.php` measures a web-shaped request path in one already-running process. It compiles `fixtures/simple-web-api-validated.php` once into a JINX web executable plan, warms it, then runs many simulated JSON requests through both:
 
@@ -63,7 +87,7 @@ Can a warmed JINX worker serve repeated web-style requests faster than equivalen
 ./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500 --json=build/benchmarks/web-request-worker.json
 ```
 
-## 4. Fair live HTTP request benchmark
+## 5. Fair live HTTP request benchmark
 
 `scripts/benchmark-live-web-requests.php` starts two actual loopback HTTP workers:
 
@@ -90,7 +114,7 @@ Compare against the older generic web-plan interpreter path:
 ./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=plan
 ```
 
-## 5. Fair live keep-alive HTTP request benchmark
+## 6. Fair live keep-alive HTTP request benchmark
 
 `scripts/benchmark-live-web-keepalive.php` starts the same two live loopback HTTP workers, but it keeps one TCP socket open to each worker and sends all warmup and measured POST requests over those persistent sockets.
 
@@ -164,7 +188,7 @@ process-level PHP socket functions
 client fsockopen cost
 ```
 
-The connection-close live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. The keep-alive benchmark removes connection churn. To push toward an 89x route-execution advantage across live web requests after keep-alive, the next layer is HTTP pipelining/batching and then a native socket loop rather than a worker script implemented in PHP.
+The connection-close live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. The keep-alive benchmark removes connection churn. The back-page hot benchmark shows the route result path after moving execution off the HTTP path. To push the same advantage through live HTTP, the next layer is HTTP pipelining/batching and then a native socket loop rather than a worker script implemented in PHP.
 
 ## Interpreting the numbers
 
@@ -172,10 +196,12 @@ Use the harness/process benchmark to catch broad regressions in the complete too
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
+Use the web back-page hot benchmark when checking the web-shaped request result path without socket overhead. This is the benchmark meant to preserve the 89x-style aura.
+
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
 Use the fair live HTTP request benchmark for connection-close server behavior.
 
-Use the fair live keep-alive benchmark for the closest current answer to persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
+Use the fair live keep-alive benchmark for persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
 
 None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
