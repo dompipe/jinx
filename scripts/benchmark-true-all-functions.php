@@ -32,13 +32,19 @@ function requireOk(string $cmd): string
 /** @param callable():mixed $fn */
 function quietCall(callable $fn): mixed
 {
+    $startedBuffer = false;
     set_error_handler(static function (int $severity, string $message): never {
         throw new RuntimeException($message, $severity);
     });
 
     try {
+        ob_start();
+        $startedBuffer = true;
         return $fn();
     } finally {
+        if ($startedBuffer && ob_get_level() > 0) {
+            ob_end_clean();
+        }
         restore_error_handler();
     }
 }
