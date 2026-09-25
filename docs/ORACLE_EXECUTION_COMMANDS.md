@@ -84,6 +84,15 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `object-basics` | `scripts/test-oracle-object-basics-execution.php` |
 | `object-inheritance` | `scripts/test-oracle-object-inheritance-execution.php` |
 
+String interpolation has additional facet coverage for evaluator-level PHP forms that are not all represented in the straight-line source fixture:
+
+```bash
+./jinx scripts/test-oracle-string-interpolation-facets.php
+./jinx scripts/test-oracle-string-interpolation-coalesced.php
+```
+
+The facet test covers plain double-quoted strings, simple `$name`, braced `{$name}`, unbraced `$row[name]`, braced `{$row['name']}`, braced `{$row["name"]}`, dynamic `{$row[$key]}`, numeric offsets, nested offsets, escaped dollars, newline/tab escapes, concatenation, builtin `strlen()`, and missing-local/dimension failures.
+
 ## Expression/control-flow batch
 
 Runtime owner: `runtime/OracleExpressionBatchExecutor.php`. PHP comparison test: `scripts/test-oracle-next-ten-execution.php`.
