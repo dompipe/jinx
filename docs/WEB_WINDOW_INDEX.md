@@ -29,6 +29,31 @@ It supports four browser output modes:
    - supports browser-native render/reload/swap flows
 ```
 
+## Demo command
+
+Run this from the repository root:
+
+```bash
+php -S 127.0.0.1:8099 scripts/demo-no-js-islands.php
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8099/
+```
+
+The demo shows:
+
+```text
+- the definition of no-JS JINX live islands
+- the exact iframe markup emitted
+- two working islands that refresh independently
+- the current JINX frame data backing the page
+```
+
+The islands are standard same-origin iframes, but not the old ad-frame pattern. They are first-party JINX component documents, borderless, sandboxed, and controlled by the server.
+
 ## The hard browser boundary
 
 A current browser cannot arbitrarily mutate existing parent DOM nodes without some browser-side execution. That execution is normally JavaScript.
@@ -88,11 +113,14 @@ The page arrangement/index is resident. The request context stays fresh and isol
 ```text
 runtime/WebWindowIndex.php
 runtime/WebNoJsIslandRegistrar.php
+scripts/demo-no-js-islands.php
 ```
 
 `runtime/WebWindowIndex.php` owns the server-side resident index and emits the browser runtime, stream frames, and no-JS registrar documents.
 
 `runtime/WebNoJsIslandRegistrar.php` emits browser-native no-JS live islands.
+
+`scripts/demo-no-js-islands.php` is a runnable demo/router for seeing the definition and working island page.
 
 The old optional file remains available:
 
@@ -316,6 +344,7 @@ The test proves:
 - the no-JS registrar emits DOM/templates without scripts
 - no-JS document output can include browser-native refresh
 - no-JS island output keeps the parent page loaded while islands refresh independently
+- the demo page emits a visible no-JS live-island definition
 - one page's arrangement does not leak into the next page
 - forbidden request-state fields are not resident in the frame
 ```
