@@ -148,6 +148,13 @@ JinxZendValue *jinx_zend_array_find(JinxZendArray *array, const char *key, size_
 const JinxZendBucket *jinx_zend_array_iter_at(const JinxZendArray *array, size_t position);
 JinxZendValue jinx_zend_array_value(JinxZendArray *array);
 
+size_t jinx_zend_array_count_builtin(const JinxZendArray *array);
+int jinx_zend_array_key_exists_index(const JinxZendArray *array, size_t index);
+int jinx_zend_array_key_exists_string(const JinxZendArray *array, const char *key, size_t key_len);
+int jinx_zend_array_is_list_builtin(const JinxZendArray *array);
+JinxZendArray *jinx_zend_array_values_builtin(const JinxZendArray *array);
+JinxZendArray *jinx_zend_array_keys_builtin(const JinxZendArray *array);
+
 void jinx_zend_executor_init(JinxZendExecutor *executor);
 void jinx_zend_frame_enter(JinxZendExecutor *executor, JinxZendCallFrame *frame, const char *function_name, JinxZendValue *args, size_t argc);
 JinxZendValue jinx_zend_frame_leave(JinxZendExecutor *executor, JinxZendValue return_value);
