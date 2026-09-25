@@ -268,10 +268,22 @@ if ($names === []) {
 
 $phpCases = [];
 $phpSkipped = [];
+$skipCounts = [
+    'method_or_class_signature' => 0,
+    'missing_global_function' => 0,
+    'parameter_validation_failed' => 0,
+];
 foreach ($names as $name) {
     $lower = strtolower($name);
-    if (str_contains($lower, '::') || !function_exists($lower)) {
-        $phpSkipped[] = [$name, 'not a global PHP function in this runtime'];
+
+    if (str_contains($lower, '::')) {
+        $skipCounts['method_or_class_signature']++;
+        continue;
+    }
+
+    if (!function_exists($lower)) {
+        $skipCounts['missing_global_function']++;
+        $phpSkipped[] = [$name, 'not available as a global PHP function in this runtime'];
         continue;
     }
 
@@ -279,6 +291,7 @@ foreach ($names as $name) {
     try {
         quietCall(static fn (): mixed => $lower(...$args));
     } catch (Throwable $e) {
+        $skipCounts['parameter_validation_failed']++;
         $phpSkipped[] = [$name, $e::class . ': ' . $e->getMessage()];
         continue;
     }
@@ -319,7 +332,10 @@ printf("JINX true all-functions benchmark\n");
 printf("Iterations per function: %d\n", $iterations);
 printf("Native function names: %d\n", count($names));
 printf("PHP benchmarkable global functions: %d\n", count($phpCases));
-printf("PHP skipped/unavailable: %d\n", count($phpSkipped));
+printf("PHP skipped/unavailable: %d\n", array_sum($skipCounts));
+printf("  method/class signatures skipped: %d\n", $skipCounts['method_or_class_signature']);
+printf("  missing global functions skipped: %d\n", $skipCounts['missing_global_function']);
+printf("  parameter-validation failures skipped: %d\n", $skipCounts['parameter_validation_failed']);
 printf("\n");
 printf("%-18s %12s %14s %14s %14s %12s\n", 'engine', 'functions', 'total calls', 'elapsed ms', 'ns/call', 'calls/sec');
 printf("%'-94s\n", '');
@@ -341,7 +357,7 @@ if (isset($native['placeholders'])) {
 printf("\nNative raw benchmark output:\n%s\n", $nativeOutput);
 
 if ($phpSkipped !== []) {
-    echo PHP_EOL . 'First PHP-side skipped/unavailable cases:' . PHP_EOL;
+    echo PHP_EOL . 'First global PHP-side skipped/unavailable cases:' . PHP_EOL;
     foreach (array_slice($phpSkipped, 0, 30) as [$name, $reason]) {
         echo "- {$name}: {$reason}" . PHP_EOL;
     }
