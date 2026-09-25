@@ -157,6 +157,32 @@ final class OracleExecutionFamilies
                     'count',
                 ],
             ],
+            'functions' => [
+                'state' => 'executable',
+                'owner' => OracleFunctionExecutor::class,
+                'test' => 'scripts/test-oracle-function-execution.php',
+                'ops' => [
+                    'O_DECLARE',
+                    'O_FUNCTION_DECL',
+                    'O_ASSIGN',
+                    'O_COMPOUND_ASSIGN',
+                    'O_ECHO',
+                    'O_PRINT',
+                    'O_RETURN',
+                    'O_BLOCK_CLOSE',
+                ],
+                'function_ops' => [
+                    'named_user_function',
+                    'local_parameter_scope',
+                    'return_value',
+                    'nested_user_call',
+                    'builtin_dispatch',
+                ],
+                'builtins' => [
+                    'strlen',
+                    'strtoupper',
+                ],
+            ],
         ];
     }
 
