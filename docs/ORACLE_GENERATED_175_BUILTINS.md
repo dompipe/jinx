@@ -24,6 +24,7 @@ This batch generates 175 deterministic PHP fixtures under `build/generated/oracl
 The generated families are named:
 
 ```text
+generated-pure-builtin-001 through generated-pure-builtin-175
 generated-pure-builtin-001
 ...
 generated-pure-builtin-175
