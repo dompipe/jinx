@@ -89,6 +89,18 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'acosh-builtins' => ['acosh'], 'asinh-builtins' => ['asinh'], 'atanh-builtins' => ['atanh'], 'atan2-builtins' => ['atan2'],
+            'log10-builtins' => ['log10'], 'log1p-builtins' => ['log1p'], 'expm1-builtins' => ['expm1'],
+            'sinh-builtins' => ['sinh'], 'cosh-builtins' => ['cosh'], 'tanh-builtins' => ['tanh'], 'fdiv-builtins' => ['fdiv'],
+            'abs-builtins' => ['abs'], 'max-builtins' => ['max'], 'min-builtins' => ['min'],
+            'round-half-up-builtins' => ['round'], 'round-half-down-builtins' => ['round'],
+            'round-half-even-builtins' => ['round'], 'round-half-odd-builtins' => ['round'],
+            'getrandmax-builtins' => ['getrandmax'], 'mt-getrandmax-builtins' => ['mt_getrandmax'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleMathBuiltinExecutor::class, 'scripts/test-oracle-math-builtin-two-execution.php', $builtins);
+        }
+
+        foreach ([
             'base64-encode-builtins' => ['base64_encode'], 'base64-decode-builtins' => ['base64_decode'],
             'bin2hex-builtins' => ['bin2hex'], 'hex2bin-builtins' => ['hex2bin'], 'sha1-builtins' => ['sha1'], 'crc32-builtins' => ['crc32'],
             'hash-generic-builtins' => ['hash'], 'hash-hmac-builtins' => ['hash_hmac'], 'serialize-builtins' => ['serialize'], 'unserialize-builtins' => ['unserialize', 'json_encode'],
