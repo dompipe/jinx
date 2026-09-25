@@ -10,6 +10,7 @@ The RC focuses on:
 - A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
 - A compiled PHP-manual implementation manifest for moving under-construction builtins into exact native handlers.
+- A completion gate that refuses to call the native mirror done until every manual manifest entry is exact.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
 - PHP comparison benchmarks for validated callable builtin cases.
 
@@ -41,7 +42,13 @@ Strict all-functions check:
 ./jinx bench-all-functions 1000 --strict
 ```
 
-`--strict` fails if any generated function returns a null/fault placeholder. Non-strict mode is the normal traversal benchmark while the C Oracle runtime is still filling in exact behavioral handlers for every imported PHP builtin.
+Manual-completion gate:
+
+```bash
+php scripts/check-native-manual-complete.php
+```
+
+The completion gate fails until every PHP-manual manifest entry is `exact`. This prevents the project from claiming “full PHP-equal native ASM” while any native handler remains partial, placeholder, or unsafe-native.
 
 ## Native `oracle-call`
 
@@ -176,6 +183,7 @@ Current native runtime behavior is intentionally explicit:
 - the first 100 benchmark functions execute through the C Oracle path with deterministic native sample values;
 - `bench-all-functions` traverses every generated wrapper with deterministic sample argument slots;
 - the PHP manual manifest records exact, partial, placeholder, and unsafe-native implementation states;
+- `scripts/check-native-manual-complete.php` fails until every manual handler is exact;
 - full PHP behavioral parity for every imported function is still not claimed until each handler is promoted from the manifest.
 
 ## RC Status
@@ -189,6 +197,7 @@ Implemented and verified in this package:
 - `bench-all-functions` traverses the full generated native dispatch surface and reports concrete versus placeholder returns.
 - `runtime/jinx_php_manual_manifest.h` records manual-derived native implementation states.
 - `scripts/build-native-jinx.sh` force-includes the manual manifest during native compilation.
+- `scripts/check-native-manual-complete.php` is the hard gate for claiming complete PHP-native parity.
 - Unsafe, unavailable, by-reference, and method-only wrappers fail closed at runtime.
 
 Not claimed as complete:
@@ -210,6 +219,7 @@ runtime/WebNativeOracleDispatch.generated.php
 runtime/jinx_builtin_dispatch.generated.c
 runtime/jinx_function_list.generated.h
 runtime/jinx_oracle_asm_context.c
+scripts/check-native-manual-complete.php
 scripts/benchmark-native-jinx-vs-php.php
 scripts/generate-web-native-function-registry.php
 scripts/generate-native-function-list.php
