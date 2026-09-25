@@ -5,9 +5,15 @@
 
 int main(void) {
     JinxZendArray *array = jinx_zend_array_new_packed(4);
+    JinxZendArray *values;
+    JinxZendArray *keys;
     const JinxZendBucket *live0;
     const JinxZendBucket *live1;
     JinxZendValue *slot;
+    JinxZendValue *value0;
+    JinxZendValue *value1;
+    JinxZendValue *key0;
+    JinxZendValue *key1;
     int ok = 1;
 
     if (array == 0) {
@@ -40,6 +46,45 @@ int main(void) {
         return 1;
     }
 
+    if (!jinx_zend_array_live_key_exists_index(array, 0u) ||
+        jinx_zend_array_live_key_exists_index(array, 1u) ||
+        jinx_zend_array_live_key_exists_string(array, "name", 4) ||
+        !jinx_zend_array_live_key_exists_string(array, "keep", 4) ||
+        jinx_zend_array_live_is_list(array)) {
+        fprintf(stderr, "FAIL: live-aware key_exists/is_list exposed tombstones\n");
+        jinx_zend_array_release(array);
+        return 1;
+    }
+
+    values = jinx_zend_array_live_values(array);
+    keys = jinx_zend_array_live_keys(array);
+    if (values == 0 || keys == 0 || values->count != 2u || keys->count != 2u) {
+        fprintf(stderr, "FAIL: live values/keys did not skip tombstones\n");
+        jinx_zend_array_release(values);
+        jinx_zend_array_release(keys);
+        jinx_zend_array_release(array);
+        return 1;
+    }
+
+    value0 = jinx_zend_array_index(values, 0u);
+    value1 = jinx_zend_array_index(values, 1u);
+    key0 = jinx_zend_array_index(keys, 0u);
+    key1 = jinx_zend_array_index(keys, 1u);
+    if (value0 == 0 || value0->type != JINX_ZEND_LONG || value0->value.lval != 10 ||
+        value1 == 0 || value1->type != JINX_ZEND_LONG || value1->value.lval != 40 ||
+        key0 == 0 || key0->type != JINX_ZEND_LONG || key0->value.lval != 0 ||
+        key1 == 0 || key1->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(key1->value.str, "keep", 4)) {
+        fprintf(stderr, "FAIL: live values/keys order or values are wrong\n");
+        jinx_zend_array_release(values);
+        jinx_zend_array_release(keys);
+        jinx_zend_array_release(array);
+        return 1;
+    }
+
+    jinx_zend_array_release(values);
+    jinx_zend_array_release(keys);
+
     live0 = jinx_zend_array_live_iter_at(array, 0);
     live1 = jinx_zend_array_live_iter_at(array, 1);
     if (live0 == 0 || live1 == 0 ||
@@ -69,5 +114,6 @@ int main(void) {
     jinx_zend_array_release(array);
     printf("PASS: Zend array delete/tombstone smoke passed\n");
     printf("PASS: delete_index, delete_string, live iteration, and compact preserve valid buckets\n");
+    printf("PASS: live-aware count/key_exists/is_list/values/keys skip tombstones\n");
     return 0;
 }
