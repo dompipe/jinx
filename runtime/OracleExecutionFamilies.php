@@ -129,6 +129,34 @@ final class OracleExecutionFamilies
                     'strtoupper',
                 ],
             ],
+            'arrays' => [
+                'state' => 'executable',
+                'owner' => OracleArrayExecutor::class,
+                'test' => 'scripts/test-oracle-array-execution.php',
+                'ops' => [
+                    'O_DECLARE',
+                    'O_ASSIGN',
+                    'O_DIM_ASSIGN',
+                    'O_DIM_FETCH',
+                    'O_COALESCE',
+                    'O_UNSET',
+                    'O_ECHO',
+                    'O_PRINT',
+                    'O_RETURN',
+                ],
+                'array_ops' => [
+                    'literal_empty_array',
+                    'append',
+                    'nested_dimension_assign',
+                    'nested_dimension_fetch',
+                    'isset',
+                    'empty',
+                    'unset',
+                ],
+                'builtins' => [
+                    'count',
+                ],
+            ],
         ];
     }
 
