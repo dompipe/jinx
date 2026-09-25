@@ -14,16 +14,26 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` | explicit Oracle request context for `$_SERVER`, `$_GET`, `$_POST`, `$_REQUEST`, coalesce, `isset`, `empty`, `count`, echo, print, return |
 | `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` | literal `include` and `require` edges resolved by OracleProgramCompiler, included local scope, included output, caller return parity |
 | `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` | `exit`/`die` termination, string output, exit status, terminated flag, and unreachable-code stopping behavior |
-| `ternary-expressions` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | ternary `?:` expression execution and branch parity |
-| `type-casts` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `(int)`, `(string)`, `(bool)`, `(float)`, and `(array)` casts |
-| `string-builtins` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `strlen`, `strtoupper`, `strtolower`, `trim`, and `substr` |
-| `math-builtins` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `abs`, `max`, `min`, and `round` |
-| `comparison-expressions` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | comparison operators including strict equality and spaceship `<=>` |
-| `boolean-expressions` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `&&`, `||`, `!`, and PHP-like truthiness |
-| `magic-constants` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `__FILE__`, `__DIR__`, and `PHP_VERSION` |
-| `array-literals` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | list literals, associative literals, `count`, `implode`, and `array_sum` |
-| `foreach-loops` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow key/value `foreach` loops and body execution |
-| `for-loops` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow `for` init, condition, iteration, and body execution |
+| `ternary-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | ternary `?:` expression execution and branch parity |
+| `type-casts` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `(int)`, `(string)`, `(bool)`, `(float)`, and `(array)` casts |
+| `string-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `strlen`, `strtoupper`, `strtolower`, `trim`, and `substr` |
+| `math-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `abs`, `max`, `min`, and `round` |
+| `comparison-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | comparison operators including strict equality and spaceship `<=>` |
+| `boolean-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `&&`, `||`, `!`, and PHP-like truthiness |
+| `magic-constants` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `__FILE__`, `__DIR__`, and `PHP_VERSION` |
+| `array-literals` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | list literals, associative literals, `count`, `implode`, and `array_sum` |
+| `foreach-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow key/value `foreach` loops and body execution |
+| `for-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow `for` init, condition, iteration, and body execution |
+| `str-replace-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `str_replace` output and return parity |
+| `strpos-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `strpos` integer result parity through PHP string concatenation |
+| `explode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `explode`, `implode`, and `count` working together |
+| `in-array-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `in_array` boolean result parity |
+| `array-key-exists-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_key_exists` boolean result parity |
+| `array-merge-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_merge` list merging parity |
+| `array-reverse-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_reverse` list ordering parity |
+| `array-unique-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_unique` value preservation parity |
+| `json-encode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `json_encode` array encoding parity |
+| `hash-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `md5` hash output parity |
 
 ## Native `./jinx` verification
 
@@ -39,7 +49,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-next-ten-execution.php
+./jinx scripts/test-oracle-builtin-batch-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
