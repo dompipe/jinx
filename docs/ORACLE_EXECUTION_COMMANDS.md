@@ -2,149 +2,9 @@
 
 Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays secondary until the Oracle layer proves behavior against PHP.
 
-## Current executable Oracle families
-
-Every family listed here is executable only because it has a runtime owner and a PHP parity comparison test. The full native suite also runs a coverage audit that checks this ledger, the parity tests, the native suite wiring, and this document stay synchronized.
-
-### Core language/runtime families
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `straight-line` | `runtime/OracleStraightLineExecutor.php` | `scripts/test-oracle-straightline-execution.php` |
-| `conditionals` | `runtime/OracleConditionalExecutor.php` | `scripts/test-oracle-conditional-execution.php` |
-| `loops` | `runtime/OracleLoopExecutor.php` | `scripts/test-oracle-loop-execution.php` |
-| `arrays` | `runtime/OracleArrayExecutor.php` | `scripts/test-oracle-array-execution.php` |
-| `functions` | `runtime/OracleFunctionExecutor.php` | `scripts/test-oracle-function-execution.php` |
-| `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` |
-| `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` |
-| `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` |
-| `object-basics` | `runtime/OracleObjectExecutor.php` | `scripts/test-oracle-object-basics-execution.php` |
-| `object-inheritance` | `runtime/OracleObjectInheritanceExecutor.php` | `scripts/test-oracle-object-inheritance-execution.php` |
-
-### Expression/control-flow batch
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `ternary-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `type-casts` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `string-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `math-builtins` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `comparison-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `boolean-expressions` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `magic-constants` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `array-literals` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `foreach-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-| `for-loops` | `runtime/OracleExpressionBatchExecutor.php` | `scripts/test-oracle-next-ten-execution.php` |
-
-### Builtin batch one
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `str-replace-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `strpos-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `explode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `in-array-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `array-key-exists-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `array-merge-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `array-reverse-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `array-unique-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `json-encode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-| `hash-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` |
-
-### Builtin batch two
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `ltrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `rtrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `ucfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `lcfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `strrev-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `str-repeat-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `str-pad-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `array-keys-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `array-values-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-| `array-slice-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` |
-
-### Scalar/type builtin batch
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `is-string-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `is-int-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `is-array-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `is-bool-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `is-null-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `intval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `strval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `boolval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `floatval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-| `is-numeric-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` |
-
-### App builtin batch
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `str-contains-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `str-starts-with-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `str-ends-with-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `stripos-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `strrpos-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `strstr-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `substr-count-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `wordwrap-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `sprintf-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `number-format-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `urlencode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `urldecode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `rawurlencode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `rawurldecode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `http-build-query-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `parse-url-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `htmlspecialchars-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `html-entity-decode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `strip-tags-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `nl2br-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-combine-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-flip-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-diff-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-intersect-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-search-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-column-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-chunk-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `range-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-change-key-case-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-| `array-fill-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
-
-### Math/numeric builtin batch
-
-| Family | Runtime owner | PHP comparison test |
-|---|---|---|
-| `floor-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `ceil-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `sqrt-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `pow-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `fmod-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `intdiv-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `deg2rad-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `rad2deg-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `sin-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `cos-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `tan-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `asin-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `acos-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `atan-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `log-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `exp-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `pi-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `hypot-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `is-finite-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `is-infinite-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
-| `is-nan-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+Every executable family listed here has a runtime owner and a PHP parity comparison test. The native suite runs a coverage audit that checks the ledger, parity tests, native suite wiring, and this document stay synchronized.
 
 ## Native `./jinx` verification
-
-Run the native verification suite from a clean local checkout after pulling `master`. Do not run each executable-family test separately unless debugging a specific failure; the suite runs each family once with labeled output.
 
 ```bash
 git pull origin master
@@ -153,10 +13,67 @@ git pull origin master
 git diff --check
 ```
 
-For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
+Do not run family tests with `php scripts/...` for release verification. Launch them through repository-root native `./jinx`.
 
-```bash
-./jinx scripts/test-oracle-math-builtin-execution.php
-```
+## Core language/runtime families
 
-The family execution tests compare Oracle execution to PHP/Zend behavior for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable. Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family.
+Runtime owners are the corresponding files under `runtime/`. PHP comparison tests are shown beside each family.
+
+| Family | PHP comparison test |
+|---|---|
+| `straight-line` | `scripts/test-oracle-straightline-execution.php` |
+| `conditionals` | `scripts/test-oracle-conditional-execution.php` |
+| `loops` | `scripts/test-oracle-loop-execution.php` |
+| `arrays` | `scripts/test-oracle-array-execution.php` |
+| `functions` | `scripts/test-oracle-function-execution.php` |
+| `request-globals` | `scripts/test-oracle-request-globals-execution.php` |
+| `include-require` | `scripts/test-oracle-include-require-execution.php` |
+| `exit-die` | `scripts/test-oracle-exit-die-execution.php` |
+| `object-basics` | `scripts/test-oracle-object-basics-execution.php` |
+| `object-inheritance` | `scripts/test-oracle-object-inheritance-execution.php` |
+
+## Expression/control-flow batch
+
+Runtime owner: `runtime/OracleExpressionBatchExecutor.php`. PHP comparison test: `scripts/test-oracle-next-ten-execution.php`.
+
+`ternary-expressions`, `type-casts`, `string-builtins`, `math-builtins`, `comparison-expressions`, `boolean-expressions`, `magic-constants`, `array-literals`, `foreach-loops`, `for-loops`.
+
+## Builtin batch one
+
+Runtime owner: `runtime/OracleBuiltinBatchExecutor.php`. PHP comparison test: `scripts/test-oracle-builtin-batch-execution.php`.
+
+`str-replace-builtins`, `strpos-builtins`, `explode-builtins`, `in-array-builtins`, `array-key-exists-builtins`, `array-merge-builtins`, `array-reverse-builtins`, `array-unique-builtins`, `json-encode-builtins`, `hash-builtins`.
+
+## Builtin batch two
+
+Runtime owner: `runtime/OracleBuiltinBatchExecutor.php`. PHP comparison test: `scripts/test-oracle-builtin-batch-two-execution.php`.
+
+`ltrim-builtins`, `rtrim-builtins`, `ucfirst-builtins`, `lcfirst-builtins`, `strrev-builtins`, `str-repeat-builtins`, `str-pad-builtins`, `array-keys-builtins`, `array-values-builtins`, `array-slice-builtins`.
+
+## Scalar/type builtin batch
+
+Runtime owner: `runtime/OracleScalarBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-scalar-builtin-execution.php`.
+
+`is-string-builtins`, `is-int-builtins`, `is-array-builtins`, `is-bool-builtins`, `is-null-builtins`, `intval-builtins`, `strval-builtins`, `boolval-builtins`, `floatval-builtins`, `is-numeric-builtins`.
+
+## App builtin batch
+
+Runtime owner: `runtime/OracleAppBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-app-builtin-execution.php`.
+
+`str-contains-builtins`, `str-starts-with-builtins`, `str-ends-with-builtins`, `stripos-builtins`, `strrpos-builtins`, `strstr-builtins`, `substr-count-builtins`, `wordwrap-builtins`, `sprintf-builtins`, `number-format-builtins`, `urlencode-builtins`, `urldecode-builtins`, `rawurlencode-builtins`, `rawurldecode-builtins`, `http-build-query-builtins`, `parse-url-builtins`, `htmlspecialchars-builtins`, `html-entity-decode-builtins`, `strip-tags-builtins`, `nl2br-builtins`, `array-combine-builtins`, `array-flip-builtins`, `array-diff-builtins`, `array-intersect-builtins`, `array-search-builtins`, `array-column-builtins`, `array-chunk-builtins`, `range-builtins`, `array-change-key-case-builtins`, `array-fill-builtins`.
+
+## Math/numeric builtin batch
+
+Runtime owner: `runtime/OracleMathBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-math-builtin-execution.php`.
+
+`floor-builtins`, `ceil-builtins`, `sqrt-builtins`, `pow-builtins`, `fmod-builtins`, `intdiv-builtins`, `deg2rad-builtins`, `rad2deg-builtins`, `sin-builtins`, `cos-builtins`, `tan-builtins`, `asin-builtins`, `acos-builtins`, `atan-builtins`, `log-builtins`, `exp-builtins`, `pi-builtins`, `hypot-builtins`, `is-finite-builtins`, `is-infinite-builtins`, `is-nan-builtins`.
+
+## Data/encoding/introspection builtin batch
+
+Runtime owner: `runtime/OracleDataBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-data-builtin-execution.php`.
+
+`base64-encode-builtins`, `base64-decode-builtins`, `bin2hex-builtins`, `hex2bin-builtins`, `sha1-builtins`, `crc32-builtins`, `hash-generic-builtins`, `hash-hmac-builtins`, `serialize-builtins`, `unserialize-builtins`, `var-export-builtins`, `print-r-builtins`, `gettype-builtins`, `is-scalar-builtins`, `is-countable-builtins`, `sizeof-builtins`, `array-sum-builtins`, `array-product-builtins`, `str-split-builtins`, `chunk-split-builtins`.
+
+## Coverage rule
+
+Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
