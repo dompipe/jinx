@@ -15,6 +15,13 @@ native/jinx_zend_smoke.c
 Build and smoke test:
 
 ```bash
+./scripts/build-zend-smoke.sh
+./build/native/jinx-zend-smoke
+```
+
+Full native build also compiles the Zend smoke binary:
+
+```bash
 ./scripts/build-native-jinx.sh
 ./build/native/jinx-zend-smoke
 ```
@@ -37,9 +44,9 @@ The native Zend-shaped layer now has:
 
 ```text
 JinxZendValue       zval-like tagged value
-JinxZendString      borrowed views, owned buffers, refcount, copy-on-write
-JinxZendArray       packed buckets, append, index lookup, insertion-order iteration
-JinxZendBucket      numeric-index bucket carrying retained JinxZendValue
+JinxZendString      borrowed views, owned buffers, refcount, COW, hashing
+JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, insertion-order iteration
+JinxZendBucket      numeric or string-key bucket carrying retained JinxZendValue
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
@@ -53,11 +60,15 @@ borrowed/interned string view creation
 owned string allocation
 string retain/release
 copy-on-write separation before mutation
+string hash/equality helpers
 packed array bucket allocation
 append with retained values
 numeric index lookup
+mixed string-key insertion
+string-key lookup
+string-key update without duplicate bucket growth
 insertion-order bucket iteration
-array release/destruct of contained values
+array release/destruct of contained values and keys
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
@@ -65,8 +76,8 @@ family manifest enumeration
 
 ## Next implementation steps
 
-1. Add mixed hash buckets for string keys.
-2. Add array copy-on-write separation.
+1. Add array copy-on-write separation.
+2. Add deletion/tombstones and compaction rules.
 3. Lower `count`, `array_key_exists`, `array_values`, `array_keys`, and `foreach` onto native `JinxZendArray`.
 4. Add object class table and method dispatch.
 5. Add error/warning/exception objects.
