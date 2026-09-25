@@ -19,6 +19,7 @@ runtime/jinx_zend_opcode_vm.h
 runtime/jinx_zend_lowering_fixture.h
 runtime/jinx_zend_ir_fixture.h
 runtime/jinx_zend_statement_ir.h
+runtime/jinx_zend_variable_ir.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 ```
@@ -58,6 +59,8 @@ runtime/jinx_oracle_zend_array_builtins.h
 ./build/native/jinx-zend-ir-fixture-smoke
 ./scripts/build-zend-statement-ir-smoke.sh
 ./build/native/jinx-zend-statement-ir-smoke
+./scripts/build-zend-variable-ir-smoke.sh
+./build/native/jinx-zend-variable-ir-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -102,15 +105,51 @@ JinxZendMethodCallFrame    INIT_METHOD_CALL/SEND_ARGS/DO_METHOD_CALL frame
 JinxZendErrorState         warning/error/exception state carrier
 JinxZendThrowable          throwable descriptor over Exception/Error-style objects
 JinxZendCatchFrame         CATCH lowering frame
-JinxZendVmState            combined register VM for foreach/method/throw control flow
+JinxZendVmState            combined register VM for foreach/method/throw/copy control flow
 JinxZendIrFixture          tiny text fixture IR bridge
 JinxZendStatementIrProgram line-oriented statement/expression IR bridge
+JinxZendVariableIrProgram  variable-name-to-register lowering bridge
 JinxValue carrier          Oracle/PASM value carrying Zend arrays
+```
+
+## Variable IR
+
+`runtime/jinx_zend_variable_ir.h` maps variable names onto VM registers and lowers assignment-like forms into VM ops. This is the bridge from raw register IR toward PHP-style `$name` slots.
+
+Supported forms:
+
+```text
+var <name> <reg>
+load <name> <value-slot>
+set <dst-name> <src-name>
+callv <dst-name> <object-name> <method> [arg-name]
+throwv <name> [file]
+catchv <name> <class-or-*> <miss-label>
+clear
+jump <label>
+jump_if_exception <label>
+halt
+```
+
+`set` lowers into the VM `COPY` opcode. `load` still takes caller-provided value slots so runtime value construction stays separate from syntax lowering.
+
+Example:
+
+```text
+var value 0
+var tmp 1
+var object 2
+var result 3
+load value 0
+set tmp value
+load object 1
+callv result object record tmp
+halt
 ```
 
 ## Statement IR
 
-`runtime/jinx_zend_statement_ir.h` lowers a small line-oriented IR directly into `JinxZendVmOp` streams. It is the current bridge between fixture lowering and a real parser/AST pass.
+`runtime/jinx_zend_statement_ir.h` lowers a small line-oriented IR directly into `JinxZendVmOp` streams. It is the current raw-register bridge between fixture lowering and variable/parser lowering.
 
 Supported forms:
 
@@ -126,41 +165,13 @@ jump_if_exception <label>
 halt
 ```
 
-A value slot is supplied by the caller, so runtime value construction stays separate from syntax lowering.
-
-Example:
-
-```text
-const 0 0
-const 1 1
-call 3 1 record 0 1
-throw 2 smoke.ir
-jump_if_exception handle
-halt
-label handle
-catch 4 Exception miss
-clear
-halt
-label miss
-halt
-```
-
-The statement IR smoke proves:
-
-```text
-multi-line statement IR parses into VM ops
-labels resolve into VM jump targets
-const/call/throw/catch/clear/jump/halt lower into executable VM ops
-unknown labels fail closed
-lowered programs execute through the combined VM
-```
-
 ## Combined VM
 
 `runtime/jinx_zend_opcode_vm.h` provides a register VM that sequences:
 
 ```text
 LOAD_CONST
+COPY
 FE_RESET
 FE_FETCH
 METHOD_CALL
@@ -172,7 +183,7 @@ JMP_IF_EXCEPTION
 HALT
 ```
 
-The VM ties together arrays, live foreach iteration, object method dispatch, throwable state, catch/clear control flow, and jumps.
+The VM ties together arrays, live foreach iteration, object method dispatch, throwable state, catch/clear control flow, variable assignment through register copy, and jumps.
 
 ## Oracle/PASM bridge
 
@@ -208,9 +219,9 @@ zend-array:2
 
 ## Next implementation steps
 
-1. Add real parser/AST lowering into `JinxZendStatementIrProgram` / `JinxZendVmOp` streams.
-2. Add variable slots and assignment opcodes.
-3. Add scalar expression opcodes so arbitrary PHP can run through the Zend-shaped executor.
+1. Add scalar expression opcodes such as arithmetic and comparisons.
+2. Add real parser/AST lowering into variable IR / `JinxZendVmOp` streams.
+3. Wire small PHP examples through the native executor path.
 
 ## Rule
 
