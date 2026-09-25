@@ -6,14 +6,16 @@ The end goal is to rewrite the php-src behavior surface in Oracle: PHP commands,
 
 Literal local `require`, `require_once`, `include`, and `include_once` statements are Oracle entry points. When a target can be resolved safely, JINX interprets the included PHP file into Oracle records. Dynamic targets, unresolved paths, and include cycles stay PHP-compatible and require fallback.
 
+Oracle is the interpreter/mirroring layer for php-src behavior. PASM/native binary emission is a later output path after Oracle owns the PHP/Zend behavior; it should not block arbitrary PHP/Zend coverage.
+
 The RC focuses on:
 
 - JINX web compilation for validated JSON endpoints.
 - Worker-style native wrapper registration for the imported PHP runtime surface.
 - A generated compact wrapper dispatch table for 3,527 PHP callable signatures.
-- A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
+- A native GCC `./jinx` executable that exercises the Oracle dispatch layer.
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
-- A native Zend-shaped engine skeleton for rewriting `Zend/` concepts into Oracle SM, Oracle ASM, and PASM.
+- A native Zend-shaped engine skeleton for rewriting `Zend/` concepts into Oracle interpreter records and acceleration targets.
 - Manual-driven handler states: `exact`, `php-fallback`, and `sandbox-blocked` are resolved; `partial`, `placeholder`, and `unsafe-native` are not.
 - PHP-source implementation families that map generated callables to Oracle/PASM target families and php-src source areas.
 - Correctness-first PHP fallback for crypto/hash/password/random functions until exact native crypto exists.
@@ -41,6 +43,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx bench-first100 100000
 ./jinx bench-all-functions 1000
 ./jinx scripts/test-oracle-program-compiler.php
+./jinx scripts/test-zend-arbitrary-code-oracle.php
 php scripts/report-php-families.php
 php scripts/benchmark-true-all-functions.php 1000
 ./jinx notes
@@ -77,7 +80,7 @@ php scripts/test-php-crypto-fallback.php
 
 ## Zend Engine Rewrite Layer
 
-The Zend rewrite starts with a JINX-owned native engine layer instead of linking against PHP. This gives Oracle SM / Oracle ASM / PASM a stable target for PHP's core runtime concepts.
+The Zend rewrite starts with a JINX-owned native engine layer instead of linking against PHP. This gives Oracle a stable interpreter and acceleration target for PHP's core runtime concepts. PASM can consume proven Oracle-owned behavior later, but it is not the gate for Zend mirroring.
 
 Native sources:
 

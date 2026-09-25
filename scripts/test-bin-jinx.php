@@ -48,6 +48,20 @@ if (!str_contains($out, 'PASS: OracleProgramCompiler interprets PHP')) {
 }
 
 $out = run(sprintf(
+    '%s %s',
+    $jinxCommand,
+    escapeshellarg('scripts/test-zend-arbitrary-code-oracle.php')
+), $code);
+
+if ($code !== 0) {
+    fail("bin/jinx arbitrary Zend PHP script path failed:\n{$out}");
+}
+
+if (!str_contains($out, 'PASS: Oracle records arbitrary Zend-shaped PHP constructs')) {
+    fail("bin/jinx arbitrary Zend PHP script path did not run expected test:\n{$out}");
+}
+
+$out = run(sprintf(
     '%s web-plan %s',
     $jinxCommand,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php')
@@ -101,4 +115,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: bin/jinx supports PHP script paths, web-plan, web-compile, and web-statements\n";
+echo "PASS: bin/jinx supports PHP script paths, arbitrary Zend records, web-plan, web-compile, and web-statements\n";

@@ -61,6 +61,10 @@ final class OracleProgramCompiler
      *   O_REQUIRE / O_INCLUDE
      *   O_CURL_CALL
      *   O_JSON_CALL
+     *   O_CLASS_DECL / O_METHOD_DECL / O_PROPERTY_DECL
+     *   O_NAMESPACE / O_USE / O_TRAIT_DECL / O_INTERFACE_DECL / O_ENUM_DECL
+     *   O_SWITCH / O_MATCH / O_GLOBAL / O_STATIC_LOCAL
+     *   O_NEW / O_METHOD_CALL / O_STATIC_CALL / O_PROPERTY_FETCH
      *   O_RAW_PHP_STMT
      *
      * That means Oracle can see and catalog the program without
@@ -200,7 +204,35 @@ final class OracleProgramCompiler
         $features = [];
         $extra = [];
 
-        if (preg_match('/^function\s+(\w+)\s*\(/i', $normalized, $m)) {
+        $identifier = '[A-Za-z_]\w*(?:\\\\[A-Za-z_]\w*)*';
+
+        if (preg_match('/^namespace\s+(' . $identifier . ')\s*;?$/i', $normalized, $m)) {
+            $kind = 'O_NAMESPACE';
+            $features['namespace'] = $m[1];
+        } elseif (preg_match('/^use\s+(.+);?$/i', $normalized, $m)) {
+            $kind = 'O_USE';
+            $features['use_target'] = rtrim($m[1], ';');
+        } elseif (preg_match('/^interface\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            $kind = 'O_INTERFACE_DECL';
+            $features['name'] = $m[1];
+        } elseif (preg_match('/^trait\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            $kind = 'O_TRAIT_DECL';
+            $features['name'] = $m[1];
+        } elseif (preg_match('/^enum\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            $kind = 'O_ENUM_DECL';
+            $features['name'] = $m[1];
+        } elseif (preg_match('/^(?:abstract\s+|final\s+)?class\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            $kind = 'O_CLASS_DECL';
+            $features['name'] = $m[1];
+        } elseif (preg_match('/^(?:(?:public|protected|private|static|abstract|final|readonly)\s+)*function\s+(\w+)\s*\(/i', $normalized, $m)) {
+            $kind = preg_match('/^(?:public|protected|private|static|abstract|final|readonly)\b/i', $normalized) ? 'O_METHOD_DECL' : 'O_FUNCTION_DECL';
+            $features['name'] = $m[1];
+        } elseif (preg_match('/^static\s+\$\w+/i', $normalized)) {
+            $kind = 'O_STATIC_LOCAL';
+        } elseif (preg_match('/^(?:(?:public|protected|private|static|readonly)\s+)+(?:\??' . $identifier . '\s+)?\$(\w+)/i', $normalized, $m)) {
+            $kind = 'O_PROPERTY_DECL';
+            $features['name'] = $m[1];
+        } elseif (preg_match('/^function\s+(\w+)\s*\(/i', $normalized, $m)) {
             $kind = 'O_FUNCTION_DECL';
             $features['name'] = $m[1];
         } elseif (preg_match('/^(require_once|require|include_once|include)\s*(?:\(\s*)?([\'"])([^\'"]+)\2\s*\)?\s*;?$/i', $normalized, $m)) {
@@ -212,18 +244,49 @@ final class OracleProgramCompiler
             $kind = 'O_IF';
         } elseif (preg_match('/^else\b/i', $normalized)) {
             $kind = 'O_ELSE';
+        } elseif (preg_match('/^switch\s*\(/i', $normalized)) {
+            $kind = 'O_SWITCH';
+        } elseif (preg_match('/\bmatch\s*\(/i', $normalized)) {
+            $kind = 'O_MATCH';
+        } elseif (preg_match('/^case\b/i', $normalized)) {
+            $kind = 'O_CASE';
+        } elseif (preg_match('/^default\s*:/i', $normalized)) {
+            $kind = 'O_DEFAULT';
+        } elseif (preg_match('/^do\b/i', $normalized)) {
+            $kind = 'O_DO';
         } elseif (preg_match('/^for\s*\(/i', $normalized)) {
             $kind = 'O_FOR';
         } elseif (preg_match('/^foreach\s*\(/i', $normalized)) {
             $kind = 'O_FOREACH';
         } elseif (preg_match('/^while\s*\(/i', $normalized)) {
             $kind = 'O_WHILE';
+        } elseif (preg_match('/^break\b/i', $normalized)) {
+            $kind = 'O_BREAK';
+        } elseif (preg_match('/^continue\b/i', $normalized)) {
+            $kind = 'O_CONTINUE';
         } elseif (preg_match('/^return\b/i', $normalized)) {
             $kind = 'O_RETURN';
-        } elseif (preg_match('/^\$\w+\s*=/i', $normalized)) {
-            $kind = 'O_ASSIGN';
+        } elseif (preg_match('/^global\s+\$/i', $normalized)) {
+            $kind = 'O_GLOBAL';
+        } elseif (preg_match('/^unset\s*\(/i', $normalized)) {
+            $kind = 'O_UNSET';
+        } elseif (preg_match('/^isset\s*\(/i', $normalized)) {
+            $kind = 'O_ISSET';
+        } elseif (preg_match('/^empty\s*\(/i', $normalized)) {
+            $kind = 'O_EMPTY';
         } elseif (preg_match('/^throw\b/i', $normalized)) {
             $kind = 'O_THROW';
+        } elseif (preg_match('/\bnew\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            $kind = 'O_NEW';
+            $features['class'] = $m[1];
+        } elseif (preg_match('/' . $identifier . '::\w+\s*\(/', $normalized)) {
+            $kind = 'O_STATIC_CALL';
+        } elseif (preg_match('/->\w+\s*\(/', $normalized)) {
+            $kind = 'O_METHOD_CALL';
+        } elseif (preg_match('/->\w+\b/', $normalized)) {
+            $kind = 'O_PROPERTY_FETCH';
+        } elseif (preg_match('/^\$\w+\s*=/i', $normalized)) {
+            $kind = 'O_ASSIGN';
         } elseif (preg_match('/^try\b/i', $normalized)) {
             $kind = 'O_TRY';
         } elseif ($normalized === '{') {
@@ -258,6 +321,8 @@ final class OracleProgramCompiler
             $features['calls'] = array_values(array_unique($calls[1]));
         }
 
+        self::addZendFeatures($kind, $normalized, $features);
+
         return array_merge([
             'op' => $kind,
             'index' => $index,
@@ -265,6 +330,68 @@ final class OracleProgramCompiler
             'sha1' => sha1($normalized),
             'features' => (object) $features,
         ], $extra);
+    }
+
+    /**
+     * @param array<string,mixed> $features
+     */
+    private static function addZendFeatures(string $kind, string $normalized, array &$features): void
+    {
+        static $zendOps = [
+            'O_NAMESPACE' => 'namespace',
+            'O_USE' => 'use',
+            'O_CLASS_DECL' => 'class_decl',
+            'O_INTERFACE_DECL' => 'interface_decl',
+            'O_TRAIT_DECL' => 'trait_decl',
+            'O_ENUM_DECL' => 'enum_decl',
+            'O_METHOD_DECL' => 'method_decl',
+            'O_PROPERTY_DECL' => 'property_decl',
+            'O_IF' => 'if',
+            'O_ELSE' => 'else',
+            'O_SWITCH' => 'switch',
+            'O_MATCH' => 'match',
+            'O_CASE' => 'case',
+            'O_DEFAULT' => 'default',
+            'O_DO' => 'do',
+            'O_FOR' => 'for',
+            'O_FOREACH' => 'foreach',
+            'O_WHILE' => 'while',
+            'O_BREAK' => 'break',
+            'O_CONTINUE' => 'continue',
+            'O_RETURN' => 'return',
+            'O_GLOBAL' => 'global',
+            'O_STATIC_LOCAL' => 'static_local',
+            'O_UNSET' => 'unset',
+            'O_ISSET' => 'isset',
+            'O_EMPTY' => 'empty',
+            'O_NEW' => 'new',
+            'O_METHOD_CALL' => 'method_call',
+            'O_STATIC_CALL' => 'static_call',
+            'O_PROPERTY_FETCH' => 'property_fetch',
+            'O_THROW' => 'throw',
+            'O_TRY' => 'try',
+        ];
+
+        if (!isset($zendOps[$kind])) {
+            return;
+        }
+
+        $features['php_family'] = 'zend';
+        $features['zend_construct'] = $zendOps[$kind];
+        $features['oracle_interpreter_record'] = true;
+
+        if ($kind !== 'O_RETURN' || !preg_match('/^return\s+(?:\d+|[\'"][^\'"]*[\'"]|true|false|null)\s*;?$/i', $normalized)) {
+            $features['php_fallback_required'] = true;
+        }
+
+        if (preg_match('/\b([A-Za-z_]\w*(?:\\\\[A-Za-z_]\w*)*)::(\w+)\s*\(/', $normalized, $m)) {
+            $features['class'] = $m[1];
+            $features['method'] = $m[2];
+        } elseif (preg_match('/->(\w+)\s*\(/', $normalized, $m)) {
+            $features['method'] = $m[1];
+        } elseif (preg_match('/->(\w+)\b/', $normalized, $m)) {
+            $features['property'] = $m[1];
+        }
     }
 
     /**

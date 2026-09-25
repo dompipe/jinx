@@ -1,17 +1,18 @@
 # Zend Engine Rewrite Plan
 
-JINX keeps PHP as the source language and compatibility contract. The native Zend-shaped runtime, Oracle SM, Oracle ASM, and PASM layers are acceleration paths for selected PHP calls and hot runtime families. They must preserve PHP behavior and fall back or refuse promotion when a family is not native enough yet.
+JINX keeps PHP as the source language and compatibility contract. Oracle is the interpreter/mirroring layer for php-src and Zend behavior. Native Zend-shaped runtime pieces accelerate selected PHP calls and hot runtime families after Oracle has a faithful representation. PASM/native binary emission is secondary later output, not a blocker for PHP/Zend mirroring.
 
-This document is the family ledger. Every family changed so far lists the native owner files, what was added, what Zend/php-src area it mirrors, what smoke tests prove it, and the exact Oracle SM / PASM target.
+This document is the family ledger. Every family changed so far lists the owner files, what was added, what Zend/php-src area it mirrors, what smoke tests prove it, and the Oracle target. PASM targets are kept only as optional later backend notes.
 
 ## Architecture rule
 
 ```text
 PHP stays visible.
 PHP semantics stay authoritative.
-Native JINX / Oracle SM / Oracle ASM / PASM paths accelerate calls and runtime families.
-A PHP function moves native only when the Zend family it depends on is implemented and smoke-tested.
-Generated lower layers are not a second source of truth; they are compiled targets for proven native behavior.
+Oracle records and interprets php-src/Zend behavior first.
+Native JINX paths accelerate calls and runtime families after Oracle coverage exists.
+PASM/native binary emission is optional later output.
+Generated lower layers are not a second source of truth.
 ```
 
 ## Oracle SM manifest
@@ -47,6 +48,10 @@ runtime/jinx_oracle_zend_array_builtins.h
 ## Smoke test commands
 
 ```bash
+./scripts/build-native-jinx.sh
+./jinx scripts/test-oracle-program-compiler.php
+./jinx scripts/test-zend-arbitrary-code-oracle.php
+
 ./scripts/build-zend-smoke.sh
 ./build/native/jinx-zend-smoke
 ./build/native/jinx-zend-array-builtin-smoke
@@ -124,6 +129,7 @@ Full native build:
 | scalar ops | accelerated scalar expression subset | started | `oracle-sm/zend/scalar_ops.osm` | `runtime/pasm/zend/scalar_ops.pasm` |
 | Oracle carrier | accelerated call bridge for native Zend arrays | started | `oracle-sm/zend/oracle_carrier.osm` | `runtime/pasm/zend/oracle_carrier.pasm` |
 | CLI/dispatch | PHP-call acceleration entry points | started | `oracle-sm/zend/cli_dispatch.osm` | `runtime/pasm/zend/cli_dispatch.pasm` |
+| arbitrary Zend records | Oracle interpreter records for broad PHP/Zend source | started | `runtime/OracleProgramCompiler.php` | optional later backend |
 
 ## Family ledger
 
