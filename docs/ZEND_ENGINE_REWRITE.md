@@ -45,7 +45,7 @@ The native Zend-shaped layer now has:
 ```text
 JinxZendValue       zval-like tagged value
 JinxZendString      borrowed views, owned buffers, refcount, COW, hashing
-JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, insertion-order iteration, COW separation
+JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, COW, insertion-order iteration
 JinxZendBucket      numeric or string-key bucket carrying retained JinxZendValue
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
@@ -68,21 +68,49 @@ mixed string-key insertion
 string-key lookup
 string-key update without duplicate bucket growth
 insertion-order bucket iteration
-array clone and copy-on-write separation
-mutating a detached array without changing the original shared array
 array release/destruct of contained values and keys
+array retain/clone/copy-on-write separation
+count() over native JinxZendArray
+array_key_exists() for numeric and string keys
+array_is_list() over packed/insertion-order buckets
+array_values() producing a packed values array
+array_keys() producing numeric/string key values
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
 ```
 
+## Native array builtin helpers
+
+These helpers are now implemented against `JinxZendArray`:
+
+```text
+jinx_zend_array_count_builtin
+jinx_zend_array_key_exists_index
+jinx_zend_array_key_exists_string
+jinx_zend_array_is_list_builtin
+jinx_zend_array_values_builtin
+jinx_zend_array_keys_builtin
+```
+
+They are runtime-ready. The next step is wiring the generated Oracle builtin dispatch so the PHP names below use these helpers when the incoming value is a native Zend array:
+
+```text
+count
+array_key_exists
+array_is_list
+array_values
+array_keys
+```
+
 ## Next implementation steps
 
 1. Add deletion/tombstones and compaction rules.
-2. Lower `count`, `array_key_exists`, `array_values`, `array_keys`, and `foreach` onto native `JinxZendArray`.
-3. Add object class table and method dispatch.
-4. Add error/warning/exception objects.
-5. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+2. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
+3. Lower `foreach` onto `jinx_zend_array_iter_at`.
+4. Add object class table and method dispatch.
+5. Add error/warning/exception objects.
+6. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
