@@ -10,6 +10,10 @@ ZEND_SMOKE_OUT="${OUT_DIR}/jinx-zend-smoke"
 
 mkdir -p "$OUT_DIR"
 
+php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
+    "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json" \
+    "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c"
+
 "$CC_BIN" \
     -std=c11 \
     -O2 \
@@ -43,5 +47,6 @@ echo "Copied native JINX CLI: $COPY_OUT"
 echo "Built native Zend smoke: $ZEND_SMOKE_OUT"
 echo "Manual manifest compiled: runtime/jinx_php_manual_manifest.h"
 echo "Zend skeleton compiled: runtime/jinx_zend_engine.c"
+echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
