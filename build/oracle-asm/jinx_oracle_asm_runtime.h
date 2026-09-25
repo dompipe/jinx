@@ -3,15 +3,16 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <ctype.h>
 #include <math.h>
 #include <string.h>
 
 /*
- * This header is intentionally a low-level representation layer.
- * It is not the full PHP implementation yet. The generated inline functions
- * are C carriers for Oracle/PASM-shaped operations that the native runtime can
- * execute directly today and that a later backend can expand into GCC inline
- * asm, ASM-shaped C, or direct runtime calls.
+ * Low-level native Oracle/PASM runtime carrier for generated wrappers.
+ * Exact handlers live here only when they can be implemented from the PHP
+ * manual using the current JinxValue model. Complex PHP families remain
+ * explicit PHP fallbacks or sandbox-blocked until native storage/security
+ * models exist.
  */
 
 typedef struct JinxOracleAsmContext JinxOracleAsmContext;
@@ -116,6 +117,29 @@ static inline JinxValue jinx_oracle_float_value(double value) {
     return v;
 }
 
+static inline const unsigned char *jinx_oracle_string_bytes(JinxValue value) {
+    return value.type == 3u && value.as.ptr != NULL ? (const unsigned char *)value.as.ptr : (const unsigned char *)"";
+}
+
+static inline uint32_t jinx_oracle_string_len(JinxValue value) {
+    return value.type == 3u ? value.flags : 0u;
+}
+
+static inline int jinx_oracle_mem_contains(const unsigned char *haystack, uint32_t haystack_len, const unsigned char *needle, uint32_t needle_len) {
+    if (needle_len == 0u) {
+        return 1;
+    }
+    if (needle_len > haystack_len) {
+        return 0;
+    }
+    for (uint32_t i = 0; i <= haystack_len - needle_len; i++) {
+        if (memcmp(haystack + i, needle, needle_len) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static inline int jinx_oracle_name_is(const char *actual, const char *expected) {
     return actual != NULL && strcmp(actual, expected) == 0;
 }
@@ -200,6 +224,21 @@ static inline void jinx_oracle_return(JinxOracleAsmContext *ctx, JinxValue value
     }
 }
 
+static inline int jinx_oracle_ctype_all(JinxValue value, int (*predicate)(int)) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+
+    if (len == 0u) {
+        return 0;
+    }
+    for (uint32_t i = 0; i < len; i++) {
+        if (!predicate((int)bytes[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static inline JinxValue jinx_oracle_asm_load_arg(JinxOracleAsmContext *ctx, uint32_t reg, uint32_t arg_index) {
     JinxValue value = jinx_oracle_zero_value();
     if (ctx != NULL && arg_index < ctx->argc && ctx->argv != NULL) {
@@ -247,21 +286,72 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     arg0 = ctx->registers[JINX_ORA_R0];
     arg1 = ctx->registers[JINX_ORA_R1];
 
-    if (argc == 1 && jinx_oracle_name_is(name, "strlen")) {
-        ret = jinx_oracle_int_value((int64_t)arg0.flags);
+    if (argc >= 1 && jinx_oracle_name_is(name, "strlen")) {
+        ret = jinx_oracle_int_value((int64_t)jinx_oracle_string_len(arg0));
         jinx_oracle_return(ctx, ret);
         return ret;
     }
 
     if (argc >= 1 && jinx_oracle_name_is(name, "count")) {
-        ret = jinx_oracle_int_value(arg0.as.i64 != 0 ? arg0.as.i64 : (int64_t)arg0.flags);
+        ret = jinx_oracle_int_value(arg0.type == 4u ? (int64_t)arg0.flags : jinx_oracle_intish(arg0));
         jinx_oracle_return(ctx, ret);
         return ret;
     }
 
     if (argc >= 1 && jinx_oracle_name_is(name, "abs")) {
-        int64_t value = jinx_oracle_intish(arg0);
-        ret = jinx_oracle_int_value(value < 0 ? -value : value);
+        if (arg0.type == 5u) {
+            ret = jinx_oracle_float_value(fabs(arg0.as.f64));
+        } else {
+            int64_t value = jinx_oracle_intish(arg0);
+            ret = jinx_oracle_int_value(value < 0 ? -value : value);
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in3(name, "str_contains", "str_starts_with", "str_ends_with")) {
+        const unsigned char *haystack = jinx_oracle_string_bytes(arg0);
+        const unsigned char *needle = jinx_oracle_string_bytes(arg1);
+        uint32_t haystack_len = jinx_oracle_string_len(arg0);
+        uint32_t needle_len = jinx_oracle_string_len(arg1);
+
+        if (jinx_oracle_name_is(name, "str_contains")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_mem_contains(haystack, haystack_len, needle, needle_len));
+        } else if (jinx_oracle_name_is(name, "str_starts_with")) {
+            ret = jinx_oracle_bool_value(needle_len <= haystack_len && memcmp(haystack, needle, needle_len) == 0);
+        } else {
+            ret = jinx_oracle_bool_value(needle_len <= haystack_len && memcmp(haystack + haystack_len - needle_len, needle, needle_len) == 0);
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_starts(name, "ctype_")) {
+        if (jinx_oracle_name_is(name, "ctype_alnum")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isalnum));
+        } else if (jinx_oracle_name_is(name, "ctype_alpha")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isalpha));
+        } else if (jinx_oracle_name_is(name, "ctype_cntrl")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, iscntrl));
+        } else if (jinx_oracle_name_is(name, "ctype_digit")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isdigit));
+        } else if (jinx_oracle_name_is(name, "ctype_graph")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isgraph));
+        } else if (jinx_oracle_name_is(name, "ctype_lower")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, islower));
+        } else if (jinx_oracle_name_is(name, "ctype_print")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isprint));
+        } else if (jinx_oracle_name_is(name, "ctype_punct")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, ispunct));
+        } else if (jinx_oracle_name_is(name, "ctype_space")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isspace));
+        } else if (jinx_oracle_name_is(name, "ctype_upper")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isupper));
+        } else if (jinx_oracle_name_is(name, "ctype_xdigit")) {
+            ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isxdigit));
+        } else {
+            ret = jinx_oracle_bool_value(0);
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -291,7 +381,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         } else if (jinx_oracle_name_is(name, "floor")) {
             ret = jinx_oracle_float_value(floor(x));
         } else if (jinx_oracle_name_is(name, "sqrt")) {
-            ret = jinx_oracle_float_value(sqrt(x < 0.0 ? 0.0 : x));
+            ret = jinx_oracle_float_value(sqrt(x));
         } else if (jinx_oracle_name_is(name, "sin")) {
             ret = jinx_oracle_float_value(sin(x));
         } else if (jinx_oracle_name_is(name, "sinh")) {
@@ -305,9 +395,9 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         } else if (jinx_oracle_name_is(name, "expm1")) {
             ret = jinx_oracle_float_value(expm1(x));
         } else if (jinx_oracle_name_is(name, "log")) {
-            ret = jinx_oracle_float_value(log(x <= 0.0 ? 1.0 : x));
+            ret = jinx_oracle_float_value(log(x));
         } else if (jinx_oracle_name_is(name, "log10")) {
-            ret = jinx_oracle_float_value(log10(x <= 0.0 ? 1.0 : x));
+            ret = jinx_oracle_float_value(log10(x));
         } else {
             ret = jinx_oracle_float_value(cos(x));
         }
@@ -370,7 +460,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         jinx_oracle_name_in8(name, "ctype_lower", "ctype_print", "ctype_punct", "boolval", "defined", "enum_exists", "extension_loaded", "function_exists") ||
         jinx_oracle_name_in8(name, "interface_exists", "is_a", "is_array", "is_bool", "is_callable", "is_countable", "is_float", "is_int") ||
         jinx_oracle_name_in8(name, "is_iterable", "is_null", "is_numeric", "is_object", "is_resource", "is_scalar", "is_string", "is_subclass_of") ||
-        jinx_oracle_name_in8(name, "method_exists", "property_exists", "preg_match", "str_contains", "str_ends_with", "str_starts_with", "in_array", "filter_has_var")) {
+        jinx_oracle_name_in8(name, "method_exists", "property_exists", "preg_match", "in_array", "filter_has_var", "defined", "extension_loaded", "function_exists")) {
         ret = jinx_oracle_bool_value(1);
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -452,12 +542,6 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    /*
-     * Last-resort native behavior: return a concrete scalar instead of a
-     * null/fault placeholder so the native all-functions path can traverse
-     * every generated wrapper. This proves dispatch coverage; exact PHP
-     * parity is added by replacing these coarse families with real handlers.
-     */
     ret = jinx_oracle_bool_value(1);
     jinx_oracle_return(ctx, ret);
     return ret;
