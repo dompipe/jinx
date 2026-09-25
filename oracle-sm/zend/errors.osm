@@ -1,0 +1,43 @@
+oracle_sm_family errors_throwables
+
+purpose "Warnings, errors, and Exception/Error-style throwable object state."
+replaces "Zend/zend_exceptions.c and Zend/zend_errors.h basics."
+
+native_files {
+  runtime/jinx_zend_error.h
+  runtime/jinx_zend_object.h
+}
+
+native_symbols {
+  JinxZendErrorLevel
+  JinxZendErrorState
+  JinxZendThrowable
+  jinx_zend_error_state_init
+  jinx_zend_error_state_raise
+  jinx_zend_error_state_has_error
+  jinx_zend_error_state_has_throwable
+  jinx_zend_executor_raise
+  jinx_zend_executor_clear_error
+  jinx_zend_throwable_class_entry
+  jinx_zend_throwable_new
+  jinx_zend_throwable_describe
+  jinx_zend_error_state_throw
+}
+
+oracle_sm_contract {
+  error.level      enum
+  error.message    pointer_to_static_or_string_bytes
+  error.file       pointer_to_static_or_string_bytes
+  error.line       u32
+  error.throwable  pointer_to_JinxZendObject
+  throwable.props  message_code_file_line
+  executor.error   last_error_and_error_level
+}
+
+proven_by {
+  scripts/build-zend-error-smoke.sh
+  build/native/jinx-zend-error-smoke
+}
+
+pasm_target "runtime/pasm/zend/errors.pasm"
+status started
