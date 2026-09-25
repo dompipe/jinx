@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/WebBackPageBridge.php';
 
+use jinx\web\WebApiCompiler;
 use jinx\web\WebBackPageBridge;
 
 /**
- * Benchmarks the web back-page bridge in the same hot-worker style as the
- * Oracle builtin benchmark. PHP is the direct route baseline. JINX is the
- * precompiled back-page bridge path. No shell spawning or socket timing is
- * included.
+ * Benchmarks the web back-page path in the same hot-worker style as the Oracle
+ * builtin benchmark. PHP is the direct route baseline. JINX can run either the
+ * response-envelope bridge path or the raw template path. No shell spawning or
+ * socket timing is included.
  *
  * Run through repository-root native ./jinx:
- *   ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000
+ *   ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
  */
 
 function fail(string $message): never
@@ -28,14 +29,15 @@ function parse_args(array $argv): array
     $options = [
         'requests' => 10000,
         'warmup' => 1000,
+        'jinx_mode' => 'raw-template',
         'json' => null,
         'fail_fast' => false,
     ];
 
     foreach (array_slice($argv, 1) as $arg) {
         if ($arg === '--help' || $arg === '-h') {
-            echo "Web back-page hot benchmark\n";
-            echo "Usage: ./jinx scripts/benchmark-web-back-page-hot.php [--requests=N] [--warmup=N] [--json=path] [--fail-fast]\n";
+            echo "Web back-page hot benchmark" . PHP_EOL;
+            echo "Usage: ./jinx scripts/benchmark-web-back-page-hot.php [--requests=N] [--warmup=N] [--jinx-mode=raw-template|bridge] [--json=path] [--fail-fast]" . PHP_EOL;
             exit(0);
         }
         if ($arg === '--fail-fast') {
@@ -48,6 +50,10 @@ function parse_args(array $argv): array
         }
         if (preg_match('/^--warmup=(\d+)$/', $arg, $m)) {
             $options['warmup'] = max(0, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^--jinx-mode=(raw-template|bridge)$/', $arg, $m)) {
+            $options['jinx_mode'] = $m[1];
             continue;
         }
         if (str_starts_with($arg, '--json=')) {
@@ -128,7 +134,7 @@ function run_php_side(int $start, int $count, bool $failFast): array
 }
 
 /** @return array{seconds:float,digest:string,mismatches:int,requests:int} */
-function run_jinx_side(WebBackPageBridge $bridge, int $start, int $count, bool $failFast): array
+function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count, bool $failFast): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
@@ -144,6 +150,38 @@ function run_jinx_side(WebBackPageBridge $bridge, int $start, int $count, bool $
             $mismatches++;
             if ($failFast) {
                 fail('unexpected JINX status at request ' . ($start + $i));
+            }
+        }
+    }
+
+    return [
+        'seconds' => (hrtime(true) - $begin) / 1_000_000_000,
+        'digest' => hash_final($hash),
+        'mismatches' => $mismatches,
+        'requests' => $count,
+    ];
+}
+
+/**
+ * @param array{required_key:string,success_prefix:string,success_suffix:string,error_body:string} $template
+ * @return array{seconds:float,digest:string,mismatches:int,requests:int}
+ */
+function run_jinx_raw_template_side(array $template, int $start, int $count, bool $failFast): array
+{
+    $hash = hash_init('sha256');
+    $mismatches = 0;
+    $begin = hrtime(true);
+
+    for ($i = 0; $i < $count; $i++) {
+        $request = make_request_envelope($start + $i);
+        $response = WebBackPageBridge::executeFastTemplate($template, (string) ($request['body'] ?? ''));
+        $line = $response['status'] . ':' . $response['body'];
+        hash_update($hash, $line . "\n");
+
+        if (!in_array($response['status'], [200, 400], true)) {
+            $mismatches++;
+            if ($failFast) {
+                fail('unexpected JINX raw-template status at request ' . ($start + $i));
             }
         }
     }
@@ -175,29 +213,53 @@ $root = dirname(__DIR__);
 $options = parse_args($argv);
 $requests = (int) $options['requests'];
 $warmup = (int) $options['warmup'];
+$jinxMode = (string) $options['jinx_mode'];
 $failFast = (bool) $options['fail_fast'];
 $route = $root . '/fixtures/simple-web-api-validated.php';
-$bridge = WebBackPageBridge::fromRouteFile($route);
+$bridge = null;
+$template = null;
+
+if ($jinxMode === 'bridge') {
+    $bridge = WebBackPageBridge::fromRouteFile($route);
+} else {
+    $plan = WebApiCompiler::compileFileToPlan($route);
+    $template = WebBackPageBridge::compileFastTemplate($plan);
+    if ($template === null) {
+        fail('Route plan is not supported by raw-template mode.');
+    }
+}
+
+$runJinx = static function (int $start, int $count) use ($jinxMode, $failFast, &$bridge, &$template): array {
+    if ($jinxMode === 'bridge') {
+        return run_jinx_bridge_side($bridge, $start, $count, $failFast);
+    }
+    return run_jinx_raw_template_side($template, $start, $count, $failFast);
+};
 
 if ($warmup > 0) {
     run_php_side(0, $warmup, $failFast);
-    run_jinx_side($bridge, 0, $warmup, $failFast);
+    $runJinx(0, $warmup);
 }
 
 $php = run_php_side($warmup, $requests, $failFast);
-$jinx = run_jinx_side($bridge, $warmup, $requests, $failFast);
+$jinx = $runJinx($warmup, $requests);
 $ratio = $jinx['seconds'] > 0.0 ? $php['seconds'] / $jinx['seconds'] : 0.0;
 $mismatches = $php['mismatches'] + $jinx['mismatches'] + ($php['digest'] === $jinx['digest'] ? 0 : 1);
+$jinxLabel = $jinxMode === 'bridge' ? 'JINX-bridge' : 'JINX-raw';
+$modeText = $jinxMode === 'bridge'
+    ? 'PHP direct route baseline / JINX response-envelope back-page bridge / no socket timing / no process-spawn timing'
+    : 'PHP direct route baseline / JINX raw body-to-status-body template / no response envelope timing / no socket timing / no process-spawn timing';
 
 printf("Web back-page hot benchmark\n");
 printf("Requests measured: %d, warmup: %d\n", $requests, $warmup);
-printf("Mode: PHP direct route baseline / JINX precompiled back-page bridge / no socket timing / no process-spawn timing\n\n");
+printf("JINX mode: %s\n", $jinxMode);
+printf("Mode: %s\n\n", $modeText);
 printf("%-12s %14s %14s %14s %14s\n", 'Worker', 'total ms', 'us/request', 'req/sec', 'checksum');
 printf("%s\n", str_repeat('-', 86));
 printf("%-12s %14s %14s %14s %s\n", 'PHP-direct', ms($php['seconds']), us_per_req($php['seconds'], $requests), rps($php['seconds'], $requests), substr($php['digest'], 0, 16));
-printf("%-12s %14s %14s %14s %s\n", 'JINX-back', ms($jinx['seconds']), us_per_req($jinx['seconds'], $requests), rps($jinx['seconds'], $requests), substr($jinx['digest'], 0, 16));
+printf("%-12s %14s %14s %14s %s\n", $jinxLabel, ms($jinx['seconds']), us_per_req($jinx['seconds'], $requests), rps($jinx['seconds'], $requests), substr($jinx['digest'], 0, 16));
 printf("%s\n", str_repeat('-', 86));
-printf("PHP-direct/JINX-back ratio: %sx\n", number_format($ratio, 2));
+printf("PHP-direct/%s ratio: %sx\n", $jinxLabel, number_format($ratio, 2));
 printf("PHP checksum:  %s\n", $php['digest']);
 printf("JINX checksum: %s\n", $jinx['digest']);
 printf("Mismatches: %d\n", $mismatches);
@@ -206,10 +268,11 @@ $payload = [
     'kind' => 'JINX_WEB_BACK_PAGE_HOT_BENCHMARK',
     'requests' => $requests,
     'warmup' => $warmup,
-    'mode' => 'PHP direct route baseline / JINX precompiled back-page bridge / no socket timing / no process-spawn timing',
+    'jinx_mode' => $jinxMode,
+    'mode' => $modeText,
     'php' => $php,
     'jinx' => $jinx,
-    'ratio_php_direct_over_jinx_back_page' => $ratio,
+    'ratio_php_direct_over_jinx' => $ratio,
     'mismatches' => $mismatches,
 ];
 
@@ -228,4 +291,4 @@ if ($mismatches > 0) {
     exit(1);
 }
 
-echo "PASS: web back-page hot benchmark completed with PHP direct route and matching JINX back-page responses" . PHP_EOL;
+echo "PASS: web back-page hot benchmark completed with PHP direct route and matching JINX responses" . PHP_EOL;
