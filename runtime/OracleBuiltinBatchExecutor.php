@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace jinx\oracle;
 
 /**
- * Strict executor for the second builtin-focused family batch.
+ * Strict executor for builtin-focused family batches.
  *
  * This intentionally supports only straight-line assignment, echo, return, array
  * literals, concatenation, and the builtins proven by the comparison fixtures.
@@ -176,8 +176,18 @@ final class OracleBuiltinBatchExecutor
             'array_merge' => array_merge(...array_map(static fn (mixed $arg): array => (array) $arg, $args)),
             'array_reverse' => array_reverse((array) ($args[0] ?? [])),
             'array_unique' => array_unique((array) ($args[0] ?? [])),
+            'array_keys' => array_keys((array) ($args[0] ?? [])),
+            'array_values' => array_values((array) ($args[0] ?? [])),
+            'array_slice' => array_slice((array) ($args[0] ?? []), (int) ($args[1] ?? 0), isset($args[2]) ? (int) $args[2] : null),
             'json_encode' => json_encode($args[0] ?? null),
             'md5' => md5((string) ($args[0] ?? '')),
+            'ltrim' => ltrim((string) ($args[0] ?? '')),
+            'rtrim' => rtrim((string) ($args[0] ?? '')),
+            'ucfirst' => ucfirst((string) ($args[0] ?? '')),
+            'lcfirst' => lcfirst((string) ($args[0] ?? '')),
+            'strrev' => strrev((string) ($args[0] ?? '')),
+            'str_repeat' => str_repeat((string) ($args[0] ?? ''), (int) ($args[1] ?? 0)),
+            'str_pad' => str_pad((string) ($args[0] ?? ''), (int) ($args[1] ?? 0), (string) ($args[2] ?? ' ')),
             default => throw new \RuntimeException("Unsupported Oracle builtin: {$name}"),
         };
     }
