@@ -10,6 +10,7 @@ This is not a wholesale import of php-src headers. The point is to mirror the Ze
 runtime/jinx_zend_engine.h
 runtime/jinx_zend_engine.c
 native/jinx_zend_smoke.c
+native/jinx_zend_array_builtin_smoke.c
 ```
 
 Build and smoke test:
@@ -17,6 +18,7 @@ Build and smoke test:
 ```bash
 ./scripts/build-zend-smoke.sh
 ./build/native/jinx-zend-smoke
+./build/native/jinx-zend-array-builtin-smoke
 ```
 
 Full native build also compiles the Zend smoke binary:
@@ -53,7 +55,7 @@ JinxZendCallFrame   function call frame shell
 JinxZendExecutor    executor/request state shell
 ```
 
-The smoke test proves:
+The smoke tests prove:
 
 ```text
 borrowed/interned string view creation
@@ -75,6 +77,7 @@ array_key_exists() for numeric and string keys
 array_is_list() over packed/insertion-order buckets
 array_values() producing a packed values array
 array_keys() producing numeric/string key values
+PHP builtin-name bridge for count, array_key_exists, array_is_list, array_values, array_keys
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
@@ -82,7 +85,7 @@ family manifest enumeration
 
 ## Native array builtin helpers
 
-These helpers are now implemented against `JinxZendArray`:
+These helpers are implemented against `JinxZendArray`:
 
 ```text
 jinx_zend_array_count_builtin
@@ -93,7 +96,7 @@ jinx_zend_array_values_builtin
 jinx_zend_array_keys_builtin
 ```
 
-They are runtime-ready. The next step is wiring the generated Oracle builtin dispatch so the PHP names below use these helpers when the incoming value is a native Zend array:
+The standalone bridge smoke now proves the PHP names below route to those helpers:
 
 ```text
 count
@@ -103,14 +106,23 @@ array_values
 array_keys
 ```
 
+Current bridge executable:
+
+```bash
+./build/native/jinx-zend-array-builtin-smoke
+```
+
+The next integration point is the generated Oracle builtin dispatch header so native `./jinx oracle-call` can route these PHP names to Zend arrays once CLI/Oracle values can carry `JinxZendArray *` pointers.
+
 ## Next implementation steps
 
-1. Add deletion/tombstones and compaction rules.
+1. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
 2. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
-3. Lower `foreach` onto `jinx_zend_array_iter_at`.
-4. Add object class table and method dispatch.
-5. Add error/warning/exception objects.
-6. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+3. Add deletion/tombstones and compaction rules.
+4. Lower `foreach` onto `jinx_zend_array_iter_at`.
+5. Add object class table and method dispatch.
+6. Add error/warning/exception objects.
+7. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
