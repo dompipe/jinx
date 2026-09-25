@@ -27,9 +27,12 @@ require_once dirname(__DIR__) . '/runtime/OracleRegexStringBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayMutationBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleSecurityNetworkBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRuntimeInfoBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
-use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleMergedExecutionFamilies;
 
 function fail(string $message): never
 {
@@ -38,10 +41,10 @@ function fail(string $message): never
 }
 
 $root = dirname(__DIR__);
-$families = OracleExecutionFamilies::all();
+$families = OracleMergedExecutionFamilies::all();
 
-if (count($families) < 141) {
-    fail('expected at least 141 executable Oracle families, found ' . count($families));
+if (count($families) < 550) {
+    fail('expected at least 550 executable Oracle families after generated merge, found ' . count($families));
 }
 
 foreach ($families as $family => $metadata) {
