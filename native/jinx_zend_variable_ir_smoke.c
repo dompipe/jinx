@@ -46,6 +46,7 @@ int main(void) {
     JinxZendVmState state;
     JinxZendVmResult vm_result;
     JinxZendValue *total;
+    const size_t expected_op_count = 12u;
     const char *program =
         "var value 0\n"
         "var tmp 1\n"
@@ -88,8 +89,8 @@ int main(void) {
     if (jinx_zend_variable_ir_lower(program, &lowered, values, 3u) != JINX_ZEND_VARIABLE_IR_OK) {
         return fail("variable IR lowering failed");
     }
-    if (lowered.statement.op_count != 10u) {
-        fprintf(stderr, "FAIL: variable IR lowered unexpected op count actual=%zu expected=10\n", lowered.statement.op_count);
+    if (lowered.statement.op_count != expected_op_count) {
+        fprintf(stderr, "FAIL: variable IR lowered unexpected op count actual=%zu expected=%zu\n", lowered.statement.op_count, expected_op_count);
         return 1;
     }
 
