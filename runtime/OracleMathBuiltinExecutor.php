@@ -135,12 +135,16 @@ final class OracleMathBuiltinExecutor
         throw new \RuntimeException("Unsupported Oracle math builtin expression: {$expr}");
     }
 
-    /** @return array<string,float> */
+    /** @return array<string,mixed> */
     private static function constants(): array
     {
         return [
             'INF' => INF,
             'NAN' => NAN,
+            'PHP_ROUND_HALF_UP' => PHP_ROUND_HALF_UP,
+            'PHP_ROUND_HALF_DOWN' => PHP_ROUND_HALF_DOWN,
+            'PHP_ROUND_HALF_EVEN' => PHP_ROUND_HALF_EVEN,
+            'PHP_ROUND_HALF_ODD' => PHP_ROUND_HALF_ODD,
         ];
     }
 
@@ -170,6 +174,23 @@ final class OracleMathBuiltinExecutor
             'is_infinite' => is_infinite((float) ($args[0] ?? 0)),
             'is_nan' => is_nan((float) ($args[0] ?? 0)),
             'number_format' => number_format((float) ($args[0] ?? 0), (int) ($args[1] ?? 0), (string) ($args[2] ?? '.'), (string) ($args[3] ?? ',')),
+            'acosh' => acosh((float) ($args[0] ?? 1)),
+            'asinh' => asinh((float) ($args[0] ?? 0)),
+            'atanh' => atanh((float) ($args[0] ?? 0)),
+            'atan2' => atan2((float) ($args[0] ?? 0), (float) ($args[1] ?? 1)),
+            'log10' => log10((float) ($args[0] ?? 1)),
+            'log1p' => log1p((float) ($args[0] ?? 0)),
+            'expm1' => expm1((float) ($args[0] ?? 0)),
+            'sinh' => sinh((float) ($args[0] ?? 0)),
+            'cosh' => cosh((float) ($args[0] ?? 0)),
+            'tanh' => tanh((float) ($args[0] ?? 0)),
+            'fdiv' => fdiv((float) ($args[0] ?? 0), (float) ($args[1] ?? 1)),
+            'abs' => abs($args[0] ?? 0),
+            'max' => max(...$args),
+            'min' => min(...$args),
+            'round' => round((float) ($args[0] ?? 0), (int) ($args[1] ?? 0), (int) ($args[2] ?? PHP_ROUND_HALF_UP)),
+            'getrandmax' => getrandmax(),
+            'mt_getrandmax' => mt_getrandmax(),
             default => throw new \RuntimeException("Unsupported Oracle math builtin: {$name}"),
         };
     }
