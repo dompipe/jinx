@@ -70,7 +70,7 @@ Can a warmed JINX worker serve repeated web-style requests faster than equivalen
 1. `scripts/serve-php-web-worker.php` through PHP
 2. `scripts/serve-jinx-web-worker.php` through repository-root native `./jinx`
 
-Both workers use the same tiny socket-server harness. The PHP worker runs the PHP route logic directly. The JINX worker compiles `fixtures/simple-web-api-validated.php` once at startup and serves through `runtime/WebBackPageBridge.php`: the HTTP front side converts each request into a back-page request envelope, the bridge executes the route off the HTTP path, and the front side writes the returned response envelope.
+Both workers use the same tiny socket-server harness. The PHP worker runs the PHP route logic directly. The JINX worker compiles `fixtures/simple-web-api-validated.php` once at startup and serves the compiled web plan. The benchmark then sends identical live HTTP POST requests to both workers and compares status/body checksums.
 
 This answers:
 
@@ -123,6 +123,8 @@ Use alternate ports if the defaults are busy:
 ```bash
 ./jinx scripts/benchmark-live-web-keepalive.php --php-port=18180 --jinx-port=18181 --requests=10000 --warmup=500 --jinx-mode=fast-template
 ```
+
+If a worker cannot start, the benchmark now waits for the health endpoint and prints captured stdout/stderr plus process status. A connection-refused message by itself usually means the previous script tried the socket before the worker finished starting; the hardened version retries before failing.
 
 The keep-alive benchmark reports average latency, p95 latency, min/max latency, requests per second, response checksums, and the PHP/JINX average latency ratio. Values above `1.00x` for `PHP/JINX avg latency ratio` mean the JINX live worker was faster.
 
