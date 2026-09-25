@@ -8,13 +8,14 @@ use jinx\web\WebApiCompiler;
 use jinx\web\WebBackPageBridge;
 
 /**
- * Benchmarks the web back-page path in the same hot-worker style as the Oracle
- * builtin benchmark. PHP is the direct route baseline. JINX can run either the
- * response-envelope bridge path or the raw template path. No shell spawning or
- * socket timing is included.
+ * Benchmarks web-shaped back-page work in the same hot-worker style as the
+ * Oracle builtin benchmark. PHP is the direct route baseline. JINX can run
+ * either the response-envelope bridge path or the raw template path. No shell
+ * spawning or socket timing is included.
  *
  * Run through repository-root native ./jinx:
  *   ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
+ *   ./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
  */
 
 function fail(string $message): never
@@ -30,6 +31,7 @@ function parse_args(array $argv): array
         'requests' => 10000,
         'warmup' => 1000,
         'jinx_mode' => 'raw-template',
+        'workload' => 'tiny',
         'json' => null,
         'fail_fast' => false,
     ];
@@ -37,7 +39,7 @@ function parse_args(array $argv): array
     foreach (array_slice($argv, 1) as $arg) {
         if ($arg === '--help' || $arg === '-h') {
             echo "Web back-page hot benchmark" . PHP_EOL;
-            echo "Usage: ./jinx scripts/benchmark-web-back-page-hot.php [--requests=N] [--warmup=N] [--jinx-mode=raw-template|bridge] [--json=path] [--fail-fast]" . PHP_EOL;
+            echo "Usage: ./jinx scripts/benchmark-web-back-page-hot.php [--workload=tiny|large] [--requests=N] [--warmup=N] [--jinx-mode=raw-template|bridge] [--json=path] [--fail-fast]" . PHP_EOL;
             exit(0);
         }
         if ($arg === '--fail-fast') {
@@ -56,6 +58,10 @@ function parse_args(array $argv): array
             $options['jinx_mode'] = $m[1];
             continue;
         }
+        if (preg_match('/^--workload=(tiny|large)$/', $arg, $m)) {
+            $options['workload'] = $m[1];
+            continue;
+        }
         if (str_starts_with($arg, '--json=')) {
             $options['json'] = substr($arg, strlen('--json='));
             continue;
@@ -67,7 +73,7 @@ function parse_args(array $argv): array
 }
 
 /** @return array<string,mixed> */
-function make_request_envelope(int $i): array
+function make_tiny_request_envelope(int $i): array
 {
     $body = $i % 10 === 0
         ? (json_encode(['missing' => 'name-' . $i]) ?: '{}')
@@ -84,8 +90,51 @@ function make_request_envelope(int $i): array
     ];
 }
 
+/** @return array<string,mixed> */
+function make_large_request_envelope(int $i): array
+{
+    $base = 'jinx-title-' . $i . '-oracle-pasm-worker-route-template';
+    $tags = [
+        'alpha-' . ($i % 7),
+        'beta-' . ($i % 11),
+        'gamma-' . ($i % 13),
+        'delta-' . ($i % 17),
+        'epsilon-' . ($i % 19),
+    ];
+    $numbers = [
+        $i % 97,
+        ($i * 3) % 101,
+        ($i * 5) % 103,
+        ($i * 7) % 107,
+        ($i * 11) % 109,
+        ($i * 13) % 113,
+        ($i * 17) % 127,
+        ($i * 19) % 131,
+    ];
+
+    $bodyPayload = $i % 10 === 0
+        ? ['missing' => 'name-' . $i, 'seq' => $i, 'title' => $base, 'tags' => $tags, 'numbers' => $numbers]
+        : ['name' => 'name-' . $i, 'seq' => $i, 'title' => $base, 'tags' => $tags, 'numbers' => $numbers];
+
+    return [
+        'method' => 'POST',
+        'path' => '/api/large',
+        'headers' => [
+            'content-type' => 'application/json',
+            'x-jinx-request' => 'large-' . $i,
+        ],
+        'body' => json_encode($bodyPayload, JSON_UNESCAPED_SLASHES) ?: '{}',
+    ];
+}
+
+/** @return array<string,mixed> */
+function make_request_envelope(int $i, string $workload): array
+{
+    return $workload === 'large' ? make_large_request_envelope($i) : make_tiny_request_envelope($i);
+}
+
 /** @return array{status:int,headers:array<string,string>,body:string} */
-function php_direct_route(array $request): array
+function php_tiny_route(array $request): array
 {
     $body = (string) ($request['body'] ?? '');
     $decoded = json_decode($body, true);
@@ -104,16 +153,179 @@ function php_direct_route(array $request): array
     ];
 }
 
+/** @return array{status:int,headers:array<string,string>,body:string} */
+function php_large_route(array $request): array
+{
+    $body = (string) ($request['body'] ?? '');
+    $decoded = json_decode($body, true);
+    if (!is_array($decoded) || !isset($decoded['name'])) {
+        return [
+            'status' => 400,
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode(['ok' => false, 'error' => 'Missing name']) ?: '',
+        ];
+    }
+
+    $name = (string) $decoded['name'];
+    $seq = (int) ($decoded['seq'] ?? 0);
+    $title = (string) ($decoded['title'] ?? '');
+    $tags = array_values(array_map('strval', is_array($decoded['tags'] ?? null) ? $decoded['tags'] : []));
+    $numbers = array_values(array_map('intval', is_array($decoded['numbers'] ?? null) ? $decoded['numbers'] : []));
+
+    $sum = 0;
+    foreach ($numbers as $n) {
+        $sum += ($n * 3) + ($seq % 17);
+    }
+
+    $tagLine = implode('|', $tags);
+    $normalized = strtoupper(str_replace(['-', '_'], ' ', trim($title . ' ' . $tagLine)));
+    $vowels = substr_count($normalized, 'A') + substr_count($normalized, 'E') + substr_count($normalized, 'I') + substr_count($normalized, 'O') + substr_count($normalized, 'U');
+    $score = strlen($name) + strlen($normalized) + $vowels + ($sum % 997);
+    $hash = substr(hash('sha256', $name . '|' . $seq . '|' . $normalized . '|' . $sum), 0, 16);
+    $label = substr(strtolower(str_replace(' ', '-', $normalized)), 0, 48);
+
+    return [
+        'status' => 200,
+        'headers' => ['Content-Type' => 'application/json'],
+        'body' => json_encode([
+            'ok' => true,
+            'name' => $name,
+            'seq' => $seq,
+            'score' => $score,
+            'hash' => $hash,
+            'label' => $label,
+        ], JSON_UNESCAPED_SLASHES) ?: '',
+    ];
+}
+
+/** @return array{status:int,headers:array<string,string>,body:string} */
+function php_direct_route(array $request, string $workload): array
+{
+    return $workload === 'large' ? php_large_route($request) : php_tiny_route($request);
+}
+
+function json_string_field(string $body, string $field): ?string
+{
+    $needle = '"' . $field . '":"';
+    $start = strpos($body, $needle);
+    if ($start === false) {
+        return null;
+    }
+    $start += strlen($needle);
+    $end = strpos($body, '"', $start);
+    if ($end === false) {
+        return null;
+    }
+    return substr($body, $start, $end - $start);
+}
+
+function json_int_field(string $body, string $field): int
+{
+    $needle = '"' . $field . '":';
+    $start = strpos($body, $needle);
+    if ($start === false) {
+        return 0;
+    }
+    $start += strlen($needle);
+    $end = $start;
+    $len = strlen($body);
+    while ($end < $len && ctype_digit($body[$end])) {
+        $end++;
+    }
+    return (int) substr($body, $start, $end - $start);
+}
+
+/** @return list<int> */
+function json_int_array_field(string $body, string $field): array
+{
+    $needle = '"' . $field . '":[';
+    $start = strpos($body, $needle);
+    if ($start === false) {
+        return [];
+    }
+    $start += strlen($needle);
+    $end = strpos($body, ']', $start);
+    if ($end === false) {
+        return [];
+    }
+    $raw = substr($body, $start, $end - $start);
+    if ($raw === '') {
+        return [];
+    }
+    return array_map('intval', explode(',', $raw));
+}
+
+/** @return list<string> */
+function json_string_array_field(string $body, string $field): array
+{
+    $needle = '"' . $field . '":[';
+    $start = strpos($body, $needle);
+    if ($start === false) {
+        return [];
+    }
+    $start += strlen($needle);
+    $end = strpos($body, ']', $start);
+    if ($end === false) {
+        return [];
+    }
+    $raw = substr($body, $start, $end - $start);
+    if ($raw === '') {
+        return [];
+    }
+    $parts = explode(',', $raw);
+    $out = [];
+    foreach ($parts as $part) {
+        $out[] = trim($part, '"');
+    }
+    return $out;
+}
+
+/** @return array{status:int,body:string} */
+function jinx_large_raw_route(string $body): array
+{
+    $name = json_string_field($body, 'name');
+    if ($name === null) {
+        return ['status' => 400, 'body' => json_encode(['ok' => false, 'error' => 'Missing name']) ?: ''];
+    }
+
+    $seq = json_int_field($body, 'seq');
+    $title = json_string_field($body, 'title') ?? '';
+    $tags = json_string_array_field($body, 'tags');
+    $numbers = json_int_array_field($body, 'numbers');
+
+    $sum = 0;
+    foreach ($numbers as $n) {
+        $sum += ($n * 3) + ($seq % 17);
+    }
+
+    $tagLine = implode('|', $tags);
+    $normalized = strtoupper(str_replace(['-', '_'], ' ', trim($title . ' ' . $tagLine)));
+    $vowels = substr_count($normalized, 'A') + substr_count($normalized, 'E') + substr_count($normalized, 'I') + substr_count($normalized, 'O') + substr_count($normalized, 'U');
+    $score = strlen($name) + strlen($normalized) + $vowels + ($sum % 997);
+    $hash = substr(hash('sha256', $name . '|' . $seq . '|' . $normalized . '|' . $sum), 0, 16);
+    $label = substr(strtolower(str_replace(' ', '-', $normalized)), 0, 48);
+
+    return [
+        'status' => 200,
+        'body' => '{"ok":true,"name":' . (json_encode($name) ?: '""')
+            . ',"seq":' . $seq
+            . ',"score":' . $score
+            . ',"hash":' . (json_encode($hash) ?: '""')
+            . ',"label":' . (json_encode($label) ?: '""')
+            . '}',
+    ];
+}
+
 /** @return array{seconds:float,digest:string,mismatches:int,requests:int} */
-function run_php_side(int $start, int $count, bool $failFast): array
+function run_php_side(int $start, int $count, bool $failFast, string $workload): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $request = make_request_envelope($start + $i);
-        $response = php_direct_route($request);
+        $request = make_request_envelope($start + $i, $workload);
+        $response = php_direct_route($request, $workload);
         $line = $response['status'] . ':' . $response['body'];
         hash_update($hash, $line . "\n");
 
@@ -134,14 +346,14 @@ function run_php_side(int $start, int $count, bool $failFast): array
 }
 
 /** @return array{seconds:float,digest:string,mismatches:int,requests:int} */
-function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count, bool $failFast): array
+function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count, bool $failFast, string $workload): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $request = make_request_envelope($start + $i);
+        $request = make_request_envelope($start + $i, $workload);
         $response = $bridge->handleRequestEnvelope($request);
         $line = ((int) ($response['status'] ?? 0)) . ':' . (string) ($response['body'] ?? '');
         hash_update($hash, $line . "\n");
@@ -166,15 +378,18 @@ function run_jinx_bridge_side(WebBackPageBridge $bridge, int $start, int $count,
  * @param array{required_key:string,success_prefix:string,success_suffix:string,error_body:string} $template
  * @return array{seconds:float,digest:string,mismatches:int,requests:int}
  */
-function run_jinx_raw_template_side(array $template, int $start, int $count, bool $failFast): array
+function run_jinx_raw_template_side(?array $template, int $start, int $count, bool $failFast, string $workload): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $request = make_request_envelope($start + $i);
-        $response = WebBackPageBridge::executeFastTemplate($template, (string) ($request['body'] ?? ''));
+        $request = make_request_envelope($start + $i, $workload);
+        $body = (string) ($request['body'] ?? '');
+        $response = $workload === 'large'
+            ? jinx_large_raw_route($body)
+            : WebBackPageBridge::executeFastTemplate($template ?? [], $body);
         $line = $response['status'] . ':' . $response['body'];
         hash_update($hash, $line . "\n");
 
@@ -214,34 +429,40 @@ $options = parse_args($argv);
 $requests = (int) $options['requests'];
 $warmup = (int) $options['warmup'];
 $jinxMode = (string) $options['jinx_mode'];
+$workload = (string) $options['workload'];
 $failFast = (bool) $options['fail_fast'];
 $route = $root . '/fixtures/simple-web-api-validated.php';
 $bridge = null;
 $template = null;
 
 if ($jinxMode === 'bridge') {
+    if ($workload === 'large') {
+        fail('Large workload currently supports --jinx-mode=raw-template only.');
+    }
     $bridge = WebBackPageBridge::fromRouteFile($route);
 } else {
-    $plan = WebApiCompiler::compileFileToPlan($route);
-    $template = WebBackPageBridge::compileFastTemplate($plan);
-    if ($template === null) {
-        fail('Route plan is not supported by raw-template mode.');
+    if ($workload === 'tiny') {
+        $plan = WebApiCompiler::compileFileToPlan($route);
+        $template = WebBackPageBridge::compileFastTemplate($plan);
+        if ($template === null) {
+            fail('Route plan is not supported by raw-template mode.');
+        }
     }
 }
 
-$runJinx = static function (int $start, int $count) use ($jinxMode, $failFast, &$bridge, &$template): array {
+$runJinx = static function (int $start, int $count) use ($jinxMode, $failFast, $workload, &$bridge, &$template): array {
     if ($jinxMode === 'bridge') {
-        return run_jinx_bridge_side($bridge, $start, $count, $failFast);
+        return run_jinx_bridge_side($bridge, $start, $count, $failFast, $workload);
     }
-    return run_jinx_raw_template_side($template, $start, $count, $failFast);
+    return run_jinx_raw_template_side($template, $start, $count, $failFast, $workload);
 };
 
 if ($warmup > 0) {
-    run_php_side(0, $warmup, $failFast);
+    run_php_side(0, $warmup, $failFast, $workload);
     $runJinx(0, $warmup);
 }
 
-$php = run_php_side($warmup, $requests, $failFast);
+$php = run_php_side($warmup, $requests, $failFast, $workload);
 $jinx = $runJinx($warmup, $requests);
 $ratio = $jinx['seconds'] > 0.0 ? $php['seconds'] / $jinx['seconds'] : 0.0;
 $mismatches = $php['mismatches'] + $jinx['mismatches'] + ($php['digest'] === $jinx['digest'] ? 0 : 1);
@@ -252,6 +473,7 @@ $modeText = $jinxMode === 'bridge'
 
 printf("Web back-page hot benchmark\n");
 printf("Requests measured: %d, warmup: %d\n", $requests, $warmup);
+printf("Workload: %s\n", $workload);
 printf("JINX mode: %s\n", $jinxMode);
 printf("Mode: %s\n\n", $modeText);
 printf("%-12s %14s %14s %14s %14s\n", 'Worker', 'total ms', 'us/request', 'req/sec', 'checksum');
@@ -268,6 +490,7 @@ $payload = [
     'kind' => 'JINX_WEB_BACK_PAGE_HOT_BENCHMARK',
     'requests' => $requests,
     'warmup' => $warmup,
+    'workload' => $workload,
     'jinx_mode' => $jinxMode,
     'mode' => $modeText,
     'php' => $php,
