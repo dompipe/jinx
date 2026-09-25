@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$iterations = max(1, (int) ($argv[1] ?? 100000));
+$iterations = max(1, (int) ($argv[1] ?? 1000));
 $buildFirst = getenv('JINX_SKIP_BUILD') !== '1';
 
 function fail(string $message): never
@@ -32,9 +32,10 @@ function requireOk(string $cmd): string
 }
 
 /**
- * These arguments mirror native/jinx_cli.c:first100_args().
- * They are intentionally simple, deterministic sample values so PHP and the
- * native Oracle/PASM dispatcher run the same named builtin set repeatedly.
+ * Deterministic PHP-side sample arguments for a broad direct-PHP comparison.
+ * The native side always runs every generated name through ./jinx; the PHP side
+ * only runs names that are global functions in the current PHP runtime and can
+ * be called safely with these simple sample values.
  *
  * @return list<mixed>
  */
@@ -157,7 +158,7 @@ if (!is_file($root . '/jinx')) {
     fail('missing native ./jinx; run ./scripts/build-native-jinx.sh first');
 }
 
-$namesOutput = requireOk('cd ' . escapeshellarg($root) . ' && ./jinx first100-list');
+$namesOutput = requireOk('cd ' . escapeshellarg($root) . ' && ./jinx functions');
 $names = [];
 foreach (preg_split('/\R/', trim($namesOutput)) ?: [] as $line) {
     if (preg_match('/^\s*\d+\s+(.+)$/', $line, $m)) {
@@ -166,13 +167,13 @@ foreach (preg_split('/\R/', trim($namesOutput)) ?: [] as $line) {
 }
 
 if ($names === []) {
-    fail('native ./jinx first100-list returned no functions');
+    fail('native ./jinx functions returned no functions');
 }
 
 $phpNames = [];
 $phpSkipped = [];
 foreach ($names as $name) {
-    if (!function_exists($name)) {
+    if (str_contains($name, '::') || !function_exists($name)) {
         $phpSkipped[] = [$name, 'not a global PHP function in this runtime'];
         continue;
     }
@@ -201,30 +202,31 @@ foreach ($phpNames as [$name, $args]) {
 }
 $phpNs = hrtime(true) - $phpStart;
 
-$nativeOutput = requireOk('cd ' . escapeshellarg($root) . ' && ./jinx bench-first100 ' . escapeshellarg((string) $iterations));
+$nativeOutput = requireOk('cd ' . escapeshellarg($root) . ' && ./jinx bench-all-functions ' . escapeshellarg((string) $iterations));
 
-if (!preg_match('/Per call ns:\s*([0-9.]+)/', $nativeOutput, $m)) {
-    fail('could not parse native ./jinx bench-first100 output:' . PHP_EOL . $nativeOutput);
+if (!preg_match('/Per dispatch ns:\s*([0-9.]+)/', $nativeOutput, $m)) {
+    fail('could not parse native ./jinx bench-all-functions output:' . PHP_EOL . $nativeOutput);
 }
 
-$nativePerCallNs = (float) $m[1];
+$nativePerDispatchNs = (float) $m[1];
 $phpTotalCalls = count($phpNames) * $iterations;
 $phpPerCallNs = $phpNs / max(1, $phpTotalCalls);
-$ratio = $nativePerCallNs / max($phpPerCallNs, 0.000001);
+$ratio = $nativePerDispatchNs / max($phpPerCallNs, 0.000001);
 
-printf("PHP vs native ./jinx function benchmark\n");
+printf("PHP vs native ./jinx all-functions benchmark\n");
 printf("Build path: scripts/build-native-jinx.sh -> ./jinx\n");
-printf("PHP cases: %d/%d first native cases parameter-validated in this PHP runtime\n", count($phpNames), count($names));
+printf("Native names: %d generated names from ./jinx functions\n", count($names));
+printf("PHP cases: %d/%d global functions parameter-validated in this PHP runtime\n", count($phpNames), count($names));
 printf("Iterations per function: %d\n", $iterations);
 printf("\n");
 printf("%-18s %14s %14s %10s\n", 'engine', 'functions', 'ns/call', 'ratio');
 printf("%'-62s\n", '');
 printf("%-18s %14d %14.1f %10s\n", 'php', count($phpNames), $phpPerCallNs, '1.00x');
-printf("%-18s %14d %14.1f %9.2fx\n", './jinx native', count($names), $nativePerCallNs, $ratio);
+printf("%-18s %14d %14.1f %9.2fx\n", './jinx native', count($names), $nativePerDispatchNs, $ratio);
 printf("\nNative output:\n%s\n", $nativeOutput);
 
 if ($phpSkipped !== []) {
-    echo PHP_EOL . 'PHP-side skipped cases:' . PHP_EOL;
+    echo PHP_EOL . 'First PHP-side skipped cases:' . PHP_EOL;
     foreach (array_slice($phpSkipped, 0, 20) as [$name, $reason]) {
         echo "- {$name}: {$reason}" . PHP_EOL;
     }
