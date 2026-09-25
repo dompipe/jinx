@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
 
 use jinx\oracle\OracleGeneratedBuiltinExecutor;
+use jinx\oracle\OracleGeneratedExecutionFamilies;
 use jinx\oracle\OracleProgramCompiler;
 
 function fail(string $message): never
@@ -92,13 +94,13 @@ function expression_for_generated_family(int $i): string
 }
 
 $root = dirname(__DIR__);
-$generatedDir = $root . '/build/generated/oracle-generated-175-builtin';
+$generatedDir = $root . '/build/generated/oracle-generated-builtin';
 
 if (!is_dir($generatedDir) && !mkdir($generatedDir, 0777, true) && !is_dir($generatedDir)) {
-    fail('could not create generated 175-builtin fixture directory');
+    fail('could not create generated builtin fixture directory');
 }
 
-for ($i = 1; $i <= 175; $i++) {
+for ($i = 1; $i <= OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES; $i++) {
     $family = sprintf('generated-pure-builtin-%03d', $i);
     $expression = expression_for_generated_family($i);
     $fixture = $generatedDir . '/' . $family . '.php';
@@ -131,4 +133,4 @@ for ($i = 1; $i <= 175; $i++) {
     }
 }
 
-echo 'PASS: Oracle executes generated 175 pure builtin PHP families and matches PHP output/return/error behavior' . PHP_EOL;
+echo 'PASS: Oracle executes generated pure builtin PHP families and matches PHP output/return/error behavior' . PHP_EOL;
