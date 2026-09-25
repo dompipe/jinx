@@ -101,6 +101,19 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'join-builtins' => ['join'], 'count-builtins' => ['count'], 'array-count-values-builtins' => ['array_count_values', 'json_encode'],
+            'array-pad-builtins' => ['array_pad', 'json_encode'], 'array-replace-builtins' => ['array_replace', 'json_encode'],
+            'array-replace-recursive-builtins' => ['array_replace_recursive', 'json_encode'], 'array-is-list-builtins' => ['array_is_list'],
+            'array-filter-builtins' => ['array_filter', 'json_encode'], 'quoted-printable-encode-builtins' => ['quoted_printable_encode'],
+            'quoted-printable-decode-builtins' => ['quoted_printable_decode'], 'convert-uuencode-builtins' => ['convert_uuencode'],
+            'convert-uudecode-builtins' => ['convert_uudecode'], 'pack-builtins' => ['pack', 'bin2hex'], 'unpack-builtins' => ['unpack', 'json_encode'],
+            'decbin-builtins' => ['decbin'], 'dechex-builtins' => ['dechex'], 'decoct-builtins' => ['decoct'],
+            'bindec-builtins' => ['bindec'], 'hexdec-builtins' => ['hexdec'], 'base-convert-builtins' => ['base_convert'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleDataBuiltinExecutor::class, 'scripts/test-oracle-data-builtin-two-execution.php', $builtins);
+        }
+
+        foreach ([
             'chr-builtins' => ['chr'], 'ord-builtins' => ['ord'], 'strcmp-builtins' => ['strcmp'], 'strcasecmp-builtins' => ['strcasecmp'],
             'strncmp-builtins' => ['strncmp'], 'strncasecmp-builtins' => ['strncasecmp'], 'substr-compare-builtins' => ['substr_compare'],
             'similar-text-builtins' => ['similar_text'], 'levenshtein-builtins' => ['levenshtein'], 'soundex-builtins' => ['soundex'],
