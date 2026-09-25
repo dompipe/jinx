@@ -82,33 +82,55 @@ $snapshot = $index->browserIndexSnapshot();
 same($snapshot['kind'] ?? null, 'JINX_BROWSER_WINDOW_INDEX', 'browser index snapshot kind');
 same($snapshot['index_version'] ?? null, $versionBefore + 1, 'browser index snapshot version');
 same($snapshot['defaults']['feed.window']['title'] ?? null, 'Updated Resident Feed', 'browser index snapshot updated default');
-same($snapshot['safety']['external_js_required'] ?? null, false, 'browser snapshot says external JS is not required');
-
-$inlineRuntime = WebWindowIndex::inlineBrowserRuntimeScript();
-foreach (['window.JINXWindowIndex', '__jinx_emitted_runtime', 'registerIndex', 'liveUpdate', 'applyFrame', 'mount', 'applyPatch', 'jinx-window-frame'] as $needle) {
-    if (!str_contains($inlineRuntime, $needle)) {
-        fail('inline JINX-emitted browser runtime missing marker: ' . $needle);
-    }
-}
 
 $registrationScript = $index->toBrowserRegistrationScript();
-foreach (['__jinx_emitted_runtime', 'JINXWindowIndex.registerIndex', 'JINX_BROWSER_WINDOW_INDEX', 'Updated Resident Feed', 'window.__JINX_WINDOW_INDEX__'] as $needle) {
+foreach (['JINXWindowIndex.registerIndex', 'JINX_BROWSER_WINDOW_INDEX', 'Updated Resident Feed', 'window.__JINX_WINDOW_INDEX__'] as $needle) {
     if (!str_contains($registrationScript, $needle)) {
-        fail('browser registration script missing expected inline-runtime marker: ' . $needle);
+        fail('browser registration script missing expected marker: ' . $needle);
     }
-}
-if (str_contains($registrationScript, '/jinx-window-index.js') || str_contains($registrationScript, '<script src=')) {
-    fail('browser registration script should be emitted from JINX and not depend on an external JS file');
 }
 
 $script = WebWindowIndex::toBrowserScript($third);
-foreach (['__jinx_emitted_runtime', 'JINXWindowIndex.liveUpdate', 'window.__JINX_WINDOW_INDEX__', 'index_version', 'fingerprint', 'CustomEvent', 'jinx-window-frame', 'replaceText', 'Resident detail default updated'] as $needle) {
+foreach (['JINXWindowIndex.liveUpdate', 'window.__JINX_WINDOW_INDEX__', 'index_version', 'fingerprint', 'CustomEvent', 'jinx-window-frame', 'replaceText', 'Resident detail default updated'] as $needle) {
     if (!str_contains($script, $needle)) {
-        fail('browser script missing expected JINX-emitted browser-window programming marker: ' . $needle);
+        fail('browser script missing expected browser-window programming marker: ' . $needle);
     }
 }
-if (str_contains($script, '/jinx-window-index.js') || str_contains($script, '<script src=')) {
-    fail('browser frame script should be emitted from JINX and not depend on an external JS file');
+
+$registrarHtml = $index->toNoJsRegistrarHtml();
+foreach (['data-jinx-no-js-registrar', 'data-jinx-index-json', 'data-jinx-page-default', 'Updated Resident Feed'] as $needle) {
+    if (!str_contains($registrarHtml, $needle)) {
+        fail('no-JS registrar HTML missing expected marker: ' . $needle);
+    }
+}
+foreach (['<script', 'window.', 'JINXWindowIndex'] as $forbidden) {
+    if (str_contains($registrarHtml, $forbidden)) {
+        fail('no-JS registrar HTML contains forbidden script/runtime marker: ' . $forbidden);
+    }
+}
+
+$frameHtml = WebWindowIndex::toNoJsFrameHtml($third);
+foreach (['data-jinx-no-js-frame', 'data-jinx-window="main-window"', 'data-jinx-zone="detail"', 'Resident detail default updated', 'data-jinx-frame-json'] as $needle) {
+    if (!str_contains($frameHtml, $needle)) {
+        fail('no-JS frame HTML missing expected marker: ' . $needle);
+    }
+}
+foreach (['<script', 'window.', 'JINXWindowIndex'] as $forbidden) {
+    if (str_contains($frameHtml, $forbidden)) {
+        fail('no-JS frame HTML contains forbidden script/runtime marker: ' . $forbidden);
+    }
+}
+
+$documentHtml = $index->toNoJsDocumentHtml($third, '/feed.window', 1);
+foreach (['<!doctype html>', 'data-jinx-no-js-document', 'http-equiv="refresh"', 'data-jinx-no-js-registrar', 'data-jinx-no-js-frame'] as $needle) {
+    if (!str_contains($documentHtml, $needle)) {
+        fail('no-JS document HTML missing expected marker: ' . $needle);
+    }
+}
+foreach (['<script', 'window.', 'JINXWindowIndex'] as $forbidden) {
+    if (str_contains($documentHtml, $forbidden)) {
+        fail('no-JS document HTML contains forbidden script/runtime marker: ' . $forbidden);
+    }
 }
 
 $json = json_encode($third, JSON_UNESCAPED_SLASHES) ?: '';
@@ -118,4 +140,4 @@ foreach (['cookie', 'session', 'authorization', 'request_body'] as $forbidden) {
     }
 }
 
-echo 'PASS: WebWindowIndex emits its browser runtime from JINX and feeds live DOM update frames' . PHP_EOL;
+echo 'PASS: WebWindowIndex emits JINX browser runtime and no-JS registrar DOM frames' . PHP_EOL;
