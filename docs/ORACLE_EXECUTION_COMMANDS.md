@@ -36,8 +36,9 @@ Use the web back-page hot benchmark for the 89x-style web request aura. PHP stay
 
 ```bash
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=bridge
-./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot.json
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
 ```
 
 Use the warmed web-request worker benchmark for route logic without socket overhead:
