@@ -90,6 +90,14 @@ final class OracleExecutionFamilies
                 'ops' => ['O_DECLARE', 'O_ASSIGN', 'O_ECHO', 'O_PRINT', 'O_EXIT', 'O_RETURN'],
                 'termination_ops' => ['exit_string_output', 'die_alias', 'termination_flag', 'exit_code', 'unreachable_code_stops'],
             ],
+            'object-basics' => [
+                'state' => 'executable',
+                'owner' => OracleObjectExecutor::class,
+                'test' => 'scripts/test-oracle-object-basics-execution.php',
+                'ops' => ['O_DECLARE', 'O_CLASS_DECL', 'O_METHOD_DECL', 'O_NEW', 'O_METHOD_CALL', 'O_PROPERTY_FETCH', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'],
+                'object_ops' => ['class_declaration', 'constructor_call', 'method_call', 'this_property_write', 'this_property_fetch', 'method_return'],
+                'builtins' => ['strtoupper'],
+            ],
 
             'ternary-expressions' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_TERNARY', 'O_ECHO', 'O_RETURN'], ['expression_ops' => ['ternary_true_branch', 'ternary_false_branch']]),
             'type-casts' => self::family($expressionOwner, $expressionTest, ['O_ASSIGN', 'O_ECHO', 'O_RETURN'], ['casts' => ['int', 'string', 'bool', 'float', 'array']]),
