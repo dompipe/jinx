@@ -25,6 +25,12 @@ typedef struct JinxZendForeachEntry {
     JinxZendValue value;
 } JinxZendForeachEntry;
 
+typedef int (*JinxZendForeachBody)(
+    JinxZendExecutor *executor,
+    const JinxZendForeachEntry *entry,
+    void *user_data
+);
+
 static inline void jinx_zend_foreach_init(JinxZendForeachIterator *it, const JinxZendArray *array) {
     if (it == 0) {
         return;
@@ -75,6 +81,36 @@ static inline JinxZendForeachEntry jinx_zend_foreach_next(JinxZendForeachIterato
     }
 
     return entry;
+}
+
+static inline size_t jinx_zend_foreach_execute(
+    JinxZendExecutor *executor,
+    const JinxZendArray *array,
+    JinxZendForeachBody body,
+    void *user_data
+) {
+    JinxZendForeachIterator it;
+    size_t executed = 0u;
+
+    if (executor == 0 || body == 0) {
+        return 0u;
+    }
+
+    jinx_zend_foreach_init(&it, array);
+    for (;;) {
+        JinxZendForeachEntry entry = jinx_zend_foreach_next(&it);
+        if (!entry.valid) {
+            break;
+        }
+
+        executor->executed_ops++;
+        executed++;
+        if (!body(executor, &entry, user_data)) {
+            break;
+        }
+    }
+
+    return executed;
 }
 
 #endif /* JINX_ZEND_FOREACH_H */
