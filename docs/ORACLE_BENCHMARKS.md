@@ -1,6 +1,6 @@
 # Oracle benchmark commands
 
-There are two benchmark layers. Use the one that matches the question.
+There are three benchmark layers. Use the one that matches the question.
 
 ## 1. Harness/process benchmark
 
@@ -82,10 +82,45 @@ Focus one group:
 
 Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle worker loop was faster than repeatedly requiring the equivalent PHP fixture in the same process.
 
-## Interpreting both numbers
+## 3. Warmed web-request worker benchmark
+
+`scripts/benchmark-web-request-worker.php` measures a web-shaped request path in one already-running process. It compiles `fixtures/simple-web-api-validated.php` once into a JINX web executable plan, warms it, then runs many simulated JSON requests through both:
+
+1. an equivalent PHP route worker
+2. the compiled JINX web plan worker
+
+This answers:
+
+```text
+Can a warmed JINX worker serve repeated web-style requests faster than equivalent warmed PHP route logic?
+```
+
+Run it:
+
+```bash
+./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500
+```
+
+Save JSON:
+
+```bash
+./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500 --json=build/benchmarks/web-request-worker.json
+```
+
+Use a different supported web fixture:
+
+```bash
+./jinx scripts/benchmark-web-request-worker.php --fixture=fixtures/simple-web-api-validated.php --requests=50000
+```
+
+The output reports total time, average microseconds per request, p95 microseconds, requests per second, and a PHP/JINX speed ratio. The benchmark varies request bodies and verifies a checksum so the worker cannot get a good result by reusing one cached output.
+
+## Interpreting the numbers
 
 Use the harness/process benchmark to catch broad regressions in the complete toolchain.
 
-Use the worker/hot benchmark when checking the executor-level speed path. The worker benchmark avoids the problem where thousands of tiny function calls are drowned by shell process startup and parity-test bookkeeping.
+Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
-Neither benchmark claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
+Use the warmed web-request worker benchmark for the internet/server question. It is closer to a persistent web process because it removes command startup while still measuring request-shaped JSON body parsing, validation, status selection, and response serialization.
+
+None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
