@@ -1,0 +1,37 @@
+oracle_sm_family cli_dispatch_integration
+
+purpose "Main native CLI fixtures and generated Oracle dispatch integration for carried Zend arrays."
+replaces "Manual isolated fixture-only invocation by connecting carried arrays to ./jinx oracle-call."
+
+native_files {
+  native/jinx_cli.c
+  native/jinx_oracle_array_fixture_cli.c
+  runtime/jinx_builtin_dispatch.generated.c
+  scripts/generate-oracle-dispatch-table.php
+  scripts/build-native-jinx.sh
+}
+
+native_symbols {
+  jinx_call_builtin_through_oracle
+  jinx_lookup_oracle_wrapper
+  za:sample
+  za:deleted
+}
+
+oracle_sm_contract {
+  fixture_za_sample   array_10_20_name_30_keep_40
+  fixture_za_deleted  sample_with_index_1_and_name_tombstoned
+  oracle_call         parse_JinxValue_arguments
+  generated_dispatch  prehook_carried_ZendArray_builtins
+  native_build        regenerate_dispatch_before_compile
+}
+
+proven_by {
+  scripts/build-native-jinx.sh
+  scripts/build-oracle-array-fixture-cli.sh
+  build/native/jinx-oracle-array-fixture-cli oracle-call count za:deleted
+  ./jinx oracle-call count za:deleted
+}
+
+pasm_target "runtime/pasm/zend/cli_dispatch.pasm"
+status started
