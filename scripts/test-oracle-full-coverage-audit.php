@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIncludeExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExitExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleObjectExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
@@ -68,8 +69,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
     }
 }
 
-if (count($families) < 38) {
-    fail('coverage audit expected at least 38 executable families');
+if (count($families) < 39) {
+    fail('coverage audit expected at least 39 executable families');
 }
 
 $distinctTests = array_keys($testToFamilies);
