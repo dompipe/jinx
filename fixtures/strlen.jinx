@@ -1,0 +1,2 @@
+assign s string oracle
+return builtin strlen local s

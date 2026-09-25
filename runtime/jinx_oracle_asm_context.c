@@ -48,6 +48,13 @@ JinxValue jinx_value_int(int64_t value) {
     return v;
 }
 
+JinxValue jinx_value_float(double value) {
+    JinxValue v = jinx_value_null();
+    v.type = 5u;
+    v.as.f64 = value;
+    return v;
+}
+
 JinxValue jinx_value_bool(int value) {
     JinxValue v = jinx_value_null();
     v.type = JINX_VALUE_BOOL;
@@ -66,6 +73,7 @@ JinxValue jinx_value_string(const char *ptr, uint32_t len) {
 JinxValue jinx_value_array_count(uint32_t count) {
     JinxValue v = jinx_value_null();
     v.type = JINX_VALUE_ARRAY;
+    v.flags = count;
     v.as.i64 = (int64_t) count;
     return v;
 }

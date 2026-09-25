@@ -27,6 +27,7 @@ void jinx_ora_context_init(
 
 JinxValue jinx_value_null(void);
 JinxValue jinx_value_int(int64_t value);
+JinxValue jinx_value_float(double value);
 JinxValue jinx_value_bool(int value);
 JinxValue jinx_value_string(const char *ptr, uint32_t len);
 JinxValue jinx_value_array_count(uint32_t count);

@@ -1,0 +1,3 @@
+assign x int -2
+assign y int 9
+return add local x local y

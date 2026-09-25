@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JINX PHP builtin function manifest",
+  "type": "object",
+  "required": [
+    "manifest",
+    "functions"
+  ],
+  "properties": {
+    "manifest": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "source",
+        "doctrine"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "doctrine": {
+          "type": "string"
+        }
+      }
+    },
+    "functions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/function"
+      }
+    }
+  },
+  "$defs": {
+    "function": {
+      "type": "object",
+      "required": [
+        "name",
+        "kind",
+        "extension",
+        "parameters",
+        "return",
+        "pasm_lowering",
+        "native_strategy",
+        "status"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "builtin",
+            "method",
+            "language_construct"
+          ]
+        },
+        "extension": {
+          "type": "string"
+        },
+        "owner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "short_name": {
+          "type": "string"
+        },
+        "source_file": {
+          "type": "string"
+        },
+        "pasm_profile": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          }
+        },
+        "return": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            }
+          }
+        },
+        "pasm_lowering": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "native_strategy": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "c_inline_oracle_asm": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "by_ref",
+        "variadic",
+        "required",
+        "default"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "by_ref": {
+          "type": "boolean"
+        },
+        "variadic": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {}
+      }
+    }
+  }
+}

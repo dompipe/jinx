@@ -1,0 +1,3 @@
+assign x int 6
+assign y int 7
+return mul local x local y

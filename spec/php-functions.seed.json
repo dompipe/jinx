@@ -1,0 +1,375 @@
+{
+  "manifest": {
+    "name": "jinx-php-functions",
+    "version": "0.2",
+    "source": "Seeded manually, with full inventory intended to be generated from php-src *.stub.php using scripts/import-php-src-stubs.php",
+    "doctrine": "Every callable must have an official/imported signature record before PASM/native support is claimed; imported signatures are inventory until PASM lowering, evaluator behavior, native strategy, and parity tests exist.",
+    "pasm_level": "oracle-lower-register-stack-label"
+  },
+  "functions": [
+    {
+      "name": "strlen",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "string",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "int"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN strlen"
+      ],
+      "native_strategy": "intrinsic",
+      "status": "planned"
+    },
+    {
+      "name": "count",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Countable|array",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "mode",
+          "type": "int",
+          "by_ref": false,
+          "variadic": false,
+          "required": false,
+          "default": 0
+        }
+      ],
+      "return": {
+        "type": "int"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN count"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "trim",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "string",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "characters",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": false,
+          "default": " \\n\\r\\t\\v\\0"
+        }
+      ],
+      "return": {
+        "type": "string"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN trim"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "strtolower",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "string",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "string"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN strtolower"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "strtoupper",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "string",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "string"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN strtoupper"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "substr",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "string",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "length",
+          "type": "?int",
+          "by_ref": false,
+          "variadic": false,
+          "required": false,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "string"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN substr"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "strpos",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "haystack",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "needle",
+          "type": "string",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "by_ref": false,
+          "variadic": false,
+          "required": false,
+          "default": 0
+        }
+      ],
+      "return": {
+        "type": "int|false"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN strpos"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "in_array",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "needle",
+          "type": "mixed",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "haystack",
+          "type": "array",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "strict",
+          "type": "bool",
+          "by_ref": false,
+          "variadic": false,
+          "required": false,
+          "default": false
+        }
+      ],
+      "return": {
+        "type": "bool"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN in_array"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "array_key_exists",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "key",
+          "type": "string|int",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "array",
+          "type": "array",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "bool"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN array_key_exists"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "array_push",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "array",
+          "type": "array",
+          "by_ref": true,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "values",
+          "type": "mixed",
+          "by_ref": false,
+          "variadic": true,
+          "required": true,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "int"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN array_push"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "print_r",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "mixed",
+          "by_ref": false,
+          "variadic": false,
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "return",
+          "type": "bool",
+          "by_ref": false,
+          "variadic": false,
+          "required": false,
+          "default": false
+        }
+      ],
+      "return": {
+        "type": "string|bool"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN print_r"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    },
+    {
+      "name": "var_dump",
+      "kind": "builtin",
+      "extension": "standard",
+      "parameters": [
+        {
+          "name": "values",
+          "type": "mixed",
+          "by_ref": false,
+          "variadic": true,
+          "required": true,
+          "default": null
+        }
+      ],
+      "return": {
+        "type": "void"
+      },
+      "pasm_lowering": [
+        "CALL_BUILTIN var_dump"
+      ],
+      "native_strategy": "runtime_helper",
+      "status": "planned"
+    }
+  ]
+}
