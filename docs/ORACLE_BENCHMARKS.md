@@ -47,27 +47,33 @@ Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle wor
 
 ## 3. Web back-page hot benchmark
 
-`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. PHP stays as the direct route baseline. JINX receives the same request envelopes through `WebBackPageBridge` inside one already-running process.
+`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. PHP stays as the direct route baseline. JINX can run either the response-envelope bridge or the raw route template inside one already-running process.
 
 This answers:
 
 ```text
-How fast is JINX's web-shaped JSON-in / JSON-out back page compared with direct PHP route logic when both are kept off the HTTP socket path?
+How fast is JINX's web-shaped JSON route path compared with direct PHP route logic when both are kept off the HTTP socket path?
 ```
 
-Run it:
+Run the fastest raw-template JINX mode:
 
 ```bash
-./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
+```
+
+Compare against the full back-page response-envelope bridge:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=bridge
 ```
 
 Save JSON:
 
 ```bash
-./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --json=build/benchmarks/web-back-page-hot.json
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot.json
 ```
 
-This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page bridge, single process, no socket timing, and no process-spawn timing.
+This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page path, single process, no socket timing, and no process-spawn timing.
 
 ## 4. Warmed web-request worker benchmark
 
@@ -172,7 +178,7 @@ The output envelope is what the front server writes back:
 {"status":200,"headers":{"Content-Type":"application/json"},"body":"{\"ok\":true,\"name\":\"jinx\"}"}
 ```
 
-The goal is to move JINX route execution off the HTTP path while keeping the server result-shaped: the front server sees one response envelope and does not need to know how the route was executed. PHP remains the direct route baseline in the back-page hot benchmark and the live PHP worker.
+The goal is to move route execution off the HTTP path while keeping the server result-shaped: the front server sees one response envelope and does not need to know how the route was executed.
 
 ## Why 89x may not show on connection-per-request HTTP yet
 
@@ -196,12 +202,12 @@ Use the harness/process benchmark to catch broad regressions in the complete too
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
-Use the web back-page hot benchmark for PHP direct route versus JINX precompiled back-page bridge without socket/process overhead.
+Use the web back-page hot benchmark for the 89x-style web route hot path.
 
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
 Use the fair live HTTP request benchmark for connection-close server behavior.
 
-Use the fair live keep-alive benchmark for the closest current answer to persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
+Use the fair live keep-alive benchmark for persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
 
 None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
