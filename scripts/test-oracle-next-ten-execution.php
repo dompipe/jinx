@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
-require_once dirname(__DIR__) . '/runtime/OracleNextTenExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 
-use jinx\oracle\OracleNextTenExecutor;
+use jinx\oracle\OracleExpressionBatchExecutor;
 use jinx\oracle\OracleProgramCompiler;
 
 $root = dirname(__DIR__);
@@ -73,7 +73,7 @@ function run_oracle_next_ten_fixture(string $fixture, string $family): array
 
     try {
         $program = OracleProgramCompiler::interpretAnyPhpFileToOracleProgram($fixture);
-        $oracle = OracleNextTenExecutor::execute($program, $family);
+        $oracle = OracleExpressionBatchExecutor::execute($program, $family);
         $result['program'] = $program;
         $result['oracle'] = $oracle;
         $result['output'] = $oracle['output'] ?? null;
