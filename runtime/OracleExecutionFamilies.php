@@ -41,6 +41,46 @@ final class OracleExecutionFamilies
                     'strtoupper',
                 ],
             ],
+            'conditionals' => [
+                'state' => 'executable',
+                'owner' => OracleConditionalExecutor::class,
+                'test' => 'scripts/test-oracle-conditional-execution.php',
+                'ops' => [
+                    'O_DECLARE',
+                    'O_ASSIGN',
+                    'O_DIM_ASSIGN',
+                    'O_DIM_FETCH',
+                    'O_COALESCE',
+                    'O_COMPOUND_ASSIGN',
+                    'O_INC',
+                    'O_DEC',
+                    'O_IF',
+                    'O_ELSE',
+                    'O_BLOCK_CLOSE',
+                    'O_ECHO',
+                    'O_PRINT',
+                    'O_RETURN',
+                ],
+                'comparisons' => [
+                    '===',
+                    '!==',
+                    '==',
+                    '!=',
+                    '>',
+                    '<',
+                    '>=',
+                    '<=',
+                ],
+                'boolean_operators' => [
+                    '&&',
+                    '||',
+                    '!',
+                ],
+                'builtins' => [
+                    'strlen',
+                    'strtoupper',
+                ],
+            ],
         ];
     }
 
