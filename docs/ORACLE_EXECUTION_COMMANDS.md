@@ -159,6 +159,12 @@ Runtime owner: `runtime/OracleTextBuiltinExecutor.php`. PHP comparison test: `sc
 
 `strlen-builtins`, `strtolower-builtins`, `strtoupper-builtins`, `trim-builtins`, `substr-builtins`, `basename-builtins`, `dirname-builtins`, `ucwords-builtins`, `stripcslashes-builtins`, `ctype-alnum-builtins`, `ctype-alpha-builtins`, `ctype-cntrl-builtins`, `ctype-digit-builtins`, `ctype-graph-builtins`, `ctype-lower-builtins`, `ctype-print-builtins`, `ctype-punct-builtins`, `ctype-space-builtins`, `ctype-upper-builtins`, `ctype-xdigit-builtins`.
 
+## Date/time builtin batch
+
+Runtime owner: `runtime/OracleDateTimeBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-date-time-builtin-execution.php`.
+
+`date-builtins`, `gmdate-builtins`, `strtotime-builtins`, `mktime-builtins`, `gmmktime-builtins`, `checkdate-builtins`, `idate-builtins`, `getdate-builtins`, `localtime-builtins`, `date-parse-builtins`, `date-parse-from-format-builtins`, `timezone-name-from-abbr-builtins`, `timezone-version-get-builtins`, `timezone-open-builtins`, `timezone-name-get-builtins`, `date-create-builtins`, `date-format-builtins`, `date-timestamp-get-builtins`, `date-timezone-get-builtins`, `timezone-offset-get-builtins`.
+
 ## Coverage rule
 
 Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
