@@ -82,6 +82,7 @@ array_values() producing a packed values array
 array_keys() producing numeric/string key values
 PHP builtin-name bridge for count, array_key_exists, array_is_list, array_values, array_keys
 array delete/unset tombstones for numeric and string keys
+live count/key_exists/is_list/values/keys after tombstones
 live iteration that skips tombstones
 array compaction after tombstones
 call-frame enter/leave
@@ -102,7 +103,7 @@ jinx_zend_array_values_builtin
 jinx_zend_array_keys_builtin
 ```
 
-The standalone bridge smoke now proves the PHP names below route to those helpers:
+The standalone bridge smoke proves the PHP names below route to those helpers:
 
 ```text
 count
@@ -132,6 +133,11 @@ It currently proves:
 jinx_zend_array_delete_index
 jinx_zend_array_delete_string
 jinx_zend_array_live_count
+jinx_zend_array_live_key_exists_index
+jinx_zend_array_live_key_exists_string
+jinx_zend_array_live_is_list
+jinx_zend_array_live_values
+jinx_zend_array_live_keys
 jinx_zend_array_live_iter_at
 jinx_zend_array_compact
 ```
@@ -142,11 +148,11 @@ Current delete smoke executable:
 ./build/native/jinx-zend-array-delete-smoke
 ```
 
-The next integration point is folding tombstone checks into the native array builtin helpers and foreach lowering so deleted buckets disappear from `count`, `array_values`, `array_keys`, and iteration.
+The next integration point is wiring these live-aware helpers into the builtin-name bridge and then the generated Oracle dispatch once `JinxValue` can carry native `JinxZendArray *` pointers.
 
 ## Next implementation steps
 
-1. Fold tombstone awareness into `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list`.
+1. Wire live-aware tombstone helpers into the array builtin-name bridge.
 2. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
 3. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
 4. Lower `foreach` onto live array iteration.
