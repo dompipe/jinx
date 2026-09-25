@@ -63,6 +63,7 @@ $scriptTests = [
     'data builtin families' => ['scripts/test-oracle-data-builtin-execution.php', 'PASS: Oracle executes data builtin PHP families'],
     'data builtin batch two families' => ['scripts/test-oracle-data-builtin-two-execution.php', 'PASS: Oracle executes data builtin batch two PHP families'],
     'text builtin families' => ['scripts/test-oracle-text-builtin-execution.php', 'PASS: Oracle executes text builtin PHP families'],
+    'text builtin batch two families' => ['scripts/test-oracle-text-builtin-two-execution.php', 'PASS: Oracle executes text builtin batch two PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
     'web back-page bridge' => ['scripts/test-web-back-page-bridge.php', 'PASS: WebBackPageBridge handles request/response envelopes'],
     'benchmark command help' => ['scripts/benchmark-oracle-families.php --help', 'Oracle family benchmark'],
