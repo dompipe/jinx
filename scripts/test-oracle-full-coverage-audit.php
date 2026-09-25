@@ -27,9 +27,12 @@ require_once dirname(__DIR__) . '/runtime/OracleRegexStringBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayMutationBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleSecurityNetworkBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRuntimeInfoBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
-use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleMergedExecutionFamilies;
 
 function fail(string $message): never
 {
@@ -38,17 +41,19 @@ function fail(string $message): never
 }
 
 $root = dirname(__DIR__);
-$families = OracleExecutionFamilies::all();
+$families = OracleMergedExecutionFamilies::all();
 $nativeSuite = (string) file_get_contents($root . '/scripts/test-jinx-native-suite.php');
 $docs = (string) file_get_contents($root . '/docs/ORACLE_EXECUTION_COMMANDS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_ARRAY_SET_BUILTINS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_FILESYSTEM_BUILTINS.md');
+$docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_GENERATED_175_BUILTINS.md');
 
 $testToFamilies = [];
 
 foreach ($families as $family => $metadata) {
     $test = $metadata['test'] ?? null;
     $owner = $metadata['owner'] ?? null;
+    $generatedBatch = $metadata['generated_batch'] ?? null;
 
     if (!is_string($test) || $test === '') {
         fail("{$family} missing comparison test metadata");
@@ -59,9 +64,15 @@ foreach ($families as $family => $metadata) {
     if (!str_contains($nativeSuite, $test)) {
         fail("{$family} comparison test is not wired into native suite: {$test}");
     }
-    if (!str_contains($docs, "`{$family}`")) {
+
+    if (is_string($generatedBatch) && $generatedBatch !== '') {
+        if (!str_contains($docs, 'generated-pure-builtin-001 through generated-pure-builtin-175')) {
+            fail("{$family} generated batch range is not documented in supplemental Oracle docs");
+        }
+    } elseif (!str_contains($docs, "`{$family}`")) {
         fail("{$family} is not documented in ORACLE_EXECUTION_COMMANDS.md or supplemental Oracle docs");
     }
+
     if (!str_contains($docs, "`{$test}`")) {
         fail("{$family} test path is not documented in ORACLE_EXECUTION_COMMANDS.md or supplemental Oracle docs: {$test}");
     }
@@ -79,14 +90,23 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
 
     $contents = (string) file_get_contents($root . '/' . $test);
     foreach ($coveredFamilies as $family) {
+        $metadata = $families[$family] ?? [];
+        $generatedBatch = $metadata['generated_batch'] ?? null;
+        if (is_string($generatedBatch) && $generatedBatch !== '') {
+            if (!str_contains($contents, 'for ($i = 1; $i <= 175; $i++)')) {
+                fail("{$test} generated batch test does not enumerate the generated family range");
+            }
+            continue;
+        }
+
         if (!str_contains($contents, "'{$family}'") && !str_contains($contents, '"' . $family . '"')) {
             fail("{$test} batch test does not explicitly enumerate family {$family}");
         }
     }
 }
 
-if (count($families) < 141) {
-    fail('coverage audit expected at least 141 executable families');
+if (count($families) < 550) {
+    fail('coverage audit expected at least 550 executable families after generated merge');
 }
 
 $distinctTests = array_keys($testToFamilies);
