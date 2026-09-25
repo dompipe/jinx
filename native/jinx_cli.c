@@ -13,8 +13,7 @@ static void usage(const char *argv0) {
     printf("Usage:\n");
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
-    printf("  %s oracle-call strlen <string>\n", argv0);
-    printf("  %s oracle-call count <count>\n", argv0);
+    printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
     printf("  %s first100\n", argv0);
     printf("  %s first100-list\n", argv0);
@@ -26,6 +25,14 @@ static void usage(const char *argv0) {
     printf("  %s functions-smoke\n", argv0);
     printf("  %s notes\n", argv0);
     printf("  %s benchmarks\n", argv0);
+    printf("\nTyped args:\n");
+    printf("  i:<int>       integer value\n");
+    printf("  f:<float>     floating point value\n");
+    printf("  b:true|false  boolean value\n");
+    printf("  s:<text>      string value\n");
+    printf("  a:<count>     array-count stand-in\n");
+    printf("  null          null value\n");
+    printf("  raw text defaults to string\n");
 }
 
 static int fail(const char *message) {
@@ -331,6 +338,41 @@ static int call_all_function_name(const char *name, JinxValue *out) {
     return out->type != 0u;
 }
 
+static JinxValue parse_cli_value(const char *text) {
+    if (text == NULL || strcmp(text, "null") == 0) {
+        return jinx_value_null();
+    }
+
+    if (strncmp(text, "i:", 2) == 0) {
+        return jinx_value_int(atoll(text + 2));
+    }
+
+    if (strncmp(text, "f:", 2) == 0) {
+        return jinx_value_float(strtod(text + 2, NULL));
+    }
+
+    if (strncmp(text, "b:", 2) == 0) {
+        const char *value = text + 2;
+        return jinx_value_bool(strcmp(value, "1") == 0 || strcmp(value, "true") == 0 || strcmp(value, "yes") == 0);
+    }
+
+    if (strncmp(text, "s:", 2) == 0) {
+        return jinx_value_string(text + 2, (uint32_t) strlen(text + 2));
+    }
+
+    if (strncmp(text, "a:", 2) == 0) {
+        long long count = atoll(text + 2);
+        return jinx_value_array_count(count < 0 ? 0u : (uint32_t) count);
+    }
+
+    return jinx_value_string(text, (uint32_t) strlen(text));
+}
+
+static void print_value_line(JinxValue value) {
+    print_value(value);
+    printf("\n");
+}
+
 static void print_value(JinxValue value) {
     switch (value.type) {
         case 1u:
@@ -398,7 +440,7 @@ static int command_rc(void) {
     printf("dompipe/jinx native GCC CLI\n");
     printf("Status: RC native smoke executable\n");
     printf("Runtime: Oracle/PASM C dispatcher\n");
-    printf("Implemented native runtime calls: strlen, count, hot first100 subset, full generated dispatch traversal\n");
+    printf("Implemented native runtime calls: universal generated oracle-call, strlen, count, hot first100 subset, full generated dispatch traversal\n");
     printf("Use the source package for the full PHP web/worker RC surface.\n");
     return 0;
 }
@@ -408,12 +450,13 @@ static int command_notes(void) {
     printf("- 3,527 PHP callable signatures have worker-style wrapper records.\n");
     printf("- The native GCC CLI includes a generated inventory for all 3,527 names.\n");
     printf("- functions-smoke verifies every generated name resolves to a C Oracle dispatch wrapper.\n");
+    printf("- oracle-call can invoke any generated name through the native ./jinx Oracle dispatch table.\n");
     printf("- bench-all-functions runs every generated name through the native ./jinx Oracle dispatch path with deterministic sample arguments.\n");
     printf("- Worker execution fails closed for unsafe, unavailable, by-reference, and method-only wrappers.\n");
     printf("- The PHP worker path uses a compact name -> id -> row table.\n");
     printf("- The first hot worker-safe benchmark set also has an Oracle-shaped PHP dispatch layer.\n");
     printf("- This native GCC CLI runs the current C Oracle/PASM dispatcher directly.\n");
-    printf("- Native runtime coverage is bounded; unsupported builtins return null/fault placeholders during full traversal.\n");
+    printf("- Native runtime behavior is still coarse for many complex builtins until exact handlers replace the generic fallback families.\n");
     printf("- Full web/compiler RC tooling remains in the source package under bin/, runtime/, and scripts/.\n");
     return 0;
 }
@@ -661,31 +704,44 @@ static int command_oracle_smoke(void) {
 }
 
 static int command_oracle_call(int argc, char **argv) {
-    long long value = 0;
+    const char *name;
+    JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    JinxValue result;
+    int supplied_argc;
 
-    if (argc < 4) {
-        return fail("oracle-call requires a function and value");
+    if (argc < 3) {
+        return fail("oracle-call requires a function name");
     }
 
-    if (strcmp(argv[2], "strlen") == 0) {
-        if (!oracle_strlen(argv[3], &value)) {
-            return fail("Oracle strlen failed");
-        }
+    name = argv[2];
 
-        printf("%lld\n", value);
-        return 0;
+    if (jinx_lookup_oracle_wrapper(name) == NULL) {
+        fprintf(stderr, "missing: %s\n", name);
+        return 1;
     }
 
-    if (strcmp(argv[2], "count") == 0) {
-        if (!oracle_count(atoll(argv[3]), &value)) {
-            return fail("Oracle count failed");
-        }
+    supplied_argc = argc - 3;
 
-        printf("%lld\n", value);
-        return 0;
+    if ((size_t)supplied_argc > JINX_NATIVE_SAMPLE_ARGC) {
+        fprintf(stderr, "too many arguments: max %u\n", JINX_NATIVE_SAMPLE_ARGC);
+        return 1;
     }
 
-    return fail("native Oracle runtime currently supports strlen and count");
+    all_function_args(name, args);
+
+    for (int i = 0; i < supplied_argc; i++) {
+        args[i] = parse_cli_value(argv[i + 3]);
+    }
+
+    result = jinx_call_builtin_through_oracle(name, args, (size_t)supplied_argc > 0u ? (size_t)supplied_argc : JINX_NATIVE_SAMPLE_ARGC);
+
+    if (result.type == 0u) {
+        fprintf(stderr, "null/fault: %s\n", name);
+        return 1;
+    }
+
+    print_value_line(result);
+    return 0;
 }
 
 static int command_bench_oracle(int argc, char **argv) {
