@@ -47,12 +47,12 @@ Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle wor
 
 ## 3. Web back-page hot benchmark
 
-`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. It compiles the route once, creates request envelopes shaped like the HTTP front page would create, and runs those envelopes through `WebBackPageBridge` inside one already-running process.
+`scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. PHP stays as the direct route baseline. JINX receives the same request envelopes through `WebBackPageBridge` inside one already-running process.
 
 This answers:
 
 ```text
-How fast is the web-shaped JSON-in / JSON-out back page when it is kept off the HTTP socket path?
+How fast is JINX's web-shaped JSON-in / JSON-out back page compared with direct PHP route logic when both are kept off the HTTP socket path?
 ```
 
 Run it:
@@ -67,7 +67,7 @@ Save JSON:
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --json=build/benchmarks/web-back-page-hot.json
 ```
 
-This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: single process, precompiled back-page bridge, no socket timing, and no process-spawn timing.
+This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page bridge, single process, no socket timing, and no process-spawn timing.
 
 ## 4. Warmed web-request worker benchmark
 
@@ -172,7 +172,7 @@ The output envelope is what the front server writes back:
 {"status":200,"headers":{"Content-Type":"application/json"},"body":"{\"ok\":true,\"name\":\"jinx\"}"}
 ```
 
-The goal is to move route execution off the HTTP path while keeping the server result-shaped: the front server sees one response envelope and does not need to know how the route was executed.
+The goal is to move JINX route execution off the HTTP path while keeping the server result-shaped: the front server sees one response envelope and does not need to know how the route was executed. PHP remains the direct route baseline in the back-page hot benchmark and the live PHP worker.
 
 ## Why 89x may not show on connection-per-request HTTP yet
 
@@ -188,7 +188,7 @@ process-level PHP socket functions
 client fsockopen cost
 ```
 
-The connection-close live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. The keep-alive benchmark removes connection churn. The back-page hot benchmark shows the route result path after moving execution off the HTTP path. To push the same advantage through live HTTP, the next layer is HTTP pipelining/batching and then a native socket loop rather than a worker script implemented in PHP.
+The connection-close live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. The keep-alive benchmark removes connection churn. To push toward an 89x route-execution advantage across live web requests after keep-alive, the next layer is HTTP pipelining/batching and then a native socket loop rather than a worker script implemented in PHP.
 
 ## Interpreting the numbers
 
@@ -196,12 +196,12 @@ Use the harness/process benchmark to catch broad regressions in the complete too
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
-Use the web back-page hot benchmark when checking the web-shaped request result path without socket overhead. This is the benchmark meant to preserve the 89x-style aura.
+Use the web back-page hot benchmark for PHP direct route versus JINX precompiled back-page bridge without socket/process overhead.
 
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
 Use the fair live HTTP request benchmark for connection-close server behavior.
 
-Use the fair live keep-alive benchmark for persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
+Use the fair live keep-alive benchmark for the closest current answer to persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
 
 None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
