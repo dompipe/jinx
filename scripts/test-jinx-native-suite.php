@@ -53,6 +53,7 @@ $scriptTests = [
     'next ten families' => ['scripts/test-oracle-next-ten-execution.php', 'PASS: Oracle executes next ten PHP families'],
     'builtin batch families' => ['scripts/test-oracle-builtin-batch-execution.php', 'PASS: Oracle executes builtin batch PHP families'],
     'builtin batch two families' => ['scripts/test-oracle-builtin-batch-two-execution.php', 'PASS: Oracle executes builtin batch two PHP families'],
+    'scalar builtin families' => ['scripts/test-oracle-scalar-builtin-execution.php', 'PASS: Oracle executes scalar builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
     'full coverage audit' => ['scripts/test-oracle-full-coverage-audit.php', 'PASS: Oracle full coverage audit validates'],
 ];
