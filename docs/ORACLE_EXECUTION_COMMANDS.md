@@ -32,11 +32,18 @@ Use the worker/hot benchmark when checking the speed path where startup and test
 ./jinx scripts/benchmark-oracle-worker-hot.php --only=chr-builtins --iterations=10000
 ```
 
-Use the warmed web-request worker benchmark for the internet/server path:
+Use the warmed web-request worker benchmark for route logic without socket overhead:
 
 ```bash
 ./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500
 ./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500 --json=build/benchmarks/web-request-worker.json
+```
+
+Use the fair live HTTP benchmark when PHP and JINX should both look live over loopback HTTP:
+
+```bash
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --json=build/benchmarks/live-web-requests.json
 ```
 
 See `docs/ORACLE_BENCHMARKS.md` for benchmark options, JSON output, and interpretation notes.
