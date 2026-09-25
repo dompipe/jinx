@@ -75,7 +75,7 @@ function parse_args(array $argv): array
     return $options;
 }
 
-/** @return array{process:resource,pipes:array<int,resource>} */
+/** @return array{process:resource,pipes:array<int,resource>,label:string,command:list<string>} */
 function start_worker(array $command, string $label): array
 {
     $descriptors = [
@@ -91,7 +91,7 @@ function start_worker(array $command, string $label): array
     stream_set_blocking($pipes[1], false);
     stream_set_blocking($pipes[2], false);
 
-    return ['process' => $process, 'pipes' => $pipes];
+    return ['process' => $process, 'pipes' => $pipes, 'label' => $label, 'command' => array_values($command)];
 }
 
 function stop_worker(?array $worker): void
@@ -110,15 +110,54 @@ function stop_worker(?array $worker): void
     }
 }
 
-/** @return resource */
-function open_socket(string $host, int $port, string $label)
+function drain_pipe_text($pipe): string
 {
-    $conn = @fsockopen($host, $port, $errno, $errstr, 5.0);
+    if (!is_resource($pipe)) {
+        return '';
+    }
+    $text = stream_get_contents($pipe);
+    return is_string($text) ? $text : '';
+}
+
+function worker_diagnostics(?array $worker): string
+{
+    if ($worker === null) {
+        return 'worker was not started';
+    }
+
+    $status = isset($worker['process']) && is_resource($worker['process']) ? proc_get_status($worker['process']) : [];
+    $stdout = drain_pipe_text($worker['pipes'][1] ?? null);
+    $stderr = drain_pipe_text($worker['pipes'][2] ?? null);
+    $label = (string) ($worker['label'] ?? 'worker');
+    $command = implode(' ', array_map('strval', (array) ($worker['command'] ?? [])));
+    $running = ($status['running'] ?? null) === true ? 'yes' : 'no';
+    $exitCode = array_key_exists('exitcode', $status) ? (string) $status['exitcode'] : 'unknown';
+
+    return "{$label}\ncommand: {$command}\nrunning: {$running}\nexitcode: {$exitCode}\nstdout:\n{$stdout}\nstderr:\n{$stderr}";
+}
+
+/** @return resource */
+function open_socket_or_throw(string $host, int $port, string $label)
+{
+    $errno = 0;
+    $errstr = '';
+    $conn = @fsockopen($host, $port, $errno, $errstr, 1.0);
     if (!is_resource($conn)) {
-        fail("Could not connect to {$label} at {$host}:{$port}: {$errstr}");
+        throw new RuntimeException("Could not connect to {$label} at {$host}:{$port}: {$errstr}");
     }
     stream_set_timeout($conn, 10);
     return $conn;
+}
+
+/** @return resource */
+function open_socket(string $host, int $port, string $label, ?array $worker = null)
+{
+    try {
+        return open_socket_or_throw($host, $port, $label);
+    } catch (Throwable $e) {
+        $details = $worker === null ? '' : "\n\nWorker diagnostics:\n" . worker_diagnostics($worker);
+        fail($e->getMessage() . $details);
+    }
 }
 
 /** @return array{status:int,body:string,headers:string,seconds:float} */
@@ -172,13 +211,18 @@ function send_keepalive_request($conn, string $host, int $port, string $method, 
     return ['status' => $status, 'body' => substr($rest, 0, $length), 'headers' => $headers, 'seconds' => $seconds];
 }
 
-function wait_for_health(string $host, int $port, string $label): void
+function wait_for_health(string $host, int $port, string $label, ?array $worker): void
 {
     $deadline = microtime(true) + 10.0;
     $last = '';
     while (microtime(true) < $deadline) {
+        $status = $worker !== null && isset($worker['process']) && is_resource($worker['process']) ? proc_get_status($worker['process']) : [];
+        if (($status['running'] ?? true) === false) {
+            fail("{$label} exited before it became healthy\n\nWorker diagnostics:\n" . worker_diagnostics($worker));
+        }
+
         try {
-            $conn = open_socket($host, $port, $label);
+            $conn = open_socket_or_throw($host, $port, $label);
             $response = send_keepalive_request($conn, $host, $port, 'GET', '/__health', '', true);
             fclose($conn);
             if ($response['status'] === 200 && str_contains($response['body'], 'ok')) {
@@ -190,7 +234,7 @@ function wait_for_health(string $host, int $port, string $label): void
             usleep(50_000);
         }
     }
-    fail("{$label} did not become healthy: {$last}");
+    fail("{$label} did not become healthy: {$last}\n\nWorker diagnostics:\n" . worker_diagnostics($worker));
 }
 
 /** @return array{avg:float,p95:float,total:float,rps:float,min:float,max:float} */
@@ -241,11 +285,11 @@ $totalNeeded = $warmup + $requests + 8;
 $phpWorker = start_worker([$php, $root . '/scripts/serve-php-web-worker.php', "--host={$host}", "--port={$phpPort}", "--max-requests={$totalNeeded}"], 'PHP keep-alive worker');
 $jinxWorker = start_worker([$jinx, 'scripts/serve-jinx-web-worker.php', "--host={$host}", "--port={$jinxPort}", "--max-requests={$totalNeeded}", "--mode={$jinxMode}"], 'JINX keep-alive worker');
 
-wait_for_health($host, $phpPort, 'PHP keep-alive worker');
-wait_for_health($host, $jinxPort, 'JINX keep-alive worker');
+wait_for_health($host, $phpPort, 'PHP keep-alive worker', $phpWorker);
+wait_for_health($host, $jinxPort, 'JINX keep-alive worker', $jinxWorker);
 
-$phpConn = open_socket($host, $phpPort, 'PHP keep-alive worker');
-$jinxConn = open_socket($host, $jinxPort, 'JINX keep-alive worker');
+$phpConn = open_socket($host, $phpPort, 'PHP keep-alive worker', $phpWorker);
+$jinxConn = open_socket($host, $jinxPort, 'JINX keep-alive worker', $jinxWorker);
 
 $makeBody = static function (int $i): string {
     if ($i % 10 === 0) {
