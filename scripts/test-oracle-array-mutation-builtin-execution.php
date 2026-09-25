@@ -12,26 +12,26 @@ $root = dirname(__DIR__);
 $fixtureDir = $root . '/build/generated/oracle-array-mutation-builtin';
 
 $cases = [
-    'sort-builtins' => ["$value = ['b', 'a', 'c'];", '$result = sort($value);'],
-    'rsort-builtins' => ["$value = ['b', 'a', 'c'];", '$result = rsort($value);'],
-    'asort-builtins' => ["$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = asort($value);'],
-    'arsort-builtins' => ["$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = arsort($value);'],
-    'ksort-builtins' => ["$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = ksort($value);'],
-    'krsort-builtins' => ["$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = krsort($value);'],
-    'natsort-builtins' => ["$value = ['img12', 'img10', 'img2', 'img1'];", '$result = natsort($value);'],
-    'natcasesort-builtins' => ["$value = ['Img12', 'img10', 'img2', 'Img1'];", '$result = natcasesort($value);'],
-    'array-push-builtins' => ["$value = ['a'];", "$result = array_push($value, 'b', 'c');"],
-    'array-pop-builtins' => ["$value = ['a', 'b', 'c'];", '$result = array_pop($value);'],
-    'array-shift-builtins' => ["$value = ['a', 'b', 'c'];", '$result = array_shift($value);'],
-    'array-unshift-builtins' => ["$value = ['b', 'c'];", "$result = array_unshift($value, 'a');"],
-    'array-splice-builtins' => ["$value = ['a', 'b', 'c', 'd'];", "$result = array_splice($value, 1, 2, ['x', 'y']);"],
-    'array-multisort-builtins' => ["$value = [3, 1, 2];", "$labels = ['c', 'a', 'b'];", '$result = array_multisort($value, $labels);'],
-    'reset-builtins' => ["$value = ['a' => 'first', 'b' => 'second'];", '$result = reset($value);'],
-    'end-builtins' => ["$value = ['a' => 'first', 'b' => 'second'];", '$result = end($value);'],
-    'next-builtins' => ["$value = ['a' => 'first', 'b' => 'second'];", '$result = next($value);'],
-    'prev-builtins' => ["$value = ['a' => 'first', 'b' => 'second'];", '$result = prev($value);'],
-    'current-builtins' => ["$value = ['a' => 'first', 'b' => 'second'];", '$result = current($value);'],
-    'key-builtins' => ["$value = ['a' => 'first', 'b' => 'second'];", '$result = key($value);'],
+    'sort-builtins' => ["\$value = ['b', 'a', 'c'];", '$result = sort($value);'],
+    'rsort-builtins' => ["\$value = ['b', 'a', 'c'];", '$result = rsort($value);'],
+    'asort-builtins' => ["\$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = asort($value);'],
+    'arsort-builtins' => ["\$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = arsort($value);'],
+    'ksort-builtins' => ["\$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = ksort($value);'],
+    'krsort-builtins' => ["\$value = ['b' => 2, 'a' => 1, 'c' => 3];", '$result = krsort($value);'],
+    'natsort-builtins' => ["\$value = ['img12', 'img10', 'img2', 'img1'];", '$result = natsort($value);'],
+    'natcasesort-builtins' => ["\$value = ['Img12', 'img10', 'img2', 'Img1'];", '$result = natcasesort($value);'],
+    'array-push-builtins' => ["\$value = ['a'];", "\$result = array_push(\$value, 'b', 'c');"],
+    'array-pop-builtins' => ["\$value = ['a', 'b', 'c'];", '$result = array_pop($value);'],
+    'array-shift-builtins' => ["\$value = ['a', 'b', 'c'];", '$result = array_shift($value);'],
+    'array-unshift-builtins' => ["\$value = ['b', 'c'];", "\$result = array_unshift(\$value, 'a');"],
+    'array-splice-builtins' => ["\$value = ['a', 'b', 'c', 'd'];", "\$result = array_splice(\$value, 1, 2, ['x', 'y']);"],
+    'array-multisort-builtins' => ["\$value = [3, 1, 2];", "\$labels = ['c', 'a', 'b'];", '$result = array_multisort($value, $labels);'],
+    'reset-builtins' => ["\$value = ['a' => 'first', 'b' => 'second'];", '$result = reset($value);'],
+    'end-builtins' => ["\$value = ['a' => 'first', 'b' => 'second'];", '$result = end($value);'],
+    'next-builtins' => ["\$value = ['a' => 'first', 'b' => 'second'];", '$result = next($value);'],
+    'prev-builtins' => ["\$value = ['a' => 'first', 'b' => 'second'];", '$result = prev($value);'],
+    'current-builtins' => ["\$value = ['a' => 'first', 'b' => 'second'];", '$result = current($value);'],
+    'key-builtins' => ["\$value = ['a' => 'first', 'b' => 'second'];", '$result = key($value);'],
 ];
 
 function fail(string $message): never
@@ -60,8 +60,10 @@ function write_fixture(string $fixtureDir, string $family, array $statements): s
     }
 
     $path = $fixtureDir . '/' . fixture_name($family);
-    $source = "<?php\n\ndeclare(strict_types=1);\n\n" . implode("\n", $statements) . "\n" .
-        '$encoded = json_encode([$result, $value, $labels ?? null]);' . "\n" .
+    $source = "<?php\n\ndeclare(strict_types=1);\n\n" .
+        '$labels = null;' . "\n" .
+        implode("\n", $statements) . "\n" .
+        '$encoded = json_encode([$result, $value, $labels]);' . "\n" .
         "echo 'value=' . \$encoded . \"\\n\";\n" .
         'return $encoded;' . "\n";
 
