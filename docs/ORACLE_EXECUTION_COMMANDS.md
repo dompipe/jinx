@@ -15,13 +15,21 @@ git diff --check
 
 Do not run family tests with `php scripts/...` for release verification. Launch them through repository-root native `./jinx`.
 
-## Native benchmark
+## Native benchmarks
 
-Use the benchmark script to time every executable family parity path against the PHP baseline and native `./jinx` path:
+Use the harness/process benchmark to time every executable family parity path against the PHP baseline and native `./jinx` path:
 
 ```bash
 ./jinx scripts/benchmark-oracle-families.php --iterations=5
 ./jinx scripts/benchmark-oracle-families.php --iterations=5 --json=build/benchmarks/oracle-family-benchmark.json
+```
+
+Use the worker/hot benchmark when checking the speed path where startup and test-harness overhead are removed:
+
+```bash
+./jinx scripts/benchmark-oracle-worker-hot.php --iterations=1000 --warmup=100
+./jinx scripts/benchmark-oracle-worker-hot.php --only=text --iterations=10000
+./jinx scripts/benchmark-oracle-worker-hot.php --only=chr-builtins --iterations=10000
 ```
 
 See `docs/ORACLE_BENCHMARKS.md` for benchmark options, JSON output, and interpretation notes.
