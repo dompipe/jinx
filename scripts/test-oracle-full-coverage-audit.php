@@ -19,6 +19,7 @@ require_once dirname(__DIR__) . '/runtime/OracleAppBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleMathBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleDataBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArraySetBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleFilesystemBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleTextBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleDateTimeBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIntrospectionBuiltinExecutor.php';
@@ -41,6 +42,7 @@ $families = OracleExecutionFamilies::all();
 $nativeSuite = (string) file_get_contents($root . '/scripts/test-jinx-native-suite.php');
 $docs = (string) file_get_contents($root . '/docs/ORACLE_EXECUTION_COMMANDS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_ARRAY_SET_BUILTINS.md');
+$docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_FILESYSTEM_BUILTINS.md');
 
 $testToFamilies = [];
 
