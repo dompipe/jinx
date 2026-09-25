@@ -236,6 +236,26 @@ final class OracleExecutionFamilies
                     'included_output',
                 ],
             ],
+            'exit-die' => [
+                'state' => 'executable',
+                'owner' => OracleExitExecutor::class,
+                'test' => 'scripts/test-oracle-exit-die-execution.php',
+                'ops' => [
+                    'O_DECLARE',
+                    'O_ASSIGN',
+                    'O_ECHO',
+                    'O_PRINT',
+                    'O_EXIT',
+                    'O_RETURN',
+                ],
+                'termination_ops' => [
+                    'exit_string_output',
+                    'die_alias',
+                    'termination_flag',
+                    'exit_code',
+                    'unreachable_code_stops',
+                ],
+            ],
         ];
     }
 
