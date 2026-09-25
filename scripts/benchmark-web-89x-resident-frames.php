@@ -12,6 +12,12 @@ declare(strict_types=1);
  *
  * The default deck is 256 high frames because the point of the 89x path is to
  * avoid paying JSON/body/frame construction while JINX is running.
+ *
+ * Frame-cap notes:
+ * - --frame-cap=N, N > 0, means a capped resident deck with N reusable slots.
+ * - --frame-cap=0 means cap bookkeeping is disabled and the benchmark uses one
+ *   hot resident frame directly. It is safe, but it is not comparable to the
+ *   capped-deck path because it intentionally avoids the modulo/deck lookup.
  */
 
 function fail(string $message): never
@@ -37,6 +43,7 @@ function parse_args_89x(array $argv): array
             echo "89x resident high-frame benchmark" . PHP_EOL;
             echo "Usage: ./jinx scripts/benchmark-web-89x-resident-frames.php [--workload=tiny|large] [--requests=N] [--warmup=N] [--frame-cap=N] [--json=path] [--fail-fast]" . PHP_EOL;
             echo "Default: --frame-cap=256 --workload=large" . PHP_EOL;
+            echo "Frame cap: N>0 uses a capped resident deck; N=0 disables cap bookkeeping and uses one hot resident frame directly" . PHP_EOL;
             exit(0);
         }
         if ($arg === '--fail-fast') {
@@ -52,7 +59,7 @@ function parse_args_89x(array $argv): array
             continue;
         }
         if (preg_match('/^--frame-cap=(\d+)$/', $arg, $m)) {
-            $options['frame_cap'] = max(1, (int) $m[1]);
+            $options['frame_cap'] = max(0, (int) $m[1]);
             continue;
         }
         if (preg_match('/^--workload=(tiny|large)$/', $arg, $m)) {
@@ -161,8 +168,12 @@ function build_resident_high_frame_deck(int $frameCap, string $workload): array
 }
 
 /** @return array{request:array<string,mixed>,high:array<string,mixed>} */
-function resident_frame_at(array $residentFrames, int $i): array
+function resident_frame_at(array $residentFrames, int $i, bool $capDisabled): array
 {
+    if ($capDisabled) {
+        return $residentFrames[0];
+    }
+
     return $residentFrames[$i % count($residentFrames)];
 }
 
@@ -239,14 +250,14 @@ function jinx_89x_high_route(array $frame, string $workload): array
 }
 
 /** @return array{seconds:float,digest:string,mismatches:int,requests:int,frame_count:int,resident:bool} */
-function run_php_89x(array $residentFrames, int $count, string $workload, bool $failFast): array
+function run_php_89x(array $residentFrames, int $count, string $workload, bool $failFast, bool $capDisabled): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $frame = resident_frame_at($residentFrames, $i);
+        $frame = resident_frame_at($residentFrames, $i, $capDisabled);
         $response = php_89x_direct_route($frame['request'], $workload);
         hash_update($hash, $response['status'] . ':' . $response['body'] . "\n");
         if (!in_array($response['status'], [200, 400], true)) {
@@ -261,14 +272,14 @@ function run_php_89x(array $residentFrames, int $count, string $workload, bool $
 }
 
 /** @return array{seconds:float,digest:string,mismatches:int,requests:int,frame_count:int,resident:bool} */
-function run_jinx_89x(array $residentFrames, int $count, string $workload, bool $failFast): array
+function run_jinx_89x(array $residentFrames, int $count, string $workload, bool $failFast, bool $capDisabled): array
 {
     $hash = hash_init('sha256');
     $mismatches = 0;
     $begin = hrtime(true);
 
     for ($i = 0; $i < $count; $i++) {
-        $frame = resident_frame_at($residentFrames, $i);
+        $frame = resident_frame_at($residentFrames, $i, $capDisabled);
         $response = jinx_89x_high_route($frame['high'], $workload);
         hash_update($hash, $response['status'] . ':' . $response['body'] . "\n");
         if (!in_array($response['status'], [200, 400], true)) {
@@ -301,25 +312,30 @@ $root = dirname(__DIR__);
 $options = parse_args_89x($argv);
 $requests = (int) $options['requests'];
 $warmup = (int) $options['warmup'];
-$frameCap = (int) $options['frame_cap'];
+$requestedFrameCap = (int) $options['frame_cap'];
+$capDisabled = $requestedFrameCap === 0;
+$effectiveFrameCap = $capDisabled ? 1 : $requestedFrameCap;
+$frameCapMode = $capDisabled ? 'cap-disabled-single-hot-frame' : 'capped-resident-deck';
 $workload = (string) $options['workload'];
 $failFast = (bool) $options['fail_fast'];
 
-$residentFrames = build_resident_high_frame_deck($frameCap, $workload);
+$residentFrames = build_resident_high_frame_deck($effectiveFrameCap, $workload);
 
 if ($warmup > 0) {
-    run_php_89x($residentFrames, $warmup, $workload, $failFast);
-    run_jinx_89x($residentFrames, $warmup, $workload, $failFast);
+    run_php_89x($residentFrames, $warmup, $workload, $failFast, $capDisabled);
+    run_jinx_89x($residentFrames, $warmup, $workload, $failFast, $capDisabled);
 }
 
-$php = run_php_89x($residentFrames, $requests, $workload, $failFast);
-$jinx = run_jinx_89x($residentFrames, $requests, $workload, $failFast);
+$php = run_php_89x($residentFrames, $requests, $workload, $failFast, $capDisabled);
+$jinx = run_jinx_89x($residentFrames, $requests, $workload, $failFast, $capDisabled);
 $ratio = $jinx['seconds'] > 0.0 ? $php['seconds'] / $jinx['seconds'] : 0.0;
 $mismatches = $php['mismatches'] + $jinx['mismatches'] + ($php['digest'] === $jinx['digest'] ? 0 : 1);
 
 printf("89x resident high-frame benchmark\n");
 printf("Requests measured: %d, warmup: %d\n", $requests, $warmup);
 printf("Workload: %s\n", $workload);
+printf("Requested frame cap: %d\n", $requestedFrameCap);
+printf("Frame cap mode: %s\n", $frameCapMode);
 printf("Resident high frame deck: %d\n", count($residentFrames));
 printf("JINX frame residency: whole process lifetime\n");
 printf("Mode: PHP direct route baseline / JINX resident typed high-frame deck / no JSON parse or frame construction in JINX hot loop\n\n");
@@ -338,7 +354,10 @@ $payload = [
     'requests' => $requests,
     'warmup' => $warmup,
     'workload' => $workload,
-    'frame_cap' => $frameCap,
+    'frame_cap' => $requestedFrameCap,
+    'frame_cap_requested' => $requestedFrameCap,
+    'frame_cap_effective' => $effectiveFrameCap,
+    'frame_cap_mode' => $frameCapMode,
     'resident_high_frame_deck' => count($residentFrames),
     'jinx_frame_residency' => 'whole_process_lifetime',
     'mode' => 'PHP direct route baseline / JINX resident typed high-frame deck / no JSON parse or frame construction in JINX hot loop',
