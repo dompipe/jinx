@@ -128,6 +128,9 @@ JinxZendString *jinx_zend_string_retain(JinxZendString *string);
 void jinx_zend_string_release(JinxZendString *string);
 JinxZendString *jinx_zend_string_separate(JinxZendString **string);
 int jinx_zend_string_set_byte(JinxZendString **string, size_t offset, char byte);
+uint64_t jinx_zend_string_hash_bytes(const char *bytes, size_t len);
+uint64_t jinx_zend_string_hash(const JinxZendString *string);
+int jinx_zend_string_equals_bytes(const JinxZendString *string, const char *bytes, size_t len);
 JinxZendValue jinx_zend_string_value(JinxZendString *string);
 
 JinxZendArray jinx_zend_array_count_view(size_t count);
@@ -135,7 +138,9 @@ JinxZendArray *jinx_zend_array_new_packed(size_t capacity);
 JinxZendArray *jinx_zend_array_retain(JinxZendArray *array);
 void jinx_zend_array_release(JinxZendArray *array);
 int jinx_zend_array_append(JinxZendArray *array, JinxZendValue value);
+int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value);
 JinxZendValue *jinx_zend_array_index(JinxZendArray *array, size_t index);
+JinxZendValue *jinx_zend_array_find(JinxZendArray *array, const char *key, size_t key_len);
 const JinxZendBucket *jinx_zend_array_iter_at(const JinxZendArray *array, size_t position);
 JinxZendValue jinx_zend_array_value(JinxZendArray *array);
 
