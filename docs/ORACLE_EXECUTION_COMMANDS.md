@@ -19,6 +19,7 @@ Every family listed here is executable only because it has a runtime owner and a
 | `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` |
 | `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` |
 | `object-basics` | `runtime/OracleObjectExecutor.php` | `scripts/test-oracle-object-basics-execution.php` |
+| `object-inheritance` | `runtime/OracleObjectInheritanceExecutor.php` | `scripts/test-oracle-object-inheritance-execution.php` |
 
 ### Expression/control-flow batch
 
@@ -119,7 +120,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-app-builtin-execution.php
+./jinx scripts/test-oracle-object-inheritance-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable. Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family.
