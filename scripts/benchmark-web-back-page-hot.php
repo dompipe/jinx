@@ -8,9 +8,9 @@ use jinx\web\WebBackPageBridge;
 
 /**
  * Benchmarks the web back-page bridge in the same hot-worker style as the
- * Oracle builtin benchmark. This is the web request shape closest to the 89x
- * worker aura: a precompiled back page receives request envelopes and returns
- * response envelopes without shell spawning or socket timing.
+ * Oracle builtin benchmark. PHP is the direct route baseline. JINX is the
+ * precompiled back-page bridge path. No shell spawning or socket timing is
+ * included.
  *
  * Run through repository-root native ./jinx:
  *   ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000
@@ -79,7 +79,7 @@ function make_request_envelope(int $i): array
 }
 
 /** @return array{status:int,headers:array<string,string>,body:string} */
-function php_back_page(array $request): array
+function php_direct_route(array $request): array
 {
     $body = (string) ($request['body'] ?? '');
     $decoded = json_decode($body, true);
@@ -107,7 +107,7 @@ function run_php_side(int $start, int $count, bool $failFast): array
 
     for ($i = 0; $i < $count; $i++) {
         $request = make_request_envelope($start + $i);
-        $response = php_back_page($request);
+        $response = php_direct_route($request);
         $line = $response['status'] . ':' . $response['body'];
         hash_update($hash, $line . "\n");
 
@@ -191,13 +191,13 @@ $mismatches = $php['mismatches'] + $jinx['mismatches'] + ($php['digest'] === $ji
 
 printf("Web back-page hot benchmark\n");
 printf("Requests measured: %d, warmup: %d\n", $requests, $warmup);
-printf("Mode: single process / precompiled back-page bridge / no socket timing / no process-spawn timing\n\n");
-printf("%-10s %14s %14s %14s %14s\n", 'Worker', 'total ms', 'us/request', 'req/sec', 'checksum');
-printf("%s\n", str_repeat('-', 84));
-printf("%-10s %14s %14s %14s %s\n", 'PHP', ms($php['seconds']), us_per_req($php['seconds'], $requests), rps($php['seconds'], $requests), substr($php['digest'], 0, 16));
-printf("%-10s %14s %14s %14s %s\n", 'JINX', ms($jinx['seconds']), us_per_req($jinx['seconds'], $requests), rps($jinx['seconds'], $requests), substr($jinx['digest'], 0, 16));
-printf("%s\n", str_repeat('-', 84));
-printf("PHP/JINX back-page ratio: %sx\n", number_format($ratio, 2));
+printf("Mode: PHP direct route baseline / JINX precompiled back-page bridge / no socket timing / no process-spawn timing\n\n");
+printf("%-12s %14s %14s %14s %14s\n", 'Worker', 'total ms', 'us/request', 'req/sec', 'checksum');
+printf("%s\n", str_repeat('-', 86));
+printf("%-12s %14s %14s %14s %s\n", 'PHP-direct', ms($php['seconds']), us_per_req($php['seconds'], $requests), rps($php['seconds'], $requests), substr($php['digest'], 0, 16));
+printf("%-12s %14s %14s %14s %s\n", 'JINX-back', ms($jinx['seconds']), us_per_req($jinx['seconds'], $requests), rps($jinx['seconds'], $requests), substr($jinx['digest'], 0, 16));
+printf("%s\n", str_repeat('-', 86));
+printf("PHP-direct/JINX-back ratio: %sx\n", number_format($ratio, 2));
 printf("PHP checksum:  %s\n", $php['digest']);
 printf("JINX checksum: %s\n", $jinx['digest']);
 printf("Mismatches: %d\n", $mismatches);
@@ -206,10 +206,10 @@ $payload = [
     'kind' => 'JINX_WEB_BACK_PAGE_HOT_BENCHMARK',
     'requests' => $requests,
     'warmup' => $warmup,
-    'mode' => 'single process / precompiled back-page bridge / no socket timing / no process-spawn timing',
+    'mode' => 'PHP direct route baseline / JINX precompiled back-page bridge / no socket timing / no process-spawn timing',
     'php' => $php,
     'jinx' => $jinx,
-    'ratio_php_over_jinx' => $ratio,
+    'ratio_php_direct_over_jinx_back_page' => $ratio,
     'mismatches' => $mismatches,
 ];
 
@@ -228,4 +228,4 @@ if ($mismatches > 0) {
     exit(1);
 }
 
-echo "PASS: web back-page hot benchmark completed with matching PHP/JINX response envelopes" . PHP_EOL;
+echo "PASS: web back-page hot benchmark completed with PHP direct route and matching JINX back-page responses" . PHP_EOL;
