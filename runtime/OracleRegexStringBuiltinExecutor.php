@@ -117,7 +117,7 @@ final class OracleRegexStringBuiltinExecutor
         }
 
         if (preg_match('/^([\'\"])(.*)\1$/s', $expr, $m)) {
-            return stripcslashes($m[2]);
+            return self::decodePhpStringLiteral($m[1], $m[2]);
         }
 
         if (strcasecmp($expr, 'true') === 0) {
@@ -135,6 +135,30 @@ final class OracleRegexStringBuiltinExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle regex/string expression: {$expr}");
+    }
+
+    private static function decodePhpStringLiteral(string $quote, string $body): string
+    {
+        if ($quote === "'") {
+            return str_replace(["\\\\", "\\'"], ["\\", "'"], $body);
+        }
+
+        return preg_replace_callback('/\\\\([nrtvef\\\\\"\$]|x[0-9A-Fa-f]{1,2}|[0-7]{1,3})/', static function (array $m): string {
+            $escape = $m[1];
+            return match ($escape[0]) {
+                'n' => "\n",
+                'r' => "\r",
+                't' => "\t",
+                'v' => "\v",
+                'e' => "\e",
+                'f' => "\f",
+                '\\' => '\\',
+                '"' => '"',
+                '$' => '$',
+                'x' => chr(hexdec(substr($escape, 1))),
+                default => chr(octdec($escape)),
+            };
+        }, $body) ?? $body;
     }
 
     /** @param array<string,mixed> $locals */
