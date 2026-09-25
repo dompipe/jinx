@@ -2,13 +2,14 @@
 
 The browser window index is the safe resident layer for page defaults and arrangements.
 
-It is meant to behave like a large mutable per-user browser database of page shapes that JINX can feed into a browser window repeatedly:
+It behaves like a large mutable per-user browser database of page shapes that JINX can feed into a browser window repeatedly:
 
 ```text
 resident JINX window index
   -> page defaults
   -> page arrangements
   -> versioned index updates
+  -> JINX-emitted browser runtime
   -> browser index registration
   -> live browser frame patches
   -> DOM updates at will
@@ -41,31 +42,36 @@ last user's browser input
 
 The page arrangement/index is resident. The request context stays fresh and isolated.
 
-## Runtime files
+## Runtime
 
 ```text
 runtime/WebWindowIndex.php
-public/jinx-window-index.js
 ```
 
-`runtime/WebWindowIndex.php` owns the server-side resident index.
+`runtime/WebWindowIndex.php` owns the server-side resident index and emits the browser-side runtime inline.
 
-`public/jinx-window-index.js` is the original browser-side runtime. It registers a large user-side index in the browser and applies live update frames into the DOM.
+No external browser file is required:
 
-## Browser boot
-
-Load the browser runtime first:
-
-```html
-<script src="/jinx-window-index.js"></script>
+```text
+no <script src="/jinx-window-index.js"></script>
 ```
 
-Then register the current JINX index snapshot:
+The browser still executes generated code because DOM mutation requires browser execution, but the application code can stay in JINX/PHP.
+
+## Browser boot from the JINX file
 
 ```php
 $index = WebWindowIndex::withStandardDefaults();
+echo '<script>' . $index->toBrowserBootScript() . '</script>';
+```
+
+Equivalent explicit call:
+
+```php
 echo '<script>' . $index->toBrowserRegistrationScript() . '</script>';
 ```
+
+Both include the inline emitted runtime and then register the current index snapshot.
 
 That fills:
 
@@ -77,17 +83,18 @@ window.__JINX_WINDOW_INDEX__.frames
 window.__JINX_WINDOW_INDEX__.windows
 ```
 
-The browser runtime also exposes:
+The emitted runtime exposes:
 
 ```text
 window.JINXWindowIndex.registerIndex(index)
 window.JINXWindowIndex.liveUpdate(frame)
 window.JINXWindowIndex.applyFrame(frame)
 window.JINXWindowIndex.mount(windowId, pageKey, arrangement)
-window.JINXWindowIndex.snapshot()
+window.JINXWindowIndex.applyPatch(patch)
+window.JINXWindowIndex.state()
 ```
 
-## Feeding live DOM updates
+## Feeding live DOM updates from JINX
 
 Server side:
 
@@ -102,10 +109,10 @@ $frame = $index->feedWindow($state, 'main-window', 'feed.window', [
 echo '<script>' . WebWindowIndex::toBrowserScript($frame) . '</script>';
 ```
 
-Browser side, when a JSON frame is received over any live channel:
+`toBrowserScript()` also includes the inline emitted runtime by default. For repeated frames after boot, emit only the frame call:
 
-```js
-window.JINXWindowIndex.liveUpdate(frame);
+```php
+echo '<script>' . WebWindowIndex::toBrowserScript($frame, includeRuntime: false) . '</script>';
 ```
 
 The runtime applies patches with DOM targeting:
@@ -129,7 +136,7 @@ The browser applier uses zone targets like:
 <div data-jinx-window="main-window" data-jinx-zone="status"></div>
 ```
 
-JINX can emit direct selectors or window/zone patches. The runtime uses `querySelectorAll`, so one frame can update any number of matching DOM targets.
+JINX emits selectors or window/zone patches. The runtime updates matching DOM targets from the emitted JINX frame.
 
 ## Updating the resident index
 
@@ -163,12 +170,12 @@ A normal `feedWindow()` call does not mutate the resident index. It only creates
 
 ## Browser events
 
-The runtime fires:
+The emitted runtime fires:
 
 ```text
 jinx-window-index-registered
 jinx-window-frame
-jinx-window-patched
+jinx-window-live-update
 ```
 
 That gives the browser a JS-style programming surface while keeping the resident JINX side deterministic and safe.
@@ -189,8 +196,9 @@ The test proves:
 - explicit index patches increment index_version
 - explicit index patches change resident_index_fingerprint
 - updated defaults feed into later browser frames
-- the browser index registration script is emitted
-- the browser runtime exposes registerIndex/liveUpdate/applyFrame/mount
+- the browser runtime is emitted from WebWindowIndex.php
+- no external JS file or script src is required
+- the emitted runtime exposes registerIndex/liveUpdate/applyFrame/mount/applyPatch
 - live DOM update markers are present
 - one page's arrangement does not leak into the next page
 - forbidden request-state fields are not resident in the frame
