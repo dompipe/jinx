@@ -14,6 +14,16 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `request-globals` | `runtime/OracleRequestExecutor.php` | `scripts/test-oracle-request-globals-execution.php` | explicit Oracle request context for `$_SERVER`, `$_GET`, `$_POST`, `$_REQUEST`, coalesce, `isset`, `empty`, `count`, echo, print, return |
 | `include-require` | `runtime/OracleIncludeExecutor.php` | `scripts/test-oracle-include-require-execution.php` | literal `include` and `require` edges resolved by OracleProgramCompiler, included local scope, included output, caller return parity |
 | `exit-die` | `runtime/OracleExitExecutor.php` | `scripts/test-oracle-exit-die-execution.php` | `exit`/`die` termination, string output, exit status, terminated flag, and unreachable-code stopping behavior |
+| `ternary-expressions` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | ternary `?:` expression execution and branch parity |
+| `type-casts` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `(int)`, `(string)`, `(bool)`, `(float)`, and `(array)` casts |
+| `string-builtins` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `strlen`, `strtoupper`, `strtolower`, `trim`, and `substr` |
+| `math-builtins` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `abs`, `max`, `min`, and `round` |
+| `comparison-expressions` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | comparison operators including strict equality and spaceship `<=>` |
+| `boolean-expressions` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `&&`, `||`, `!`, and PHP-like truthiness |
+| `magic-constants` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | `__FILE__`, `__DIR__`, and `PHP_VERSION` |
+| `array-literals` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | list literals, associative literals, `count`, `implode`, and `array_sum` |
+| `foreach-loops` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow key/value `foreach` loops and body execution |
+| `for-loops` | `runtime/OracleNextTenExecutor.php` | `scripts/test-oracle-next-ten-execution.php` | narrow `for` init, condition, iteration, and body execution |
 
 ## Native `./jinx` verification
 
@@ -29,7 +39,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-exit-die-execution.php
+./jinx scripts/test-oracle-next-ten-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
