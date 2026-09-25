@@ -104,7 +104,7 @@ $cases = [
     'is-link-builtins' => "is_link({$data})",
     'scandir-builtins' => "json_encode(scandir({$dir}))",
     'parse-ini-file-builtins' => "json_encode(parse_ini_file({$ini}))",
-    'parse-ini-string-builtins' => "json_encode(parse_ini_string('alpha=one\\nbeta=2'))",
+    'parse-ini-string-builtins' => "json_encode(parse_ini_string(\"alpha=one\\nbeta=2\\n\"))",
     'getcwd-builtins' => "getcwd()",
     'stream-resolve-include-path-builtins' => "stream_resolve_include_path({$data})",
     'get-meta-tags-builtins' => "json_encode(get_meta_tags({$html}))",
