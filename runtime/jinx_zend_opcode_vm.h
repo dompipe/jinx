@@ -14,6 +14,7 @@
  *   - method INIT/SEND/DO lowering
  *   - throw / catch / clear-exception lowering
  *   - register copy / assignment slots
+ *   - scalar integer arithmetic and comparisons
  *   - jumps and halt
  *
  * It is not a PHP parser or full Zend VM yet. It is the first combined control
@@ -34,7 +35,13 @@ typedef enum JinxZendVmOpcode {
     JINX_ZEND_VM_JMP = 7,
     JINX_ZEND_VM_JMP_IF_EXCEPTION = 8,
     JINX_ZEND_VM_HALT = 9,
-    JINX_ZEND_VM_COPY = 10
+    JINX_ZEND_VM_COPY = 10,
+    JINX_ZEND_VM_ADD = 11,
+    JINX_ZEND_VM_SUB = 12,
+    JINX_ZEND_VM_EQ = 13,
+    JINX_ZEND_VM_LT = 14,
+    JINX_ZEND_VM_JMP_IF_TRUE = 15,
+    JINX_ZEND_VM_JMP_IF_FALSE = 16
 } JinxZendVmOpcode;
 
 typedef enum JinxZendVmResult {
@@ -74,6 +81,25 @@ typedef struct JinxZendVmState {
 
 static inline int jinx_zend_vm_reg_ok(int reg) {
     return reg >= 0 && (size_t)reg < JINX_ZEND_VM_MAX_REGISTERS;
+}
+
+static inline int jinx_zend_vm_truthy(JinxZendValue value) {
+    if (value.type == JINX_ZEND_TRUE) {
+        return 1;
+    }
+    if (value.type == JINX_ZEND_FALSE || value.type == JINX_ZEND_NULL) {
+        return 0;
+    }
+    if (value.type == JINX_ZEND_LONG) {
+        return value.value.lval != 0;
+    }
+    if (value.type == JINX_ZEND_DOUBLE) {
+        return value.value.dval != 0.0;
+    }
+    if (value.type == JINX_ZEND_STRING && value.value.str != 0) {
+        return value.value.str->len != 0u;
+    }
+    return 1;
 }
 
 static inline void jinx_zend_vm_state_init(JinxZendVmState *state, const JinxZendClassTable *class_table) {
@@ -131,6 +157,28 @@ static inline JinxZendVmResult jinx_zend_vm_run(
                     return JINX_ZEND_VM_BAD_REGISTER;
                 }
                 state->registers[op->dst] = state->registers[op->src];
+                state->pc++;
+                break;
+
+            case JINX_ZEND_VM_ADD:
+            case JINX_ZEND_VM_SUB:
+            case JINX_ZEND_VM_EQ:
+            case JINX_ZEND_VM_LT:
+                if (!jinx_zend_vm_reg_ok(op->dst) || !jinx_zend_vm_reg_ok(op->src) || !jinx_zend_vm_reg_ok(op->arg_start)) {
+                    return JINX_ZEND_VM_BAD_REGISTER;
+                }
+                if (state->registers[op->src].type != JINX_ZEND_LONG || state->registers[op->arg_start].type != JINX_ZEND_LONG) {
+                    return JINX_ZEND_VM_TYPE_ERROR;
+                }
+                if (op->op == JINX_ZEND_VM_ADD) {
+                    state->registers[op->dst] = jinx_zend_long(state->registers[op->src].value.lval + state->registers[op->arg_start].value.lval);
+                } else if (op->op == JINX_ZEND_VM_SUB) {
+                    state->registers[op->dst] = jinx_zend_long(state->registers[op->src].value.lval - state->registers[op->arg_start].value.lval);
+                } else if (op->op == JINX_ZEND_VM_EQ) {
+                    state->registers[op->dst] = jinx_zend_bool(state->registers[op->src].value.lval == state->registers[op->arg_start].value.lval);
+                } else {
+                    state->registers[op->dst] = jinx_zend_bool(state->registers[op->src].value.lval < state->registers[op->arg_start].value.lval);
+                }
                 state->pc++;
                 break;
 
@@ -259,6 +307,24 @@ static inline JinxZendVmResult jinx_zend_vm_run(
                     state->pc++;
                 }
                 break;
+
+            case JINX_ZEND_VM_JMP_IF_TRUE:
+            case JINX_ZEND_VM_JMP_IF_FALSE: {
+                int truthy;
+                if (!jinx_zend_vm_reg_ok(op->src)) {
+                    return JINX_ZEND_VM_BAD_REGISTER;
+                }
+                truthy = jinx_zend_vm_truthy(state->registers[op->src]);
+                if ((op->op == JINX_ZEND_VM_JMP_IF_TRUE && truthy) || (op->op == JINX_ZEND_VM_JMP_IF_FALSE && !truthy)) {
+                    JinxZendVmResult jumped = jinx_zend_vm_jump(state, op->target, program_len);
+                    if (jumped != JINX_ZEND_VM_OK) {
+                        return jumped;
+                    }
+                } else {
+                    state->pc++;
+                }
+                break;
+            }
 
             case JINX_ZEND_VM_HALT:
                 state->halted = 1;
