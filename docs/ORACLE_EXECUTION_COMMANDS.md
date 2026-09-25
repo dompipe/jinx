@@ -32,6 +32,13 @@ Use the worker/hot benchmark when checking the speed path where startup and test
 ./jinx scripts/benchmark-oracle-worker-hot.php --only=chr-builtins --iterations=10000
 ```
 
+Use the web back-page hot benchmark for the 89x-style web request aura: request envelope in, response envelope out, precompiled bridge, no socket timing:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000
+./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --json=build/benchmarks/web-back-page-hot.json
+```
+
 Use the warmed web-request worker benchmark for route logic without socket overhead:
 
 ```bash
