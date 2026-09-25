@@ -2,7 +2,7 @@
 
 The browser window index is the safe resident layer for page defaults and arrangements.
 
-It supports three browser output modes:
+It supports four browser output modes:
 
 ```text
 1. JINX-emitted stream runtime
@@ -17,7 +17,13 @@ It supports three browser output modes:
    - no external JS file is needed
    - supports in-place live DOM mutation
 
-3. No-JS browser registrar
+3. No-JS live islands
+   - JINX/PHP emits iframe islands
+   - each island loads server-rendered JINX HTML from an endpoint
+   - the parent page does not refresh
+   - no script tag, no EventSource, no window runtime
+
+4. No-JS browser registrar
    - JINX/PHP emits plain HTML/templates/data attributes
    - no script tag, no window runtime, no app JS
    - supports browser-native render/reload/swap flows
@@ -25,9 +31,9 @@ It supports three browser output modes:
 
 ## The hard browser boundary
 
-A current browser cannot arbitrarily mutate existing DOM nodes without some browser-side execution. That execution is normally JavaScript.
+A current browser cannot arbitrarily mutate existing parent DOM nodes without some browser-side execution. That execution is normally JavaScript.
 
-JINX now cuts this three ways:
+JINX now cuts this four ways:
 
 ```text
 For no-refresh server-pushed mutation:
@@ -39,12 +45,16 @@ For direct one-off live mutation:
   JINX emits the runtime itself, inline, from the JINX/PHP file.
   The app author does not write or include JS.
 
-For no-JS operation:
+For no-JS partial-page operation:
+  JINX emits browser-native iframe islands.
+  The parent page stays loaded while each island reloads its own JINX document.
+
+For no-JS whole-render operation:
   JINX emits real HTML/DOM as the registrar.
   Updates happen by server-rendered replacement, navigation, iframe/fragment swap, or meta refresh.
 ```
 
-So the stream runtime competes with app-level JavaScript by moving the application program to the JINX server and leaving only a generic JINX frame registrar in the browser.
+So the no-JS island mode competes with app-level JavaScript by moving the dynamic parts into server-rendered browser-owned documents.
 
 ## Safety rule
 
@@ -77,9 +87,12 @@ The page arrangement/index is resident. The request context stays fresh and isol
 
 ```text
 runtime/WebWindowIndex.php
+runtime/WebNoJsIslandRegistrar.php
 ```
 
-`runtime/WebWindowIndex.php` owns the server-side resident index and emits all browser modes.
+`runtime/WebWindowIndex.php` owns the server-side resident index and emits the browser runtime, stream frames, and no-JS registrar documents.
+
+`runtime/WebNoJsIslandRegistrar.php` emits browser-native no-JS live islands.
 
 The old optional file remains available:
 
@@ -87,7 +100,7 @@ The old optional file remains available:
 public/jinx-window-index.js
 ```
 
-but it is not required when using JINX-emitted stream runtime, inline runtime, or no-JS registrar output.
+but it is not required when using JINX-emitted stream runtime, inline runtime, no-JS live islands, or no-JS registrar output.
 
 ## No-refresh JINX stream runtime mode
 
@@ -154,6 +167,51 @@ window.__JINX_WINDOW_INDEX__.defaults
 window.__JINX_WINDOW_INDEX__.frames
 window.__JINX_WINDOW_INDEX__.windows
 window.__JINX_WINDOW_INDEX__.streams
+```
+
+## No-JS live island mode
+
+The parent page emits browser-native iframes:
+
+```php
+require_once __DIR__ . '/runtime/WebNoJsIslandRegistrar.php';
+
+use jinx\web\WebNoJsIslandRegistrar;
+
+echo WebNoJsIslandRegistrar::islandSet('main-window', '/jinx/island', ['detail', 'status']);
+```
+
+Each iframe calls the server independently, for example:
+
+```php
+$frame = $index->feedWindow($state, 'main-window', 'feed.window');
+
+echo WebNoJsIslandRegistrar::islandDocument(
+    $frame,
+    'detail',
+    '/jinx/island?window=main-window&zone=detail',
+    1
+);
+```
+
+That emits a no-JS island document with browser-native refresh. The parent page does not reload. Only the island document reloads.
+
+The output contains:
+
+```text
+data-jinx-no-js-island
+data-jinx-no-js-island-set
+data-jinx-no-js-island-document
+data-jinx-island-frame-json
+```
+
+The test enforces that no-JS island output does not contain:
+
+```text
+<script
+window.
+JINXWindowIndex
+EventSource
 ```
 
 ## No-JS browser registrar mode
@@ -257,6 +315,7 @@ The test proves:
 - server-sent JINX frames serialize with event/data framing
 - the no-JS registrar emits DOM/templates without scripts
 - no-JS document output can include browser-native refresh
+- no-JS island output keeps the parent page loaded while islands refresh independently
 - one page's arrangement does not leak into the next page
 - forbidden request-state fields are not resident in the frame
 ```
