@@ -1,4 +1,4 @@
-# Oracle generated 175 pure builtin batch
+# Oracle generated pure builtin batch
 
 Runtime owner: `runtime/OracleGeneratedBuiltinExecutor.php`.
 
@@ -14,8 +14,6 @@ Merged family ledger:
 runtime/OracleMergedExecutionFamilies.php
 ```
 
-The merged ledger folds `OracleGeneratedExecutionFamilies::all()` into the regular `OracleExecutionFamilies::all()` result, so suite-level audits count the generated batch as first-class executable Oracle/PHP parity families.
-
 Parity tests:
 
 ```bash
@@ -25,17 +23,19 @@ Parity tests:
 
 This batch is wired into the native verification group through `scripts/test-jinx-native-suite.php`.
 
-The group audit exposes exactly 175 executable generated PHP/Zend parity families, confirms each generated family is also present in `runtime/OracleMergedExecutionFamilies.php`, and verifies each uses `runtime/OracleGeneratedBuiltinExecutor.php` as owner and `scripts/test-oracle-generated-175-builtin-execution.php` as the comparison test.
+The group audit exposes exactly 275 executable generated PHP/Zend parity families, each using `runtime/OracleGeneratedBuiltinExecutor.php` as owner and `scripts/test-oracle-generated-175-builtin-execution.php` as the comparison test.
 
-This batch generates 175 deterministic PHP fixtures under `build/generated/oracle-generated-175-builtin/` and compares each fixture against Oracle execution through repository-root native `./jinx`.
+The first pass added 175 generated families. This update adds 100 more, bringing the generated merged batch to 275 families total.
+
+This batch generates deterministic PHP fixtures under `build/generated/oracle-generated-builtin/` and compares each fixture against Oracle execution through repository-root native `./jinx`.
 
 The generated families are named:
 
 ```text
-generated-pure-builtin-001 through generated-pure-builtin-175
+generated-pure-builtin-001 through generated-pure-builtin-275
 generated-pure-builtin-001
 ...
-generated-pure-builtin-175
+generated-pure-builtin-275
 ```
 
 The batch intentionally stays inside pure deterministic builtin behavior:
@@ -55,9 +55,9 @@ Verification:
 ```bash
 git pull origin master
 ./scripts/build-native-jinx.sh
-./jinx scripts/test-oracle-execution-families.php
 ./jinx scripts/test-oracle-generated-family-group.php
 ./jinx scripts/test-oracle-generated-175-builtin-execution.php
+./jinx scripts/test-oracle-execution-families.php
 ./jinx scripts/test-oracle-full-coverage-audit.php
 ./jinx scripts/test-jinx-native-suite.php
 git diff --check
