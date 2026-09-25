@@ -18,6 +18,7 @@ native/jinx_zend_array_delete_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
+native/jinx_oracle_array_fixture_cli.c
 ```
 
 Build and smoke test:
@@ -36,6 +37,9 @@ Build and smoke test:
 
 ./scripts/build-oracle-dispatch-zend-array-smoke.sh
 ./build/native/jinx-oracle-dispatch-zend-array-smoke
+
+./scripts/build-oracle-array-fixture-cli.sh
+./build/native/jinx-oracle-array-fixture-cli oracle-call count za:deleted
 ```
 
 Full native build regenerates Oracle dispatch and compiles the native binary:
@@ -69,6 +73,7 @@ JinxZendBucket      numeric, string-key, or tombstone bucket carrying retained J
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
+CLI fixture         command-line oracle-call wrapper that passes real carried Zend arrays
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
@@ -106,6 +111,7 @@ array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 Oracle array builtin bridge for carried JinxZendArray values
 generated `jinx_call_builtin_through_oracle` routes carried Zend arrays before generated fallbacks
+fixture CLI invokes generated dispatch with carried Zend arrays
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
@@ -207,6 +213,12 @@ Current generated-dispatch smoke executable:
 ./build/native/jinx-oracle-dispatch-zend-array-smoke
 ```
 
+Current CLI fixture executable:
+
+```bash
+./build/native/jinx-oracle-array-fixture-cli
+```
+
 `build-native-jinx.sh` now regenerates `runtime/jinx_builtin_dispatch.generated.c` so the generated `jinx_call_builtin_through_oracle` function checks carried Zend arrays first for:
 
 ```text
@@ -217,9 +229,39 @@ array_values
 array_keys
 ```
 
+## CLI fixture examples
+
+Build:
+
+```bash
+./scripts/build-oracle-array-fixture-cli.sh
+```
+
+Run carried live arrays through generated Oracle dispatch:
+
+```bash
+./build/native/jinx-oracle-array-fixture-cli oracle-call count za:sample
+# int:4
+
+./build/native/jinx-oracle-array-fixture-cli oracle-call count za:deleted
+# int:2
+
+./build/native/jinx-oracle-array-fixture-cli oracle-call array_key_exists i:1 za:deleted
+# bool:false
+
+./build/native/jinx-oracle-array-fixture-cli oracle-call array_key_exists s:keep za:deleted
+# bool:true
+
+./build/native/jinx-oracle-array-fixture-cli oracle-call array_values za:deleted
+# zend-array:2
+
+./build/native/jinx-oracle-array-fixture-cli oracle-call array_keys za:deleted
+# zend-array:2
+```
+
 ## Next implementation steps
 
-1. Add CLI/native fixtures that create carried Zend arrays and invoke `./jinx oracle-call` through the regenerated dispatch.
+1. Fold the fixture syntax into the main `./jinx oracle-call` parser.
 2. Lower `foreach` onto live array iteration.
 3. Add object class table and method dispatch.
 4. Add error/warning/exception objects.
