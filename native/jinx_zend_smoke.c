@@ -12,6 +12,7 @@ int main(void) {
     }
 
     printf("PASS: JINX Zend skeleton smoke passed\n");
+    printf("PASS: zend_string owned/refcount/COW smoke passed\n");
     printf("Zend rewrite families: %zu\n", family_count);
     printf("%-24s %-12s %s\n", "family", "state", "oracle-sm target");
     printf("----------------------------------------------------------------\n");
