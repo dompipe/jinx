@@ -1,0 +1,16 @@
+{
+    "manifest": {
+        "name": "jinx-c-inline-oracle-asm-index",
+        "version": "0.1",
+        "source_manifest": "spec/php-functions.from-runtime.json",
+        "generated_at": "2026-09-25T01:50:39+00:00",
+        "doctrine": ".stub.php signatures become lower-level PASM call skeletons, then C inline Oracle-ASM wrappers. Native behavior is still supplied by the PASM/runtime backend."
+    },
+    "files": [
+        {
+            "source_file": "runtime-reflection:8.4.23",
+            "output_file": "stubs/runtime-reflection-8-4-23.oracle_asm.h",
+            "callables": 3527
+        }
+    ]
+}
