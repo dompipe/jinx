@@ -10,6 +10,7 @@ The RC focuses on:
 - A native GCC `./jinx` executable that exercises the C Oracle/PASM dispatch layer.
 - Native `oracle-call` support for every generated PHP callable name in the native dispatch table.
 - Manual-driven handler states: `exact`, `php-fallback`, and `sandbox-blocked` are resolved; `partial`, `placeholder`, and `unsafe-native` are not.
+- PHP-source implementation families that map generated callables to Oracle/PASM target families and php-src source areas.
 - Correctness-first PHP fallback for crypto/hash/password/random functions until exact native crypto exists.
 - True all-functions benchmark tooling that runs every generated JINX function `X` times and direct PHP benchmarkable functions `X` times.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
@@ -33,6 +34,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx first100
 ./jinx bench-first100 100000
 ./jinx bench-all-functions 1000
+php scripts/report-php-families.php
 php scripts/benchmark-true-all-functions.php 1000
 ./jinx notes
 ./jinx benchmarks
@@ -65,6 +67,63 @@ Crypto fallback regression test:
 ```bash
 php scripts/test-php-crypto-fallback.php
 ```
+
+## PHP Source Families
+
+The flat generated callable list is now mapped into implementation families. This is the route from `php-src` behavior to Oracle ASM and then PASM/native runtime modules.
+
+Manifest:
+
+```text
+runtime/jinx_php_family_manifest.php
+```
+
+Report command:
+
+```bash
+php scripts/report-php-families.php
+```
+
+Fast report rerun without rebuilding `./jinx`:
+
+```bash
+JINX_SKIP_BUILD=1 php scripts/report-php-families.php
+```
+
+The report reads all generated names from:
+
+```bash
+./jinx functions
+```
+
+Then classifies each name into a family with:
+
+```text
+family
+state
+php-src source area
+Oracle ASM target
+PASM target
+example generated names
+```
+
+Primary families:
+
+| Family | State | php-src basis | Oracle/PASM path |
+|---|---:|---|---|
+| scalar-core | exact-native | `Zend/`, `ext/standard/type.c` | scalar runtime |
+| math | exact-native | `ext/standard/math.c` | math/libm runtime |
+| string-core | mixed-native-and-fallback | `ext/standard/string.c`, `ext/standard/html.c` | string runtime |
+| ctype | exact-native | `ext/ctype/ctype.c` | ctype byte-class runtime |
+| array | php-fallback until native HashTable | `ext/standard/array.c`, `Zend/zend_hash.c` | native array runtime |
+| json | php-fallback | `ext/json/` | JSON runtime after arrays/objects |
+| regex-pcre | php-fallback | `ext/pcre/` | PCRE runtime/binding |
+| crypto | php-fallback | `ext/hash/`, `ext/openssl/`, `ext/random/`, `ext/sodium/` | reviewed crypto runtime |
+| date-time | php-fallback | `ext/date/` | date/time + timezone runtime |
+| class-object-reflection | php-fallback until object model | `Zend/`, `ext/reflection/` | object/class runtime |
+| filesystem-stream-process-network-session-db | sandbox-blocked | file/process/session/db/stream extensions | sandbox runtime |
+| spl-iterator | php-fallback until object model | `ext/spl/` | SPL/object runtime |
+| misc-extension | php-fallback | remaining `ext/*` | later module-specific runtime |
 
 ## True All-Functions Benchmark
 
@@ -245,6 +304,7 @@ It does **not** call `php bin/jinx` for the JINX timing path.
 native/jinx_cli.c
 bin/jinx
 runtime/jinx_php_manual_manifest.h
+runtime/jinx_php_family_manifest.php
 runtime/WebNativeFunctions.php
 runtime/WebNativeFunctionRegistry.generated.php
 runtime/WebNativeOracleDispatch.generated.php
@@ -252,6 +312,7 @@ runtime/jinx_builtin_dispatch.generated.c
 runtime/jinx_function_list.generated.h
 runtime/jinx_oracle_asm_context.c
 scripts/check-native-manual-complete.php
+scripts/report-php-families.php
 scripts/test-php-crypto-fallback.php
 scripts/benchmark-true-all-functions.php
 scripts/benchmark-native-jinx-vs-php.php
