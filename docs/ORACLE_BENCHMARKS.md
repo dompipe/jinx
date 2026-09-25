@@ -70,7 +70,7 @@ Can a warmed JINX worker serve repeated web-style requests faster than equivalen
 1. `scripts/serve-php-web-worker.php` through PHP
 2. `scripts/serve-jinx-web-worker.php` through repository-root native `./jinx`
 
-Both workers use the same tiny socket-server harness. The PHP worker runs the PHP route logic directly. The JINX worker compiles `fixtures/simple-web-api-validated.php` once at startup and serves the compiled web plan. The benchmark then sends identical live HTTP POST requests to both workers and compares status/body checksums.
+Both workers use the same tiny socket-server harness. The PHP worker runs the PHP route logic directly. The JINX worker compiles `fixtures/simple-web-api-validated.php` once at startup and serves through `runtime/WebBackPageBridge.php`: the HTTP front side converts each request into a back-page request envelope, the bridge executes the route off the HTTP path, and the front side writes the returned response envelope.
 
 This answers:
 
@@ -125,6 +125,28 @@ Use alternate ports if the defaults are busy:
 ```
 
 The keep-alive benchmark reports average latency, p95 latency, min/max latency, requests per second, response checksums, and the PHP/JINX average latency ratio. Values above `1.00x` for `PHP/JINX avg latency ratio` mean the JINX live worker was faster.
+
+## Back-page request bridge
+
+The JINX live worker now uses a front/back split:
+
+```text
+HTTP front page -> back-page request envelope -> WebBackPageBridge -> response envelope -> HTTP response
+```
+
+The input envelope is the internal equivalent of `php://input` plus request metadata:
+
+```json
+{"method":"POST","path":"/api","headers":{"content-type":"application/json"},"body":"{\"name\":\"jinx\"}"}
+```
+
+The output envelope is what the front server writes back:
+
+```json
+{"status":200,"headers":{"Content-Type":"application/json"},"body":"{\"ok\":true,\"name\":\"jinx\"}"}
+```
+
+The goal is to move route execution off the HTTP path while keeping the server result-shaped: the front server sees one response envelope and does not need to know how the route was executed.
 
 ## Why 89x may not show on connection-per-request HTTP yet
 
