@@ -99,6 +99,49 @@ php direct numbers   = only global PHP functions that are safe and parameter-val
 
 So the native side is the true all-generated-functions run; the PHP side is the fair direct-PHP subset that can actually be called with safe deterministic inputs.
 
+### Current true all-functions benchmark snapshot
+
+Command:
+
+```bash
+JINX_SKIP_BUILD=1 php scripts/benchmark-true-all-functions.php 50
+```
+
+Result:
+
+```text
+JINX true all-functions benchmark
+Iterations per function: 50
+Native function names: 3527
+PHP benchmarkable global functions: 183
+PHP skipped/unavailable: 3344
+
+engine                functions    total calls     elapsed ms        ns/call    calls/sec
+----------------------------------------------------------------------------------------------
+php direct                  183          9,150      23,844.27   2,605,931.65       383.74
+./jinx native              3527        176,350       1,347.76       7,642.50   130,847.13
+
+Native/PHP ns-per-call ratio: 0.003x
+Native speed versus PHP direct: 340.979x
+Native concrete first-pass returns: 3527/3527
+Native null/fault first-pass returns: 0/3527
+```
+
+Native raw benchmark output from that run:
+
+```text
+JINX native all-functions Oracle dispatch benchmark
+Functions: 3527
+Iterations per function: 50
+Sample args per call: 32
+Dispatch wrappers present: 3527/3527
+Concrete non-null first-pass returns: 3527/3527
+Null/fault placeholder first-pass returns: 0/3527
+Total dispatches: 176350
+Elapsed ms: 1347.756
+Per dispatch ns: 7642.5
+```
+
 ## Native `oracle-call`
 
 `oracle-call` is the native direct-call entrypoint. It checks the generated Oracle dispatch table, converts CLI arguments into `JinxValue` slots, and calls the requested wrapper from the `./jinx` executable.
