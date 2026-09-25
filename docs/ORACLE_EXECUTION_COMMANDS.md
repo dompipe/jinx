@@ -153,6 +153,12 @@ Runtime owner: `runtime/OracleTextBuiltinExecutor.php`. PHP comparison test: `sc
 
 `chr-builtins`, `ord-builtins`, `strcmp-builtins`, `strcasecmp-builtins`, `strncmp-builtins`, `strncasecmp-builtins`, `substr-compare-builtins`, `similar-text-builtins`, `levenshtein-builtins`, `soundex-builtins`, `metaphone-builtins`, `str-rot13-builtins`, `addslashes-builtins`, `stripslashes-builtins`, `quotemeta-builtins`, `addcslashes-builtins`, `substr-replace-builtins`, `strtr-builtins`, `str-getcsv-builtins`, `str-word-count-builtins`.
 
+## Text/string builtin batch two
+
+Runtime owner: `runtime/OracleTextBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-text-builtin-two-execution.php`.
+
+`strlen-builtins`, `strtolower-builtins`, `strtoupper-builtins`, `trim-builtins`, `substr-builtins`, `basename-builtins`, `dirname-builtins`, `ucwords-builtins`, `stripcslashes-builtins`, `ctype-alnum-builtins`, `ctype-alpha-builtins`, `ctype-cntrl-builtins`, `ctype-digit-builtins`, `ctype-graph-builtins`, `ctype-lower-builtins`, `ctype-print-builtins`, `ctype-punct-builtins`, `ctype-space-builtins`, `ctype-upper-builtins`, `ctype-xdigit-builtins`.
+
 ## Coverage rule
 
 Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
