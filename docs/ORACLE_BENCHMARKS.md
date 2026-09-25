@@ -78,25 +78,47 @@ This answers:
 When PHP and JINX both look like live warmed web workers, which responds faster over real local HTTP?
 ```
 
-Run it:
+Run the optimized JINX direct-response-template path:
 
 ```bash
-./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template
+```
+
+Compare against the older generic web-plan interpreter path:
+
+```bash
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=plan
 ```
 
 Save JSON:
 
 ```bash
-./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --json=build/benchmarks/live-web-requests.json
+./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=fast-template --json=build/benchmarks/live-web-requests.json
 ```
 
 Use alternate ports if the defaults are busy:
 
 ```bash
-./jinx scripts/benchmark-live-web-requests.php --php-port=18180 --jinx-port=18181 --requests=10000 --warmup=500
+./jinx scripts/benchmark-live-web-requests.php --php-port=18180 --jinx-port=18181 --requests=10000 --warmup=500 --jinx-mode=fast-template
 ```
 
 The live benchmark reports average latency, p95 latency, min/max latency, requests per second, response checksums, and the PHP/JINX average latency ratio. Values above `1.00x` for `PHP/JINX avg latency ratio` mean the JINX live worker was faster.
+
+## Why 89x may not show on connection-per-request HTTP yet
+
+An 89x executor advantage can disappear when every measured request still pays shared costs:
+
+```text
+TCP connect
+HTTP header parse
+Content-Length read
+response header write
+connection close
+process-level PHP socket functions
+client fsockopen cost
+```
+
+The current live benchmark is fair because both sides pay those costs, but those costs also create a speed ceiling. To make an 89x route-execution advantage visible across real web requests, the next web benchmark layer needs persistent keep-alive connections or HTTP pipelining, and the JINX side ultimately needs a native socket loop rather than a worker script implemented in PHP.
 
 ## Interpreting the numbers
 
