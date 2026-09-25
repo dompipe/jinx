@@ -14,6 +14,7 @@ require_once dirname(__DIR__) . '/runtime/OracleObjectExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleScalarBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleAppBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleExecutionFamilies;
@@ -70,8 +71,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
     }
 }
 
-if (count($families) < 49) {
-    fail('coverage audit expected at least 49 executable families');
+if (count($families) < 69) {
+    fail('coverage audit expected at least 69 executable families');
 }
 
 $distinctTests = array_keys($testToFamilies);
