@@ -19,6 +19,13 @@ Build and smoke test:
 ./build/native/jinx-zend-smoke
 ```
 
+Expected smoke output includes:
+
+```text
+PASS: JINX Zend skeleton smoke passed
+PASS: zend_string owned/refcount/COW smoke passed
+```
+
 ## Rewrite families
 
 | Family | php-src area | JINX native state | Oracle SM target | PASM target |
@@ -33,11 +40,11 @@ Build and smoke test:
 
 ## What exists now
 
-The first native Zend-shaped layer now has:
+The native Zend-shaped layer now has:
 
 ```text
 JinxZendValue       zval-like tagged value
-JinxZendString      zend_string-like string view
+JinxZendString      zend_string-like view/owned buffer with refcount and COW separation
 JinxZendArray       zend_array/HashTable count shell
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
@@ -48,18 +55,36 @@ JinxZendExecutor    executor/request state shell
 The smoke test proves:
 
 ```text
-string value creation
+borrowed/interned string view creation
+owned string allocation
+string retain/release
+copy-on-write separation before mutation
 array-count shell creation
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
 ```
 
+## `zend_string` layer
+
+Implemented native helpers:
+
+```text
+jinx_zend_string_view      borrowed/interned view over static bytes
+jinx_zend_string_new       owned NUL-terminated byte buffer
+jinx_zend_string_retain    refcount increment for non-interned strings
+jinx_zend_string_release   refcount decrement/free
+jinx_zend_string_separate  COW detach when shared or borrowed
+jinx_zend_string_set_byte  mutating byte write after separation
+```
+
+This is the string foundation needed before `HashTable/zend_array`, because array string keys, object property names, class names, function names, and interned identifiers all depend on stable string ownership rules.
+
 ## Next implementation steps
 
-1. Add owned `JinxZendString` allocation and refcount operations.
-2. Add packed-array buckets and insertion-order iteration.
-3. Add mixed hash buckets for string keys.
+1. Add packed-array buckets and insertion-order iteration.
+2. Add mixed hash buckets for string keys using owned `JinxZendString` keys.
+3. Add zval copy/destruct helpers so arrays and objects retain/release nested values.
 4. Lower `count`, `array_key_exists`, `array_values`, and `foreach` onto native `JinxZendArray`.
 5. Add object class table and method dispatch.
 6. Add error/warning/exception objects.
