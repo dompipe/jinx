@@ -34,6 +34,16 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `array-unique-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `array_unique` value preservation parity |
 | `json-encode-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `json_encode` array encoding parity |
 | `hash-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-execution.php` | `md5` hash output parity |
+| `ltrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `ltrim` leading trim parity |
+| `rtrim-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `rtrim` trailing trim parity |
+| `ucfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `ucfirst` first-character uppercase parity |
+| `lcfirst-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `lcfirst` first-character lowercase parity |
+| `strrev-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `strrev` string reverse parity |
+| `str-repeat-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `str_repeat` repeated string parity |
+| `str-pad-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `str_pad` padded string parity |
+| `array-keys-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_keys` key extraction parity |
+| `array-values-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_values` value reindex parity |
+| `array-slice-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_slice` offset and length parity |
 
 ## Native `./jinx` verification
 
@@ -49,7 +59,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-builtin-batch-execution.php
+./jinx scripts/test-oracle-builtin-batch-two-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
