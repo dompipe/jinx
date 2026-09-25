@@ -62,6 +62,7 @@ $scriptTests = [
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
     'benchmark command help' => ['scripts/benchmark-oracle-families.php --help', 'Oracle family benchmark'],
     'worker benchmark help' => ['scripts/benchmark-oracle-worker-hot.php --help', 'Oracle worker hot benchmark'],
+    'web request worker benchmark help' => ['scripts/benchmark-web-request-worker.php --help', 'JINX warmed web request worker benchmark'],
     'full coverage audit' => ['scripts/test-oracle-full-coverage-audit.php', 'PASS: Oracle full coverage audit validates'],
 ];
 
