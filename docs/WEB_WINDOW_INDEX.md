@@ -2,15 +2,22 @@
 
 The browser window index is the safe resident layer for page defaults and arrangements.
 
-It supports two browser output modes:
+It supports three browser output modes:
 
 ```text
-1. JINX-emitted browser runtime
+1. JINX-emitted stream runtime
    - JINX/PHP emits the tiny runtime inline
+   - browser opens a JINX server stream with EventSource
+   - server pushes frames without full-page refresh
+   - no external JS file and no app-authored JS
+
+2. JINX-emitted direct runtime
+   - JINX/PHP emits the tiny runtime inline
+   - JINX/PHP emits direct live frames as script blocks
    - no external JS file is needed
    - supports in-place live DOM mutation
 
-2. No-JS browser registrar
+3. No-JS browser registrar
    - JINX/PHP emits plain HTML/templates/data attributes
    - no script tag, no window runtime, no app JS
    - supports browser-native render/reload/swap flows
@@ -20,10 +27,15 @@ It supports two browser output modes:
 
 A current browser cannot arbitrarily mutate existing DOM nodes without some browser-side execution. That execution is normally JavaScript.
 
-JINX now cuts this two ways:
+JINX now cuts this three ways:
 
 ```text
-For live in-place mutation:
+For no-refresh server-pushed mutation:
+  JINX emits a specialized browser runtime once.
+  That runtime opens a JINX EventSource stream.
+  The server pushes JINX frames; the browser applies them.
+
+For direct one-off live mutation:
   JINX emits the runtime itself, inline, from the JINX/PHP file.
   The app author does not write or include JS.
 
@@ -32,7 +44,7 @@ For no-JS operation:
   Updates happen by server-rendered replacement, navigation, iframe/fragment swap, or meta refresh.
 ```
 
-So the no-JS registrar competes with app-level JavaScript by making the server emit the DOM directly.
+So the stream runtime competes with app-level JavaScript by moving the application program to the JINX server and leaving only a generic JINX frame registrar in the browser.
 
 ## Safety rule
 
@@ -67,7 +79,7 @@ The page arrangement/index is resident. The request context stays fresh and isol
 runtime/WebWindowIndex.php
 ```
 
-`runtime/WebWindowIndex.php` owns the server-side resident index and emits both browser modes.
+`runtime/WebWindowIndex.php` owns the server-side resident index and emits all browser modes.
 
 The old optional file remains available:
 
@@ -75,9 +87,37 @@ The old optional file remains available:
 public/jinx-window-index.js
 ```
 
-but it is not required when using JINX-emitted inline runtime or no-JS registrar output.
+but it is not required when using JINX-emitted stream runtime, inline runtime, or no-JS registrar output.
 
-## JINX-emitted browser runtime mode
+## No-refresh JINX stream runtime mode
+
+The page boots once:
+
+```php
+$index = WebWindowIndex::withStandardDefaults();
+echo '<script>' . $index->toBrowserStreamBootScript('/jinx/window-stream', 'main-stream') . '</script>';
+```
+
+Then the server stream emits frames:
+
+```php
+header('Content-Type: text/event-stream');
+header('Cache-Control: no-cache');
+
+echo WebWindowIndex::toServerSentEventFrame($frame);
+flush();
+```
+
+The browser runtime listens for:
+
+```text
+jinx-window-frame
+jinx-window-index
+```
+
+and applies frame patches in-place. The whole page does not refresh.
+
+## JINX-emitted direct browser runtime mode
 
 No separate `<script src>` is required.
 
@@ -113,6 +153,7 @@ window.__JINX_WINDOW_INDEX__.fingerprint
 window.__JINX_WINDOW_INDEX__.defaults
 window.__JINX_WINDOW_INDEX__.frames
 window.__JINX_WINDOW_INDEX__.windows
+window.__JINX_WINDOW_INDEX__.streams
 ```
 
 ## No-JS browser registrar mode
@@ -212,6 +253,8 @@ The test proves:
 - explicit index patches change resident_index_fingerprint
 - updated defaults feed into later browser frames
 - the JINX-emitted browser runtime is available
+- the JINX stream runtime emits EventSource/connectStream boot code
+- server-sent JINX frames serialize with event/data framing
 - the no-JS registrar emits DOM/templates without scripts
 - no-JS document output can include browser-native refresh
 - one page's arrangement does not leak into the next page
