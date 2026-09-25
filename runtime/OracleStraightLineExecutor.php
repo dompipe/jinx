@@ -104,9 +104,7 @@ final class OracleStraightLineExecutor
         ];
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function executeAssignStatement(string $source, array &$locals): void
     {
         if (!preg_match('/^\$(\w+)\s*=\s*(.+);?$/', $source, $m)) {
@@ -116,9 +114,7 @@ final class OracleStraightLineExecutor
         $locals[$m[1]] = self::evaluateExpression($m[2], $locals);
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function executeDimAssignStatement(string $source, array &$locals): void
     {
         if (!preg_match('/^\$(\w+)\[([^\]]+)\]\s*=\s*(.+);?$/', $source, $m)) {
@@ -135,9 +131,7 @@ final class OracleStraightLineExecutor
         $locals[$name][$key] = self::evaluateExpression($m[3], $locals);
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function executeCompoundAssignStatement(string $source, array &$locals): void
     {
         if (!preg_match('/^\$(\w+)\s*(\.=|\+=|-=|\*=|\/=|%=)\s*(.+);?$/', $source, $m)) {
@@ -159,9 +153,7 @@ final class OracleStraightLineExecutor
         };
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function executeIncDecStatement(string $source, array &$locals, bool $increment): void
     {
         if (!preg_match('/^(?:\+\+|--)?\s*\$(\w+)\s*(?:\+\+|--)?\s*;?$/', $source, $m)) {
@@ -179,9 +171,7 @@ final class OracleStraightLineExecutor
         return rtrim(trim((string) $body), ';');
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function evaluateExpression(string $expression, array &$locals): mixed
     {
         $expr = trim(rtrim(trim($expression), ';'));
@@ -271,17 +261,21 @@ final class OracleStraightLineExecutor
         throw new \RuntimeException("Unsupported Oracle expression: {$expr}");
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function interpolateDoubleQuotedString(string $body, array &$locals): string
     {
         $placeholder = "\0JINX_ESCAPED_DOLLAR\0";
         $body = str_replace('\\$', $placeholder, $body);
+        $bracedValues = [];
 
         $body = preg_replace_callback(
             '/\{\s*(\$[A-Za-z_]\w*(?:(?:\[[^\]]+\])|(?:->\w+))*)\s*\}/',
-            static fn(array $m): string => (string) self::evaluateInterpolatedVariable($m[1], $locals),
+            static function (array $m) use (&$locals, &$bracedValues): string {
+                $token = "\0JINX_BRACED_INTERP_" . count($bracedValues) . "\0";
+                $bracedValues[$token] = (string) self::evaluateInterpolatedVariable($m[1], $locals);
+
+                return $token;
+            },
             $body
         ) ?? $body;
 
@@ -300,14 +294,13 @@ final class OracleStraightLineExecutor
             $body
         ) ?? $body;
 
+        $body = strtr($body, $bracedValues);
         $body = str_replace($placeholder, '$', $body);
 
         return self::decodeDoubleQuotedEscapes($body);
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function evaluateInterpolatedVariable(string $path, array &$locals): mixed
     {
         if (!preg_match('/^\$(\w+)/', $path, $m)) {
@@ -349,12 +342,10 @@ final class OracleStraightLineExecutor
         return $value;
     }
 
-    /**
-     * @param array<string,mixed> $locals
-     */
+    /** @param array<string,mixed> $locals */
     private static function interpolationKey(string $raw, array &$locals): int|string
     {
-        $key = trim($raw);
+        $key = stripcslashes(trim($raw));
         if (preg_match('/^-?\d+$/', $key)) {
             return (int) $key;
         }
