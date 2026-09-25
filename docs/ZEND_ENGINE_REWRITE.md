@@ -19,6 +19,7 @@ runtime/jinx_zend_error.h
 runtime/jinx_zend_throw_opcode.h
 runtime/jinx_zend_opcode_vm.h
 runtime/jinx_zend_lowering_fixture.h
+runtime/jinx_zend_ir_fixture.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 native/jinx_zend_smoke.c
@@ -34,6 +35,7 @@ native/jinx_zend_error_smoke.c
 native/jinx_zend_throw_opcode_smoke.c
 native/jinx_zend_opcode_vm_smoke.c
 native/jinx_zend_lowering_fixture_smoke.c
+native/jinx_zend_ir_fixture_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -78,6 +80,9 @@ Build and smoke test:
 
 ./scripts/build-zend-lowering-fixture-smoke.sh
 ./build/native/jinx-zend-lowering-fixture-smoke
+
+./scripts/build-zend-ir-fixture-smoke.sh
+./build/native/jinx-zend-ir-fixture-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -133,6 +138,7 @@ JinxZendThrowable throwable descriptor over Exception/Error-style objects
 JinxZendCatchFrame CATCH lowering frame over active throwable state
 JinxZendVmState combined register VM for foreach/method/throw control flow
 JinxZendVmOp fixture emitters for PHP-shaped foreach/method and throw/catch constructs
+JinxZendIrFixture tiny text IR descriptor for fixture-shaped parser lowering
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
@@ -197,6 +203,8 @@ combined opcode VM sequences foreach, method calls, throw/catch, clear-exception
 combined opcode VM uses one register stream over arrays, objects, methods, and throwable state
 lowering fixtures emit VM op streams for foreach-method and throw-catch PHP-shaped constructs
 lowered fixture programs run through the combined VM and produce expected register/error state
+tiny text IR parses fixture-shaped commands into the same VM op streams
+text IR smoke executes parsed foreach-method and throw-catch shapes through the combined VM
 executor error state can be cleared
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
@@ -216,6 +224,7 @@ The combined opcode VM and lowering fixture layers are:
 ```text
 runtime/jinx_zend_opcode_vm.h
 runtime/jinx_zend_lowering_fixture.h
+runtime/jinx_zend_ir_fixture.h
 ```
 
 They provide:
@@ -225,20 +234,24 @@ JinxZendVmOpcode
 JinxZendVmResult
 JinxZendVmOp
 JinxZendVmState
+JinxZendIrFixture
 jinx_zend_vm_state_init
 jinx_zend_vm_run
 jinx_zend_lower_foreach_method_fixture
 jinx_zend_lower_throw_catch_fixture
+jinx_zend_ir_fixture_parse
+jinx_zend_ir_fixture_lower
 ```
 
-Current combined VM smoke executables:
+Current combined VM / lowering smoke executables:
 
 ```bash
 ./build/native/jinx-zend-opcode-vm-smoke
 ./build/native/jinx-zend-lowering-fixture-smoke
+./build/native/jinx-zend-ir-fixture-smoke
 ```
 
-The VM is register-based and currently sequences `LOAD_CONST`, `FE_RESET`, `FE_FETCH`, `METHOD_CALL`, `THROW`, `CATCH`, `CLEAR_EXCEPTION`, `JMP`, `JMP_IF_EXCEPTION`, and `HALT`. The lowering fixture layer emits stable `JinxZendVmOp` streams for small PHP-shaped constructs so parser/AST lowering can target the same instruction stream next.
+The VM is register-based and currently sequences `LOAD_CONST`, `FE_RESET`, `FE_FETCH`, `METHOD_CALL`, `THROW`, `CATCH`, `CLEAR_EXCEPTION`, `JMP`, `JMP_IF_EXCEPTION`, and `HALT`. The lowering fixture layer emits stable `JinxZendVmOp` streams for small PHP-shaped constructs. The tiny IR layer parses simple commands such as `foreach_method collect` and `throw_catch Exception input.ir`, then lowers them through the same emitters so a future parser can reuse the instruction stream.
 
 ## Native array builtin helpers
 
@@ -398,8 +411,8 @@ Run carried live arrays through `./jinx oracle-call`:
 
 ## Next implementation steps
 
-1. Add parser/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
-2. Lower more PHP statements and expressions into `JinxZendVmOp` streams.
+1. Expand the tiny IR input language beyond fixtures toward statement/expression lowering.
+2. Add parser/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
