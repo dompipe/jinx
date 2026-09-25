@@ -13,6 +13,7 @@ runtime/jinx_zend_array_delete.h
 runtime/jinx_zend_foreach.h
 runtime/jinx_zend_foreach_opcode.h
 runtime/jinx_zend_foreach_program.h
+runtime/jinx_zend_object.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 native/jinx_zend_smoke.c
@@ -22,6 +23,7 @@ native/jinx_zend_foreach_smoke.c
 native/jinx_zend_foreach_execute_smoke.c
 native/jinx_zend_foreach_opcode_smoke.c
 native/jinx_zend_foreach_program_smoke.c
+native/jinx_zend_object_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -48,6 +50,9 @@ Build and smoke test:
 
 ./scripts/build-zend-foreach-program-smoke.sh
 ./build/native/jinx-zend-foreach-program-smoke
+
+./scripts/build-zend-object-smoke.sh
+./build/native/jinx-zend-object-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -77,7 +82,7 @@ Full native build regenerates Oracle dispatch and compiles the native binary:
 | `zend_string` | `Zend/zend_string.h`, `Zend/zend_string.c` | started | `oracle-sm/zend/string.osm` | `runtime/pasm/zend/string.pasm` |
 | `HashTable/zend_array` | `Zend/zend_hash.h`, `Zend/zend_hash.c`, `Zend/zend_array.c` | started | `oracle-sm/zend/hash.osm` | `runtime/pasm/zend/hash.pasm` |
 | `executor/call-frame` | `Zend/zend_execute.c`, `Zend/zend_vm_def.h`, `Zend/zend_vm_execute.h` | started | `oracle-sm/zend/executor.osm` | `runtime/pasm/zend/executor.pasm` |
-| `objects/classes` | `Zend/zend_object_handlers.c`, `Zend/zend_objects_API.c`, `Zend/zend_compile.c` | planned | `oracle-sm/zend/object.osm` | `runtime/pasm/zend/object.pasm` |
+| `objects/classes` | `Zend/zend_object_handlers.c`, `Zend/zend_objects_API.c`, `Zend/zend_compile.c` | started | `oracle-sm/zend/object.osm` | `runtime/pasm/zend/object.pasm` |
 | `errors/exceptions` | `Zend/zend_exceptions.c`, `Zend/zend_errors.h` | planned | `oracle-sm/zend/errors.osm` | `runtime/pasm/zend/errors.pasm` |
 | `compiler/opcodes` | `Zend/zend_language_parser.y`, `Zend/zend_compile.c`, `Zend/zend_vm_def.h` | started | `oracle-sm/zend/opcodes.osm` | `runtime/pasm/zend/opcodes.pasm` |
 
@@ -94,11 +99,14 @@ JinxZendForeachIterator live foreach cursor over Zend-array buckets
 JinxZendForeachBody executor-style foreach body callback
 JinxZendForeachFrame FE_RESET/FE_FETCH foreach opcode frame
 JinxZendForeachProgramState minimal FE_RESET/FE_FETCH/BODY/JMP/HALT program runner
+JinxZendClassEntry class metadata with method table
+JinxZendClassTable native class lookup table
+JinxZendMethodEntry named method handler slot
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
 Native CLI fixtures `za:sample` / `za:deleted` for real carried Zend arrays in `./jinx oracle-call`
-JinxZendObject      object/class shell
+JinxZendObject      object/class shell with property table
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
 JinxZendExecutor    executor/request state shell
@@ -138,6 +146,11 @@ FE_FETCH skips tombstones and yields live key/value slots
 FE_RUN_ALL dispatches a lowered foreach body and advances executor ops
 foreach opcode program sequences FE_RESET, FE_FETCH, FE_BODY, JMP, and HALT
 foreach opcode program loops over live entries and skips tombstones
+class table registration and lookup
+object allocation with class metadata
+object property set/get through native Zend arrays
+method lookup and dispatch by class + method name
+missing method error state without advancing executed_ops
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 Oracle array builtin bridge for carried JinxZendArray values
@@ -248,6 +261,43 @@ Current foreach smoke executables:
 ```
 
 The iterator walks physical bucket order, skips tombstones without compaction, and returns a live-position counter plus PHP-style numeric/string keys and values. The executor-style helper calls a lowered foreach body once per live entry and increments `JinxZendExecutor.executed_ops` per body execution. The opcode primitive layer maps this into `FE_RESET`/`FE_FETCH` frame state. The program runner sequences `FE_RESET`, `FE_FETCH`, body dispatch, loop jump, and halt so a later compiler can lower PHP `foreach` into a tiny opcode stream.
+
+## Native object/class dispatch helpers
+
+The object/class dispatch layer is:
+
+```text
+runtime/jinx_zend_object.h
+```
+
+It provides:
+
+```text
+JinxZendMethodHandler
+JinxZendMethodEntry
+JinxZendClassEntry
+JinxZendClassTable
+jinx_zend_object_value
+jinx_zend_object_new
+jinx_zend_object_retain
+jinx_zend_object_release
+jinx_zend_class_table_init
+jinx_zend_class_table_release
+jinx_zend_class_table_register
+jinx_zend_class_table_find
+jinx_zend_class_find_method
+jinx_zend_object_set_property
+jinx_zend_object_get_property
+jinx_zend_call_method
+```
+
+Current object smoke executable:
+
+```bash
+./build/native/jinx-zend-object-smoke
+```
+
+The object layer uses existing `JinxZendObject` shells for object identity/properties and adds class metadata/method tables next to them. Method dispatch resolves class name, finds the method, increments `JinxZendExecutor.executed_ops`, and calls the native handler. Missing methods set `last_error` / `error_level` and return null.
 
 ## Oracle/PASM JinxValue carrier and array builtin bridge
 
@@ -365,7 +415,7 @@ Run carried live arrays through generated Oracle dispatch:
 
 ## Next implementation steps
 
-1. Add object class table and method dispatch.
+1. Add object method-call opcode/IR lowering over `jinx_zend_call_method`.
 2. Add error/warning/exception objects.
 3. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
