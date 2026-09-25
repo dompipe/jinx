@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-$result = basename(__FILE__) . ':' . basename(__DIR__) . ':' . strlen(PHP_VERSION);
+$file = __FILE__;
+$dir = __DIR__;
+$result = strlen($file) . ':' . strlen($dir) . ':' . strlen(PHP_VERSION);
 
 echo $result;
 
