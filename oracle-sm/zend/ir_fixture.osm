@@ -1,0 +1,31 @@
+oracle_sm_family ir_fixture
+
+purpose "Tiny text IR fixture parser for foreach-method and throw-catch shapes."
+replaces "Hard-coded fixture selection in native smoke code."
+
+native_files {
+  runtime/jinx_zend_ir_fixture.h
+  runtime/jinx_zend_lowering_fixture.h
+}
+
+native_symbols {
+  JinxZendIrFixtureKind
+  JinxZendIrFixture
+  jinx_zend_ir_fixture_parse
+  jinx_zend_ir_fixture_lower
+}
+
+oracle_sm_contract {
+  syntax_foreach_method "foreach_method <method>"
+  syntax_throw_catch    "throw_catch <catch-class> <throw-file>"
+  parse_mode            fail_closed
+  output                JinxZendVmOp_stream
+}
+
+proven_by {
+  scripts/build-zend-ir-fixture-smoke.sh
+  build/native/jinx-zend-ir-fixture-smoke
+}
+
+pasm_target "runtime/pasm/zend/ir_fixture.pasm"
+status started
