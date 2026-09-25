@@ -22,6 +22,7 @@ require_once dirname(__DIR__) . '/runtime/OracleTextBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleDateTimeBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIntrospectionBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRegexStringBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleArrayMutationBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleExecutionFamilies;
