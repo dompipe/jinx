@@ -45,6 +45,16 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `array-keys-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_keys` key extraction parity |
 | `array-values-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_values` value reindex parity |
 | `array-slice-builtins` | `runtime/OracleBuiltinBatchExecutor.php` | `scripts/test-oracle-builtin-batch-two-execution.php` | `array_slice` offset and length parity |
+| `is-string-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_string` type-check parity |
+| `is-int-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_int` type-check parity |
+| `is-array-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_array` type-check parity |
+| `is-bool-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_bool` type-check parity |
+| `is-null-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_null` type-check parity |
+| `intval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `intval` conversion parity |
+| `strval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `strval` conversion parity |
+| `boolval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `boolval` conversion parity |
+| `floatval-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `floatval` conversion parity |
+| `is-numeric-builtins` | `runtime/OracleScalarBuiltinExecutor.php` | `scripts/test-oracle-scalar-builtin-execution.php` | `is_numeric` numeric-string check parity |
 
 ## Native `./jinx` verification
 
@@ -60,7 +70,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-object-basics-execution.php
+./jinx scripts/test-oracle-scalar-builtin-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
