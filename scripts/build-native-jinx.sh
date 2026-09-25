@@ -16,6 +16,7 @@ mkdir -p "$OUT_DIR"
     -Wextra \
     -I"${ROOT_DIR}/runtime" \
     -I"${ROOT_DIR}/build/oracle-asm" \
+    -include "${ROOT_DIR}/runtime/jinx_php_manual_manifest.h" \
     "${ROOT_DIR}/native/jinx_cli.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
@@ -27,4 +28,5 @@ cp "$OUT" "$COPY_OUT"
 
 echo "Built native JINX CLI: $OUT"
 echo "Copied native JINX CLI: $COPY_OUT"
+echo "Manual manifest compiled: runtime/jinx_php_manual_manifest.h"
 echo "Try: ./jinx oracle-smoke"
