@@ -171,15 +171,35 @@ final class OracleExpressionBatchExecutor
      */
     private static function executeFor(array $statements, int &$index, array &$locals, string &$output, int &$executed, array $program, string $source): array
     {
-        if (!preg_match('/^for\s*\((.*?);(.*?);(.*?)\)\s*\{?$/i', trim($source), $m)) {
+        $init = null;
+        $condition = null;
+        $update = null;
+        $bodyStart = $index + 1;
+
+        if (preg_match('/^for\s*\((.*?);(.*?);(.*?)\)\s*\{?$/i', trim($source), $m)) {
+            $init = trim($m[1]);
+            $condition = trim($m[2]);
+            $update = trim($m[3]);
+        } elseif (preg_match('/^for\s*\((.*);\s*$/i', trim($source), $m)) {
+            $conditionSource = (string) ($statements[$index + 1]['source'] ?? '');
+            $updateSource = (string) ($statements[$index + 2]['source'] ?? '');
+            if ($conditionSource === '' || $updateSource === '') {
+                throw new \RuntimeException("Unsupported split Oracle for loop: {$source}");
+            }
+
+            $init = trim($m[1]);
+            $condition = trim(rtrim($conditionSource, ';'));
+            $update = trim(rtrim(rtrim($updateSource, '{'), ';'));
+            $bodyStart = $index + 3;
+        } else {
             throw new \RuntimeException("Unsupported Oracle for loop: {$source}");
         }
 
-        [$body, $after] = self::collectBlock($statements, $index + 1);
-        self::executeInlineStatement(trim($m[1]) . ';', $locals, $program);
+        [$body, $after] = self::collectBlock($statements, $bodyStart);
+        self::executeInlineStatement($init . ';', $locals, $program);
         $executed++;
 
-        while (self::toPhpBool(self::evaluate($m[2], $locals, $program))) {
+        while (self::toPhpBool(self::evaluate($condition, $locals, $program))) {
             $bodyIndex = 0;
             while ($bodyIndex < count($body)) {
                 $result = self::executeStatement($body, $bodyIndex, $locals, $output, $executed, $program);
@@ -188,7 +208,7 @@ final class OracleExpressionBatchExecutor
                     return $result;
                 }
             }
-            self::executeInlineStatement(trim($m[3]) . ';', $locals, $program);
+            self::executeInlineStatement($update . ';', $locals, $program);
             $executed++;
         }
 
