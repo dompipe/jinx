@@ -1,0 +1,49 @@
+oracle_sm_family array_builtins
+
+purpose "PHP array builtin-name bridge over native JinxZendArray values."
+replaces "Selected ext/standard array builtin fallback behavior when native Zend-array family is available."
+
+native_files {
+  runtime/jinx_zend_engine.h
+  runtime/jinx_zend_array_delete.h
+  runtime/jinx_oracle_zend_array_builtins.h
+  runtime/jinx_builtin_dispatch.generated.c
+  scripts/generate-oracle-dispatch-table.php
+}
+
+native_symbols {
+  jinx_zend_array_count_builtin
+  jinx_zend_array_key_exists_index
+  jinx_zend_array_key_exists_string
+  jinx_zend_array_is_list_builtin
+  jinx_zend_array_values_builtin
+  jinx_zend_array_keys_builtin
+  jinx_zend_array_live_count
+  jinx_zend_array_live_key_exists_index
+  jinx_zend_array_live_key_exists_string
+  jinx_zend_array_live_is_list
+  jinx_zend_array_live_values
+  jinx_zend_array_live_keys
+  jinx_oracle_zend_array_dispatch_builtin
+}
+
+oracle_sm_contract {
+  count            live_bucket_count
+  array_key_exists skip_tombstones
+  array_is_list    sequential_live_numeric_keys
+  array_values     packed_live_values
+  array_keys       packed_live_keys
+  dispatch_order   carried_zend_array_before_generated_fallback
+}
+
+proven_by {
+  scripts/build-zend-array-builtin-smoke.sh
+  build/native/jinx-zend-array-builtin-smoke
+  scripts/build-oracle-zend-array-builtin-smoke.sh
+  build/native/jinx-oracle-zend-array-builtin-smoke
+  scripts/build-oracle-dispatch-zend-array-smoke.sh
+  build/native/jinx-oracle-dispatch-zend-array-smoke
+}
+
+pasm_target "runtime/pasm/zend/array_builtins.pasm"
+status started
