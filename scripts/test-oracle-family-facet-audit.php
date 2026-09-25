@@ -27,9 +27,12 @@ require_once dirname(__DIR__) . '/runtime/OracleRegexStringBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayMutationBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleSecurityNetworkBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRuntimeInfoBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
-use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleMergedExecutionFamilies;
 
 function fail(string $message): never
 {
@@ -118,7 +121,7 @@ function owner_path_from_class(string $owner): ?string
 }
 
 $root = dirname(__DIR__);
-$families = OracleExecutionFamilies::all();
+$families = OracleMergedExecutionFamilies::all();
 
 $behaviorFacetFields = [
     'builtins',
@@ -182,8 +185,8 @@ if ($missing !== []) {
     fail('Oracle family facet audit found uncovered declared facets:' . PHP_EOL . implode(PHP_EOL, $missing));
 }
 
-if ($totalFacets < 200) {
-    fail('Oracle family facet audit expected at least 200 declared behavior facets, found ' . $totalFacets);
+if ($totalFacets < 375) {
+    fail('Oracle family facet audit expected at least 375 declared behavior facets after generated merge, found ' . $totalFacets);
 }
 
 echo 'PASS: Oracle family facet audit validates ' . $totalFacets . ' declared behavior facets across ' . count($families) . ' executable families' . PHP_EOL;
