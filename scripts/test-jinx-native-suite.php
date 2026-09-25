@@ -74,7 +74,7 @@ $outJson = $root . '/build/web-statements/native-suite.web.json';
 run_native_jinx(
     'web-statements',
     'web-statements ' . escapeshellarg($root . '/fixtures/oracle-post-curl-dynamic.php') . ' ' . escapeshellarg($outJson),
-    'web statements'
+    'compiled'
 );
 
 if (!is_file($outJson)) {
