@@ -134,6 +134,7 @@ final class WebWindowIndex
                 'resident_state' => 'page defaults and arrangements only',
                 'request_state' => 'must be isolated outside the resident window index',
                 'index_update_rule' => 'only explicit register/update/patch calls mutate the resident index',
+                'browser_runtime_rule' => 'JINX emits the browser applier inline; no separate JavaScript file is required',
             ],
         ];
     }
@@ -171,57 +172,197 @@ final class WebWindowIndex
             'safety' => [
                 'resident_state' => 'page defaults and arrangements only',
                 'per_user_scale' => 'browser holds the user-visible index; server only sends index snapshots and frames',
-                'live_update_rule' => 'apply frames through JINXWindowIndex.liveUpdate/applyFrame',
+                'live_update_rule' => 'apply frames through the inline JINX-emitted window index runtime',
+                'external_js_required' => false,
             ],
         ];
     }
 
-    public function toBrowserRegistrationScript(): string
+    /**
+     * Emits the browser-side window-index runtime from PHP/JINX itself.
+     *
+     * This avoids requiring a hand-authored page script or an external
+     * /jinx-window-index.js include. The browser still executes emitted code
+     * because DOM mutation requires browser code, but the application author
+     * writes JINX/PHP only.
+     */
+    public static function inlineBrowserRuntimeScript(): string
+    {
+        return <<<'JS'
+(function(window, document){
+  if (window.JINXWindowIndex && window.JINXWindowIndex.__jinx_emitted_runtime === true) return;
+
+  function root() {
+    window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {
+      frames: {},
+      defaults: {},
+      windows: {},
+      history: [],
+      index_version: 0,
+      fingerprint: ''
+    };
+    return window.__JINX_WINDOW_INDEX__;
+  }
+
+  function remember(eventName, payload) {
+    var state = root();
+    state.history.push({
+      event: eventName,
+      index_version: payload && payload.index_version ? payload.index_version : (state.index_version || 0),
+      at: Date.now()
+    });
+    if (state.history.length > 200) state.history.shift();
+  }
+
+  function dispatch(name, detail) {
+    if (typeof window.CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent(name, {detail: detail}));
+    }
+  }
+
+  function query(selector) {
+    try {
+      return selector ? document.querySelector(selector) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applyPatch(patch) {
+    if (!patch || typeof patch !== 'object') return false;
+    var el = query(String(patch.selector || ''));
+    if (!el) return false;
+
+    var value = patch.value == null ? '' : String(patch.value);
+    switch (String(patch.op || 'replaceText')) {
+      case 'replaceText':
+        el.textContent = value;
+        return true;
+      case 'replaceHTML':
+        el.innerHTML = value;
+        return true;
+      case 'appendHTML':
+        el.insertAdjacentHTML('beforeend', value);
+        return true;
+      case 'setAttribute':
+        if (patch.name) el.setAttribute(String(patch.name), value);
+        return true;
+      case 'removeAttribute':
+        if (patch.name) el.removeAttribute(String(patch.name));
+        return true;
+      case 'toggleClass':
+        if (patch.name) el.classList.toggle(String(patch.name), !!patch.enabled);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  function registerIndex(index) {
+    var state = root();
+    index = index || {};
+    state.index_version = index.index_version || state.index_version || 0;
+    state.fingerprint = index.fingerprint || state.fingerprint || '';
+    state.defaults = Object.assign(state.defaults || {}, index.defaults || {});
+    remember('registerIndex', index);
+    dispatch('jinx-window-index-registered', index);
+    return state;
+  }
+
+  function applyFrame(frame) {
+    var state = root();
+    frame = frame || {};
+    var windowId = frame.window_id || 'window:default';
+    var pageKey = frame.page_key || 'page:default';
+
+    state.index_version = frame.index_version || state.index_version || 0;
+    state.fingerprint = frame.resident_index_fingerprint || state.fingerprint || '';
+    state.frames[windowId] = frame;
+    state.defaults[pageKey] = frame.arrangement || state.defaults[pageKey] || {};
+    state.windows[windowId] = {
+      page_key: pageKey,
+      index_version: state.index_version,
+      fingerprint: state.fingerprint,
+      arrangement: frame.arrangement || {},
+      last_patch_count: Array.isArray(frame.patches) ? frame.patches.length : 0
+    };
+
+    var applied = 0;
+    for (var i = 0; i < (frame.patches || []).length; i++) {
+      if (applyPatch(frame.patches[i])) applied++;
+    }
+
+    frame.applied_patches = applied;
+    remember('applyFrame', frame);
+    dispatch('jinx-window-frame', frame);
+    return frame;
+  }
+
+  function liveUpdate(frame) {
+    var applied = applyFrame(frame);
+    dispatch('jinx-window-live-update', applied);
+    return applied;
+  }
+
+  function mount(windowId, pageKey, arrangement) {
+    return liveUpdate({
+      kind: 'JINX_WINDOW_INDEX_FRAME',
+      version: 1,
+      index_version: root().index_version || 0,
+      window_id: windowId || 'window:default',
+      page_key: pageKey || 'page:default',
+      arrangement: arrangement || {},
+      patches: []
+    });
+  }
+
+  window.JINXWindowIndex = {
+    __jinx_emitted_runtime: true,
+    registerIndex: registerIndex,
+    applyFrame: applyFrame,
+    liveUpdate: liveUpdate,
+    mount: mount,
+    applyPatch: applyPatch,
+    state: root
+  };
+})(window, document);
+JS;
+    }
+
+    public function toBrowserRegistrationScript(bool $includeRuntime = true): string
     {
         $json = json_encode($this->browserIndexSnapshot(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if (!is_string($json) || $json === '') {
             throw new \RuntimeException('Could not encode JINX browser window index snapshot.');
         }
 
-        return "(function(window){\n"
+        $script = "(function(window){\n"
             . "  const index = {$json};\n"
-            . "  if (window.JINXWindowIndex && typeof window.JINXWindowIndex.registerIndex === 'function') {\n"
-            . "    window.JINXWindowIndex.registerIndex(index);\n"
-            . "    return;\n"
-            . "  }\n"
-            . "  window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {frames:{}, defaults:{}, windows:{}, history:[]};\n"
-            . "  window.__JINX_WINDOW_INDEX__.index_version = index.index_version || 0;\n"
-            . "  window.__JINX_WINDOW_INDEX__.fingerprint = index.fingerprint || '';\n"
-            . "  window.__JINX_WINDOW_INDEX__.defaults = Object.assign(window.__JINX_WINDOW_INDEX__.defaults || {}, index.defaults || {});\n"
+            . "  window.JINXWindowIndex.registerIndex(index);\n"
             . "})(window);";
+
+        return ($includeRuntime ? self::inlineBrowserRuntimeScript() . "\n" : '') . $script;
+    }
+
+    public function toBrowserBootScript(): string
+    {
+        return $this->toBrowserRegistrationScript(true);
     }
 
     /** @param array<string,mixed> $frame */
-    public static function toBrowserScript(array $frame): string
+    public static function toBrowserScript(array $frame, bool $includeRuntime = true): string
     {
         $json = json_encode($frame, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if (!is_string($json) || $json === '') {
             throw new \RuntimeException('Could not encode JINX window frame for browser.');
         }
 
-        return "(function(window, document){\n"
+        $script = "(function(window){\n"
             . "  const frame = {$json};\n"
-            . "  if (window.JINXWindowIndex && typeof window.JINXWindowIndex.liveUpdate === 'function') {\n"
-            . "    window.JINXWindowIndex.liveUpdate(frame);\n"
-            . "    return;\n"
-            . "  }\n"
-            . "  window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {frames:{}, defaults:{}, index_version:0};\n"
-            . "  window.__JINX_WINDOW_INDEX__.index_version = frame.index_version || window.__JINX_WINDOW_INDEX__.index_version || 0;\n"
-            . "  window.__JINX_WINDOW_INDEX__.fingerprint = frame.resident_index_fingerprint || null;\n"
-            . "  window.__JINX_WINDOW_INDEX__.frames[frame.window_id] = frame;\n"
-            . "  window.__JINX_WINDOW_INDEX__.defaults[frame.page_key] = frame.arrangement;\n"
-            . "  for (const patch of frame.patches || []) {\n"
-            . "    if (patch.op !== 'replaceText') continue;\n"
-            . "    const el = document.querySelector(patch.selector);\n"
-            . "    if (el) el.textContent = patch.value == null ? '' : String(patch.value);\n"
-            . "  }\n"
-            . "  window.dispatchEvent(new CustomEvent('jinx-window-frame', {detail: frame}));\n"
-            . "})(window, document);";
+            . "  window.JINXWindowIndex.liveUpdate(frame);\n"
+            . "})(window);";
+
+        return ($includeRuntime ? self::inlineBrowserRuntimeScript() . "\n" : '') . $script;
     }
 
     /** @param array<string,mixed> $defaults @return array<string,mixed> */
