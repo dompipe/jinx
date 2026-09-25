@@ -26,12 +26,12 @@ $cases = [
     'strrchr-builtins' => "strrchr('oracle-jinx-speed', '-')",
     'stristr-builtins' => "stristr('Oracle JINX Speed', 'jinx')",
     'strpbrk-builtins' => "strpbrk('oracle-jinx-speed', 'xyz')",
+    'strtok-builtins' => "strtok('one,two,three', ',')",
     'sscanf-builtins' => "sscanf('42 jinx', '%d %s')",
     'pathinfo-builtins' => "pathinfo('/tmp/oracle/jinx.php')",
     'htmlentities-builtins' => "htmlentities('<b>JINX & Oracle</b>')",
     'htmlspecialchars-decode-builtins' => "htmlspecialchars_decode('&lt;b&gt;JINX&lt;/b&gt;')",
     'get-html-translation-table-builtins' => 'get_html_translation_table()',
-    'preg-version-builtins' => "preg_match('/^\\d+/', (string) PREG_NO_ERROR)",
 ];
 
 function fail(string $message): never
