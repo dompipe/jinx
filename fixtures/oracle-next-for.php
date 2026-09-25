@@ -8,7 +8,7 @@ for ($i = 0; $i < 5; $i++) {
     $sum += $i;
 }
 
-$result = (string) $sum;
+$result = '' . $sum;
 
 echo $result;
 
