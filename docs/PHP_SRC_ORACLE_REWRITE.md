@@ -13,6 +13,8 @@ The target is to rewrite the php-src behavior surface in Oracle so all PHP execu
 
 The current arbitrary-code front door is `OracleProgramCompiler::interpretAnyPhpFileToOracleProgram()`. It emits Oracle records for Zend-shaped source even when that source is not executable inside Oracle yet. Current record families include namespaces/imports, attributes, class/interface/trait/enum declarations, constants, methods/properties, declaration modifiers, typed parameters/returns, magic methods, try/catch/finally, control flow, globals/statics, unset/isset/empty, object creation, method/static/property access, throws, returns, echo/print/exit, dimension fetch/assignment, compound assignment, increment/decrement, coalesce/ternary, closures, arrow functions, anonymous classes, clone/instanceof, generators, labels, and goto.
 
+Oracle execution has started for a narrow straight-line PHP subset: scalar and array assignment, dimension fetch/assignment, null coalescing, compound assignment, increment/decrement, `echo`, `print`, `strlen`, `strtoupper`, and `return`. Unsupported Zend records still fail closed or require PHP fallback until their runtime family is mirrored.
+
 Coverage is only complete for a family when:
 
 1. PHP/Zend behavior is known.
@@ -31,4 +33,5 @@ Proof commands:
 ./jinx scripts/test-zend-arbitrary-code-oracle.php
 ./jinx scripts/test-zend-runtime-ops-oracle.php
 ./jinx scripts/test-zend-declaration-metadata-oracle.php
+./jinx scripts/test-oracle-straightline-execution.php
 ```

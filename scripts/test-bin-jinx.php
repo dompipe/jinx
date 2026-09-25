@@ -90,6 +90,20 @@ if (!str_contains($out, 'PASS: Oracle records Zend declaration metadata')) {
 }
 
 $out = run(sprintf(
+    '%s %s',
+    $jinxCommand,
+    escapeshellarg('scripts/test-oracle-straightline-execution.php')
+), $code);
+
+if ($code !== 0) {
+    fail("bin/jinx Oracle straight-line execution PHP script path failed:\n{$out}");
+}
+
+if (!str_contains($out, 'PASS: Oracle executes straight-line PHP subset')) {
+    fail("bin/jinx Oracle straight-line execution PHP script path did not run expected test:\n{$out}");
+}
+
+$out = run(sprintf(
     '%s web-plan %s',
     $jinxCommand,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php')
@@ -143,4 +157,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: bin/jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, web-plan, web-compile, and web-statements\n";
+echo "PASS: bin/jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, web-plan, web-compile, and web-statements\n";

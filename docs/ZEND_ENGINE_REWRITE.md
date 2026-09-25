@@ -53,6 +53,7 @@ runtime/jinx_oracle_zend_array_builtins.h
 ./jinx scripts/test-zend-arbitrary-code-oracle.php
 ./jinx scripts/test-zend-runtime-ops-oracle.php
 ./jinx scripts/test-zend-declaration-metadata-oracle.php
+./jinx scripts/test-oracle-straightline-execution.php
 
 ./scripts/build-zend-smoke.sh
 ./build/native/jinx-zend-smoke
