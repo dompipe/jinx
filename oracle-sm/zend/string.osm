@@ -1,0 +1,39 @@
+oracle_sm_family zend_string
+
+purpose "String view, owned-buffer, refcount, copy-on-write, hash, and equality family."
+replaces "Zend/zend_string.h, Zend/zend_string.c"
+
+native_files {
+  runtime/jinx_zend_engine.h
+  runtime/jinx_zend_engine.c
+}
+
+native_symbols {
+  JinxZendString
+  jinx_zend_string_view
+  jinx_zend_string_new
+  jinx_zend_string_retain
+  jinx_zend_string_release
+  jinx_zend_string_separate
+  jinx_zend_string_hash
+  jinx_zend_string_equals
+}
+
+oracle_sm_contract {
+  bytes        pointer
+  length       size_t
+  hash         u64
+  refcount     u32
+  flags        u32
+  owned        flag
+  borrowed     flag
+  cow_mutation separate_before_write
+}
+
+proven_by {
+  scripts/build-zend-smoke.sh
+  build/native/jinx-zend-smoke
+}
+
+pasm_target "runtime/pasm/zend/string.pasm"
+status started
