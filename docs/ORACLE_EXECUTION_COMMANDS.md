@@ -189,6 +189,12 @@ Runtime owner: `runtime/OracleSecurityNetworkBuiltinExecutor.php`. PHP compariso
 
 `filter-var-email-builtins`, `filter-var-int-builtins`, `filter-id-builtins`, `filter-list-builtins`, `hash-algos-builtins`, `hash-equals-builtins`, `hash-hkdf-builtins`, `hash-pbkdf2-builtins`, `password-get-info-builtins`, `password-needs-rehash-builtins`, `password-verify-builtins`, `inet-pton-builtins`, `inet-ntop-builtins`, `ip2long-builtins`, `long2ip-builtins`, `extension-loaded-builtins`, `get-loaded-extensions-builtins`, `get-extension-funcs-builtins`, `phpversion-builtins`, `version-compare-builtins`.
 
+## Runtime/environment info builtin batch
+
+Runtime owner: `runtime/OracleRuntimeInfoBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-runtime-info-builtin-execution.php`.
+
+`php-uname-builtins`, `php-sapi-name-builtins`, `zend-version-builtins`, `ini-get-builtins`, `ini-get-all-builtins`, `get-cfg-var-builtins`, `php-ini-loaded-file-builtins`, `php-ini-scanned-files-builtins`, `get-include-path-builtins`, `stream-get-wrappers-builtins`, `stream-get-transports-builtins`, `stream-get-filters-builtins`, `sys-get-temp-dir-builtins`, `get-current-user-builtins`, `getmyuid-builtins`, `getmygid-builtins`, `getmypid-builtins`, `getmyinode-builtins`, `getlastmod-builtins`, `umask-builtins`.
+
 ## Date/time builtin batch
 
 Runtime owner: `runtime/OracleDateTimeBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-date-time-builtin-execution.php`.
