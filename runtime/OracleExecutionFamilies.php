@@ -99,6 +99,18 @@ final class OracleExecutionFamilies
             $families[$family] = self::builtin(OracleDataBuiltinExecutor::class, 'scripts/test-oracle-data-builtin-execution.php', $builtins);
         }
 
+        foreach ([
+            'chr-builtins' => ['chr'], 'ord-builtins' => ['ord'], 'strcmp-builtins' => ['strcmp'], 'strcasecmp-builtins' => ['strcasecmp'],
+            'strncmp-builtins' => ['strncmp'], 'strncasecmp-builtins' => ['strncasecmp'], 'substr-compare-builtins' => ['substr_compare'],
+            'similar-text-builtins' => ['similar_text'], 'levenshtein-builtins' => ['levenshtein'], 'soundex-builtins' => ['soundex'],
+            'metaphone-builtins' => ['metaphone'], 'str-rot13-builtins' => ['str_rot13'], 'addslashes-builtins' => ['addslashes'],
+            'stripslashes-builtins' => ['stripslashes'], 'quotemeta-builtins' => ['quotemeta'], 'addcslashes-builtins' => ['addcslashes'],
+            'substr-replace-builtins' => ['substr_replace'], 'strtr-builtins' => ['strtr'], 'str-getcsv-builtins' => ['str_getcsv', 'json_encode'],
+            'str-word-count-builtins' => ['str_word_count'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleTextBuiltinExecutor::class, 'scripts/test-oracle-text-builtin-execution.php', $builtins);
+        }
+
         return $families;
     }
 
