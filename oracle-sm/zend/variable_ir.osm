@@ -1,0 +1,46 @@
+oracle_sm_family variable_ir
+
+purpose "Variable-name-to-register lowering for assignment, calls, exceptions, scalar expressions, and branches."
+replaces "Raw register-only statement IR for PHP-style variable slots."
+
+native_files {
+  runtime/jinx_zend_variable_ir.h
+  runtime/jinx_zend_statement_ir.h
+}
+
+native_symbols {
+  JinxZendVariableIrSlot
+  JinxZendVariableIrProgram
+  JinxZendVariableIrResult
+  jinx_zend_variable_ir_program_init
+  jinx_zend_variable_ir_define
+  jinx_zend_variable_ir_find
+  jinx_zend_variable_ir_lower_line
+  jinx_zend_variable_ir_lower
+}
+
+oracle_sm_contract {
+  var                  name_to_register_binding
+  load                 LOAD_CONST_to_named_register
+  set                  COPY_named_register
+  callv                METHOD_CALL_named_registers
+  throwv               THROW_named_register
+  catchv               CATCH_named_register
+  addv                 ADD_named_registers
+  subv                 SUB_named_registers
+  eqv                  EQ_named_registers
+  ltv                  LT_named_registers
+  jump_if_truev        JMP_IF_TRUE_named_bool
+  jump_if_falsev       JMP_IF_FALSE_named_bool
+  unknown_variable     fail_closed
+}
+
+proven_by {
+  scripts/build-zend-variable-ir-smoke.sh
+  build/native/jinx-zend-variable-ir-smoke
+  scripts/build-zend-variable-scalar-ir-smoke.sh
+  build/native/jinx-zend-variable-scalar-ir-smoke
+}
+
+pasm_target "runtime/pasm/zend/variable_ir.pasm"
+status started
