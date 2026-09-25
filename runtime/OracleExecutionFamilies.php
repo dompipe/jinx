@@ -215,6 +215,27 @@ final class OracleExecutionFamilies
                     'count',
                 ],
             ],
+            'include-require' => [
+                'state' => 'executable',
+                'owner' => OracleIncludeExecutor::class,
+                'test' => 'scripts/test-oracle-include-require-execution.php',
+                'ops' => [
+                    'O_DECLARE',
+                    'O_INCLUDE',
+                    'O_REQUIRE',
+                    'O_ASSIGN',
+                    'O_ECHO',
+                    'O_PRINT',
+                    'O_RETURN',
+                ],
+                'loader_ops' => [
+                    'literal_include',
+                    'literal_require',
+                    'resolved_oracle_edge',
+                    'included_local_scope',
+                    'included_output',
+                ],
+            ],
         ];
     }
 
