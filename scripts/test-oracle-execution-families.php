@@ -17,6 +17,7 @@ require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleScalarBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleAppBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleMathBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleDataBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
 
 use jinx\oracle\OracleExecutionFamilies;
@@ -30,8 +31,8 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleExecutionFamilies::all();
 
-if (count($families) < 101) {
-    fail('expected at least 101 executable Oracle families, found ' . count($families));
+if (count($families) < 121) {
+    fail('expected at least 121 executable Oracle families, found ' . count($families));
 }
 
 $requiredFamilies = [
@@ -44,6 +45,7 @@ $requiredFamilies = [
     'array-combine-builtins', 'array-flip-builtins', 'array-diff-builtins', 'array-intersect-builtins', 'array-search-builtins', 'array-column-builtins', 'array-chunk-builtins', 'range-builtins', 'array-change-key-case-builtins', 'array-fill-builtins',
     'urlencode-builtins', 'urldecode-builtins', 'rawurlencode-builtins', 'rawurldecode-builtins', 'http-build-query-builtins', 'parse-url-builtins', 'htmlspecialchars-builtins', 'html-entity-decode-builtins', 'strip-tags-builtins', 'nl2br-builtins',
     'floor-builtins', 'ceil-builtins', 'sqrt-builtins', 'pow-builtins', 'fmod-builtins', 'intdiv-builtins', 'deg2rad-builtins', 'rad2deg-builtins', 'sin-builtins', 'cos-builtins', 'tan-builtins', 'asin-builtins', 'acos-builtins', 'atan-builtins', 'log-builtins', 'exp-builtins', 'pi-builtins', 'hypot-builtins', 'is-finite-builtins', 'is-infinite-builtins', 'is-nan-builtins',
+    'base64-encode-builtins', 'base64-decode-builtins', 'bin2hex-builtins', 'hex2bin-builtins', 'sha1-builtins', 'crc32-builtins', 'hash-generic-builtins', 'hash-hmac-builtins', 'serialize-builtins', 'unserialize-builtins', 'var-export-builtins', 'print-r-builtins', 'gettype-builtins', 'is-scalar-builtins', 'is-countable-builtins', 'sizeof-builtins', 'array-sum-builtins', 'array-product-builtins', 'str-split-builtins', 'chunk-split-builtins',
 ];
 
 foreach ($requiredFamilies as $family) {
