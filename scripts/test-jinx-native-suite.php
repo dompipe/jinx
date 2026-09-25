@@ -71,6 +71,7 @@ $scriptTests = [
     'live web request benchmark help' => ['scripts/benchmark-live-web-requests.php --help', 'Live web request benchmark'],
     'live keep-alive benchmark help' => ['scripts/benchmark-live-web-keepalive.php --help', 'Live web keep-alive benchmark'],
     'jinx live worker help' => ['scripts/serve-jinx-web-worker.php --help', 'JINX live web worker'],
+    'family facet audit' => ['scripts/test-oracle-family-facet-audit.php', 'PASS: Oracle family facet audit validates'],
     'full coverage audit' => ['scripts/test-oracle-full-coverage-audit.php', 'PASS: Oracle full coverage audit validates'],
 ];
 
