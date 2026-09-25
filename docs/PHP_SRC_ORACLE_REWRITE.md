@@ -11,7 +11,7 @@ The target is to rewrite the php-src behavior surface in Oracle so all PHP execu
 - `require`, `require_once`, `include`, and `include_once` loader paths.
 - Arbitrary PHP source execution.
 
-The current arbitrary-code front door is `OracleProgramCompiler::interpretAnyPhpFileToOracleProgram()`. It emits Oracle records for Zend-shaped source even when that source is not executable inside Oracle yet. Current record families include namespaces/imports, class/interface/trait/enum declarations, methods/properties, control flow, globals/statics, unset/isset/empty, object creation, method/static/property access, throws, returns, echo/print/exit, dimension fetch/assignment, compound assignment, increment/decrement, coalesce/ternary, closures, arrow functions, anonymous classes, clone/instanceof, generators, labels, and goto.
+The current arbitrary-code front door is `OracleProgramCompiler::interpretAnyPhpFileToOracleProgram()`. It emits Oracle records for Zend-shaped source even when that source is not executable inside Oracle yet. Current record families include namespaces/imports, attributes, class/interface/trait/enum declarations, constants, methods/properties, declaration modifiers, typed parameters/returns, magic methods, try/catch/finally, control flow, globals/statics, unset/isset/empty, object creation, method/static/property access, throws, returns, echo/print/exit, dimension fetch/assignment, compound assignment, increment/decrement, coalesce/ternary, closures, arrow functions, anonymous classes, clone/instanceof, generators, labels, and goto.
 
 Coverage is only complete for a family when:
 
@@ -30,4 +30,5 @@ Proof commands:
 ./jinx scripts/test-oracle-program-compiler.php
 ./jinx scripts/test-zend-arbitrary-code-oracle.php
 ./jinx scripts/test-zend-runtime-ops-oracle.php
+./jinx scripts/test-zend-declaration-metadata-oracle.php
 ```

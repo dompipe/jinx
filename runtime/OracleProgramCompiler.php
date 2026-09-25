@@ -68,6 +68,7 @@ final class OracleProgramCompiler
      *   O_ECHO / O_PRINT / O_EXIT / O_CLOSURE / O_ARROW_FUNCTION
      *   O_DIM_ASSIGN / O_DIM_FETCH / O_COALESCE / O_TERNARY
      *   O_INC / O_DEC / O_COMPOUND_ASSIGN / O_YIELD / O_GOTO / O_LABEL
+     *   O_CONST_DECL / O_CLASS_CONST / O_CATCH / O_FINALLY
      *   O_RAW_PHP_STMT
      *
      * That means Oracle can see and catalog the program without
@@ -209,37 +210,58 @@ final class OracleProgramCompiler
 
         $identifier = '[A-Za-z_]\w*(?:\\\\[A-Za-z_]\w*)*';
 
+        $attributes = self::extractAttributeNames($normalized);
+        if ($attributes !== []) {
+            $features['attributes'] = $attributes;
+            $features['php_attribute'] = true;
+        }
+
         if (preg_match('/^declare\s*\(/i', $normalized)) {
             $kind = 'O_DECLARE';
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*const\s+([A-Za-z_]\w*)\b/i', $normalized, $m)) {
+            $kind = 'O_CONST_DECL';
+            $features['name'] = $m[1];
         } elseif (preg_match('/^namespace\s+(' . $identifier . ')\s*;?$/i', $normalized, $m)) {
             $kind = 'O_NAMESPACE';
             $features['namespace'] = $m[1];
         } elseif (preg_match('/^use\s+(.+);?$/i', $normalized, $m)) {
             $kind = 'O_USE';
             $features['use_target'] = rtrim($m[1], ';');
-        } elseif (preg_match('/^interface\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*interface\s+(' . $identifier . ')\b/i', $normalized, $m)) {
             $kind = 'O_INTERFACE_DECL';
             $features['name'] = $m[1];
-        } elseif (preg_match('/^trait\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            self::addDeclarationFeatures($normalized, $features);
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*trait\s+(' . $identifier . ')\b/i', $normalized, $m)) {
             $kind = 'O_TRAIT_DECL';
             $features['name'] = $m[1];
-        } elseif (preg_match('/^enum\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            self::addDeclarationFeatures($normalized, $features);
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*enum\s+(' . $identifier . ')\b/i', $normalized, $m)) {
             $kind = 'O_ENUM_DECL';
             $features['name'] = $m[1];
-        } elseif (preg_match('/^(?:abstract\s+|final\s+)?class\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+            self::addDeclarationFeatures($normalized, $features);
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*(?:(?:abstract|final|readonly)\s+)*class\s+(' . $identifier . ')\b/i', $normalized, $m)) {
             $kind = 'O_CLASS_DECL';
             $features['name'] = $m[1];
-        } elseif (preg_match('/^(?:(?:public|protected|private|static|abstract|final|readonly)\s+)*function\s+(\w+)\s*\(/i', $normalized, $m)) {
+            self::addDeclarationFeatures($normalized, $features);
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*(?:(?:public|protected|private|static|abstract|final|readonly)\s+)*function\s+(\w+)\s*\(/i', $normalized, $m)) {
             $kind = preg_match('/^(?:public|protected|private|static|abstract|final|readonly)\b/i', $normalized) ? 'O_METHOD_DECL' : 'O_FUNCTION_DECL';
             $features['name'] = $m[1];
+            self::addDeclarationFeatures($normalized, $features);
+            self::addFunctionSignatureFeatures($normalized, $features);
         } elseif (preg_match('/^static\s+\$\w+/i', $normalized)) {
             $kind = 'O_STATIC_LOCAL';
-        } elseif (preg_match('/^(?:(?:public|protected|private|static|readonly)\s+)+(?:\??' . $identifier . '\s+)?\$(\w+)/i', $normalized, $m)) {
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*(?:(?:public|protected|private|static|readonly)\s+)+(?:\??' . $identifier . '\s+)?\$(\w+)/i', $normalized, $m)) {
             $kind = 'O_PROPERTY_DECL';
             $features['name'] = $m[1];
+            self::addDeclarationFeatures($normalized, $features);
+        } elseif (preg_match('/^(?:(?:public|protected|private|final)\s+)*const\s+([A-Za-z_]\w*)\b/i', $normalized, $m)) {
+            $kind = 'O_CLASS_CONST';
+            $features['name'] = $m[1];
+            self::addDeclarationFeatures($normalized, $features);
         } elseif (preg_match('/^function\s+(\w+)\s*\(/i', $normalized, $m)) {
             $kind = 'O_FUNCTION_DECL';
             $features['name'] = $m[1];
+            self::addFunctionSignatureFeatures($normalized, $features);
         } elseif (preg_match('/^(require_once|require|include_once|include)\s*(?:\(\s*)?([\'"])([^\'"]+)\2\s*\)?\s*;?$/i', $normalized, $m)) {
             $loader = strtolower($m[1]);
             [$kind, $features, $extra] = self::classifyLoaderStatement($loader, $m[3], $baseDir, $seen, true);
@@ -262,6 +284,15 @@ final class OracleProgramCompiler
             $kind = 'O_IF';
         } elseif (preg_match('/^else\b/i', $normalized)) {
             $kind = 'O_ELSE';
+        } elseif (preg_match('/^catch\s*\(([^)]+)\)/i', $normalized, $m)) {
+            $kind = 'O_CATCH';
+            $features['catch_signature'] = trim($m[1]);
+            if (preg_match('/^(.+?)\s+\$(\w+)$/', trim($m[1]), $catch)) {
+                $features['catch_type'] = trim($catch[1]);
+                $features['catch_variable'] = $catch[2];
+            }
+        } elseif (preg_match('/^finally\b/i', $normalized)) {
+            $kind = 'O_FINALLY';
         } elseif (preg_match('/^switch\s*\(/i', $normalized)) {
             $kind = 'O_SWITCH';
         } elseif (preg_match('/\bmatch\s*\(/i', $normalized)) {
@@ -386,7 +417,9 @@ final class OracleProgramCompiler
             'O_NAMESPACE' => 'namespace',
             'O_USE' => 'use',
             'O_DECLARE' => 'declare',
+            'O_CONST_DECL' => 'const_decl',
             'O_CLASS_DECL' => 'class_decl',
+            'O_CLASS_CONST' => 'class_const',
             'O_INTERFACE_DECL' => 'interface_decl',
             'O_TRAIT_DECL' => 'trait_decl',
             'O_ENUM_DECL' => 'enum_decl',
@@ -436,6 +469,8 @@ final class OracleProgramCompiler
             'O_LABEL' => 'label',
             'O_THROW' => 'throw',
             'O_TRY' => 'try',
+            'O_CATCH' => 'catch',
+            'O_FINALLY' => 'finally',
             'O_CALL' => 'call',
         ];
 
@@ -459,6 +494,76 @@ final class OracleProgramCompiler
         } elseif (preg_match('/->(\w+)\b/', $normalized, $m)) {
             $features['property'] = $m[1];
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extractAttributeNames(string $normalized): array
+    {
+        if (!preg_match_all('/#\[\s*([A-Za-z_]\w*(?:\\\\[A-Za-z_]\w*)*)/', $normalized, $matches)) {
+            return [];
+        }
+
+        return array_values(array_unique($matches[1]));
+    }
+
+    /**
+     * @param array<string,mixed> $features
+     */
+    private static function addDeclarationFeatures(string $normalized, array &$features): void
+    {
+        $modifiers = [];
+
+        foreach (['abstract', 'final', 'readonly', 'public', 'protected', 'private', 'static'] as $modifier) {
+            if (preg_match('/\b' . $modifier . '\b/i', $normalized)) {
+                $modifiers[] = $modifier;
+                $features['modifier_' . $modifier] = true;
+            }
+        }
+
+        if ($modifiers !== []) {
+            $features['modifiers'] = $modifiers;
+        }
+
+        if (preg_match('/function\s+(__\w+)\s*\(/i', $normalized, $m)) {
+            $features['magic_method'] = strtolower($m[1]);
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $features
+     */
+    private static function addFunctionSignatureFeatures(string $normalized, array &$features): void
+    {
+        if (preg_match('/function\s+\w+\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/i', $normalized, $m)) {
+            $parameters = trim($m[1]);
+            $features['parameter_count'] = $parameters === '' ? 0 : count(array_filter(array_map('trim', explode(',', $parameters)), static fn (string $p): bool => $p !== ''));
+
+            if ($parameters !== '') {
+                $features['parameters'] = self::extractParameterNames($parameters);
+            }
+
+            if (isset($m[2])) {
+                $features['return_type'] = trim($m[2]);
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extractParameterNames(string $parameters): array
+    {
+        $names = [];
+
+        foreach (explode(',', $parameters) as $parameter) {
+            if (preg_match('/\$([A-Za-z_]\w*)/', $parameter, $m)) {
+                $names[] = $m[1];
+            }
+        }
+
+        return $names;
     }
 
     /**
