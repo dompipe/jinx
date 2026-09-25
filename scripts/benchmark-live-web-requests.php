@@ -30,12 +30,13 @@ function parse_args(array $argv): array
         'warmup' => 100,
         'json' => null,
         'fail_fast' => false,
+        'jinx_mode' => 'fast-template',
     ];
 
     foreach (array_slice($argv, 1) as $arg) {
         if ($arg === '--help' || $arg === '-h') {
             echo "Live web request benchmark\n";
-            echo "Usage: ./jinx scripts/benchmark-live-web-requests.php [--requests=N] [--warmup=N] [--host=127.0.0.1] [--php-port=18080] [--jinx-port=18081] [--json=path] [--fail-fast]\n";
+            echo "Usage: ./jinx scripts/benchmark-live-web-requests.php [--requests=N] [--warmup=N] [--host=127.0.0.1] [--php-port=18080] [--jinx-port=18081] [--jinx-mode=fast-template|plan] [--json=path] [--fail-fast]\n";
             exit(0);
         }
         if ($arg === '--fail-fast') {
@@ -52,6 +53,10 @@ function parse_args(array $argv): array
         }
         if (preg_match('/^--jinx-port=(\d+)$/', $arg, $m)) {
             $options['jinx_port'] = (int) $m[1];
+            continue;
+        }
+        if (preg_match('/^--jinx-mode=(fast-template|plan)$/', $arg, $m)) {
+            $options['jinx_mode'] = $m[1];
             continue;
         }
         if (preg_match('/^--requests=(\d+)$/', $arg, $m)) {
@@ -192,6 +197,7 @@ $options = parse_args($argv);
 $host = (string) $options['host'];
 $phpPort = (int) $options['php_port'];
 $jinxPort = (int) $options['jinx_port'];
+$jinxMode = (string) $options['jinx_mode'];
 $requests = (int) $options['requests'];
 $warmup = (int) $options['warmup'];
 $php = getenv('PHP_BIN') ?: PHP_BINARY;
@@ -210,7 +216,7 @@ register_shutdown_function(static function () use (&$phpWorker, &$jinxWorker): v
 
 $totalNeeded = $warmup + $requests + 8;
 $phpWorker = start_worker([$php, $root . '/scripts/serve-php-web-worker.php', "--host={$host}", "--port={$phpPort}", "--max-requests={$totalNeeded}"], 'PHP live worker');
-$jinxWorker = start_worker([$jinx, 'scripts/serve-jinx-web-worker.php', "--host={$host}", "--port={$jinxPort}", "--max-requests={$totalNeeded}"], 'JINX live worker');
+$jinxWorker = start_worker([$jinx, 'scripts/serve-jinx-web-worker.php', "--host={$host}", "--port={$jinxPort}", "--mode={$jinxMode}", "--max-requests={$totalNeeded}"], 'JINX live worker');
 
 wait_for_health($host, $phpPort, 'PHP live worker');
 wait_for_health($host, $jinxPort, 'JINX live worker');
@@ -262,7 +268,7 @@ $jinxDigest = hash_final($jinxChecksum);
 $ratio = $jinxStats['avg'] > 0.0 ? $phpStats['avg'] / $jinxStats['avg'] : 0.0;
 
 printf("Live web request benchmark\n");
-printf("Host: %s PHP:%d JINX:%d\n", $host, $phpPort, $jinxPort);
+printf("Host: %s PHP:%d JINX:%d JINX mode:%s\n", $host, $phpPort, $jinxPort, $jinxMode);
 printf("Requests: %d measured, %d warmup per worker\n", $requests, $warmup);
 printf("%-8s %12s %12s %12s %12s %12s\n", 'Worker', 'avg us', 'p95 us', 'min us', 'max us', 'req/sec');
 printf("%s\n", str_repeat('-', 76));
@@ -278,6 +284,7 @@ $payload = [
     'host' => $host,
     'php_port' => $phpPort,
     'jinx_port' => $jinxPort,
+    'jinx_mode' => $jinxMode,
     'requests' => $requests,
     'warmup' => $warmup,
     'php' => $phpStats,
