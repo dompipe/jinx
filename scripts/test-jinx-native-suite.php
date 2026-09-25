@@ -64,6 +64,7 @@ $scriptTests = [
     'worker benchmark help' => ['scripts/benchmark-oracle-worker-hot.php --help', 'Oracle worker hot benchmark'],
     'web request worker benchmark help' => ['scripts/benchmark-web-request-worker.php --help', 'JINX warmed web request worker benchmark'],
     'live web request benchmark help' => ['scripts/benchmark-live-web-requests.php --help', 'Live web request benchmark'],
+    'live keep-alive benchmark help' => ['scripts/benchmark-live-web-keepalive.php --help', 'Live web keep-alive benchmark'],
     'jinx live worker help' => ['scripts/serve-jinx-web-worker.php --help', 'JINX live web worker'],
     'full coverage audit' => ['scripts/test-oracle-full-coverage-audit.php', 'PASS: Oracle full coverage audit validates'],
 ];
