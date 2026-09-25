@@ -150,6 +150,21 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'preg-quote-builtins' => ['preg_quote'], 'preg-match-builtins' => ['preg_match'],
+            'preg-match-all-builtins' => ['preg_match_all'], 'preg-replace-builtins' => ['preg_replace'],
+            'preg-filter-builtins' => ['preg_filter'], 'preg-split-builtins' => ['preg_split'],
+            'preg-grep-builtins' => ['preg_grep'], 'preg-last-error-builtins' => ['preg_last_error'],
+            'preg-last-error-msg-builtins' => ['preg_last_error_msg'], 'fnmatch-builtins' => ['fnmatch'],
+            'strchr-builtins' => ['strchr'], 'strrchr-builtins' => ['strrchr'], 'stristr-builtins' => ['stristr'],
+            'strpbrk-builtins' => ['strpbrk'], 'strtok-builtins' => ['strtok'], 'sscanf-builtins' => ['sscanf'],
+            'pathinfo-builtins' => ['pathinfo'], 'htmlentities-builtins' => ['htmlentities'],
+            'htmlspecialchars-decode-builtins' => ['htmlspecialchars_decode'],
+            'get-html-translation-table-builtins' => ['get_html_translation_table'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleRegexStringBuiltinExecutor::class, 'scripts/test-oracle-regex-string-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'is-float-builtins' => ['is_float'], 'is-double-builtins' => ['is_double'], 'is-real-builtins' => ['is_real'],
             'is-long-builtins' => ['is_long'], 'is-integer-builtins' => ['is_integer'], 'is-iterable-builtins' => ['is_iterable'],
             'is-resource-builtins' => ['is_resource'], 'is-callable-builtins' => ['is_callable'], 'function-exists-builtins' => ['function_exists'],
