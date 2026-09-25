@@ -10,9 +10,11 @@ This is not a wholesale import of php-src headers. The point is to mirror the Ze
 runtime/jinx_zend_engine.h
 runtime/jinx_zend_engine.c
 runtime/jinx_zend_array_delete.h
+runtime/jinx_oracle_zend_array_carrier.h
 native/jinx_zend_smoke.c
 native/jinx_zend_array_builtin_smoke.c
 native/jinx_zend_array_delete_smoke.c
+native/jinx_oracle_zend_array_carrier_smoke.c
 ```
 
 Build and smoke test:
@@ -22,6 +24,9 @@ Build and smoke test:
 ./build/native/jinx-zend-smoke
 ./build/native/jinx-zend-array-builtin-smoke
 ./build/native/jinx-zend-array-delete-smoke
+
+./scripts/build-oracle-zend-array-carrier-smoke.sh
+./build/native/jinx-oracle-zend-array-carrier-smoke
 ```
 
 Full native build also compiles the Zend smoke binary:
@@ -52,6 +57,7 @@ JinxZendValue       zval-like tagged value
 JinxZendString      borrowed views, owned buffers, refcount, COW, hashing
 JinxZendArray       packed buckets, mixed string-key buckets, append, lookup, update, COW, insertion-order iteration
 JinxZendBucket      numeric, string-key, or tombstone bucket carrying retained JinxZendValue
+JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 JinxZendObject      object/class shell
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
@@ -86,6 +92,7 @@ live-aware PHP builtin-name bridge after tombstones
 live count/key_exists/is_list/values/keys after tombstones
 live iteration that skips tombstones
 array compaction after tombstones
+Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 call-frame enter/leave
 return-value propagation
 family manifest enumeration
@@ -149,16 +156,39 @@ Current delete smoke executable:
 ./build/native/jinx-zend-array-delete-smoke
 ```
 
-The next integration point is adding a `JinxValue` pointer-carrier for native `JinxZendArray *`, then wiring the generated Oracle dispatch so native `./jinx oracle-call` can route these PHP names to live-aware Zend arrays.
+## Oracle/PASM JinxValue carrier
+
+The bridge layer is:
+
+```text
+runtime/jinx_oracle_zend_array_carrier.h
+```
+
+It provides:
+
+```text
+jinx_oracle_zend_array_value_borrowed
+jinx_oracle_zend_array_value_retained
+jinx_oracle_value_is_zend_array
+jinx_oracle_zend_array_ptr
+jinx_oracle_zend_array_value_release
+```
+
+Current carrier smoke executable:
+
+```bash
+./build/native/jinx-oracle-zend-array-carrier-smoke
+```
+
+The next integration point is wiring the generated Oracle dispatch so native `./jinx oracle-call` can route `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` to live-aware Zend arrays when the argument is a carried `JinxZendArray *`.
 
 ## Next implementation steps
 
-1. Add a JinxValue pointer-carrier for native Zend arrays in the Oracle/PASM value model.
-2. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
-3. Lower `foreach` onto live array iteration.
-4. Add object class table and method dispatch.
-5. Add error/warning/exception objects.
-6. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+1. Wire `count`, `array_key_exists`, `array_values`, `array_keys`, and `array_is_list` into the Oracle builtin dispatch when arguments are native Zend arrays.
+2. Lower `foreach` onto live array iteration.
+3. Add object class table and method dispatch.
+4. Add error/warning/exception objects.
+5. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
