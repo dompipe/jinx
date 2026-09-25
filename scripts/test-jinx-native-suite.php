@@ -47,6 +47,7 @@ $scriptTests = [
     'arrays family' => ['scripts/test-oracle-array-execution.php', 'PASS: Oracle executes array PHP subset'],
     'functions family' => ['scripts/test-oracle-function-execution.php', 'PASS: Oracle executes function PHP subset'],
     'request globals family' => ['scripts/test-oracle-request-globals-execution.php', 'PASS: Oracle executes request globals PHP subset'],
+    'include require family' => ['scripts/test-oracle-include-require-execution.php', 'PASS: Oracle executes include/require PHP subset'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
 ];
 
