@@ -69,6 +69,12 @@ $dir = php_literal_string(str_replace('\\', '/', $assetDir));
 $sub = php_literal_string(str_replace('\\', '/', $subDir));
 $missing = php_literal_string(str_replace('\\', '/', $missingFile));
 $glob = php_literal_string(str_replace('\\', '/', $assetDir) . '/*.txt');
+$iniFile = $assetDir . '/sample.ini';
+$htmlFile = $assetDir . '/sample.html';
+file_put_contents($iniFile, "alpha=one\nbeta=2\n");
+file_put_contents($htmlFile, "<html><head><meta name=\"author\" content=\"jinx\"></head></html>\n");
+$ini = php_literal_string(str_replace('\\', '/', $iniFile));
+$html = php_literal_string(str_replace('\\', '/', $htmlFile));
 
 $cases = [
     'file-exists-builtins' => "file_exists({$data})",
@@ -91,6 +97,19 @@ $cases = [
     'sha1-file-builtins' => "sha1_file({$data})",
     'hash-file-builtins' => "hash_file('sha256', {$data})",
     'glob-builtins' => "json_encode(glob({$glob}))",
+    'fileatime-builtins' => "fileatime({$data})",
+    'fileowner-builtins' => "fileowner({$data})",
+    'filegroup-builtins' => "filegroup({$data})",
+    'is-executable-builtins' => "is_executable({$data})",
+    'is-link-builtins' => "is_link({$data})",
+    'scandir-builtins' => "json_encode(scandir({$dir}))",
+    'parse-ini-file-builtins' => "json_encode(parse_ini_file({$ini}))",
+    'parse-ini-string-builtins' => "json_encode(parse_ini_string('alpha=one\\nbeta=2'))",
+    'getcwd-builtins' => "getcwd()",
+    'stream-resolve-include-path-builtins' => "stream_resolve_include_path({$data})",
+    'get-meta-tags-builtins' => "json_encode(get_meta_tags({$html}))",
+    'realpath-cache-size-builtins' => "realpath_cache_size()",
+    'disk-total-space-builtins' => "disk_total_space({$dir})",
 ];
 
 foreach ($cases as $family => $expression) {
