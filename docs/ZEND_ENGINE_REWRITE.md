@@ -15,6 +15,7 @@ runtime/jinx_zend_foreach_opcode.h
 runtime/jinx_zend_foreach_program.h
 runtime/jinx_zend_object.h
 runtime/jinx_zend_method_opcode.h
+runtime/jinx_zend_error.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 native/jinx_zend_smoke.c
@@ -26,6 +27,7 @@ native/jinx_zend_foreach_opcode_smoke.c
 native/jinx_zend_foreach_program_smoke.c
 native/jinx_zend_object_smoke.c
 native/jinx_zend_method_opcode_smoke.c
+native/jinx_zend_error_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -59,6 +61,9 @@ Build and smoke test:
 ./scripts/build-zend-method-opcode-smoke.sh
 ./build/native/jinx-zend-method-opcode-smoke
 
+./scripts/build-zend-error-smoke.sh
+./build/native/jinx-zend-error-smoke
+
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
 
@@ -88,7 +93,7 @@ Full native build regenerates Oracle dispatch and compiles the native binary:
 | `HashTable/zend_array` | `Zend/zend_hash.h`, `Zend/zend_hash.c`, `Zend/zend_array.c` | started | `oracle-sm/zend/hash.osm` | `runtime/pasm/zend/hash.pasm` |
 | `executor/call-frame` | `Zend/zend_execute.c`, `Zend/zend_vm_def.h`, `Zend/zend_vm_execute.h` | started | `oracle-sm/zend/executor.osm` | `runtime/pasm/zend/executor.pasm` |
 | `objects/classes` | `Zend/zend_object_handlers.c`, `Zend/zend_objects_API.c`, `Zend/zend_compile.c` | started | `oracle-sm/zend/object.osm` | `runtime/pasm/zend/object.pasm` |
-| `errors/exceptions` | `Zend/zend_exceptions.c`, `Zend/zend_errors.h` | planned | `oracle-sm/zend/errors.osm` | `runtime/pasm/zend/errors.pasm` |
+| `errors/exceptions` | `Zend/zend_exceptions.c`, `Zend/zend_errors.h` | started | `oracle-sm/zend/errors.osm` | `runtime/pasm/zend/errors.pasm` |
 | `compiler/opcodes` | `Zend/zend_language_parser.y`, `Zend/zend_compile.c`, `Zend/zend_vm_def.h` | started | `oracle-sm/zend/opcodes.osm` | `runtime/pasm/zend/opcodes.pasm` |
 
 ## What exists now
@@ -108,6 +113,8 @@ JinxZendClassEntry class metadata with method table
 JinxZendClassTable native class lookup table
 JinxZendMethodEntry named method handler slot
 JinxZendMethodCallFrame INIT_METHOD_CALL/SEND_ARGS/DO_METHOD_CALL lowering frame
+JinxZendErrorState warning/error/exception state carrier
+JinxZendThrowable throwable descriptor over Exception/Error-style objects
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
@@ -161,6 +168,10 @@ INIT_METHOD_CALL rejects non-object sources
 SEND_METHOD_ARGS stores argument slots
 DO_METHOD_CALL dispatches through class table and stores return slot
 method-call opcode lowering reports missing methods
+warning/error state records level, message, file, and line
+throwable objects carry message, code, file, and line properties
+throw propagation stores throwable state and executor error state
+executor error state can be cleared
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 Oracle array builtin bridge for carried JinxZendArray values
@@ -235,31 +246,7 @@ runtime/jinx_zend_object.h
 runtime/jinx_zend_method_opcode.h
 ```
 
-They provide:
-
-```text
-JinxZendMethodHandler
-JinxZendMethodEntry
-JinxZendClassEntry
-JinxZendClassTable
-JinxZendMethodCallFrame
-jinx_zend_object_value
-jinx_zend_object_new
-jinx_zend_object_retain
-jinx_zend_object_release
-jinx_zend_class_table_init
-jinx_zend_class_table_release
-jinx_zend_class_table_register
-jinx_zend_class_table_find
-jinx_zend_class_find_method
-jinx_zend_object_set_property
-jinx_zend_object_get_property
-jinx_zend_call_method
-jinx_zend_method_frame_init
-jinx_zend_init_method_call
-jinx_zend_send_method_args
-jinx_zend_do_method_call
-```
+They provide class metadata, method tables, property storage through native arrays, method dispatch, and INIT_METHOD_CALL / SEND_ARGS / DO_METHOD_CALL-style lowering.
 
 Current object/method smoke executables:
 
@@ -268,7 +255,40 @@ Current object/method smoke executables:
 ./build/native/jinx-zend-method-opcode-smoke
 ```
 
-The object layer uses existing `JinxZendObject` shells for identity/properties and adds class metadata/method tables beside them. Method dispatch resolves class name, finds the method, increments `JinxZendExecutor.executed_ops`, calls the native handler, and surfaces missing methods as executor errors. The method opcode layer maps that into INIT_METHOD_CALL, SEND_ARGS, and DO_METHOD_CALL-style primitives.
+## Native error/warning/exception helpers
+
+The error/exception layer is:
+
+```text
+runtime/jinx_zend_error.h
+```
+
+It provides:
+
+```text
+JinxZendErrorLevel
+JinxZendThrowable
+JinxZendErrorState
+jinx_zend_error_state_init
+jinx_zend_error_state_has_error
+jinx_zend_error_state_has_throwable
+jinx_zend_executor_clear_error
+jinx_zend_executor_raise
+jinx_zend_error_state_raise
+jinx_zend_error_level_name
+jinx_zend_throwable_class_entry
+jinx_zend_throwable_new
+jinx_zend_throwable_describe
+jinx_zend_error_state_throw
+```
+
+Current error smoke executable:
+
+```bash
+./build/native/jinx-zend-error-smoke
+```
+
+The error layer records warnings/errors into executor and error-state slots, models exception/error objects as native objects with message/code/file/line properties, describes throwable properties, and propagates thrown objects into executor-visible exception state.
 
 ## Oracle/PASM JinxValue carrier and array builtin bridge
 
@@ -313,7 +333,7 @@ Run carried live arrays through `./jinx oracle-call`:
 
 ## Next implementation steps
 
-1. Add error/warning/exception objects.
+1. Add throw/catch opcode/IR lowering using `JinxZendErrorState` and throwable objects.
 2. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
