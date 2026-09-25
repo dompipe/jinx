@@ -12,6 +12,7 @@ runtime/jinx_zend_engine.c
 runtime/jinx_zend_array_delete.h
 runtime/jinx_zend_foreach.h
 runtime/jinx_zend_foreach_opcode.h
+runtime/jinx_zend_foreach_program.h
 runtime/jinx_oracle_zend_array_carrier.h
 runtime/jinx_oracle_zend_array_builtins.h
 native/jinx_zend_smoke.c
@@ -20,6 +21,7 @@ native/jinx_zend_array_delete_smoke.c
 native/jinx_zend_foreach_smoke.c
 native/jinx_zend_foreach_execute_smoke.c
 native/jinx_zend_foreach_opcode_smoke.c
+native/jinx_zend_foreach_program_smoke.c
 native/jinx_oracle_zend_array_carrier_smoke.c
 native/jinx_oracle_zend_array_builtin_smoke.c
 native/jinx_oracle_dispatch_zend_array_smoke.c
@@ -43,6 +45,9 @@ Build and smoke test:
 
 ./scripts/build-zend-foreach-opcode-smoke.sh
 ./build/native/jinx-zend-foreach-opcode-smoke
+
+./scripts/build-zend-foreach-program-smoke.sh
+./build/native/jinx-zend-foreach-program-smoke
 
 ./scripts/build-oracle-zend-array-carrier-smoke.sh
 ./build/native/jinx-oracle-zend-array-carrier-smoke
@@ -88,6 +93,7 @@ JinxZendBucket      numeric, string-key, or tombstone bucket carrying retained J
 JinxZendForeachIterator live foreach cursor over Zend-array buckets
 JinxZendForeachBody executor-style foreach body callback
 JinxZendForeachFrame FE_RESET/FE_FETCH foreach opcode frame
+JinxZendForeachProgramState minimal FE_RESET/FE_FETCH/BODY/JMP/HALT program runner
 JinxValue carrier   Oracle/PASM value that can carry borrowed or retained JinxZendArray *
 Oracle array bridge PHP builtin names routing carried JinxZendArray * through live-aware helpers
 Generated dispatch pre-hook for carried JinxZendArray * before count-only fallbacks
@@ -130,6 +136,8 @@ foreach_execute invokes an executor body once per live entry and advances execut
 FE_RESET accepts Zend-array sources and rejects non-arrays
 FE_FETCH skips tombstones and yields live key/value slots
 FE_RUN_ALL dispatches a lowered foreach body and advances executor ops
+foreach opcode program sequences FE_RESET, FE_FETCH, FE_BODY, JMP, and HALT
+foreach opcode program loops over live entries and skips tombstones
 array compaction after tombstones
 Oracle JinxValue borrowed/retained carriers for JinxZendArray pointers
 Oracle array builtin bridge for carried JinxZendArray values
@@ -206,6 +214,7 @@ The foreach lowering layers are:
 ```text
 runtime/jinx_zend_foreach.h
 runtime/jinx_zend_foreach_opcode.h
+runtime/jinx_zend_foreach_program.h
 ```
 
 They provide:
@@ -215,6 +224,8 @@ JinxZendForeachIterator
 JinxZendForeachEntry
 JinxZendForeachBody
 JinxZendForeachFrame
+JinxZendForeachProgramOp
+JinxZendForeachProgramState
 jinx_zend_foreach_init
 jinx_zend_foreach_next
 jinx_zend_foreach_bucket_key
@@ -223,6 +234,8 @@ jinx_zend_fe_frame_init
 jinx_zend_fe_reset
 jinx_zend_fe_fetch
 jinx_zend_fe_run_all
+jinx_zend_foreach_program_state_init
+jinx_zend_foreach_program_run
 ```
 
 Current foreach smoke executables:
@@ -231,9 +244,10 @@ Current foreach smoke executables:
 ./build/native/jinx-zend-foreach-smoke
 ./build/native/jinx-zend-foreach-execute-smoke
 ./build/native/jinx-zend-foreach-opcode-smoke
+./build/native/jinx-zend-foreach-program-smoke
 ```
 
-The iterator walks physical bucket order, skips tombstones without compaction, and returns a live-position counter plus PHP-style numeric/string keys and values. The executor-style helper calls a lowered foreach body once per live entry and increments `JinxZendExecutor.executed_ops` per body execution. The opcode primitive layer maps this into `FE_RESET`/`FE_FETCH` frame state so the later bytecode VM can lower PHP `foreach` directly.
+The iterator walks physical bucket order, skips tombstones without compaction, and returns a live-position counter plus PHP-style numeric/string keys and values. The executor-style helper calls a lowered foreach body once per live entry and increments `JinxZendExecutor.executed_ops` per body execution. The opcode primitive layer maps this into `FE_RESET`/`FE_FETCH` frame state. The program runner sequences `FE_RESET`, `FE_FETCH`, body dispatch, loop jump, and halt so a later compiler can lower PHP `foreach` into a tiny opcode stream.
 
 ## Oracle/PASM JinxValue carrier and array builtin bridge
 
@@ -351,10 +365,9 @@ Run carried live arrays through generated Oracle dispatch:
 
 ## Next implementation steps
 
-1. Add a minimal opcode program runner that can sequence FE_RESET, FE_FETCH, body dispatch, and loop jumps.
-2. Add object class table and method dispatch.
-3. Add error/warning/exception objects.
-4. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
+1. Add object class table and method dispatch.
+2. Add error/warning/exception objects.
+3. Add opcode/IR lowering so arbitrary PHP can run through the Zend-shaped executor.
 
 ## Rule
 
