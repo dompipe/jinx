@@ -10,6 +10,7 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 | `conditionals` | `runtime/OracleConditionalExecutor.php` | `scripts/test-oracle-conditional-execution.php` | narrow `if`/`else`, comparisons, `&&`, `||`, `!`, PHP-like truthiness, plus the straight-line operations needed inside branches |
 | `loops` | `runtime/OracleLoopExecutor.php` | `scripts/test-oracle-loop-execution.php` | narrow `while` loops, `break`, `continue`, nested conditionals, plus the straight-line operations needed inside loop bodies |
 | `arrays` | `runtime/OracleArrayExecutor.php` | `scripts/test-oracle-array-execution.php` | empty array literals, append writes, nested dimension assigns/fetches, `isset`, `empty`, `unset`, `count`, echo, print, return |
+| `functions` | `runtime/OracleFunctionExecutor.php` | `scripts/test-oracle-function-execution.php` | named user functions, local parameter scope, return values, nested user calls, builtin dispatch for `strlen` and `strtoupper` |
 
 ## Native `./jinx` verification
 
@@ -23,6 +24,7 @@ git pull origin master
 ./jinx scripts/test-oracle-conditional-execution.php
 ./jinx scripts/test-oracle-loop-execution.php
 ./jinx scripts/test-oracle-array-execution.php
+./jinx scripts/test-oracle-function-execution.php
 ./jinx scripts/test-bin-jinx.php
 ./jinx scripts/test-oracle-program-compiler.php
 git diff --check
