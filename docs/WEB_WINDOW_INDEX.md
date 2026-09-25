@@ -61,6 +61,7 @@ The demo shows:
 - the definition of no-JS JINX live islands
 - the exact iframe markup emitted
 - two working islands that refresh independently
+- a back-page/API state property that changes the islands
 - the current JINX frame data backing the parent page
 ```
 
@@ -127,6 +128,7 @@ The page arrangement/index is resident. The request context stays fresh and isol
 ```text
 runtime/WebWindowIndex.php
 runtime/WebNoJsIslandRegistrar.php
+runtime/WebBackPageBridge.php
 scripts/demo-no-js-islands.php
 scripts/serve-no-js-islands-demo.php
 ```
@@ -134,6 +136,8 @@ scripts/serve-no-js-islands-demo.php
 `runtime/WebWindowIndex.php` owns the server-side resident index and emits the browser runtime, stream frames, and no-JS registrar documents.
 
 `runtime/WebNoJsIslandRegistrar.php` emits browser-native no-JS live islands.
+
+`runtime/WebBackPageBridge.php` backs API route execution without retaining request-local state.
 
 `scripts/demo-no-js-islands.php` is the demo/router for seeing the definition and working island page.
 
@@ -240,6 +244,42 @@ echo WebNoJsIslandRegistrar::islandDocument(
 ```
 
 That emits a no-JS island document with browser-native refresh. The parent page does not reload. Only the island document reloads.
+
+## Back-page/API-backed island state
+
+The demo exposes a state endpoint:
+
+```text
+/api/island-state
+```
+
+Open the state:
+
+```text
+http://127.0.0.1:8099/api/island-state
+```
+
+Change it with a no-JS form on the page, or POST JSON directly:
+
+```bash
+curl -X POST http://127.0.0.1:8099/api/island-state \
+  -H 'Content-Type: application/json' \
+  -d '{"page":"feed.window","detail":"Changed detail","status":"Changed status"}'
+```
+
+The island documents read the current state, pass the text through `WebBackPageBridge`, and render the result into the iframe document. When the API state changes, each iframe picks it up on its next browser-native refresh.
+
+This gives the property chain:
+
+```text
+parent page
+  -> iframe island URL
+    -> demo route
+      -> /api/island-state property
+        -> WebBackPageBridge envelope
+          -> WebWindowIndex frame
+            -> WebNoJsIslandRegistrar island document
+```
 
 The output contains:
 
@@ -362,7 +402,7 @@ The test proves:
 - the no-JS registrar emits DOM/templates without scripts
 - no-JS document output can include browser-native refresh
 - no-JS island output keeps the parent page loaded while islands refresh independently
-- the demo page emits a visible no-JS live-island definition
+- the demo page exposes back-page/API-backed island state
 - the demo server helper exposes a non-serving check mode
 - one page's arrangement does not leak into the next page
 - forbidden request-state fields are not resident in the frame
