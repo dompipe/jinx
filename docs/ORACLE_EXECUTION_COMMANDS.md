@@ -135,6 +135,12 @@ Runtime owner: `runtime/OracleMathBuiltinExecutor.php`. PHP comparison test: `sc
 
 `floor-builtins`, `ceil-builtins`, `sqrt-builtins`, `pow-builtins`, `fmod-builtins`, `intdiv-builtins`, `deg2rad-builtins`, `rad2deg-builtins`, `sin-builtins`, `cos-builtins`, `tan-builtins`, `asin-builtins`, `acos-builtins`, `atan-builtins`, `log-builtins`, `exp-builtins`, `pi-builtins`, `hypot-builtins`, `is-finite-builtins`, `is-infinite-builtins`, `is-nan-builtins`.
 
+## Math/numeric builtin batch two
+
+Runtime owner: `runtime/OracleMathBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-math-builtin-two-execution.php`.
+
+`acosh-builtins`, `asinh-builtins`, `atanh-builtins`, `atan2-builtins`, `log10-builtins`, `log1p-builtins`, `expm1-builtins`, `sinh-builtins`, `cosh-builtins`, `tanh-builtins`, `fdiv-builtins`, `abs-builtins`, `max-builtins`, `min-builtins`, `round-half-up-builtins`, `round-half-down-builtins`, `round-half-even-builtins`, `round-half-odd-builtins`, `getrandmax-builtins`, `mt-getrandmax-builtins`.
+
 ## Data/encoding/introspection builtin batch
 
 Runtime owner: `runtime/OracleDataBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-data-builtin-execution.php`.
