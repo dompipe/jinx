@@ -49,8 +49,10 @@ The demo shows:
 - the definition of no-JS JINX live islands
 - the exact iframe markup emitted
 - two working islands that refresh independently
-- the current JINX frame data backing the page
+- the current JINX frame data backing the parent page
 ```
+
+The parent page frame data is intentionally stable until you reload the parent page. The two island boxes are the moving pieces. The island endpoint emits no-cache headers, a browser-native `Refresh` header, and a changing cache-bust URL so the island reload should be visible every two seconds.
 
 The islands are standard same-origin iframes, but not the old ad-frame pattern. They are first-party JINX component documents, borderless, sandboxed, and controlled by the server.
 
@@ -217,7 +219,7 @@ $frame = $index->feedWindow($state, 'main-window', 'feed.window');
 echo WebNoJsIslandRegistrar::islandDocument(
     $frame,
     'detail',
-    '/jinx/island?window=main-window&zone=detail',
+    '/jinx/island?window=main-window&zone=detail&_=' . rawurlencode((string) microtime(true)),
     1
 );
 ```
