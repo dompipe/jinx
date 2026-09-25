@@ -78,8 +78,28 @@ same($third['arrangement']['title'] ?? null, 'Updated Resident Feed', 'third tit
 same($third['arrangement']['components']['detail']['text'] ?? null, 'Resident detail default updated', 'third detail comes from updated resident index');
 same($state['main-window']['index_version'] ?? null, $versionBefore + 1, 'window state tracks updated index version');
 
+$snapshot = $index->browserIndexSnapshot();
+same($snapshot['kind'] ?? null, 'JINX_BROWSER_WINDOW_INDEX', 'browser index snapshot kind');
+same($snapshot['index_version'] ?? null, $versionBefore + 1, 'browser index snapshot version');
+same($snapshot['defaults']['feed.window']['title'] ?? null, 'Updated Resident Feed', 'browser index snapshot updated default');
+
+$registrationScript = $index->toBrowserRegistrationScript();
+foreach (['JINXWindowIndex.registerIndex', 'JINX_BROWSER_WINDOW_INDEX', 'Updated Resident Feed', 'window.__JINX_WINDOW_INDEX__'] as $needle) {
+    if (!str_contains($registrationScript, $needle)) {
+        fail('browser registration script missing expected marker: ' . $needle);
+    }
+}
+
+$runtimePath = dirname(__DIR__) . '/public/jinx-window-index.js';
+$runtime = is_file($runtimePath) ? (string) file_get_contents($runtimePath) : '';
+foreach (['window.JINXWindowIndex', 'registerIndex', 'liveUpdate', 'applyFrame', 'mount', 'querySelectorAll', 'jinx-window-frame'] as $needle) {
+    if (!str_contains($runtime, $needle)) {
+        fail('browser runtime missing expected live DOM/index marker: ' . $needle);
+    }
+}
+
 $script = WebWindowIndex::toBrowserScript($third);
-foreach (['window.__JINX_WINDOW_INDEX__', 'index_version', 'fingerprint', 'CustomEvent', 'jinx-window-frame', 'replaceText', 'Resident detail default updated'] as $needle) {
+foreach (['JINXWindowIndex.liveUpdate', 'window.__JINX_WINDOW_INDEX__', 'index_version', 'fingerprint', 'CustomEvent', 'jinx-window-frame', 'replaceText', 'Resident detail default updated'] as $needle) {
     if (!str_contains($script, $needle)) {
         fail('browser script missing expected browser-window programming marker: ' . $needle);
     }
@@ -92,4 +112,4 @@ foreach (['cookie', 'session', 'authorization', 'request_body'] as $forbidden) {
     }
 }
 
-echo 'PASS: WebWindowIndex updates resident page defaults and feeds isolated browser window frames' . PHP_EOL;
+echo 'PASS: WebWindowIndex registers mutable browser indexes and live DOM update frames' . PHP_EOL;
