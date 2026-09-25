@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace jinx\oracle;
 
-/** Generated executable Oracle family manifest for the 175 pure-builtin batch. */
+/** Generated executable Oracle family manifest for the pure-builtin batch. */
 final class OracleGeneratedExecutionFamilies
 {
+    public const TOTAL_GENERATED_FAMILIES = 275;
+
     /** @return array<string,array<string,mixed>> */
     public static function all(): array
     {
         $families = [];
-        for ($i = 1; $i <= 175; $i++) {
+        for ($i = 1; $i <= self::TOTAL_GENERATED_FAMILIES; $i++) {
             $family = sprintf('generated-pure-builtin-%03d', $i);
             $families[$family] = [
                 'state' => 'executable',
@@ -19,7 +21,7 @@ final class OracleGeneratedExecutionFamilies
                 'test' => 'scripts/test-oracle-generated-175-builtin-execution.php',
                 'ops' => ['O_DECLARE', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'],
                 'builtins' => self::builtinsForIndex($i),
-                'generated_batch' => 'generated-pure-builtin-175',
+                'generated_batch' => 'generated-pure-builtin-275',
             ];
         }
 
