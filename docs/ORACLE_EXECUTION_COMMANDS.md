@@ -95,6 +95,16 @@ Every family listed here is executable only because it has a runtime owner and a
 | `wordwrap-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 | `sprintf-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 | `number-format-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `urlencode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `urldecode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `rawurlencode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `rawurldecode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `http-build-query-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `parse-url-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `htmlspecialchars-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `html-entity-decode-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `strip-tags-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
+| `nl2br-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 | `array-combine-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 | `array-flip-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 | `array-diff-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
@@ -120,7 +130,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-object-inheritance-execution.php
+./jinx scripts/test-oracle-app-builtin-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable. Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family.
