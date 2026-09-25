@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace jinx\web;
 
+use RuntimeException;
+
 require_once __DIR__ . '/WebNativeFunctionRegistry.generated.php';
 require_once __DIR__ . '/WebNativeOracleDispatch.generated.php';
 
@@ -20,7 +22,10 @@ final class WebNativeFunctions
      */
     public static function allowedNames(): array
     {
-        return WebNativeFunctionRegistry::names();
+        return array_values(array_unique(array_merge(
+            WebNativeFunctionRegistry::names(),
+            self::phpCryptoFallbackNames()
+        )));
     }
 
     /**
@@ -100,9 +105,61 @@ final class WebNativeFunctions
         ];
     }
 
+    /**
+     * Crypto-sensitive functions are correctness-first PHP fallbacks.
+     *
+     * They intentionally bypass the Oracle/native placeholder path until JINX
+     * has exact native crypto implementations. This preserves original PHP
+     * behavior for algorithms, password hashing, randomness, and extension
+     * availability without pretending those calls are native ASM yet.
+     *
+     * @return list<string>
+     */
+    private static function phpCryptoFallbackNames(): array
+    {
+        return [
+            'crc32',
+            'crypt',
+            'hash',
+            'hash_algos',
+            'hash_copy',
+            'hash_equals',
+            'hash_file',
+            'hash_final',
+            'hash_hkdf',
+            'hash_hmac',
+            'hash_hmac_algos',
+            'hash_hmac_file',
+            'hash_init',
+            'hash_pbkdf2',
+            'hash_update',
+            'hash_update_file',
+            'hash_update_stream',
+            'md5',
+            'md5_file',
+            'openssl_decrypt',
+            'openssl_digest',
+            'openssl_encrypt',
+            'openssl_random_pseudo_bytes',
+            'password_get_info',
+            'password_hash',
+            'password_needs_rehash',
+            'password_verify',
+            'random_bytes',
+            'random_int',
+            'sha1',
+            'sha1_file',
+            'sodium_bin2hex',
+            'sodium_hex2bin',
+        ];
+    }
+
     public static function isAllowed(string $name): bool
     {
-        return WebNativeFunctionRegistry::has($name);
+        $name = strtolower($name);
+
+        return in_array($name, self::phpCryptoFallbackNames(), true)
+            || WebNativeFunctionRegistry::has($name);
     }
 
     /**
@@ -111,6 +168,10 @@ final class WebNativeFunctions
     public static function call(string $name, array $args): mixed
     {
         $name = strtolower($name);
+
+        if (in_array($name, self::phpCryptoFallbackNames(), true)) {
+            return self::callPhpCryptoFallback($name, $args);
+        }
 
         $oracleHit = false;
         $oracleResult = WebNativeOracleDispatch::tryCallLowercase($name, $args, $oracleHit);
@@ -210,6 +271,18 @@ final class WebNativeFunctions
 
             default => WebNativeFunctionRegistry::callLowercase($name, $args),
         };
+    }
+
+    /**
+     * @param list<mixed> $args
+     */
+    private static function callPhpCryptoFallback(string $name, array $args): mixed
+    {
+        if (!function_exists($name)) {
+            throw new RuntimeException("PHP crypto fallback function is unavailable: {$name}");
+        }
+
+        return $name(...$args);
     }
 
     /**
