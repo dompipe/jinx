@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 $items = [];
-$items[] = 'alpha';
-$items[] = 'beta';
+$items[0] = 'alpha';
+$items[1] = 'beta';
 
 $profile = [];
 $profile['user'] = [];
