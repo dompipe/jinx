@@ -8,7 +8,7 @@ For every generated PHP function or method name:
 
 1. Read the PHP manual page or the matching manual family page.
 2. Record the prototype, return type family, edge cases, and safety notes.
-3. Add the native C / Oracle / PASM behavior handler.
+3. Add the native C / Oracle / PASM behavior handler, or explicitly mark the family as PHP fallback while native behavior is not safe or complete.
 4. Add a PHP-vs-JINX fixture using the same arguments on both sides.
 5. Promote the manifest state only when the native return behavior matches the documented PHP behavior for the supported `JinxValue` types.
 
@@ -34,7 +34,7 @@ Use this command before calling JINX a complete native PHP mirror:
 php scripts/check-native-manual-complete.php
 ```
 
-The gate fails if any manifest entry is not `exact`. That is intentional. It prevents the project from claiming “PHP-equal native ASM” while any handler remains `partial`, `placeholder`, or `unsafe-native`.
+The gate fails if any manifest entry is not `exact`. That is intentional. It prevents the project from claiming “PHP-equal native ASM” while any handler remains `partial`, `placeholder`, `php-fallback`, or `unsafe-native`.
 
 Expected during construction:
 
@@ -54,8 +54,29 @@ PASS: every manual manifest entry is exact. Native mirror gate passed.
 exact          Manual behavior is implemented for the supported native value types.
 partial        Manual page was read and the native handler covers only a documented subset.
 placeholder    Callable native carrier exists, but exact manual behavior still needs implementation.
+php-fallback   Original PHP is used for correctness until exact native behavior exists.
 unsafe-native  Must not become a blind native host call. Needs sandbox/security policy first.
 ```
+
+## Crypto PHP fallback
+
+Crypto-sensitive behavior is correctness-first. Selected crypto/hash/password/random functions bypass Oracle/native placeholders in the PHP worker and call original PHP directly:
+
+```text
+hash, hash_hmac, md5, sha1, crc32, crypt,
+password_hash, password_verify, password_needs_rehash, password_get_info,
+random_bytes, random_int,
+openssl_digest, openssl_encrypt, openssl_decrypt, openssl_random_pseudo_bytes,
+sodium_bin2hex, sodium_hex2bin
+```
+
+Run the regression test with:
+
+```bash
+php scripts/test-php-crypto-fallback.php
+```
+
+This is not native ASM completion. The manifest state is `php-fallback` until exact native crypto handlers replace the PHP calls.
 
 ## Current first-pass manual families
 
@@ -69,6 +90,7 @@ unsafe-native  Must not become a blind native host call. Needs sandbox/security 
 | `str_starts_with` | `str_starts_with(string $haystack, string $needle): bool` | partial | Needs exact empty-needle byte-prefix behavior. |
 | `str_ends_with` | `str_ends_with(string $haystack, string $needle): bool` | partial | Needs exact empty-needle byte-suffix behavior. |
 | `ctype_*` | PHP ctype reference | partial | Native bool carrier exists; exact byte-class behavior is next. |
+| crypto/hash/password/random | PHP crypto/hash/password/random references | php-fallback | Original PHP fallback preserves correctness until exact native crypto exists. |
 | string transform family | PHP string reference | placeholder | Coarse native carriers exist; exact per-function behavior is next. |
 | array family | PHP array reference | placeholder | Requires native array storage beyond array-count stand-ins. |
 | class/object/reflection | PHP class/object reference | placeholder | Requires class table and object model. |
@@ -115,6 +137,7 @@ Examples:
 
 1. Finish exact scalar/string functions first: `strlen`, `str_contains`, `str_starts_with`, `str_ends_with`, `strcmp`, `strcasecmp`, `substr`, `trim`, `strtolower`, `strtoupper`.
 2. Finish exact numeric functions next: `abs`, `ceil`, `floor`, `sqrt`, trig/log functions with PHP-compatible edge behavior.
-3. Add native array storage, then promote array functions out of placeholders.
-4. Add object/class tables, then promote class/object/reflection functions.
-5. Add sandbox policy for filesystem/stream/process/network/session/database functions.
+3. Keep crypto on original PHP fallback until a reviewed exact native crypto backend exists.
+4. Add native array storage, then promote array functions out of placeholders.
+5. Add object/class tables, then promote class/object/reflection functions.
+6. Add sandbox policy for filesystem/stream/process/network/session/database functions.
