@@ -26,11 +26,19 @@ typedef enum JinxZendType {
     JINX_ZEND_RESOURCE = 9
 } JinxZendType;
 
+typedef enum JinxZendFlags {
+    JINX_ZEND_FLAG_NONE = 0u,
+    JINX_ZEND_STRING_OWNED = 1u << 0,
+    JINX_ZEND_STRING_INTERNED = 1u << 1,
+    JINX_ZEND_STRING_PERSISTENT = 1u << 2
+} JinxZendFlags;
+
 typedef struct JinxZendString {
     uint32_t refcount;
     uint32_t flags;
     size_t len;
-    const char *bytes;
+    size_t capacity;
+    char *bytes;
 } JinxZendString;
 
 typedef struct JinxZendArray {
@@ -101,6 +109,11 @@ JinxZendValue jinx_zend_bool(int value);
 JinxZendValue jinx_zend_long(int64_t value);
 JinxZendValue jinx_zend_double(double value);
 JinxZendString jinx_zend_string_view(const char *bytes, size_t len);
+JinxZendString *jinx_zend_string_new(const char *bytes, size_t len);
+JinxZendString *jinx_zend_string_retain(JinxZendString *string);
+void jinx_zend_string_release(JinxZendString *string);
+JinxZendString *jinx_zend_string_separate(JinxZendString **string);
+int jinx_zend_string_set_byte(JinxZendString **string, size_t offset, char byte);
 JinxZendValue jinx_zend_string_value(JinxZendString *string);
 JinxZendArray jinx_zend_array_count_view(size_t count);
 JinxZendValue jinx_zend_array_value(JinxZendArray *array);
