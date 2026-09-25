@@ -107,8 +107,8 @@ $appendOracle = OracleArrayExecutor::execute([
     'kind' => 'JINX_ORACLE_PROGRAM',
     'statements' => [
         ['op' => 'O_ASSIGN', 'source' => '$items = [];'],
-        ['op' => 'O_DIM_ASSIGN', 'source' => "$items[] = 'first';"],
-        ['op' => 'O_DIM_ASSIGN', 'source' => "$items[] = 'second';"],
+        ['op' => 'O_DIM_ASSIGN', 'source' => '$items[] = \'first\';'],
+        ['op' => 'O_DIM_ASSIGN', 'source' => '$items[] = \'second\';'],
         ['op' => 'O_RETURN', 'source' => 'return $items[1];'],
     ],
 ]);
