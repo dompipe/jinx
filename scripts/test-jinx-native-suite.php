@@ -43,6 +43,7 @@ $scriptTests = [
     'execution families ledger' => ['scripts/test-oracle-execution-families.php', 'PASS: Oracle execution families expose'],
     'straight-line family' => ['scripts/test-oracle-straightline-execution.php', 'PASS: Oracle executes straight-line PHP subset'],
     'string interpolation family' => ['scripts/test-oracle-string-interpolation-execution.php', 'PASS: Oracle executes PHP string interpolation'],
+    'string interpolation facets' => ['scripts/test-oracle-string-interpolation-facets.php', 'PASS: Oracle string interpolation facets resolve every tested PHP form'],
     'coalesced string interpolation' => ['scripts/test-oracle-string-interpolation-coalesced.php', 'PASS: Coalesced Oracle compiles PHP string interpolation'],
     'conditionals family' => ['scripts/test-oracle-conditional-execution.php', 'PASS: Oracle executes conditional PHP subset'],
     'loops family' => ['scripts/test-oracle-loop-execution.php', 'PASS: Oracle executes loop PHP subset'],
