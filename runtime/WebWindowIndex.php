@@ -134,7 +134,7 @@ final class WebWindowIndex
                 'resident_state' => 'page defaults and arrangements only',
                 'request_state' => 'must be isolated outside the resident window index',
                 'index_update_rule' => 'only explicit register/update/patch calls mutate the resident index',
-                'browser_runtime_rule' => 'JINX emits the browser applier inline; no separate JavaScript file is required',
+                'browser_runtime_rule' => 'JINX can emit either inline browser runtime or no-JS HTML registrar output',
             ],
         ];
     }
@@ -172,7 +172,7 @@ final class WebWindowIndex
             'safety' => [
                 'resident_state' => 'page defaults and arrangements only',
                 'per_user_scale' => 'browser holds the user-visible index; server only sends index snapshots and frames',
-                'live_update_rule' => 'apply frames through the inline JINX-emitted window index runtime',
+                'live_update_rule' => 'use inline runtime for in-place updates, or no-JS registrar output for browser-native reload/swap flows',
                 'external_js_required' => false,
             ],
         ];
@@ -183,8 +183,8 @@ final class WebWindowIndex
      *
      * This avoids requiring a hand-authored page script or an external
      * /jinx-window-index.js include. The browser still executes emitted code
-     * because DOM mutation requires browser code, but the application author
-     * writes JINX/PHP only.
+     * because in-place DOM mutation requires browser code, but the application
+     * author writes JINX/PHP only.
      */
     public static function inlineBrowserRuntimeScript(): string
     {
@@ -194,67 +194,38 @@ final class WebWindowIndex
 
   function root() {
     window.__JINX_WINDOW_INDEX__ = window.__JINX_WINDOW_INDEX__ || {
-      frames: {},
-      defaults: {},
-      windows: {},
-      history: [],
-      index_version: 0,
-      fingerprint: ''
+      frames: {}, defaults: {}, windows: {}, history: [], index_version: 0, fingerprint: ''
     };
     return window.__JINX_WINDOW_INDEX__;
   }
 
   function remember(eventName, payload) {
     var state = root();
-    state.history.push({
-      event: eventName,
-      index_version: payload && payload.index_version ? payload.index_version : (state.index_version || 0),
-      at: Date.now()
-    });
+    state.history.push({event: eventName, index_version: payload && payload.index_version ? payload.index_version : (state.index_version || 0), at: Date.now()});
     if (state.history.length > 200) state.history.shift();
   }
 
   function dispatch(name, detail) {
-    if (typeof window.CustomEvent === 'function') {
-      window.dispatchEvent(new CustomEvent(name, {detail: detail}));
-    }
+    if (typeof window.CustomEvent === 'function') window.dispatchEvent(new CustomEvent(name, {detail: detail}));
   }
 
   function query(selector) {
-    try {
-      return selector ? document.querySelector(selector) : null;
-    } catch (e) {
-      return null;
-    }
+    try { return selector ? document.querySelector(selector) : null; } catch (e) { return null; }
   }
 
   function applyPatch(patch) {
     if (!patch || typeof patch !== 'object') return false;
     var el = query(String(patch.selector || ''));
     if (!el) return false;
-
     var value = patch.value == null ? '' : String(patch.value);
     switch (String(patch.op || 'replaceText')) {
-      case 'replaceText':
-        el.textContent = value;
-        return true;
-      case 'replaceHTML':
-        el.innerHTML = value;
-        return true;
-      case 'appendHTML':
-        el.insertAdjacentHTML('beforeend', value);
-        return true;
-      case 'setAttribute':
-        if (patch.name) el.setAttribute(String(patch.name), value);
-        return true;
-      case 'removeAttribute':
-        if (patch.name) el.removeAttribute(String(patch.name));
-        return true;
-      case 'toggleClass':
-        if (patch.name) el.classList.toggle(String(patch.name), !!patch.enabled);
-        return true;
-      default:
-        return false;
+      case 'replaceText': el.textContent = value; return true;
+      case 'replaceHTML': el.innerHTML = value; return true;
+      case 'appendHTML': el.insertAdjacentHTML('beforeend', value); return true;
+      case 'setAttribute': if (patch.name) el.setAttribute(String(patch.name), value); return true;
+      case 'removeAttribute': if (patch.name) el.removeAttribute(String(patch.name)); return true;
+      case 'toggleClass': if (patch.name) el.classList.toggle(String(patch.name), !!patch.enabled); return true;
+      default: return false;
     }
   }
 
@@ -274,57 +245,23 @@ final class WebWindowIndex
     frame = frame || {};
     var windowId = frame.window_id || 'window:default';
     var pageKey = frame.page_key || 'page:default';
-
     state.index_version = frame.index_version || state.index_version || 0;
     state.fingerprint = frame.resident_index_fingerprint || state.fingerprint || '';
     state.frames[windowId] = frame;
     state.defaults[pageKey] = frame.arrangement || state.defaults[pageKey] || {};
-    state.windows[windowId] = {
-      page_key: pageKey,
-      index_version: state.index_version,
-      fingerprint: state.fingerprint,
-      arrangement: frame.arrangement || {},
-      last_patch_count: Array.isArray(frame.patches) ? frame.patches.length : 0
-    };
-
+    state.windows[windowId] = {page_key: pageKey, index_version: state.index_version, fingerprint: state.fingerprint, arrangement: frame.arrangement || {}, last_patch_count: Array.isArray(frame.patches) ? frame.patches.length : 0};
     var applied = 0;
-    for (var i = 0; i < (frame.patches || []).length; i++) {
-      if (applyPatch(frame.patches[i])) applied++;
-    }
-
+    for (var i = 0; i < (frame.patches || []).length; i++) if (applyPatch(frame.patches[i])) applied++;
     frame.applied_patches = applied;
     remember('applyFrame', frame);
     dispatch('jinx-window-frame', frame);
     return frame;
   }
 
-  function liveUpdate(frame) {
-    var applied = applyFrame(frame);
-    dispatch('jinx-window-live-update', applied);
-    return applied;
-  }
+  function liveUpdate(frame) { var applied = applyFrame(frame); dispatch('jinx-window-live-update', applied); return applied; }
+  function mount(windowId, pageKey, arrangement) { return liveUpdate({kind: 'JINX_WINDOW_INDEX_FRAME', version: 1, index_version: root().index_version || 0, window_id: windowId || 'window:default', page_key: pageKey || 'page:default', arrangement: arrangement || {}, patches: []}); }
 
-  function mount(windowId, pageKey, arrangement) {
-    return liveUpdate({
-      kind: 'JINX_WINDOW_INDEX_FRAME',
-      version: 1,
-      index_version: root().index_version || 0,
-      window_id: windowId || 'window:default',
-      page_key: pageKey || 'page:default',
-      arrangement: arrangement || {},
-      patches: []
-    });
-  }
-
-  window.JINXWindowIndex = {
-    __jinx_emitted_runtime: true,
-    registerIndex: registerIndex,
-    applyFrame: applyFrame,
-    liveUpdate: liveUpdate,
-    mount: mount,
-    applyPatch: applyPatch,
-    state: root
-  };
+  window.JINXWindowIndex = {__jinx_emitted_runtime: true, registerIndex: registerIndex, applyFrame: applyFrame, liveUpdate: liveUpdate, mount: mount, applyPatch: applyPatch, state: root};
 })(window, document);
 JS;
     }
@@ -365,6 +302,70 @@ JS;
         return ($includeRuntime ? self::inlineBrowserRuntimeScript() . "\n" : '') . $script;
     }
 
+    /** @return string */
+    public function toNoJsRegistrarHtml(): string
+    {
+        $snapshot = $this->browserIndexSnapshot();
+        $json = self::html(json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}');
+        $html = '<section data-jinx-no-js-registrar="1" data-jinx-index-version="' . self::html((string) $this->indexVersion) . '" data-jinx-fingerprint="' . self::html($this->residentIndexFingerprint()) . '">' . "\n";
+        $html .= '<template data-jinx-index-json="1">' . $json . '</template>' . "\n";
+        foreach ($this->pageDefaults as $pageKey => $defaults) {
+            $html .= '<template data-jinx-page-default="' . self::html($pageKey) . '">' . self::html(json_encode($defaults, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}') . '</template>' . "\n";
+        }
+        $html .= '</section>';
+        return $html;
+    }
+
+    /** @param array<string,mixed> $frame */
+    public static function toNoJsFrameHtml(array $frame): string
+    {
+        $windowId = (string) ($frame['window_id'] ?? 'window-default');
+        $safeWindow = self::safeId($windowId);
+        $pageKey = (string) ($frame['page_key'] ?? 'page:default');
+        $arrangement = is_array($frame['arrangement'] ?? null) ? $frame['arrangement'] : [];
+        $components = is_array($arrangement['components'] ?? null) ? $arrangement['components'] : [];
+        $zones = array_values(array_map('strval', is_array($arrangement['zones'] ?? null) ? $arrangement['zones'] : array_keys($components)));
+        $title = (string) ($arrangement['title'] ?? $pageKey);
+
+        $html = '<section data-jinx-no-js-frame="1" data-jinx-window="' . self::html($safeWindow) . '" data-jinx-page-key="' . self::html($pageKey) . '" data-jinx-index-version="' . self::html((string) ($frame['index_version'] ?? 0)) . '">' . "\n";
+        $html .= '<h1 data-jinx-window="' . self::html($safeWindow) . '" data-jinx-zone="title">' . self::html($title) . '</h1>' . "\n";
+        foreach ($zones as $zone) {
+            $component = is_array($components[$zone] ?? null) ? $components[$zone] : [];
+            $text = array_key_exists('text', $component) ? (string) $component['text'] : '';
+            $kind = (string) ($component['kind'] ?? 'slot');
+            $html .= '<div data-jinx-window="' . self::html($safeWindow) . '" data-jinx-zone="' . self::html($zone) . '" data-jinx-component-kind="' . self::html($kind) . '">' . self::html($text) . '</div>' . "\n";
+        }
+        $html .= '<template data-jinx-frame-json="1">' . self::html(json_encode($frame, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}') . '</template>' . "\n";
+        $html .= '</section>';
+        return $html;
+    }
+
+    /** @param array<string,mixed> $frame */
+    public function toNoJsDocumentHtml(array $frame, ?string $refreshUrl = null, int $refreshSeconds = 0): string
+    {
+        $arrangement = is_array($frame['arrangement'] ?? null) ? $frame['arrangement'] : [];
+        $title = (string) ($arrangement['title'] ?? 'JINX Window');
+        $refresh = '';
+        if ($refreshUrl !== null && $refreshUrl !== '') {
+            $content = max(0, $refreshSeconds) . ';url=' . $refreshUrl;
+            $refresh = '<meta http-equiv="refresh" content="' . self::html($content) . '">' . "\n";
+        }
+
+        return '<!doctype html>' . "\n"
+            . '<html lang="en">' . "\n"
+            . '<head>' . "\n"
+            . '<meta charset="utf-8">' . "\n"
+            . '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n"
+            . $refresh
+            . '<title>' . self::html($title) . '</title>' . "\n"
+            . '</head>' . "\n"
+            . '<body data-jinx-no-js-document="1">' . "\n"
+            . $this->toNoJsRegistrarHtml() . "\n"
+            . self::toNoJsFrameHtml($frame) . "\n"
+            . '</body>' . "\n"
+            . '</html>';
+    }
+
     /** @param array<string,mixed> $defaults @return array<string,mixed> */
     private static function normalizePageDefaults(array $defaults): array
     {
@@ -392,7 +393,7 @@ JS;
     /** @param array<string,mixed> $arrangement @return list<array<string,mixed>> */
     private static function patchesForArrangement(string $windowId, array $arrangement): array
     {
-        $safeWindow = preg_replace('/[^A-Za-z0-9_-]/', '-', $windowId) ?: 'window-default';
+        $safeWindow = self::safeId($windowId);
         $patches = [[
             'op' => 'replaceText',
             'selector' => '[data-jinx-window="' . $safeWindow . '"][data-jinx-zone="title"]',
@@ -400,10 +401,7 @@ JS;
         ]];
 
         foreach ((array) ($arrangement['components'] ?? []) as $zone => $component) {
-            if (!is_array($component)) {
-                continue;
-            }
-            if (!array_key_exists('text', $component)) {
+            if (!is_array($component) || !array_key_exists('text', $component)) {
                 continue;
             }
             $patches[] = [
@@ -414,5 +412,15 @@ JS;
         }
 
         return $patches;
+    }
+
+    private static function safeId(string $value): string
+    {
+        return preg_replace('/[^A-Za-z0-9_-]/', '-', $value) ?: 'window-default';
+    }
+
+    private static function html(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
