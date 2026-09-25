@@ -8,7 +8,9 @@ The main RC goal is to make the current state inspectable:
 
 - Read the project notes from the package.
 - View the latest benchmark snapshot.
-- Run focused tests and benchmarks from the `jinx` CLI.
+- Build and run the native `./jinx` executable.
+- Run native Oracle/PASM smoke checks and dispatch benchmarks.
+- Run PHP helper tests and benchmarks from the PHP CLI wrapper where appropriate.
 - Keep generated/cache/build junk out of the release zip.
 
 ## Native WSL CLI
@@ -23,9 +25,17 @@ chmod +x scripts/build-native-jinx.sh scripts/install-wsl-cli.sh
 ./jinx functions-count
 ./jinx functions-smoke
 ./jinx first100
+./jinx first100-list
 ./jinx bench-first100 100000
+./jinx bench-all-functions 1000
 ./jinx notes
 ./jinx benchmarks
+```
+
+Strict all-functions check:
+
+```bash
+./jinx bench-all-functions 1000 --strict
 ```
 
 Or install the compiled executable to `~/.local/bin`:
@@ -33,6 +43,7 @@ Or install the compiled executable to `~/.local/bin`:
 ```bash
 ./scripts/install-wsl-cli.sh
 jinx rc
+jinx bench-all-functions 1000
 ```
 
 The installed `jinx` is the GCC-built binary, not a PHP launcher.
@@ -45,13 +56,15 @@ php bin/jinx benchmarks
 php bin/jinx bench-wrapper-first100
 ```
 
+Use native `./jinx` for native Oracle/PASM timing.
+
 ## Native GCC CLI
 
 To build `jinx` as a native executable with GCC:
 
 ```bash
 ./scripts/build-native-jinx.sh
-./build/native/jinx oracle-smoke
+./jinx oracle-smoke
 ```
 
 The native GCC target compiles:
@@ -62,6 +75,8 @@ runtime/jinx_function_list.generated.h
 runtime/jinx_oracle_asm_context.c
 runtime/jinx_builtin_dispatch.generated.c
 runtime/jinx_pasm_machine.c
+build/oracle-asm/jinx_oracle_asm_runtime.h
+build/oracle-asm/stubs/runtime-reflection-8-4-23.oracle_asm.h
 ```
 
 This native CLI does not shell out to PHP. It exercises the current C Oracle/PASM runtime directly.
@@ -69,28 +84,69 @@ This native CLI does not shell out to PHP. It exercises the current C Oracle/PAS
 The compiled `jinx` includes a generated inventory for all 3,527 imported names:
 
 ```bash
-./build/native/jinx functions-count
-./build/native/jinx functions
-./build/native/jinx function-exists strlen
-./build/native/jinx functions-smoke
+./jinx functions-count
+./jinx functions
+./jinx function-exists strlen
+./jinx functions-smoke
 ```
 
-`functions-smoke` verifies that every generated name resolves to a native Oracle dispatch wrapper. The first 100 benchmark functions also have deterministic native sample execution:
+`functions-smoke` verifies that every generated name resolves to a native Oracle dispatch wrapper.
+
+The first 100 benchmark functions have deterministic native sample execution:
 
 ```bash
-./build/native/jinx first100
-./build/native/jinx first100-list
-./build/native/jinx bench-first100 100000
+./jinx first100
+./jinx first100-list
+./jinx bench-first100 100000
 ```
 
-Full native PHP behavior for every imported function is not claimed; unsafe or complex runtime behavior remains fail-closed or bounded unless explicitly implemented.
+The all-functions benchmark traverses every generated wrapper through native Oracle dispatch:
+
+```bash
+./jinx bench-all-functions 1000
+```
+
+It reports:
+
+- generated function count;
+- dispatch-wrapper presence;
+- concrete non-null first-pass returns;
+- null/fault placeholder first-pass returns;
+- total dispatches;
+- elapsed time;
+- nanoseconds per dispatch.
+
+Full native PHP behavior for every imported function is not claimed; unsafe or complex runtime behavior remains fail-closed or bounded unless explicitly implemented. The null/fault placeholder count is the visible list of remaining native behavior work.
 
 It also exposes static RC inspection commands:
 
 ```bash
-./build/native/jinx notes
-./build/native/jinx benchmarks
+./jinx notes
+./jinx benchmarks
 ```
+
+## PHP vs Native Benchmark
+
+Run the comparison wrapper:
+
+```bash
+php scripts/benchmark-native-jinx-vs-php.php 1000
+```
+
+Fast rerun after the native binary is already built:
+
+```bash
+JINX_SKIP_BUILD=1 php scripts/benchmark-native-jinx-vs-php.php 1000
+```
+
+This script validates PHP-side direct builtin calls where possible, then calls the native executable:
+
+```text
+./jinx functions
+./jinx bench-all-functions <iterations>
+```
+
+It does not use `php bin/jinx` for the native timing path.
 
 ## Worker-Style Native Wrappers
 
@@ -122,25 +178,18 @@ The full metadata registry is still available for inspection, but generated call
 
 ## Oracle Dispatch Layer
 
-The first hot worker-safe builtin benchmark set now routes through:
+The package has two Oracle dispatch layers:
 
 ```text
 runtime/WebNativeOracleDispatch.generated.php
-```
-
-That table is a PHP carrier for the Oracle/PASM dispatch shape:
-
-```text
-validated builtin name -> direct Oracle dispatch case -> PHP builtin
-```
-
-The lower C Oracle/PASM dispatcher remains in:
-
-```text
 runtime/jinx_builtin_dispatch.generated.c
 ```
 
-The C dispatcher smoke tests require a local C compiler and default to `gcc`. You can override it with `CC=clang` or `CC=cc`.
+`WebNativeOracleDispatch.generated.php` is the PHP-carried Oracle-shaped dispatch table used by `WebNativeFunctions::call()` for the first hot worker-safe benchmark set.
+
+`runtime/jinx_builtin_dispatch.generated.c` is the lower C Oracle/PASM dispatch table used by the built native `./jinx` executable.
+
+The C Oracle smoke tests require a local C compiler and default to `gcc`. You can override it with `CC=clang` or `CC=cc`.
 
 ## Safety Policy
 
@@ -182,10 +231,13 @@ The current package proves:
 - First-100 wrapper benchmarking through direct PHP and the JINX wrapper path.
 - Native GCC inventory coverage for all 3,527 generated names.
 - Native GCC first-100 sample execution through C Oracle dispatch.
+- Native GCC all-functions dispatch traversal through C Oracle dispatch.
+- Native reporting of concrete versus null/fault placeholder function returns.
 - Fail-closed behavior for unsafe wrappers.
 
 It does not prove:
 
 - Complete PHP language compatibility.
 - Complete PASM/native lowering for every PHP runtime function.
+- Complete C behavior handlers for every PHP builtin.
 - A final PE64/ELF64 native compiler.
