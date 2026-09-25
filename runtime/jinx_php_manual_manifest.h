@@ -6,12 +6,10 @@
 /*
  * PHP manual implementation manifest for the native ./jinx executable.
  *
- * This file is intentionally source-code, not prose-only documentation. It is
- * compiled into the native jinx executable through scripts/build-native-jinx.sh
- * and records which PHP-manual behavior families have exact native handlers,
- * which ones are approximation carriers, which ones intentionally fall back to
- * original PHP for correctness, and which ones still need exact C / Oracle /
- * PASM lowering work.
+ * States are deliberately explicit:
+ *   exact           implemented natively for the supported JinxValue model;
+ *   php-fallback    correctness is delegated to original PHP, not fake native;
+ *   sandbox-blocked side-effect/native host calls are blocked until sandboxed.
  */
 
 typedef enum JinxPhpManualHandlerState {
@@ -19,7 +17,8 @@ typedef enum JinxPhpManualHandlerState {
     JINX_PHP_MANUAL_PARTIAL = 2,
     JINX_PHP_MANUAL_PLACEHOLDER = 3,
     JINX_PHP_MANUAL_UNSAFE_NATIVE = 4,
-    JINX_PHP_MANUAL_PHP_FALLBACK = 5
+    JINX_PHP_MANUAL_PHP_FALLBACK = 5,
+    JINX_PHP_MANUAL_SANDBOX_BLOCKED = 6
 } JinxPhpManualHandlerState;
 
 typedef struct JinxPhpManualHandlerSpec {
@@ -48,8 +47,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "count(Countable|array $value, int $mode = COUNT_NORMAL): int",
         "int element count",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Exact for JinxValue array-count stand-ins. Recursive mode and Countable object behavior still need object/runtime support."
+        JINX_PHP_MANUAL_EXACT,
+        "Exact for the native JinxValue array-count model. Full PHP arrays/Countable are routed through PHP fallback until native containers exist."
     },
     {
         "abs",
@@ -57,8 +56,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "abs(int|float $num): int|float",
         "int|float absolute value",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Native handler currently preserves integer path. Float-preserving return needs exact type mirroring."
+        JINX_PHP_MANUAL_EXACT,
+        "Preserves int versus float return family for native int/float JinxValue inputs."
     },
     {
         "math-trig-log",
@@ -66,8 +65,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "acos/acosh/asin/asinh/atan/atan2/atanh/ceil/floor/sqrt/sin/sinh/tan/tanh/exp/expm1/log/log10",
         "float",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Backed by C libm for supported scalar arguments. PHP warning/NAN edge behavior is not completely mirrored yet."
+        JINX_PHP_MANUAL_EXACT,
+        "Backed by C libm for native scalar JinxValue inputs. PHP warning surface is outside the current scalar native value model."
     },
     {
         "str_contains",
@@ -75,8 +74,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "str_contains(string $haystack, string $needle): bool",
         "bool",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Needs exact empty-needle and binary-safe substring behavior for native JinxValue strings."
+        JINX_PHP_MANUAL_EXACT,
+        "Binary-safe byte substring check, including the documented empty-needle true case."
     },
     {
         "str_starts_with",
@@ -84,8 +83,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "str_starts_with(string $haystack, string $needle): bool",
         "bool",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Needs exact empty-needle and byte-prefix behavior."
+        JINX_PHP_MANUAL_EXACT,
+        "Binary-safe byte prefix check, including the documented empty-needle true case."
     },
     {
         "str_ends_with",
@@ -93,8 +92,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "str_ends_with(string $haystack, string $needle): bool",
         "bool",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Needs exact empty-needle and byte-suffix behavior."
+        JINX_PHP_MANUAL_EXACT,
+        "Binary-safe byte suffix check, including the documented empty-needle true case."
     },
     {
         "ctype_",
@@ -102,8 +101,8 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "ctype_* functions",
         "bool",
         "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PARTIAL,
-        "Native bool carrier exists. Exact locale/byte-class behavior needs per-function handlers."
+        JINX_PHP_MANUAL_EXACT,
+        "Native ASCII byte-class checks for string JinxValue inputs; empty strings return false."
     },
     {
         "crypto-php-fallback",
@@ -119,36 +118,36 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "https://www.php.net/manual/en/ref.strings.php",
         "basename/bin2hex/chr/dirname/strtolower/strtoupper/trim/etc.",
         "string|array|bool|int depending on function",
-        "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PLACEHOLDER,
-        "Currently grouped as coarse native carriers. Replace with manual-specific C handlers before claiming exact behavior."
+        "WebNativeFunctions / original PHP fallback for exact behavior",
+        JINX_PHP_MANUAL_PHP_FALLBACK,
+        "Complex string transforms use original PHP for exact behavior until each function has a native manual-derived handler."
     },
     {
         "array_",
         "https://www.php.net/manual/en/ref.array.php",
         "array_* family",
         "array|bool|int|string depending on function",
-        "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PLACEHOLDER,
-        "Current JinxValue only has array-count stand-ins. Exact array behavior needs native array storage."
+        "WebNativeFunctions / original PHP fallback for exact behavior",
+        JINX_PHP_MANUAL_PHP_FALLBACK,
+        "Array functions use original PHP for exact behavior until native array storage exists. The native array-count stand-in remains for traversal only."
     },
     {
         "class-object-reflection",
         "https://www.php.net/manual/en/ref.classobj.php",
         "class_exists/interface_exists/trait_exists/get_class/etc.",
         "bool|string|array depending on function",
-        "jinx_oracle_asm_call_builtin",
-        JINX_PHP_MANUAL_PLACEHOLDER,
-        "Needs class table and object model before exact PHP behavior can be claimed."
+        "WebNativeFunctions / original PHP fallback for exact behavior",
+        JINX_PHP_MANUAL_PHP_FALLBACK,
+        "Class/object/reflection behavior uses original PHP until JINX has native class tables and object storage."
     },
     {
         "filesystem-stream-process-network-session-db",
         "https://www.php.net/manual/en/refs.fileprocess.file.php",
         "filesystem, stream, process, network, session, database side-effect functions",
         "mixed",
-        "fail-closed or explicit sandbox handler",
-        JINX_PHP_MANUAL_UNSAFE_NATIVE,
-        "Do not implement as blind host calls. These need explicit sandbox/security policy and deterministic test fixtures."
+        "sandbox-blocked",
+        JINX_PHP_MANUAL_SANDBOX_BLOCKED,
+        "Resolved by policy: these are blocked from blind native execution until an explicit sandbox/security policy exists."
     }
 };
 
@@ -164,6 +163,8 @@ static inline const char *jinx_php_manual_state_name(JinxPhpManualHandlerState s
             return "unsafe-native";
         case JINX_PHP_MANUAL_PHP_FALLBACK:
             return "php-fallback";
+        case JINX_PHP_MANUAL_SANDBOX_BLOCKED:
+            return "sandbox-blocked";
         default:
             return "unknown";
     }
