@@ -150,6 +150,18 @@ final class OracleExecutionFamilies
         }
 
         foreach ([
+            'is-float-builtins' => ['is_float'], 'is-double-builtins' => ['is_double'], 'is-real-builtins' => ['is_real'],
+            'is-long-builtins' => ['is_long'], 'is-integer-builtins' => ['is_integer'], 'is-iterable-builtins' => ['is_iterable'],
+            'is-resource-builtins' => ['is_resource'], 'is-callable-builtins' => ['is_callable'], 'function-exists-builtins' => ['function_exists'],
+            'class-exists-builtins' => ['class_exists'], 'interface-exists-builtins' => ['interface_exists'], 'trait-exists-builtins' => ['trait_exists'],
+            'enum-exists-builtins' => ['enum_exists'], 'get-debug-type-builtins' => ['get_debug_type'], 'constant-builtins' => ['constant'],
+            'method-exists-builtins' => ['method_exists'], 'property-exists-builtins' => ['property_exists'],
+            'is-subclass-of-builtins' => ['is_subclass_of'], 'is-a-builtins' => ['is_a'], 'defined-builtins' => ['defined'],
+        ] as $family => $builtins) {
+            $families[$family] = self::builtin(OracleIntrospectionBuiltinExecutor::class, 'scripts/test-oracle-introspection-builtin-execution.php', $builtins);
+        }
+
+        foreach ([
             'date-builtins' => ['date'], 'gmdate-builtins' => ['gmdate'], 'strtotime-builtins' => ['strtotime'],
             'mktime-builtins' => ['mktime'], 'gmmktime-builtins' => ['gmmktime'], 'checkdate-builtins' => ['checkdate'],
             'idate-builtins' => ['idate'], 'getdate-builtins' => ['getdate', 'json_encode'], 'localtime-builtins' => ['localtime', 'json_encode'],
