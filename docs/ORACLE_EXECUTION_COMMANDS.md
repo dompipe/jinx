@@ -116,6 +116,32 @@ Every family listed here is executable only because it has a runtime owner and a
 | `array-change-key-case-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 | `array-fill-builtins` | `runtime/OracleAppBuiltinExecutor.php` | `scripts/test-oracle-app-builtin-execution.php` |
 
+### Math/numeric builtin batch
+
+| Family | Runtime owner | PHP comparison test |
+|---|---|---|
+| `floor-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `ceil-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `sqrt-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `pow-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `fmod-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `intdiv-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `deg2rad-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `rad2deg-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `sin-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `cos-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `tan-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `asin-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `acos-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `atan-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `log-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `exp-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `pi-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `hypot-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `is-finite-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `is-infinite-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+| `is-nan-builtins` | `runtime/OracleMathBuiltinExecutor.php` | `scripts/test-oracle-math-builtin-execution.php` |
+
 ## Native `./jinx` verification
 
 Run the native verification suite from a clean local checkout after pulling `master`. Do not run each executable-family test separately unless debugging a specific failure; the suite runs each family once with labeled output.
@@ -130,7 +156,7 @@ git diff --check
 For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
 
 ```bash
-./jinx scripts/test-oracle-app-builtin-execution.php
+./jinx scripts/test-oracle-math-builtin-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable. Do not claim a PHP/Zend behavior is executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for that family.
