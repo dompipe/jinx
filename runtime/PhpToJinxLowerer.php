@@ -53,8 +53,12 @@ final class PhpToJinxLowerer
                 continue;
             }
 
-            if (preg_match('/^\$(\w+)\s*=\s*"([^"]*)"$/', $statement, $m)) {
-                $jinx[] = sprintf('assign %s string %s', $m[1], $m[2]);
+            if (preg_match('/^\$(\w+)\s*=\s*"((?:\\\\.|[^"])*)"$/s', $statement, $m)) {
+                if (str_contains($m[2], '$')) {
+                    $jinx[] = sprintf('assign %s interpolated %s', $m[1], base64_encode($m[2]));
+                } else {
+                    $jinx[] = sprintf('assign %s string %s', $m[1], $m[2]);
+                }
                 continue;
             }
 
