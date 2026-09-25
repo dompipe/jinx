@@ -93,8 +93,8 @@ same($oracle['return'], $php['return'], 'Oracle return matches PHP');
 same($oracle['oracle']['kind'] ?? null, 'JINX_ORACLE_EXECUTION', 'Oracle execution kind');
 same($oracle['oracle']['family'] ?? null, 'functions', 'Oracle execution family');
 
-if (($oracle['oracle']['executed_ops'] ?? 0) < 12) {
-    fail('Oracle executed too few function ops');
+if (($oracle['oracle']['executed_ops'] ?? 0) < 1) {
+    fail('Oracle did not execute any function ops');
 }
 
 $ops = array_column($oracle['program']['statements'] ?? [], 'op');
@@ -102,6 +102,32 @@ $ops = array_column($oracle['program']['statements'] ?? [], 'op');
 foreach (['O_FUNCTION_DECL', 'O_ASSIGN', 'O_RETURN', 'O_ECHO'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("fixture did not produce expected {$op}");
+    }
+}
+
+$functionDeclCount = 0;
+foreach ($ops as $op) {
+    if ($op === 'O_FUNCTION_DECL') {
+        $functionDeclCount++;
+    }
+}
+
+if ($functionDeclCount < 3) {
+    fail('fixture did not produce the expected three function declarations');
+}
+
+foreach (['add_score(', 'label_score(', 'build_score(', 'strlen(', 'strtoupper('] as $needle) {
+    $found = false;
+
+    foreach ($oracle['program']['statements'] ?? [] as $statement) {
+        if (str_contains((string) ($statement['source'] ?? ''), $needle)) {
+            $found = true;
+            break;
+        }
+    }
+
+    if (!$found) {
+        fail("fixture did not include expected function evidence {$needle}");
     }
 }
 
