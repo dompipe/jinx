@@ -1,0 +1,27 @@
+oracle_sm_family fixture_lowering
+
+purpose "Compiler-shaped fixture emitters that produce stable JinxZendVmOp streams."
+replaces "Ad-hoc smoke-only VM program construction for initial compiler lowering."
+
+native_files {
+  runtime/jinx_zend_lowering_fixture.h
+}
+
+native_symbols {
+  jinx_zend_lower_foreach_method_fixture
+  jinx_zend_lower_throw_catch_fixture
+}
+
+oracle_sm_contract {
+  foreach_method_shape  load_array_load_object_fe_loop_method_call_halt
+  throw_catch_shape     load_throwable_throw_catch_clear_halt
+  output                JinxZendVmOp_stream
+}
+
+proven_by {
+  scripts/build-zend-lowering-fixture-smoke.sh
+  build/native/jinx-zend-lowering-fixture-smoke
+}
+
+pasm_target "runtime/pasm/zend/fixture_lowering.pasm"
+status started
