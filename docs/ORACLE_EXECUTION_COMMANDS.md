@@ -171,6 +171,12 @@ Runtime owner: `runtime/OracleTextBuiltinExecutor.php`. PHP comparison test: `sc
 
 `strlen-builtins`, `strtolower-builtins`, `strtoupper-builtins`, `trim-builtins`, `substr-builtins`, `basename-builtins`, `dirname-builtins`, `ucwords-builtins`, `stripcslashes-builtins`, `ctype-alnum-builtins`, `ctype-alpha-builtins`, `ctype-cntrl-builtins`, `ctype-digit-builtins`, `ctype-graph-builtins`, `ctype-lower-builtins`, `ctype-print-builtins`, `ctype-punct-builtins`, `ctype-space-builtins`, `ctype-upper-builtins`, `ctype-xdigit-builtins`.
 
+## Regex/string helper builtin batch
+
+Runtime owner: `runtime/OracleRegexStringBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-regex-string-builtin-execution.php`.
+
+`preg-quote-builtins`, `preg-match-builtins`, `preg-match-all-builtins`, `preg-replace-builtins`, `preg-filter-builtins`, `preg-split-builtins`, `preg-grep-builtins`, `preg-last-error-builtins`, `preg-last-error-msg-builtins`, `fnmatch-builtins`, `strchr-builtins`, `strrchr-builtins`, `stristr-builtins`, `strpbrk-builtins`, `strtok-builtins`, `sscanf-builtins`, `pathinfo-builtins`, `htmlentities-builtins`, `htmlspecialchars-decode-builtins`, `get-html-translation-table-builtins`.
+
 ## Date/time builtin batch
 
 Runtime owner: `runtime/OracleDateTimeBuiltinExecutor.php`. PHP comparison test: `scripts/test-oracle-date-time-builtin-execution.php`.
