@@ -14,20 +14,19 @@ Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays s
 
 ## Native `./jinx` verification
 
-Run these from a clean local checkout after pulling `master`. Do not run the executable-family tests with `php scripts/...`; run them through the repository-root native `./jinx` binary.
+Run the native verification suite from a clean local checkout after pulling `master`. Do not run each executable-family test separately unless debugging a specific failure; the suite runs each family once with labeled output.
 
 ```bash
 git pull origin master
 ./scripts/build-native-jinx.sh
-./jinx scripts/test-oracle-execution-families.php
-./jinx scripts/test-oracle-straightline-execution.php
-./jinx scripts/test-oracle-conditional-execution.php
-./jinx scripts/test-oracle-loop-execution.php
-./jinx scripts/test-oracle-array-execution.php
-./jinx scripts/test-oracle-function-execution.php
-./jinx scripts/test-bin-jinx.php
-./jinx scripts/test-oracle-program-compiler.php
+./jinx scripts/test-jinx-native-suite.php
 git diff --check
+```
+
+For a focused failure rerun, launch the specific comparison test through `./jinx`, not `php scripts/...`:
+
+```bash
+./jinx scripts/test-oracle-function-execution.php
 ```
 
 The family execution tests compare Oracle execution to PHP/Zend behavior for:
