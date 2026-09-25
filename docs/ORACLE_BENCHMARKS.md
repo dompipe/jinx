@@ -55,13 +55,19 @@ This answers:
 How fast is JINX's web-shaped JSON route path compared with direct PHP route logic when both are kept off the HTTP socket path?
 ```
 
-Run the fastest raw-template JINX mode:
+Run the fastest small raw-template JINX mode:
 
 ```bash
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template
 ```
 
-Compare against the full back-page response-envelope bridge:
+Run the large route workload, which uses bigger JSON bodies plus string, array, math, hash, and response-shaping work:
+
+```bash
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template
+```
+
+Compare the small route against the full back-page response-envelope bridge:
 
 ```bash
 ./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=bridge
@@ -70,7 +76,7 @@ Compare against the full back-page response-envelope bridge:
 Save JSON:
 
 ```bash
-./jinx scripts/benchmark-web-back-page-hot.php --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot.json
+./jinx scripts/benchmark-web-back-page-hot.php --workload=large --requests=100000 --warmup=1000 --jinx-mode=raw-template --json=build/benchmarks/web-back-page-hot-large.json
 ```
 
 This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page path, single process, no socket timing, and no process-spawn timing.
@@ -202,12 +208,12 @@ Use the harness/process benchmark to catch broad regressions in the complete too
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
 
-Use the web back-page hot benchmark for the 89x-style web route hot path.
+Use the web back-page hot benchmark when checking the off-path route engine where the speed aura can show.
 
 Use the warmed web-request worker benchmark for route logic without actual socket overhead.
 
 Use the fair live HTTP request benchmark for connection-close server behavior.
 
-Use the fair live keep-alive benchmark for persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
+Use the fair live keep-alive benchmark for the closest current answer to persistent internet/server behavior: both sides are live workers, both receive loopback HTTP requests, both reuse one connection, and both produce comparable HTTP responses.
 
 None of these benchmarks claims final PASM/native-code performance yet. PASM lowering should get its own benchmark once the PHP-to-PASM path executes the same fixtures without the Oracle interpreter layer.
