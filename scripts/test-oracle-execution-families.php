@@ -28,7 +28,9 @@ require_once dirname(__DIR__) . '/runtime/OracleArrayMutationBuiltinExecutor.php
 require_once dirname(__DIR__) . '/runtime/OracleSecurityNetworkBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRuntimeInfoBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleJinxIslandServerExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleJinxWebExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
@@ -43,8 +45,8 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleMergedExecutionFamilies::all();
 
-if (count($families) < 637) {
-    fail('expected at least 637 executable Oracle families after generated merge, found ' . count($families));
+if (count($families) < 638) {
+    fail('expected at least 638 executable Oracle families after JINX web merge, found ' . count($families));
 }
 
 foreach ($families as $family => $metadata) {
@@ -68,7 +70,7 @@ foreach ($families as $family => $metadata) {
     }
 
     $hasCoverageDimension = false;
-    foreach (['builtins', 'control_flow', 'array_ops', 'function_ops', 'object_ops', 'request_ops', 'loader_ops', 'termination_ops', 'expression_ops', 'casts', 'comparisons', 'boolean_operators', 'magic_constants', 'superglobals', 'string_ops'] as $field) {
+    foreach (['builtins', 'control_flow', 'array_ops', 'function_ops', 'object_ops', 'request_ops', 'loader_ops', 'termination_ops', 'expression_ops', 'casts', 'comparisons', 'boolean_operators', 'magic_constants', 'superglobals', 'string_ops', 'web_routes', 'web_ops'] as $field) {
         if (($metadata[$field] ?? []) !== []) {
             $hasCoverageDimension = true;
             break;
@@ -80,4 +82,4 @@ foreach ($families as $family => $metadata) {
     }
 }
 
-echo 'PASS: Oracle execution families expose ' . count($families) . ' executable PHP/Zend parity families' . PHP_EOL;
+echo 'PASS: Oracle execution families expose ' . count($families) . ' executable PHP/Zend/JINX parity families' . PHP_EOL;
