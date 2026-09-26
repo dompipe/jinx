@@ -111,8 +111,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
     }
 }
 
-if (count($families) < 738) {
-    fail('coverage audit expected at least 738 executable families after generated 375 + JINX web merge, found ' . count($families));
+if (count($families) < 888) {
+    fail('coverage audit expected at least 888 executable families after generated 525 + JINX web merge, found ' . count($families));
 }
 
 $distinctTests = array_keys($testToFamilies);
