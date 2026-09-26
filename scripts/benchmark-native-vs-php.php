@@ -6,7 +6,7 @@ declare(strict_types=1);
 // The canonical benchmark script is benchmark-native-jinx-vs-php.php.
 // This wrapper intentionally captures and filters stdout because benchmarked
 // PHP functions may print JSON, serialized payloads, class/method inventories,
-// or other machine output.
+// var_dump output, or other machine output.
 
 $script = __DIR__ . '/benchmark-native-jinx-vs-php.php';
 $args = array_slice($argv, 1);
@@ -61,13 +61,13 @@ function safeBenchmarkLines(array $lines): array
             continue;
         }
 
-        if (isAllowedBenchmarkLine($trimmed)) {
-            $safe[] = $line;
+        if (looksLikeMachinePayload($trimmed) || looksLikeInventoryLine($trimmed) || looksLikePhpDumpLine($trimmed)) {
+            $redacted++;
             continue;
         }
 
-        if (looksLikeMachinePayload($trimmed) || looksLikeInventoryLine($trimmed)) {
-            $redacted++;
+        if (isAllowedBenchmarkLine($trimmed)) {
+            $safe[] = $line;
             continue;
         }
 
@@ -137,6 +137,31 @@ function looksLikeInventoryLine(string $line): bool
     }
 
     if (str_contains($line, 'not a global PHP function in this runtime')) {
+        return true;
+    }
+
+    return false;
+}
+
+function looksLikePhpDumpLine(string $line): bool
+{
+    if (preg_match('/^(int|bool|float|double|string|array|object)\s*\(/i', $line) === 1) {
+        return true;
+    }
+
+    if (preg_match('/^NULL$/i', $line) === 1) {
+        return true;
+    }
+
+    if (preg_match('/^\[["\'\w\-]+\]=>$/', $line) === 1) {
+        return true;
+    }
+
+    if (preg_match('/^\s*\[[0-9]+\]\s*=>/', $line) === 1) {
+        return true;
+    }
+
+    if (preg_match('/^\s*[{}]$/', $line) === 1) {
         return true;
     }
 
