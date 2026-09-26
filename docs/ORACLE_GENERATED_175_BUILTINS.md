@@ -23,19 +23,19 @@ Parity tests:
 
 This batch is wired into the native verification group through `scripts/test-jinx-native-suite.php`.
 
-The group audit exposes exactly 375 executable generated PHP/Zend parity families, each using `runtime/OracleGeneratedBuiltinExecutor.php` as owner and `scripts/test-oracle-generated-175-builtin-execution.php` as the comparison test.
+The group audit exposes exactly 525 executable generated PHP/Zend parity families, each using `runtime/OracleGeneratedBuiltinExecutor.php` as owner and `scripts/test-oracle-generated-175-builtin-execution.php` as the comparison test.
 
-The first pass added 175 generated families. The second pass added 100 more, bringing the generated merged batch to 275 families. This update adds another 100, bringing the generated merged batch to 375 families total.
+The first pass added 175 generated families. The second pass added 100 more, bringing the generated merged batch to 275 families. The third pass added another 100, bringing the generated merged batch to 375 families. This update adds 150 more, bringing the generated merged batch to 525 families total.
 
 This batch generates deterministic PHP fixtures under `build/generated/oracle-generated-builtin/` and compares each fixture against Oracle execution through repository-root native `./jinx`.
 
 The generated families are named:
 
 ```text
-generated-pure-builtin-001 through generated-pure-builtin-375
+generated-pure-builtin-001 through generated-pure-builtin-525
 generated-pure-builtin-001
 ...
-generated-pure-builtin-375
+generated-pure-builtin-525
 ```
 
 The batch intentionally stays inside pure deterministic builtin behavior:
