@@ -95,10 +95,11 @@ for ($i = 1; $i <= 25; $i++) {
 }
 
 for ($i = 1; $i <= 25; $i++) {
+    $limit = ($i % 7) + 3;
     add_case(
         $cases,
         sprintf('control-function-%03d', $i),
-        "function jinx_unit_{$i}(int \$limit): string\n{\n    \$parts = [];\n    for (\$n = 1; \$n <= \$limit; \$n++) {\n        \$parts[] = (\$n % 2 === 0 ? 'even' : 'odd') . ':' . \$n;\n    }\n    return implode(',', \$parts);\n}\necho json_encode(['case' => {$i}, 'trace' => jinx_unit_{$i}({$i % 7 + 3})]) . \"\\n\";"
+        "function jinx_unit_{$i}(int \$limit): string\n{\n    \$parts = [];\n    for (\$n = 1; \$n <= \$limit; \$n++) {\n        \$parts[] = (\$n % 2 === 0 ? 'even' : 'odd') . ':' . \$n;\n    }\n    return implode(',', \$parts);\n}\necho json_encode(['case' => {$i}, 'trace' => jinx_unit_{$i}({$limit})]) . \"\\n\";"
     );
 }
 
