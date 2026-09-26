@@ -71,6 +71,7 @@ $scriptTests = [
     'php vs jinx differential' => ['scripts/test-php-jinx-differential.php', 'PASS: PHP vs JINX differential runner matches PHP stdout/exit behavior'],
     'php vs jinx 100 unit cases' => ['scripts/test-php-jinx-100-unit-cases.php', 'PASS: PHP vs JINX 100 unit cases match PHP stdout/exit behavior'],
     'php vs jinx second 100 unit cases' => ['scripts/test-php-jinx-100-more-unit-cases.php', 'PASS: PHP vs JINX second 100 unit cases match PHP stdout/exit behavior'],
+    'php vs jinx third 100 unit cases' => ['scripts/test-php-jinx-100-third-unit-cases.php', 'PASS: PHP vs JINX third 100 unit cases match PHP stdout/exit behavior'],
     'php vs jinx all-callables differential unit' => ['scripts/test-php-jinx-all-callables-differential-unit.php', 'PASS: PHP vs JINX all-callables differential unit validates ledger collection, safe cases, parity checks, skipped coverage, and native-suite wiring'],
     'php vs jinx all-callables differential' => ['scripts/test-php-jinx-all-callables-differential.php', 'PASS: PHP vs JINX all-callables differential checked'],
     'text builtin families' => ['scripts/test-oracle-text-builtin-execution.php', 'PASS: Oracle executes text builtin PHP families'],
