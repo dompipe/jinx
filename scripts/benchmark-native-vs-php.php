@@ -5,7 +5,8 @@ declare(strict_types=1);
 // Backward-compatible alias for older docs/commands.
 // The canonical benchmark script is benchmark-native-jinx-vs-php.php.
 // This wrapper intentionally captures and filters stdout because benchmarked
-// PHP functions may print JSON, serialized payloads, or other machine output.
+// PHP functions may print JSON, serialized payloads, class/method inventories,
+// or other machine output.
 
 $script = __DIR__ . '/benchmark-native-jinx-vs-php.php';
 $args = array_slice($argv, 1);
@@ -29,9 +30,31 @@ function safeBenchmarkLines(array $lines): array
 {
     $safe = [];
     $redacted = 0;
+    $skippedInventory = 0;
+    $inSkippedInventory = false;
 
     foreach ($lines as $line) {
         $trimmed = trim($line);
+
+        if ($trimmed === 'First PHP-side skipped cases:') {
+            $inSkippedInventory = true;
+            $skippedInventory++;
+            continue;
+        }
+
+        if ($inSkippedInventory) {
+            if ($trimmed === '') {
+                $inSkippedInventory = false;
+                continue;
+            }
+
+            if (str_starts_with($trimmed, '- ')) {
+                $skippedInventory++;
+                continue;
+            }
+
+            $inSkippedInventory = false;
+        }
 
         if ($trimmed === '') {
             $safe[] = '';
@@ -43,7 +66,7 @@ function safeBenchmarkLines(array $lines): array
             continue;
         }
 
-        if (looksLikeMachinePayload($trimmed)) {
+        if (looksLikeMachinePayload($trimmed) || looksLikeInventoryLine($trimmed)) {
             $redacted++;
             continue;
         }
@@ -55,6 +78,11 @@ function safeBenchmarkLines(array $lines): array
         }
 
         $redacted++;
+    }
+
+    if ($skippedInventory > 0) {
+        $safe[] = '';
+        $safe[] = "Skipped-case inventory hidden ({$skippedInventory} line(s)). Set JINX_BENCH_SHOW_SKIPPED=1 and run the canonical script directly if needed.";
     }
 
     if ($redacted > 0) {
@@ -88,7 +116,7 @@ function isAllowedBenchmarkLine(string $line): bool
         'Elapsed ns:',
         'Elapsed ms:',
         'Per dispatch ns:',
-        'First PHP-side skipped cases:',
+        'Skipped-case inventory hidden',
         'Filtered ',
         'FAIL:',
     ];
@@ -97,6 +125,19 @@ function isAllowedBenchmarkLine(string $line): bool
         if (str_starts_with($line, $prefix)) {
             return true;
         }
+    }
+
+    return false;
+}
+
+function looksLikeInventoryLine(string $line): bool
+{
+    if (preg_match('/^-\s+[A-Za-z_\\][A-Za-z0-9_\\]*::[A-Za-z_][A-Za-z0-9_]*:/', $line) === 1) {
+        return true;
+    }
+
+    if (str_contains($line, 'not a global PHP function in this runtime')) {
+        return true;
     }
 
     return false;
