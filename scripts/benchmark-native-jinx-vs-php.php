@@ -5,6 +5,7 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $iterations = max(1, (int) ($argv[1] ?? 1000));
 $buildFirst = getenv('JINX_SKIP_BUILD') !== '1';
+$verboseNativeOutput = getenv('JINX_BENCH_VERBOSE') === '1';
 
 function fail(string $message): never
 {
@@ -25,10 +26,85 @@ function requireOk(string $cmd): string
     $code = runShell($cmd, $output);
 
     if ($code !== 0) {
-        fail("command failed ({$code}): {$cmd}" . PHP_EOL . $output);
+        fail("command failed ({$code}): {$cmd}" . PHP_EOL . redactMachinePayloads($output));
     }
 
     return (string) $output;
+}
+
+function redactMachinePayloads(string $output): string
+{
+    $lines = preg_split('/\R/', $output) ?: [];
+    $safe = [];
+
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+
+        if ($trimmed === '') {
+            continue;
+        }
+
+        if (looksLikeMachinePayload($trimmed)) {
+            $safe[] = '[redacted machine payload]';
+            continue;
+        }
+
+        $safe[] = $line;
+    }
+
+    return implode(PHP_EOL, array_slice($safe, 0, 40));
+}
+
+function looksLikeMachinePayload(string $line): bool
+{
+    if (strlen($line) > 240) {
+        return true;
+    }
+
+    if (preg_match('/^\s*[\[{]/', $line) === 1) {
+        return true;
+    }
+
+    if (preg_match('/^(a|O|s|i|b|d|N):\d*[:;]/', $line) === 1) {
+        return true;
+    }
+
+    if (str_contains($line, '"opcode"') || str_contains($line, '"args"') || str_contains($line, '"serialized"')) {
+        return true;
+    }
+
+    return false;
+}
+
+function nativeBenchmarkSummary(string $nativeOutput): string
+{
+    $summary = [];
+    $allowedPrefixes = [
+        'Functions:',
+        'Total functions:',
+        'Iterations:',
+        'Iterations per function:',
+        'Total dispatches:',
+        'Elapsed ns:',
+        'Per dispatch ns:',
+    ];
+
+    foreach (preg_split('/\R/', $nativeOutput) ?: [] as $line) {
+        $trimmed = trim($line);
+
+        foreach ($allowedPrefixes as $prefix) {
+            if (str_starts_with($trimmed, $prefix)) {
+                $summary[] = $trimmed;
+                continue 2;
+            }
+        }
+    }
+
+    if ($summary === []) {
+        return 'Native benchmark completed; raw output hidden. Set JINX_BENCH_VERBOSE=1 to inspect it.';
+    }
+
+    return implode(PHP_EOL, $summary);
 }
 
 /**
@@ -205,7 +281,7 @@ $phpNs = hrtime(true) - $phpStart;
 $nativeOutput = requireOk('cd ' . escapeshellarg($root) . ' && ./jinx bench-all-functions ' . escapeshellarg((string) $iterations));
 
 if (!preg_match('/Per dispatch ns:\s*([0-9.]+)/', $nativeOutput, $m)) {
-    fail('could not parse native ./jinx bench-all-functions output:' . PHP_EOL . $nativeOutput);
+    fail('could not parse native ./jinx bench-all-functions output. Set JINX_BENCH_VERBOSE=1 to inspect raw native output. Safe summary:' . PHP_EOL . nativeBenchmarkSummary($nativeOutput));
 }
 
 $nativePerDispatchNs = (float) $m[1];
@@ -223,11 +299,15 @@ printf("%-18s %14s %14s %10s\n", 'engine', 'functions', 'ns/call', 'ratio');
 printf("%'-62s\n", '');
 printf("%-18s %14d %14.1f %10s\n", 'php', count($phpNames), $phpPerCallNs, '1.00x');
 printf("%-18s %14d %14.1f %9.2fx\n", './jinx native', count($names), $nativePerDispatchNs, $ratio);
-printf("\nNative output:\n%s\n", $nativeOutput);
+printf("\nNative summary:\n%s\n", nativeBenchmarkSummary($nativeOutput));
+
+if ($verboseNativeOutput) {
+    printf("\nRaw native output, requested by JINX_BENCH_VERBOSE=1:\n%s\n", $nativeOutput);
+}
 
 if ($phpSkipped !== []) {
     echo PHP_EOL . 'First PHP-side skipped cases:' . PHP_EOL;
     foreach (array_slice($phpSkipped, 0, 20) as [$name, $reason]) {
-        echo "- {$name}: {$reason}" . PHP_EOL;
+        echo "- {$name}: " . redactMachinePayloads($reason) . PHP_EOL;
     }
 }
