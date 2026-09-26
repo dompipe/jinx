@@ -3,613 +3,347 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JX Native Window C Emission</title>
-  <meta name="description" content="Developer guide for the JX native Win32/GDI C emission workflow: PHP jx_* declarations to generated C to a native Windows executable." />
+  <title>JINX — PHP/Zend to Oracle to Native</title>
+  <meta name="description" content="A practical overview of the JINX work: PHP/Zend compatibility, Oracle execution, native ./jinx testing, builtins, benchmarks, islands, and the path toward PASM/native output." />
   <style>
     :root {
-      --bg: #0b1020;
-      --panel: #111a33;
-      --panel-2: #16213f;
-      --text: #edf3ff;
-      --muted: #aebbd6;
-      --line: #2b3b68;
-      --accent: #7dd3fc;
-      --accent-2: #a7f3d0;
+      --bg: #070b16;
+      --panel: #10182d;
+      --panel2: #14213d;
+      --ink: #edf5ff;
+      --muted: #adbad4;
+      --line: #29385f;
+      --a: #8b5cf6;
+      --b: #22d3ee;
+      --c: #34d399;
       --warn: #fbbf24;
-      --code: #07111f;
-      --shadow: rgba(0, 0, 0, 0.35);
+      --code: #050914;
+      --shadow: rgba(0,0,0,.38);
     }
-
     * { box-sizing: border-box; }
-
     html { scroll-behavior: smooth; }
-
     body {
       margin: 0;
+      color: var(--ink);
+      font: 16px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(125, 211, 252, 0.16), transparent 34rem),
-        radial-gradient(circle at top right, rgba(167, 243, 208, 0.12), transparent 30rem),
+        radial-gradient(circle at 10% 0%, rgba(139,92,246,.22), transparent 32rem),
+        radial-gradient(circle at 90% 8%, rgba(34,211,238,.18), transparent 30rem),
+        radial-gradient(circle at 50% 90%, rgba(52,211,153,.10), transparent 34rem),
         var(--bg);
-      color: var(--text);
-      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-
-    a { color: var(--accent); text-decoration: none; }
+    a { color: #93e7ff; text-decoration: none; }
     a:hover { text-decoration: underline; }
-
-    .shell {
-      display: grid;
-      grid-template-columns: 290px minmax(0, 1fr);
-      min-height: 100vh;
-    }
-
+    .wrap { display: grid; grid-template-columns: 300px minmax(0,1fr); min-height: 100vh; }
     aside {
       position: sticky;
       top: 0;
       height: 100vh;
       overflow: auto;
-      padding: 1.4rem;
+      padding: 1.35rem;
       border-right: 1px solid var(--line);
-      background: rgba(11, 16, 32, 0.82);
-      backdrop-filter: blur(12px);
+      background: rgba(7,11,22,.84);
+      backdrop-filter: blur(14px);
     }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 1.6rem;
+    .brand { display: flex; gap: .8rem; align-items: center; margin-bottom: 1.6rem; }
+    .mark {
+      width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--a), var(--b), var(--c));
+      color: #050914; font-weight: 950; letter-spacing: -.04em;
+      box-shadow: 0 16px 32px var(--shadow);
     }
-
-    .logo {
-      width: 42px;
-      height: 42px;
-      display: grid;
-      place-items: center;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #07111f;
-      font-weight: 900;
-      box-shadow: 0 14px 28px var(--shadow);
-    }
-
-    .brand strong { display: block; font-size: 1rem; }
-    .brand span { display: block; color: var(--muted); font-size: 0.86rem; }
-
-    nav a {
-      display: block;
-      padding: 0.48rem 0.65rem;
-      border-radius: 10px;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    nav a:hover {
-      background: rgba(125, 211, 252, 0.10);
-      color: var(--text);
-      text-decoration: none;
-    }
-
-    main {
-      width: min(1120px, 100%);
-      padding: 0 1.4rem 5rem;
-    }
-
-    header.hero {
-      padding: 5rem 0 3rem;
-      border-bottom: 1px solid var(--line);
-    }
-
+    .brand strong { display:block; font-size: 1.05rem; }
+    .brand span { display:block; color: var(--muted); font-size: .86rem; }
+    nav a { display:block; padding: .48rem .62rem; border-radius: 10px; color: var(--muted); font-size: .94rem; }
+    nav a:hover { background: rgba(147,231,255,.10); color: var(--ink); text-decoration: none; }
+    main { width: min(1160px, 100%); padding: 0 1.35rem 5rem; }
+    header { padding: 5rem 0 3rem; border-bottom: 1px solid var(--line); }
     .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      padding: 0.35rem 0.75rem;
-      border: 1px solid rgba(125, 211, 252, 0.35);
-      border-radius: 999px;
-      background: rgba(125, 211, 252, 0.08);
-      color: var(--accent-2);
-      font-size: 0.9rem;
-      font-weight: 700;
+      display:inline-flex; align-items:center; gap:.45rem; margin-bottom:1rem; padding:.34rem .76rem;
+      border: 1px solid rgba(147,231,255,.32); border-radius:999px;
+      background: rgba(34,211,238,.08); color:#c7fff1; font-weight:800; font-size:.9rem;
     }
-
-    h1, h2, h3 { line-height: 1.15; margin: 0 0 1rem; }
-    h1 { max-width: 880px; font-size: clamp(2.25rem, 6vw, 5rem); letter-spacing: -0.05em; }
-    h2 { margin-top: 3.5rem; font-size: clamp(1.65rem, 3.5vw, 2.45rem); letter-spacing: -0.03em; }
-    h3 { margin-top: 2rem; font-size: 1.25rem; }
-
-    p { margin: 0 0 1rem; color: var(--muted); }
-
-    .lead {
-      max-width: 820px;
-      font-size: 1.2rem;
-      color: #d7e4ff;
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      margin-top: 1.5rem;
-    }
-
-    .button {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      padding: 0.75rem 1rem;
-      border-radius: 12px;
-      border: 1px solid rgba(125, 211, 252, 0.35);
-      background: rgba(125, 211, 252, 0.12);
-      color: var(--text);
-      font-weight: 750;
-    }
-
-    .button.primary {
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #06111e;
-      border: 0;
-    }
-
-    .button:hover { text-decoration: none; transform: translateY(-1px); }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1rem;
-      margin: 2rem 0;
-    }
-
-    .card {
-      padding: 1.2rem;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(22, 33, 63, 0.94), rgba(17, 26, 51, 0.94));
-      box-shadow: 0 20px 45px var(--shadow);
-    }
-
-    .card strong { display: block; margin-bottom: 0.45rem; color: var(--text); }
-
-    .flow {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 0.75rem;
-      margin: 1.5rem 0;
-    }
-
-    .step {
-      position: relative;
-      padding: 1rem;
-      min-height: 118px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(17, 26, 51, 0.82);
-    }
-
-    .step span {
-      display: inline-grid;
-      place-items: center;
-      width: 28px;
-      height: 28px;
-      margin-bottom: 0.65rem;
-      border-radius: 9px;
-      background: rgba(125, 211, 252, 0.14);
-      color: var(--accent);
-      font-weight: 800;
-    }
-
-    .step strong { display: block; color: var(--text); }
-    .step small { color: var(--muted); }
-
-    pre {
-      position: relative;
-      overflow-x: auto;
-      margin: 1rem 0 1.35rem;
-      padding: 1rem;
-      border: 1px solid #223259;
-      border-radius: 14px;
-      background: var(--code);
-      color: #e5f2ff;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-    }
-
-    code, pre {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      font-size: 0.94rem;
-    }
-
-    p code, li code, td code {
-      padding: 0.14rem 0.32rem;
-      border-radius: 6px;
-      background: rgba(125, 211, 252, 0.10);
-      color: #dff6ff;
-    }
-
-    ul, ol { color: var(--muted); }
-    li { margin: 0.35rem 0; }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1rem 0 1.5rem;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-    }
-
-    th, td {
-      padding: 0.85rem;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      vertical-align: top;
-    }
-
-    th { color: var(--text); background: rgba(125, 211, 252, 0.08); }
-    td { color: var(--muted); }
-    tr:last-child td { border-bottom: 0; }
-
-    .note {
-      padding: 1rem;
-      border: 1px solid rgba(251, 191, 36, 0.35);
-      border-radius: 14px;
-      background: rgba(251, 191, 36, 0.08);
-      color: #ffe5a3;
-    }
-
-    .good {
-      padding: 1rem;
-      border: 1px solid rgba(167, 243, 208, 0.28);
-      border-radius: 14px;
-      background: rgba(167, 243, 208, 0.08);
-      color: #d9ffed;
-    }
-
-    footer {
-      margin-top: 4rem;
-      padding-top: 2rem;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-    }
-
-    @media (max-width: 980px) {
-      .shell { display: block; }
-      aside {
-        position: static;
-        height: auto;
-        border-right: 0;
-        border-bottom: 1px solid var(--line);
-      }
-      nav { display: flex; gap: 0.25rem; flex-wrap: wrap; }
-      nav a { font-size: 0.86rem; }
-      main { width: 100%; }
-      .grid, .flow { grid-template-columns: 1fr; }
-      header.hero { padding-top: 3rem; }
-    }
+    h1, h2, h3 { line-height:1.12; margin:0 0 1rem; }
+    h1 { max-width: 930px; font-size: clamp(2.35rem, 6vw, 5.2rem); letter-spacing:-.055em; }
+    h2 { margin-top: 3.5rem; font-size: clamp(1.65rem, 3.2vw, 2.5rem); letter-spacing:-.035em; }
+    h3 { margin-top: 2rem; font-size:1.25rem; }
+    p { margin:0 0 1rem; color: var(--muted); }
+    .lead { max-width: 880px; color:#d9e7ff; font-size:1.18rem; }
+    .actions { display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1.5rem; }
+    .button { display:inline-flex; align-items:center; padding:.76rem 1rem; border-radius: 13px; border:1px solid rgba(147,231,255,.28); background: rgba(34,211,238,.10); color:var(--ink); font-weight:800; }
+    .button.primary { border:0; color:#050914; background: linear-gradient(135deg, #a78bfa, #67e8f9, #6ee7b7); }
+    .button:hover { text-decoration:none; transform: translateY(-1px); }
+    .grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:1rem; margin:1.5rem 0; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .card { padding:1.15rem; border:1px solid var(--line); border-radius:18px; background: linear-gradient(180deg, rgba(20,33,61,.94), rgba(16,24,45,.94)); box-shadow: 0 20px 44px var(--shadow); }
+    .card strong { display:block; color:var(--ink); margin-bottom:.45rem; }
+    .pillrow { display:flex; flex-wrap:wrap; gap:.5rem; margin:1rem 0; }
+    .pill { padding:.35rem .65rem; border:1px solid rgba(147,231,255,.22); border-radius:999px; background:rgba(147,231,255,.08); color:#dff8ff; font-size:.88rem; font-weight:700; }
+    .flow { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:.8rem; margin:1.5rem 0; }
+    .step { min-height:132px; padding:1rem; border:1px solid var(--line); border-radius:17px; background:rgba(16,24,45,.82); }
+    .step span { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:9px; margin-bottom:.65rem; background:rgba(139,92,246,.18); color:#d8c9ff; font-weight:900; }
+    .step strong { display:block; color:var(--ink); }
+    .step small { color:var(--muted); }
+    pre { overflow-x:auto; margin:1rem 0 1.35rem; padding:1rem; border:1px solid #223259; border-radius:14px; background:var(--code); color:#e7f5ff; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:.94rem; }
+    p code, li code, td code { padding:.12rem .32rem; border-radius:6px; background:rgba(147,231,255,.10); color:#e5fbff; }
+    ul, ol { color:var(--muted); }
+    li { margin:.34rem 0; }
+    table { width:100%; border-collapse:collapse; margin:1rem 0 1.5rem; border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+    th,td { padding:.82rem; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:rgba(147,231,255,.08); color:var(--ink); }
+    td { color:var(--muted); }
+    tr:last-child td { border-bottom:0; }
+    .note { padding:1rem; border:1px solid rgba(251,191,36,.34); border-radius:14px; background:rgba(251,191,36,.08); color:#ffebb7; }
+    .good { padding:1rem; border:1px solid rgba(52,211,153,.30); border-radius:14px; background:rgba(52,211,153,.08); color:#dcfff0; }
+    footer { margin-top:4rem; padding-top:2rem; border-top:1px solid var(--line); color:var(--muted); }
+    @media (max-width: 980px) { .wrap{display:block;} aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);} nav{display:flex;gap:.25rem;flex-wrap:wrap;} nav a{font-size:.86rem;} main{width:100%;} .grid,.grid.two,.flow{grid-template-columns:1fr;} header{padding-top:3rem;} }
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="wrap">
     <aside>
       <div class="brand">
-        <div class="logo">JX</div>
+        <div class="mark">JINX</div>
         <div>
-          <strong>Native Window C Emission</strong>
-          <span>PHP declarations → C → Win32 EXE</span>
+          <strong>JINX Project</strong>
+          <span>PHP/Zend → Oracle → native paths</span>
         </div>
       </div>
       <nav aria-label="Page navigation">
         <a href="#overview">Overview</a>
-        <a href="#requirements">Requirements</a>
-        <a href="#workflow">Basic workflow</a>
-        <a href="#compile">Compile command</a>
-        <a href="#powershell">PowerShell</a>
-        <a href="#cross-compile">Linux / WSL cross-compile</a>
-        <a href="#declarations">jx_* declarations</a>
-        <a href="#api">Local API</a>
-        <a href="#example">Example input</a>
-        <a href="#css">CSS</a>
-        <a href="#bundling">Includes and assets</a>
-        <a href="#troubleshooting">Troubleshooting</a>
-        <a href="#not">What this is not</a>
-        <a href="#verification">Verification</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#done">What we built</a>
+        <a href="#oracle">Oracle execution</a>
+        <a href="#builtins">PHP builtins</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#islands">Island server</a>
+        <a href="#native">Native ./jinx</a>
+        <a href="#pasm">PASM direction</a>
+        <a href="#commands">Commands</a>
+        <a href="#status">Status rules</a>
       </nav>
     </aside>
 
     <main>
-      <header class="hero" id="top">
-        <div class="eyebrow">Native Win32/GDI • no WebView • no browser dependency</div>
-        <h1>Compile a JX page declaration into a native Windows window executable.</h1>
+      <header>
+        <div class="eyebrow">Compatibility first • Oracle execution layer • native JINX runner</div>
+        <h1>JINX is the PHP/Zend compatibility project we pushed toward Oracle-backed execution.</h1>
         <p class="lead">
-          JX can read PHP input containing <code>jx_*</code> page declarations, emit a GCC-compilable C file,
-          and build that file into a native Win32 executable. The result opens its own native window, renders
-          with Win32/GDI, and exposes a small localhost API for live state updates.
+          This site explains the JINX work: capturing PHP/Zend behavior, mirroring it through Oracle records,
+          proving output parity with PHP, exercising the native <code>./jinx</code> executable, expanding generated
+          callable coverage, benchmarking traversal, and keeping PASM/native output as the later emission target.
         </p>
         <div class="actions">
-          <a class="button primary" href="#workflow">Start the workflow</a>
-          <a class="button" href="native-window-c-emission.md">Read the Markdown doc</a>
-          <a class="button" href="../README.md">Repo README</a>
+          <a class="button primary" href="#commands">Run the commands</a>
+          <a class="button" href="ORACLE_EXECUTION_COMMANDS.md">Oracle command docs</a>
+          <a class="button" href="NATIVE_VS_PHP_BENCHMARK.md">Native vs PHP benchmark doc</a>
+          <a class="button" href="JINX_ISLAND_RUNDOWN.txt">Island rundown</a>
         </div>
       </header>
 
       <section id="overview">
-        <h2>1. Overview</h2>
+        <h2>Overview</h2>
         <p>
-          The native window C emission workflow turns a small PHP declaration file into a generated C program,
-          then into a Windows executable. The PHP file is used as a declarative input surface: title, badge,
-          body, modal content, iframe content, JSON attachment data, and local API enablement are captured by JX
-          and written into generated C.
+          JINX is being shaped as a PHP-compatible execution and compilation project. The contract is not “almost PHP.”
+          The contract is PHP/Zend behavior: PHP source goes in, behavior is recorded and mirrored by Oracle, and every
+          executable family must be proven against real PHP output, return values, and errors before it can be claimed.
         </p>
-        <div class="flow" aria-label="Compilation flow">
-          <div class="step"><span>1</span><strong>PHP input</strong><small><code>in.php</code> contains <code>jx_*</code> declarations.</small></div>
-          <div class="step"><span>2</span><strong>JX emit</strong><small><code>jx -o out.c in.php</code> generates C.</small></div>
-          <div class="step"><span>3</span><strong>GCC build</strong><small>Compile with Win32 libraries.</small></div>
-          <div class="step"><span>4</span><strong>Native EXE</strong><small>Run a Win32/GDI window.</small></div>
-          <div class="step"><span>5</span><strong>Local API</strong><small>Query and update via localhost routes.</small></div>
+        <div class="flow">
+          <div class="step"><span>1</span><strong>PHP source</strong><small>Fixtures, scripts, includes, functions, language constructs, and builtins.</small></div>
+          <div class="step"><span>2</span><strong>Oracle records</strong><small>JINX captures program shape into Oracle-level operation records.</small></div>
+          <div class="step"><span>3</span><strong>Oracle execution</strong><small>Narrow families run through dedicated runtime owners.</small></div>
+          <div class="step"><span>4</span><strong>PHP parity tests</strong><small>Behavior is compared against PHP, not guessed.</small></div>
+          <div class="step"><span>5</span><strong>Native/PASM later</strong><small>Native output follows once Oracle owns behavior.</small></div>
         </div>
         <div class="good">
-          The important promise is simple: this is not a browser wrapper. The generated program owns a native
-          Windows window and links directly against Windows libraries.
+          The core direction is correctness-first: Oracle is the interpreter and mirroring layer; PASM/native binary output is a later target and should not block PHP/Zend coverage.
         </div>
       </section>
 
-      <section id="requirements">
-        <h2>2. Requirements</h2>
+      <section id="architecture">
+        <h2>Architecture</h2>
         <div class="grid">
           <div class="card">
-            <strong>JX native executable</strong>
-            <p>Build JX from the native C source before using the emission flow.</p>
-            <pre><code>gcc -O2 -Wall -Wextra -o jx src/native/jx.c</code></pre>
+            <strong>PHP/Zend compatibility contract</strong>
+            <p>JINX treats PHP and Zend behavior as the source of truth. Output, return behavior, warnings, errors, include paths, and builtins have to match PHP before a feature is considered executable.</p>
           </div>
           <div class="card">
-            <strong>GCC or MinGW-w64</strong>
-            <p>Use GCC on Windows/MSYS2 or a MinGW-w64 cross compiler on Linux/WSL.</p>
-            <pre><code>C:\msys64\ucrt64\bin\gcc.exe</code></pre>
+            <strong>Oracle as the execution layer</strong>
+            <p>Oracle is the place where PHP program structure becomes records and executable families. It is the bridge between PHP behavior and future native targets.</p>
           </div>
           <div class="card">
-            <strong>Windows libraries</strong>
-            <p>The generated C executable links against Winsock and Win32/GDI libraries.</p>
-            <pre><code>-lws2_32 -lgdi32 -luser32</code></pre>
+            <strong>PASM/native as later output</strong>
+            <p>PASM and native binary generation are downstream. They become safer once Oracle has modeled the semantics instead of skipping directly to machine output.</p>
           </div>
         </div>
-        <ul>
-          <li><strong>JX:</strong> built from <code>src/native/jx.c</code></li>
-          <li><strong>Windows/MSYS2 compiler:</strong> <code>C:\msys64\ucrt64\bin\gcc.exe</code></li>
-          <li><strong>Linux/WSL compiler:</strong> <code>x86_64-w64-mingw32-gcc</code></li>
-          <li><strong>Required Windows libraries:</strong> <code>ws2_32</code>, <code>gdi32</code>, <code>user32</code></li>
-        </ul>
+        <pre><code>PHP / Zend behavior
+  → JINX parser and recorder
+  → Oracle operation records
+  → Oracle runtime family executor
+  → PHP comparison test
+  → later PASM / native output</code></pre>
       </section>
 
-      <section id="workflow">
-        <h2>3. Basic Workflow</h2>
+      <section id="done">
+        <h2>What we did for JINX</h2>
+        <p>The project work was organized around proof, not claims. Each new surface had to add runtime ownership, fixtures, comparison tests, docs, and command coverage.</p>
+        <table>
+          <thead><tr><th>Area</th><th>Work completed or established</th></tr></thead>
+          <tbody>
+            <tr><td>Execution families</td><td>Created the pattern for adding narrow executable families: dedicated runtime owner class, family registration, fixture, PHP comparison test, test-bin wiring, docs, commit, and push.</td></tr>
+            <tr><td>Straight-line execution</td><td>Established the first narrow Oracle execution family for simple straight-line PHP behavior.</td></tr>
+            <tr><td>Conditionals direction</td><td>Defined the next family direction around <code>if</code>/<code>else</code>, comparisons, and PHP boolean truthiness.</td></tr>
+            <tr><td>Includes and requires</td><td>Documented literal local <code>include</code>, <code>include_once</code>, <code>require</code>, and <code>require_once</code> as Oracle entry points when safely resolvable.</td></tr>
+            <tr><td>Native executable</td><td>Kept the requirement that benchmark and runtime checks use the native <code>./jinx</code> executable, not only PHP wrapper scripts.</td></tr>
+            <tr><td>All-functions callable direction</td><td>Set the goal that every PHP function should be callable through the JINX executable, with generated callable coverage and parameterized benchmark traversal.</td></tr>
+            <tr><td>Docs and commands</td><td>Added command documentation, benchmark documentation, island rundown documentation, Oracle command notes, and project direction notes.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="oracle">
+        <h2>Oracle execution</h2>
         <p>
-          Start with a PHP declaration file and ask JX to emit C. The <code>-o</code> argument names the generated C file.
+          Oracle is not just a notation layer. It is the execution mirror where PHP/Zend program behavior is captured, inspected, and then executed by increasingly broad runtime families.
         </p>
-        <pre><code>jx -o out.c in.php</code></pre>
+        <div class="grid two">
+          <div class="card">
+            <strong>Runtime owner class</strong>
+            <p>Each executable family gets a dedicated owner so behavior does not become anonymous glue code.</p>
+          </div>
+          <div class="card">
+            <strong>Family registry</strong>
+            <p>Executable families are listed centrally so tests and commands can report what Oracle actually runs.</p>
+          </div>
+          <div class="card">
+            <strong>Fixture</strong>
+            <p>Every feature gets a concrete input program that exercises the behavior.</p>
+          </div>
+          <div class="card">
+            <strong>PHP comparison test</strong>
+            <p>Parity is proven by comparing Oracle behavior against PHP output, return, and error behavior.</p>
+          </div>
+        </div>
+        <pre><code>1. Add a dedicated runtime owner class.
+2. Register the executable family.
+3. Add a fixture.
+4. Add a PHP comparison test.
+5. Wire the test into scripts/test-bin-jinx.php.
+6. Update docs and commands.
+7. Commit and push.</code></pre>
+      </section>
+
+      <section id="builtins">
+        <h2>PHP builtins and generated callables</h2>
         <p>
-          After emission, JX prints the follow-up GCC command to compile the generated C file. Use that command as
-          the authoritative next step for the current generated output.
+          A major JINX goal is to make PHP callable coverage concrete. Generated wrapper dispatch tables and native command paths let the native executable walk every known callable name and report coverage instead of hand-waving it.
+        </p>
+        <div class="pillrow">
+          <span class="pill">Generated callables</span>
+          <span class="pill">Oracle dispatch</span>
+          <span class="pill">PHP fallback states</span>
+          <span class="pill">Manual-driven implementation states</span>
+          <span class="pill">All-functions benchmark traversal</span>
+        </div>
+        <p>
+          Sensitive or exactness-heavy areas such as crypto, hash, password, and random behavior stay PHP-fallback until exact native implementations exist. That keeps the compatibility contract honest.
         </p>
       </section>
 
-      <section id="compile">
-        <h2>4. Compile Command</h2>
-        <p>The normal native window compile command is:</p>
-        <pre><code>gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32</code></pre>
+      <section id="benchmarks">
+        <h2>Benchmarks</h2>
+        <p>
+          The benchmark work separates native JINX traversal from PHP comparison baselines. The point is to measure how fast JINX can walk and dispatch callable surfaces while still validating correctness against PHP where behavior is benchmarkable.
+        </p>
+        <pre><code>./jinx scripts/test-jinx-native-suite.php
+./jinx scripts/test-bin-jinx.php
+./jinx scripts/benchmark-native-vs-php.php</code></pre>
         <div class="note">
-          Library order matters with GCC/MinGW. Put the libraries after <code>out.c</code>. In particular,
-          <code>-lws2_32</code> must appear after the generated C input so Winsock references such as
-          <code>socket</code> and <code>WSAStartup</code> resolve correctly.
+          Benchmark claims should name exactly what was measured: native dispatch traversal, Oracle execution family behavior, or PHP comparison runtime. Do not call arbitrary PHP execution complete unless Oracle actually runs that behavior and a PHP comparison test proves parity.
         </div>
       </section>
 
-      <section id="powershell">
-        <h2>5. PowerShell Example</h2>
-        <p>Use this from Windows PowerShell when MSYS2 UCRT64 is installed at <code>C:\msys64</code>.</p>
-        <pre><code>$gcc = "C:\msys64\ucrt64\bin\gcc.exe"
-
-& $gcc -O2 -Wall -Wextra -o jx.exe src/native/jx.c
-
-.\jx.exe -o out.c examples\native_window_input.php
-
-& $gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32
-
-.\out.exe</code></pre>
-        <p>If <code>jx.exe</code> is already built and on <code>PATH</code>, the middle steps can be shortened:</p>
-        <pre><code>jx -o out.c examples\native_window_input.php
-C:\msys64\ucrt64\bin\gcc.exe -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32
-.\out.exe</code></pre>
-      </section>
-
-      <section id="cross-compile">
-        <h2>6. Linux / WSL Cross-Compile Example</h2>
-        <p>Install MinGW-w64, build or use JX, emit C, and cross-compile a Windows executable.</p>
-        <pre><code>sudo apt-get update
-sudo apt-get install -y gcc mingw-w64 curl
-
-gcc -O2 -Wall -Wextra -o jx src/native/jx.c
-
-./jx -o out.c examples/native_window_input.php
-
-x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32</code></pre>
-        <p>The resulting <code>out.exe</code> is a Windows executable. Copy it to Windows or run it through a compatible environment.</p>
-      </section>
-
-      <section id="declarations">
-        <h2>7. <code>jx_*</code> Page Declarations</h2>
+      <section id="islands">
+        <h2>JINX island server</h2>
         <p>
-          JX recognizes the following declaration names in the input PHP file. These declarations describe the
-          native window page and data that should be embedded into generated C.
+          The island/server work models a web application shape in Oracle: route dispatch, resident island state, back-page API bridge, iframe island rendering, EventSource invalidation, and response envelopes.
         </p>
         <table>
-          <thead><tr><th>Declaration</th><th>Purpose</th></tr></thead>
+          <thead><tr><th>Route</th><th>Purpose</th></tr></thead>
           <tbody>
-            <tr><td><code>jx_page_title</code></td><td>Sets the native window/page title.</td></tr>
-            <tr><td><code>jx_page_badge</code></td><td>Sets a short badge or status label rendered by the page.</td></tr>
-            <tr><td><code>jx_page_body</code></td><td>Sets the main body content for the window.</td></tr>
-            <tr><td><code>jx_modal_title</code></td><td>Sets the modal title text compiled into the executable.</td></tr>
-            <tr><td><code>jx_modal_body</code></td><td>Sets the modal body text compiled into the executable.</td></tr>
-            <tr><td><code>jx_iframe_title</code></td><td>Sets the title for iframe-style embedded content.</td></tr>
-            <tr><td><code>jx_iframe_html</code></td><td>Sets HTML-like content for the iframe/island payload.</td></tr>
-            <tr><td><code>jx_page_json</code></td><td>Embeds attachment JSON returned by the local <code>/json</code> endpoint.</td></tr>
-            <tr><td><code>jx_local_api</code></td><td>Enables the localhost API in the native executable.</td></tr>
+            <tr><td><code>GET /</code></td><td>Window index frame / entry page.</td></tr>
+            <tr><td><code>GET /island</code></td><td>Iframe island render.</td></tr>
+            <tr><td><code>GET /events/island-state</code></td><td>EventSource invalidation stream.</td></tr>
+            <tr><td><code>GET /api/island-state</code></td><td>Read resident island state.</td></tr>
+            <tr><td><code>POST /api/island-state</code></td><td>Update resident island state.</td></tr>
+            <tr><td><code>GET /__health</code></td><td>Health check route.</td></tr>
           </tbody>
         </table>
+        <pre><code>./jinx scripts/test-oracle-jinx-island-server-execution.php
+./jinx scripts/serve-no-js-islands-demo.php --check
+./jinx scripts/test-jinx-native-suite.php</code></pre>
       </section>
 
-      <section id="api">
-        <h2>8. Local API</h2>
+      <section id="native">
+        <h2>Native <code>./jinx</code></h2>
         <p>
-          When <code>jx_local_api</code> is enabled, the native executable starts a localhost API server for inspection
-          and lightweight updates. These routes are intended for local development and native-window state wiring.
+          The native executable matters because it is the proof path for Oracle dispatch and future native generation. Commands should run through <code>./jinx</code> when the goal is native behavior, not through a PHP-only wrapper.
         </p>
-        <table>
-          <thead><tr><th>Route</th><th>Behavior</th></tr></thead>
-          <tbody>
-            <tr><td><code>/json</code></td><td>Returns the compiled attachment JSON from <code>jx_page_json</code>.</td></tr>
-            <tr><td><code>/update?title=...&amp;badge=...&amp;body=...</code></td><td>Updates page title, badge, and body fields.</td></tr>
-            <tr><td><code>/modal?title=...&amp;body=...</code></td><td>Updates modal title and modal body fields.</td></tr>
-            <tr><td><code>/iframe?title=...&amp;html=...</code></td><td>Updates iframe title and iframe HTML payload.</td></tr>
-          </tbody>
-        </table>
-        <pre><code>curl http://127.0.0.1:8787/json
-curl "http://127.0.0.1:8787/update?title=Hello&amp;badge=Live&amp;body=Updated"
-curl "http://127.0.0.1:8787/modal?title=Notice&amp;body=Modal%20body"
-curl "http://127.0.0.1:8787/iframe?title=Frame&amp;html=%3Ch1%3EHi%3C%2Fh1%3E"</code></pre>
+        <pre><code>scripts/build-native-jinx.sh
+./jinx --help
+./jinx oracle-call strlen "hello"
+./jinx scripts/test-jinx-native-suite.php</code></pre>
       </section>
 
-      <section id="example">
-        <h2>9. Example Input</h2>
+      <section id="pasm">
+        <h2>PASM direction</h2>
         <p>
-          Use <code>examples/native_window_input.php</code> as the main native window example. A compact annotated
-          version looks like this:
+          PASM is the lower-level target direction, but it should come after PHP-to-Oracle behavior is reliable. Once Oracle can model the PHP/Zend behavior, the project can safely emit toward PASM or native lower-level forms.
         </p>
-        <pre><code>&lt;?php
-// Window title rendered by the native executable.
-jx_page_title("JX Native Window");
-
-// Small status badge in the page header.
-jx_page_badge("native");
-
-// Main visible page copy.
-jx_page_body("This PHP declaration file emits C for a Win32/GDI window.");
-
-// Modal payload compiled into the executable.
-jx_modal_title("Compiled Modal");
-jx_modal_body("This modal text came from the PHP input file.");
-
-// Iframe/island payload.
-jx_iframe_title("Embedded Island");
-jx_iframe_html("&lt;h1&gt;JX Island&lt;/h1&gt;&lt;p&gt;No browser dependency.&lt;/p&gt;");
-
-// Attachment JSON returned by /json.
-jx_page_json('{"engine":"jx","target":"native-window-c"}');
-
-// Enable localhost routes such as /json and /update.
-jx_local_api(true);</code></pre>
+        <div class="grid two">
+          <div class="card"><strong>Current priority</strong><p>PHP/Zend behavior captured and executed through Oracle with proof tests.</p></div>
+          <div class="card"><strong>Later output</strong><p>PHP → Oracle → PASM/native output, including lower-level representations suitable for future native acceleration.</p></div>
+        </div>
       </section>
 
-      <section id="css">
-        <h2>10. CSS</h2>
-        <p>
-          When a sibling <code>style.css</code> file exists next to the PHP input, JX infers it and embeds it into the
-          generated C. This lets a page keep its text declarations in PHP and its style rules beside it.
-        </p>
-        <pre><code>examples/native_window_input.php
-examples/style.css</code></pre>
-        <p>
-          Then emit and compile as usual:
-        </p>
-        <pre><code>jx -o out.c examples/native_window_input.php
-gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32</code></pre>
+      <section id="commands">
+        <h2>Commands</h2>
+        <p>These are practical command families used around the JINX work.</p>
+        <h3>Build native JINX</h3>
+        <pre><code>git pull origin master
+scripts/build-native-jinx.sh
+./jinx --help</code></pre>
+        <h3>Run native suite</h3>
+        <pre><code>./jinx scripts/test-jinx-native-suite.php</code></pre>
+        <h3>Run Oracle execution tests</h3>
+        <pre><code>./jinx scripts/test-bin-jinx.php
+./jinx scripts/test-oracle-jinx-island-server-execution.php</code></pre>
+        <h3>Check the island demo</h3>
+        <pre><code>./jinx scripts/serve-no-js-islands-demo.php --check</code></pre>
+        <h3>Benchmark native vs PHP paths</h3>
+        <pre><code>./jinx scripts/benchmark-native-vs-php.php</code></pre>
       </section>
 
-      <section id="bundling">
-        <h2>11. Includes, Requires, CSS Images</h2>
-        <p>
-          Bridge-mode bundling follows static quoted relative paths for PHP include-style statements. The supported
-          statement forms are:
-        </p>
+      <section id="status">
+        <h2>Status rules</h2>
+        <p>JINX documentation and commits should keep a strict language standard:</p>
         <ul>
-          <li><code>include</code></li>
-          <li><code>include_once</code></li>
-          <li><code>require</code></li>
-          <li><code>require_once</code></li>
+          <li>Do not claim PHP execution unless Oracle actually runs that behavior.</li>
+          <li>Do not claim parity unless a PHP comparison test proves output, return, and error behavior.</li>
+          <li>Keep PHP/Zend behavior as the compatibility contract.</li>
+          <li>Keep Oracle as the execution and mirroring layer.</li>
+          <li>Keep PASM/native output as a later target until Oracle behavior is mature.</li>
+          <li>Use <code>./jinx</code> for native checks when the requirement is native execution.</li>
         </ul>
-        <p>
-          Static relative includes can be folded into the emitted output, allowing multi-file declaration pages to
-          produce a single generated C file and then a single native executable.
-        </p>
-        <pre><code>&lt;?php
-require_once "partials/header.php";
-include "partials/body.php";
-
-jx_page_title("Bundled JX Page");</code></pre>
-        <p>
-          CSS asset bundling also handles quoted or <code>url(...)</code> image references when they are static relative
-          paths. Use <code>examples/single_exe_page/page.php</code> as the reference shape for a single-executable page
-          with CSS and image assets bundled into the generated C.
-        </p>
-        <pre><code>examples/single_exe_page/page.php
-examples/single_exe_page/style.css
-examples/single_exe_page/assets/logo.png</code></pre>
-        <pre><code>.hero {
-  background-image: url("assets/logo.png");
-}</code></pre>
-      </section>
-
-      <section id="troubleshooting">
-        <h2>12. Troubleshooting</h2>
-        <h3>Winsock linker errors</h3>
-        <p>A common failed compile looks like this:</p>
-        <pre><code>undefined reference to __imp_socket
-undefined reference to __imp_WSAStartup</code></pre>
-        <p>
-          This means <code>-lws2_32</code> is missing or appears before <code>out.c</code>. Fix the command by putting all
-          Windows libraries after the generated C file:
-        </p>
-        <pre><code>gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32</code></pre>
-      </section>
-
-      <section id="not">
-        <h2>13. What This Is Not</h2>
-        <ul>
-          <li>It is not a WebView wrapper.</li>
-          <li>It is not opening Chrome, Edge, Firefox, or a system browser.</li>
-          <li>It is a native Win32/GDI window renderer.</li>
-          <li>PHP runtime bridging is separate from native <code>jx_*</code> page emission.</li>
-        </ul>
-        <p>
-          The native page emission path is a compile-time declaration workflow. Arbitrary PHP/Zend runtime behavior,
-          Oracle mirroring, and broader PHP compatibility are separate JX architecture layers.
-        </p>
-      </section>
-
-      <section id="verification">
-        <h2>14. Verification</h2>
-        <p>Use this checklist to verify the whole path end to end.</p>
-        <h3>Windows / MSYS2</h3>
-        <pre><code>$gcc = "C:\msys64\ucrt64\bin\gcc.exe"
-& $gcc -O2 -Wall -Wextra -o jx.exe src/native/jx.c
-.\jx.exe -o out.c examples\native_window_input.php
-& $gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32
-.\out.exe
-curl.exe http://127.0.0.1:8787/json</code></pre>
-        <h3>Linux / WSL cross-compile</h3>
-        <pre><code>gcc -O2 -Wall -Wextra -o jx src/native/jx.c
-./jx -o out.c examples/native_window_input.php
-x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -mwindows -I . -o out.exe out.c -lws2_32 -lgdi32 -luser32</code></pre>
         <div class="good">
-          A successful verification produces <code>out.c</code>, compiles <code>out.exe</code>, opens the native window,
-          and returns compiled JSON from <code>/json</code> while the executable is running.
+          Practical rule: each new family should leave behind code, fixture, comparison proof, command wiring, and documentation.
         </div>
       </section>
 
       <footer>
-        <p>
-          This page is the GitHub Pages front door for the JX native window C emission workflow. For the full
-          repo-ready Markdown reference, see <a href="native-window-c-emission.md"><code>docs/native-window-c-emission.md</code></a>.
-        </p>
+        <p><strong>JINX site:</strong> this page is meant for GitHub Pages from <code>dompipe/jinx</code>, branch <code>master</code>, folder <code>/docs</code>.</p>
+        <p>Expected Pages URL: <code>https://dompipe.github.io/jinx/</code></p>
       </footer>
     </main>
   </div>
