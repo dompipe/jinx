@@ -34,6 +34,7 @@ require_once dirname(__DIR__) . '/runtime/OracleJinxWebExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
+use jinx\oracle\OracleGeneratedExecutionFamilies;
 use jinx\oracle\OracleMergedExecutionFamilies;
 
 function fail(string $message): never
@@ -50,6 +51,8 @@ $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_ARRAY_SET_BUILT
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_FILESYSTEM_BUILTINS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_GENERATED_175_BUILTINS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_JINX_ISLAND_SERVER.md');
+$generatedLastFamily = sprintf('generated-pure-builtin-%03d', OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES);
+$generatedRangeMarker = 'generated-pure-builtin-001 through ' . $generatedLastFamily;
 
 $testToFamilies = [];
 
@@ -69,8 +72,8 @@ foreach ($families as $family => $metadata) {
     }
 
     if (is_string($generatedBatch) && $generatedBatch !== '') {
-        if (!str_contains($docs, 'generated-pure-builtin-001 through generated-pure-builtin-275')) {
-            fail("{$family} generated batch range is not documented in supplemental Oracle docs");
+        if (!str_contains($docs, $generatedRangeMarker)) {
+            fail("{$family} generated batch range is not documented in supplemental Oracle docs: {$generatedRangeMarker}");
         }
     } elseif (!str_contains($docs, "`{$family}`")) {
         fail("{$family} is not documented in ORACLE_EXECUTION_COMMANDS.md or supplemental Oracle docs");
@@ -108,8 +111,8 @@ foreach ($testToFamilies as $test => $coveredFamilies) {
     }
 }
 
-if (count($families) < 637) {
-    fail('coverage audit expected at least 637 executable families after generated merge');
+if (count($families) < 738) {
+    fail('coverage audit expected at least 738 executable families after generated 375 + JINX web merge, found ' . count($families));
 }
 
 $distinctTests = array_keys($testToFamilies);
