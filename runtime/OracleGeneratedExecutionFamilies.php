@@ -7,7 +7,7 @@ namespace jinx\oracle;
 /** Generated executable Oracle family manifest for the pure-builtin batch. */
 final class OracleGeneratedExecutionFamilies
 {
-    public const TOTAL_GENERATED_FAMILIES = 625;
+    public const TOTAL_GENERATED_FAMILIES = 725;
 
     /** @return array<string,array<string,mixed>> */
     public static function all(): array
@@ -21,7 +21,7 @@ final class OracleGeneratedExecutionFamilies
                 'test' => 'scripts/test-oracle-generated-175-builtin-execution.php',
                 'ops' => ['O_DECLARE', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'],
                 'builtins' => self::builtinsForIndex($i),
-                'generated_batch' => 'generated-pure-builtin-625',
+                'generated_batch' => 'generated-pure-builtin-725',
             ];
         }
 
