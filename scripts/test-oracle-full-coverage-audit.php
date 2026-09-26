@@ -49,6 +49,7 @@ $docs = (string) file_get_contents($root . '/docs/ORACLE_EXECUTION_COMMANDS.md')
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_ARRAY_SET_BUILTINS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_FILESYSTEM_BUILTINS.md');
 $docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_GENERATED_175_BUILTINS.md');
+$docs .= "\n" . (string) file_get_contents($root . '/docs/ORACLE_JINX_ISLAND_SERVER.md');
 
 $testToFamilies = [];
 
