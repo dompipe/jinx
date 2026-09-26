@@ -1,0 +1,278 @@
+JINX Island Documentation Rundown
+=================================
+
+Source docs covered:
+- README.md, section "JINX Island Server / EventSource Islands"
+- docs/ORACLE_JINX_ISLAND_SERVER.md
+- docs/WEB_NO_JS_ISLAND_EVENTS.md
+- docs/WEB_WINDOW_INDEX.md
+
+Short version
+-------------
+
+The JINX island work is the web/server part of the Oracle execution layer. It models a small web app shape where the server owns route dispatch, resident page state, iframe island rendering, API-backed state changes, and EventSource invalidation.
+
+The goal is not just a PHP demo page. The important part is that the behavior has an Oracle family named:
+
+jinx-island-server
+
+That family gives JINX a first-class route/request plan that can later be used by a native worker/socket loop without treating the PHP demo router as the real source of truth.
+
+Execution shape
+---------------
+
+The documented request flow is:
+
+browser
+  -> JINX route table
+  -> resident island state
+  -> back-page/API bridge
+  -> window index frame
+  -> iframe island render
+  -> EventSource invalidation
+  -> response envelope
+
+Oracle operations represented by the family:
+
+O_HTTP_ROUTE_TABLE
+O_BACK_PAGE_API_BRIDGE
+O_RESIDENT_ISLAND_STATE
+O_WINDOW_INDEX_FRAME
+O_IFRAME_ISLAND_RENDER
+O_EVENTSOURCE_INVALIDATION
+O_RESPONSE_ENVELOPE
+
+Routes covered
+--------------
+
+GET  /
+GET  /island
+GET  /events/island-state
+GET  /api/island-state
+POST /api/island-state
+GET  /__health
+
+What the main pieces do
+-----------------------
+
+runtime/OracleJinxIslandServerExecutor.php
+Owns the Oracle-side island server execution family. It handles route envelopes, resident state fingerprints, health responses, island documents, API state updates, and EventSource invalidation output.
+
+runtime/OracleJinxWebExecutionFamilies.php
+Keeps the web execution family ledger. The island family is registered here so tests and audits can see that the family exists.
+
+runtime/WebWindowIndex.php
+Owns the resident browser window index. It can emit browser runtime boot code, server-sent frames, no-JS registrar output, no-JS documents, and window/frame data.
+
+runtime/WebNoJsIslandRegistrar.php
+Emits browser-native iframe islands. In no-JS island mode, the parent page stays loaded while each island iframe loads its own server-rendered JINX document.
+
+runtime/WebBackPageBridge.php
+Handles API/back-page request and response envelopes without keeping request-local secrets in resident state.
+
+scripts/demo-no-js-islands.php
+The demo router/page for the browser example.
+
+scripts/serve-no-js-islands-demo.php
+The ./jinx entry point that starts the local demo HTTP server.
+
+Safety contract
+---------------
+
+Resident state may keep:
+- window index
+- compiled back-page bridge
+- island state revision
+- allowed page/detail/status properties
+- page defaults
+- layout names
+- zone names
+- component defaults
+- browser patch instructions
+- index version
+- resident fingerprint
+
+Resident state must not keep:
+- request body
+- headers
+- cookies
+- session
+- Authorization headers
+- auth/user identity
+- last user's browser input
+
+The tests check this boundary. Read-only requests must not mutate the resident fingerprint. State-changing API requests intentionally mutate it. Request-local secrets must not leak into resident state.
+
+Browser modes in WEB_WINDOW_INDEX.md
+------------------------------------
+
+1. JINX-emitted stream runtime
+JINX/PHP emits a tiny inline runtime. The browser opens an EventSource stream. The server pushes JINX frames without full-page refresh.
+
+2. JINX-emitted direct runtime
+JINX/PHP emits the runtime inline, then emits direct live frames as script blocks. No external JavaScript file is needed.
+
+3. No-JS live islands
+JINX/PHP emits iframe islands. Each island loads server-rendered HTML from an endpoint. The parent page does not refresh.
+
+4. No-JS browser registrar
+JINX/PHP emits plain HTML/templates/data attributes. Updates happen by server-rendered replacement, navigation, iframe/fragment swap, or meta refresh.
+
+The hard browser boundary
+-------------------------
+
+A browser cannot mutate existing parent DOM nodes without browser-side execution. JINX handles that boundary in two ways:
+
+- For no-refresh live mutation, JINX emits the small runtime itself and uses EventSource frames.
+- For no-JS partial-page operation, JINX moves dynamic pieces into first-party server-rendered iframe island documents.
+
+EventSource island invalidation
+-------------------------------
+
+The event-driven island demo replaces timer-only refreshing with this chain:
+
+back-page/API state changes
+  -> state revision increments
+  -> EventSource emits jinx-island-refresh
+  -> parent reloads only matching iframe island URLs
+
+The parent listens at:
+
+/events/island-state?after=<current-revision>
+
+When the state revision is newer than the after value, the server emits a jinx-island-refresh event. The small browser listener reloads only matching iframe zones, usually detail and status.
+
+Commands to make the example work
+=================================
+
+1. Get the repository.
+
+If you do not already have it locally:
+
+git clone https://github.com/dompipe/jinx.git
+cd jinx
+
+If you already have it locally:
+
+cd jinx
+git pull origin master
+
+2. Build the native ./jinx executable.
+
+./scripts/build-native-jinx.sh
+
+This creates the repository-root ./jinx binary and also copies it to build/native/jinx.
+
+3. Confirm the island server helper is available without starting the long-running server.
+
+./jinx scripts/serve-no-js-islands-demo.php --check
+
+Expected marker:
+
+PASS: no-JS island demo server command is available
+
+4. Run the focused Oracle island server test.
+
+./jinx scripts/test-oracle-jinx-island-server-execution.php
+
+Expected marker:
+
+PASS: Oracle JINX island server executes route table, back-page API state, iframe island render, and EventSource invalidation
+
+5. Run the browser window/index test.
+
+./jinx scripts/test-web-window-index.php
+
+Expected marker:
+
+PASS: WebWindowIndex emits JINX stream runtime, no-JS registrar DOM frames, and no-JS live islands
+
+6. Optional full native verification suite.
+
+./jinx scripts/test-jinx-native-suite.php
+
+This is broader and takes longer. It includes the island server tests, the demo helper check, and many other Oracle family tests.
+
+7. Start the browser demo.
+
+./jinx scripts/serve-no-js-islands-demo.php
+
+The helper starts PHP's built-in development server using multiple workers by default:
+
+PHP_CLI_SERVER_WORKERS=4
+
+That matters because the EventSource request can stay open. Multiple workers keep the stream from blocking API updates during the local demo.
+
+8. Open the demo page.
+
+http://127.0.0.1:8099/
+
+You should see the parent page and the JINX island sections. The parent page is stable; the iframe islands are the moving pieces.
+
+9. Trigger an island state change from another terminal.
+
+curl -X POST http://127.0.0.1:8099/api/island-state \
+  -H 'Content-Type: application/json' \
+  -d '{"page":"feed.window","detail":"Changed detail","status":"Changed status"}'
+
+Alternative payload from the README/docs:
+
+curl -X POST http://127.0.0.1:8099/api/island-state \
+  -H 'Content-Type: application/json' \
+  -d '{"detail":"Changed by API event","status":"Event pushed status"}'
+
+10. Watch the open page.
+
+The API request increments the island state revision. The EventSource endpoint emits jinx-island-refresh, and the page reloads only the matching iframe island URLs, especially the detail and status zones.
+
+Useful direct URLs
+------------------
+
+Parent page:
+
+http://127.0.0.1:8099/
+
+Island document:
+
+http://127.0.0.1:8099/island
+
+Current state JSON:
+
+http://127.0.0.1:8099/api/island-state
+
+Event stream endpoint:
+
+http://127.0.0.1:8099/events/island-state
+
+Health route:
+
+http://127.0.0.1:8099/__health
+
+Changing host, port, or worker count
+------------------------------------
+
+The server helper reads these environment variables:
+
+JINX_DEMO_HOST=127.0.0.1
+JINX_DEMO_PORT=8099
+JINX_DEMO_WORKERS=4
+
+Example with a different port:
+
+JINX_DEMO_PORT=8100 ./jinx scripts/serve-no-js-islands-demo.php
+
+Then open:
+
+http://127.0.0.1:8100/
+
+What counts as success
+----------------------
+
+Minimum success for the example:
+
+./scripts/build-native-jinx.sh
+./jinx scripts/serve-no-js-islands-demo.php --check
+./jinx scripts/test-oracle-jinx-island-server-execution.php
+./jinx scripts/serve-no-js-islands-demo.php
+
+Then open the page and POST to /api/island-state. If the detail/status islands update without reloading the parent page, the JINX island example is working.
