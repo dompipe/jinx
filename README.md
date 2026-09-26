@@ -22,6 +22,99 @@ The RC focuses on:
 - True all-functions benchmark tooling that runs every generated JINX function `X` times and direct PHP benchmarkable functions `X` times.
 - Native benchmarks for first-100 and all-functions Oracle dispatch traversal.
 - PHP comparison benchmarks for validated callable builtin cases.
+- A JINX island/server Oracle family that models route dispatch, resident back-page state, iframe island rendering, and EventSource invalidation.
+
+## JINX Island Server / EventSource Islands
+
+JINX now has an Oracle-level web/island/server shape, not just a PHP demo route.
+
+The first-class Oracle family is:
+
+```text
+jinx-island-server
+```
+
+It covers this execution plan:
+
+```text
+browser
+  -> JINX route table
+    -> resident island state
+    -> back-page/API bridge
+    -> window index frame
+    -> iframe island render
+    -> EventSource invalidation
+    -> response envelope
+```
+
+Oracle ops represented by the family:
+
+```text
+O_HTTP_ROUTE_TABLE
+O_BACK_PAGE_API_BRIDGE
+O_RESIDENT_ISLAND_STATE
+O_WINDOW_INDEX_FRAME
+O_IFRAME_ISLAND_RENDER
+O_EVENTSOURCE_INVALIDATION
+O_RESPONSE_ENVELOPE
+```
+
+Routes covered by the family:
+
+```text
+GET  /
+GET  /island
+GET  /events/island-state
+GET  /api/island-state
+POST /api/island-state
+GET  /__health
+```
+
+The browser-facing demo still starts through the PHP built-in development listener, but the JINX program shape is now represented in Oracle and tested through native `./jinx`:
+
+```bash
+./jinx scripts/test-oracle-jinx-island-server-execution.php
+./jinx scripts/serve-no-js-islands-demo.php --check
+./jinx scripts/test-jinx-native-suite.php
+```
+
+Run the browser demo:
+
+```bash
+./jinx scripts/serve-no-js-islands-demo.php
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8099/
+```
+
+Trigger an EventSource island refresh from another terminal:
+
+```bash
+curl -X POST http://127.0.0.1:8099/api/island-state \
+  -H 'Content-Type: application/json' \
+  -d '{"detail":"Changed by API event","status":"Event pushed status"}'
+```
+
+The parent page listens to `/events/island-state`. When the API-backed revision changes, only the matching iframe island URLs reload. The app logic stays on the server/back-page/API side; the browser listener only hears that a JINX island revision changed.
+
+Important files:
+
+```text
+runtime/OracleJinxIslandServerExecutor.php
+runtime/OracleJinxWebExecutionFamilies.php
+runtime/WebWindowIndex.php
+runtime/WebNoJsIslandRegistrar.php
+runtime/WebBackPageBridge.php
+scripts/test-oracle-jinx-island-server-execution.php
+scripts/demo-no-js-islands.php
+scripts/serve-no-js-islands-demo.php
+docs/ORACLE_JINX_ISLAND_SERVER.md
+docs/WEB_NO_JS_ISLAND_EVENTS.md
+docs/WEB_WINDOW_INDEX.md
+```
 
 ## Quick Native Commands
 
@@ -48,6 +141,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx scripts/test-zend-declaration-metadata-oracle.php
 ./jinx scripts/test-oracle-straightline-execution.php
 ./jinx scripts/test-oracle-execution-families.php
+./jinx scripts/test-oracle-jinx-island-server-execution.php
 php scripts/report-php-families.php
 php scripts/benchmark-true-all-functions.php 1000
 ./jinx notes
@@ -369,12 +463,18 @@ runtime/jinx_php_family_manifest.php
 runtime/WebNativeFunctions.php
 runtime/WebNativeFunctionRegistry.generated.php
 runtime/WebNativeOracleDispatch.generated.php
+runtime/WebWindowIndex.php
+runtime/WebNoJsIslandRegistrar.php
+runtime/WebBackPageBridge.php
+runtime/OracleJinxIslandServerExecutor.php
+runtime/OracleJinxWebExecutionFamilies.php
 runtime/jinx_builtin_dispatch.generated.c
 runtime/jinx_function_list.generated.h
 runtime/jinx_oracle_asm_context.c
 scripts/check-native-manual-complete.php
 scripts/report-php-families.php
 scripts/test-php-crypto-fallback.php
+scripts/test-oracle-jinx-island-server-execution.php
 scripts/benchmark-true-all-functions.php
 scripts/benchmark-native-jinx-vs-php.php
 scripts/build-native-jinx.sh
@@ -383,6 +483,9 @@ docs/RC_NOTES.md
 docs/BENCHMARKS.md
 docs/NATIVE_VS_PHP_BENCHMARK.md
 docs/PHP_MANUAL_NATIVE_IMPLEMENTATION.md
+docs/ORACLE_JINX_ISLAND_SERVER.md
+docs/WEB_NO_JS_ISLAND_EVENTS.md
+docs/WEB_WINDOW_INDEX.md
 ```
 
 ## PHP Helper Commands
