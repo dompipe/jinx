@@ -45,8 +45,8 @@ function fail(string $message): never
 $root = dirname(__DIR__);
 $families = OracleMergedExecutionFamilies::all();
 
-if (count($families) < 1088) {
-    fail('expected at least 1088 executable Oracle families after generated 725 + JINX web merge, found ' . count($families));
+if (count($families) < 1145) {
+    fail('expected at least 1145 executable Oracle families after generated 782 + JINX web merge, found ' . count($families));
 }
 
 foreach ($families as $family => $metadata) {
