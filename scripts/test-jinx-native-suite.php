@@ -69,6 +69,7 @@ $scriptTests = [
     'generated 782 builtin families' => ['scripts/test-oracle-generated-175-builtin-execution.php', 'PASS: Oracle executes generated pure builtin PHP families'],
     'php vs jinx differential unit' => ['scripts/test-php-jinx-differential-unit.php', 'PASS: PHP vs JINX differential unit test validates runner cases, parity checks, and native-suite wiring'],
     'php vs jinx differential' => ['scripts/test-php-jinx-differential.php', 'PASS: PHP vs JINX differential runner matches PHP stdout/exit behavior'],
+    'php vs jinx 1144 unit coverage audit' => ['scripts/test-php-jinx-1144-unit-coverage-audit.php', 'PASS: PHP vs JINX 1144 unit coverage audit validates'],
     'php vs jinx 100 unit cases' => ['scripts/test-php-jinx-100-unit-cases.php', 'PASS: PHP vs JINX 100 unit cases match PHP stdout/exit behavior'],
     'php vs jinx second 100 unit cases' => ['scripts/test-php-jinx-100-more-unit-cases.php', 'PASS: PHP vs JINX second 100 unit cases match PHP stdout/exit behavior'],
     'php vs jinx third 100 unit cases' => ['scripts/test-php-jinx-100-third-unit-cases.php', 'PASS: PHP vs JINX third 100 unit cases match PHP stdout/exit behavior'],
