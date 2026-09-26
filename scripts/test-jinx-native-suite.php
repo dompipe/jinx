@@ -67,6 +67,7 @@ $scriptTests = [
     'filesystem builtin families' => ['scripts/test-oracle-filesystem-builtin-execution.php', 'PASS: Oracle executes filesystem/stat builtin PHP families'],
     'generated 782 family group' => ['scripts/test-oracle-generated-family-group.php', 'PASS: Oracle generated 782 family group exposes'],
     'generated 782 builtin families' => ['scripts/test-oracle-generated-175-builtin-execution.php', 'PASS: Oracle executes generated pure builtin PHP families'],
+    'php vs jinx differential unit' => ['scripts/test-php-jinx-differential-unit.php', 'PASS: PHP vs JINX differential unit test validates runner cases, parity checks, and native-suite wiring'],
     'php vs jinx differential' => ['scripts/test-php-jinx-differential.php', 'PASS: PHP vs JINX differential runner matches PHP stdout/exit behavior'],
     'text builtin families' => ['scripts/test-oracle-text-builtin-execution.php', 'PASS: Oracle executes text builtin PHP families'],
     'text builtin batch two families' => ['scripts/test-oracle-text-builtin-two-execution.php', 'PASS: Oracle executes text builtin batch two PHP families'],
