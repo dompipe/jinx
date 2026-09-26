@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 namespace jinx\oracle;
 
+foreach ([
+    __DIR__ . '/OracleJinxIslandServerExecutor.php',
+    __DIR__ . '/OracleJinxWebExecutionFamilies.php',
+] as $oracleMergedDependency) {
+    if (!class_exists(__NAMESPACE__ . '\\' . basename($oracleMergedDependency, '.php'), false) && is_file($oracleMergedDependency)) {
+        require_once $oracleMergedDependency;
+    }
+}
+
 /**
  * Merged executable Oracle family ledger.
  *
