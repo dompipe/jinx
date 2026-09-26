@@ -7,9 +7,9 @@ namespace jinx\oracle;
 /**
  * Merged executable Oracle family ledger.
  *
- * This folds generated families into the regular executable family view so
- * suite-level audits and native verification count them as first-class Oracle
- * parity families instead of a side ledger.
+ * This folds generated families and JINX-native web families into the regular
+ * executable family view so suite-level audits and native verification count
+ * them as first-class Oracle parity families instead of side ledgers.
  */
 final class OracleMergedExecutionFamilies
 {
@@ -18,6 +18,7 @@ final class OracleMergedExecutionFamilies
     {
         return array_replace(
             OracleExecutionFamilies::all(),
+            OracleJinxWebExecutionFamilies::all(),
             OracleGeneratedExecutionFamilies::all()
         );
     }
