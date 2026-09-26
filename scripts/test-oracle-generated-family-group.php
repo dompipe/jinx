@@ -21,6 +21,8 @@ $root = dirname(__DIR__);
 $families = OracleGeneratedExecutionFamilies::all();
 $mergedFamilies = OracleMergedExecutionFamilies::all();
 $total = OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES;
+$lastFamily = sprintf('generated-pure-builtin-%03d', $total);
+$rangeMarker = 'generated-pure-builtin-001 through ' . $lastFamily;
 
 if (count($families) !== $total) {
     fail("expected exactly {$total} generated executable families, found " . count($families));
@@ -54,7 +56,7 @@ for ($i = 1; $i <= $total; $i++) {
     }
 }
 
-foreach (['generated-pure-builtin-001', 'generated-pure-builtin-275', 'generated-pure-builtin-001 through generated-pure-builtin-275'] as $marker) {
+foreach (['generated-pure-builtin-001', $lastFamily, $rangeMarker] as $marker) {
     if (!str_contains($docs, $marker)) {
         fail("docs missing marker {$marker}");
     }
