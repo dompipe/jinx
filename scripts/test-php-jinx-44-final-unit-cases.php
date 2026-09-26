@@ -74,10 +74,11 @@ for ($i = 1; $i <= 11; $i++) {
 
 for ($i = 1; $i <= 11; $i++) {
     $seed = 'closing-jinx-case-' . $i;
+    $tailLength = ($i % 5) + 3;
     add_case(
         $cases,
         sprintf('final-string-close-%03d', $i),
-        "\$seed = '{$seed}';\n\$parts = [\n    substr(\$seed, 0, 7),\n    strtoupper(substr(\$seed, -{$i % 5 + 3})),\n    strrev(substr(\$seed, 2, 6)),\n];\necho json_encode(['case' => {$i}, 'text' => implode('|', \$parts), 'len' => strlen(implode('', \$parts))]) . \"\\n\";"
+        "\$seed = '{$seed}';\n\$parts = [\n    substr(\$seed, 0, 7),\n    strtoupper(substr(\$seed, -{$tailLength})),\n    strrev(substr(\$seed, 2, 6)),\n];\necho json_encode(['case' => {$i}, 'text' => implode('|', \$parts), 'len' => strlen(implode('', \$parts))]) . \"\\n\";"
     );
 }
 
