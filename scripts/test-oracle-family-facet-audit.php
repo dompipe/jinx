@@ -29,6 +29,7 @@ require_once dirname(__DIR__) . '/runtime/OracleSecurityNetworkBuiltinExecutor.p
 require_once dirname(__DIR__) . '/runtime/OracleRuntimeInfoBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedBuiltinExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleJinxWebExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
 require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
