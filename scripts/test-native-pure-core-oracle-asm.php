@@ -205,6 +205,69 @@ foreach ($cases as [$function, $args]) {
     if ($actual !== $expected) fail("oracle-call {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
 }
 
+
+$inetAddresses = [
+    '127.0.0.1',
+    '::1',
+    '::2',
+    '::35',
+    '::255',
+    '::1024',
+    '2001:0db8:85a3:08d3:1319:8a2e:0370:7344',
+    '2001:0db8:1234:0000:0000:0000:0000:0000',
+    '2001:0db8:1234:FFFF:FFFF:FFFF:FFFF:FFFF',
+    '',
+];
+
+foreach ($inetAddresses as $address) {
+    $phpPacked = inet_pton($address);
+    $expected = is_string($phpPacked)
+        ? 'hex:' . bin2hex($phpPacked)
+        : encodeValue($phpPacked);
+
+    $command = escapeshellarg($jinx)
+        . ' oracle-call-hex inet_pton '
+        . escapeshellarg('s:' . $address);
+
+    $output = [];
+    $code = 0;
+    exec($command . ' 2>&1', $output, $code);
+    $actual = rtrim(implode(PHP_EOL, $output), "\r\n");
+
+    if ($code !== 0) fail("oracle-call-hex inet_pton failed for {$address}: {$actual}");
+    if ($actual !== $expected) {
+        fail("inet_pton parity mismatch for {$address}: PHP={$expected}, JINX={$actual}");
+    }
+
+    if (is_string($phpPacked)) {
+        $expectedText = encodeValue(inet_ntop($phpPacked));
+        $ntopCommand = escapeshellarg($jinx)
+            . ' oracle-call inet_ntop '
+            . escapeshellarg('h:' . bin2hex($phpPacked));
+
+        $ntopOutput = [];
+        $ntopCode = 0;
+        exec($ntopCommand . ' 2>&1', $ntopOutput, $ntopCode);
+        $actualText = rtrim(implode(PHP_EOL, $ntopOutput), "\r\n");
+
+        if ($ntopCode !== 0) fail("oracle-call inet_ntop failed for {$address}: {$actualText}");
+        if ($actualText !== $expectedText) {
+            fail("inet_ntop parity mismatch for {$address}: PHP={$expectedText}, JINX={$actualText}");
+        }
+    }
+}
+
+$invalidNtopExpected = encodeValue(inet_ntop("\x00"));
+$invalidNtopCommand = escapeshellarg($jinx) . ' oracle-call inet_ntop ' . escapeshellarg('h:00');
+$invalidNtopOutput = [];
+$invalidNtopCode = 0;
+exec($invalidNtopCommand . ' 2>&1', $invalidNtopOutput, $invalidNtopCode);
+$invalidNtopActual = rtrim(implode(PHP_EOL, $invalidNtopOutput), "\r\n");
+if ($invalidNtopCode !== 0) fail("oracle-call inet_ntop invalid-length case failed: {$invalidNtopActual}");
+if ($invalidNtopActual !== $invalidNtopExpected) {
+    fail("inet_ntop invalid-length parity mismatch: PHP={$invalidNtopExpected}, JINX={$invalidNtopActual}");
+}
+
 $printfArgs = ['printf:%u:%s', 7, 'Amsterdam'];
 ob_start();
 $printfReturn = printf(...$printfArgs);
