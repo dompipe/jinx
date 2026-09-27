@@ -101,7 +101,7 @@ $code[] = 'static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
 $code[] = '    return name != NULL && (';
 $code[] = '        strcmp(name, "min") == 0 || strcmp(name, "max") == 0 ||';
 $code[] = '        strcmp(name, "count") == 0 ||';
-$code[] = '        strcmp(name, "array_key_exists") == 0 ||';
+$code[] = '        strcmp(name, "sizeof") == 0 ||';
 $code[] = '        strcmp(name, "array_is_list") == 0 ||';
 $code[] = '        strcmp(name, "array_values") == 0 ||';
 $code[] = '        strcmp(name, "array_keys") == 0 ||';
@@ -142,6 +142,8 @@ $code[] = '';
 $code[] = 'static int jinx_oracle_name_is_zend_container_builtin(const char *name) {';
 $code[] = '    return name != NULL && (';
 $code[] = '        strcmp(name, "localeconv") == 0 ||';
+$code[] = '        strcmp(name, "array_key_exists") == 0 ||';
+$code[] = '        strcmp(name, "key_exists") == 0 ||';
 $code[] = '        strcmp(name, "cal_info") == 0 ||';
 $code[] = '        strcmp(name, "cal_from_jd") == 0 ||
         strcmp(name, "pathinfo") == 0 ||
