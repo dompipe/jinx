@@ -16,6 +16,13 @@ typedef struct JinxOracleDispatchEntry {
 
 JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name);
 
+JinxValue jinx_call_builtin_through_oracle_checked(
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *ok
+);
+
 JinxValue jinx_call_builtin_through_oracle(
     const char *name,
     JinxValue *args,
