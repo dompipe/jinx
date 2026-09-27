@@ -221,13 +221,96 @@ int main(void) {
     }
     jinx_oracle_zend_array_value_release(result);
 
+    args[0] = jinx_oracle_zend_array_value_borrowed(array);
+    args[1] = jinx_oracle_int_value(2);
+    args[2] = jinx_oracle_bool_value(0);
+    result = jinx_call_builtin_through_oracle("array_chunk", args, 3);
+    if (!expect_array_count(result, 2)) return fail("array_chunk outer count");
+    JinxZendArray *chunks = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *chunk0_value = jinx_zend_array_index(chunks, 0);
+    if (chunk0_value == 0 || chunk0_value->type != JINX_ZEND_ARRAY ||
+        !expect_long_index(chunk0_value->value.array, 0, 10) ||
+        !expect_long_index(chunk0_value->value.array, 1, 20)) {
+        return fail("array_chunk values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(array);
+    args[1] = jinx_oracle_int_value(6);
+    args[2] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("array_pad", args, 3);
+    if (!expect_array_count(result, 6)) return fail("array_pad count");
+    JinxZendArray *padded = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(padded, 0, 10) || !expect_long_index(padded, 1, 20) ||
+        !expect_long_index(padded, 2, 0) || !expect_long_index(padded, 3, 0)) {
+        return fail("array_pad values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *unique_source = jinx_zend_array_new_packed(6);
+    JinxZendString *four_string = jinx_zend_string_new("4", 1);
+    JinxZendString *three_string = jinx_zend_string_new("3", 1);
+    if (unique_source == 0 || four_string == 0 || three_string == 0 ||
+        !jinx_zend_array_append(unique_source, jinx_zend_long(4)) ||
+        !jinx_zend_array_append(unique_source, jinx_zend_string_value(four_string)) ||
+        !jinx_zend_array_append(unique_source, jinx_zend_string_value(three_string)) ||
+        !jinx_zend_array_append(unique_source, jinx_zend_long(4)) ||
+        !jinx_zend_array_append(unique_source, jinx_zend_long(3)) ||
+        !jinx_zend_array_append(unique_source, jinx_zend_string_value(three_string))) {
+        return fail("array_unique source");
+    }
+    jinx_zend_string_release(four_string);
+    jinx_zend_string_release(three_string);
+    args[0] = jinx_oracle_zend_array_value_borrowed(unique_source);
+    result = jinx_call_builtin_through_oracle("array_unique", args, 1);
+    if (!expect_array_count(result, 2)) return fail("array_unique count");
+    JinxZendArray *unique = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(unique, 0, 4)) return fail("array_unique first key");
+    JinxZendValue *unique_three = jinx_zend_array_index(unique, 2);
+    if (unique_three == 0 || unique_three->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(unique_three->value.str, "3", 1)) {
+        return fail("array_unique preserved key");
+    }
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(unique_source);
+
+    JinxZendArray *filter = jinx_zend_array_new_packed(2);
+    if (filter == 0 ||
+        !jinx_zend_array_append(filter, jinx_zend_long(20)) ||
+        !jinx_zend_array_append(filter, jinx_zend_long(40))) {
+        return fail("array diff/intersect filter");
+    }
+    args[0] = jinx_oracle_zend_array_value_borrowed(array);
+    args[1] = jinx_oracle_zend_array_value_borrowed(filter);
+
+    result = jinx_call_builtin_through_oracle("array_diff", args, 2);
+    if (!expect_array_count(result, 2)) return fail("array_diff count");
+    JinxZendArray *diffed = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(diffed, 0, 10)) return fail("array_diff numeric key");
+    JinxZendValue *name_value = jinx_zend_array_find(diffed, "name", 4);
+    if (name_value == 0 || name_value->type != JINX_ZEND_LONG || name_value->value.lval != 30) {
+        return fail("array_diff string key");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    result = jinx_call_builtin_through_oracle("array_intersect", args, 2);
+    if (!expect_array_count(result, 2)) return fail("array_intersect count");
+    JinxZendArray *intersected = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(intersected, 1, 20)) return fail("array_intersect numeric key");
+    JinxZendValue *keep_value = jinx_zend_array_find(intersected, "keep", 4);
+    if (keep_value == 0 || keep_value->type != JINX_ZEND_LONG || keep_value->value.lval != 40) {
+        return fail("array_intersect string key");
+    }
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(filter);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3\n");
+    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
