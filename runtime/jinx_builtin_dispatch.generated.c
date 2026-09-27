@@ -26,6 +26,7 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "array_fill_keys") == 0 ||
         strcmp(name, "array_combine") == 0 ||
         strcmp(name, "array_count_values") == 0 ||
+        strcmp(name, "array_column") == 0 ||
         strcmp(name, "array_chunk") == 0 ||
         strcmp(name, "array_pad") == 0 ||
         strcmp(name, "array_unique") == 0 ||
@@ -41,6 +42,8 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
 static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
     return name != NULL && (
         strcmp(name, "count_chars") == 0 ||
+        strcmp(name, "explode") == 0 ||
+        strcmp(name, "str_split") == 0 ||
         strcmp(name, "vsprintf") == 0 ||
         strcmp(name, "implode") == 0 ||
         strcmp(name, "join") == 0 ||
