@@ -2332,6 +2332,25 @@ int main(void) {
         return fail("json_decode associative object values");
     }
 
+    JinxValue json_null_args[1];
+    json_null_args[0] = jinx_oracle_string_value("null");
+    int json_null_ok = 0;
+    JinxValue json_null_result = jinx_call_builtin_through_oracle_checked(
+        "json_decode",
+        json_null_args,
+        1,
+        &json_null_ok
+    );
+    JinxValue json_null_error = jinx_call_builtin_through_oracle(
+        "json_last_error",
+        json_null_args,
+        0
+    );
+    if (!json_null_ok || json_null_result.type != 0u ||
+        !expect_int(json_null_error, 0)) {
+        return fail("json_decode top-level null");
+    }
+
     JinxValue json_default_args[1];
     json_default_args[0] = jinx_oracle_string_value(
         "{\"name\":\"Ada\",\"1\":\"one\",\"nested\":{\"n\":1}}"
@@ -2579,7 +2598,7 @@ int main(void) {
 
     printf(
         "JSON_PARITY:name=%.*s;nums=%lld,%lld;ok=1;none=null;"
-        "emoji=%02x%02x%02x%02x;object=%s|%.*s|%.*s|%s|%lld;"
+        "emoji=%02x%02x%02x%02x;topnull=null;object=%s|%.*s|%.*s|%s|%lld;"
         "object_encode=%.*s;false_override=%s;bigint=%.*s;decode_ignore=%02x;"
         "decode_sub=%02x%02x%02x%02x;syntax=%lld|%.*s;valid=%lld|%.*s;"
         "encode=%.*s;escape=%.*s;encode_utf8=%lld|%.*s;encode_reset=%lld|%.*s\\n",
