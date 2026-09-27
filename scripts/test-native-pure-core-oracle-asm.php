@@ -82,6 +82,9 @@ $cases = [
     ['sprintf', ['s:%*s', 'i:5', 's:x']],
     ['sprintf', ['s:%.*f', 'i:2', 'f:1.234']],
     ['sprintf', ['s:%b %o %x %X', 'i:10', 'i:10', 'i:255', 'i:255']],
+    ['wordwrap', ['s:The quick brown fox jumped over the lazy dog.', 'i:20', "s:<br />\n"]],
+    ['wordwrap', ['s:A very long woooooooooooord.', 'i:8', 's:|', 'b:true']],
+    ['wordwrap', ["s:one two\nthree four", 'i:7']],
 ];
 
 foreach ($cases as [$function, $args]) {
