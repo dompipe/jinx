@@ -140,7 +140,8 @@ $code[] = '}';
 $code[] = '';
 $code[] = 'static int jinx_oracle_name_is_zend_container_builtin(const char *name) {';
 $code[] = '    return name != NULL && (';
-$code[] = '        strcmp(name, "pathinfo") == 0 ||
+$code[] = '        strcmp(name, "localeconv") == 0 ||
+        strcmp(name, "pathinfo") == 0 ||
         strcmp(name, "parse_str") == 0 ||
         strcmp(name, "http_build_query") == 0 ||
         strcmp(name, "parse_url") == 0 ||
@@ -191,7 +192,7 @@ $code[] = '    const char *name,';
 $code[] = '    JinxValue *args,';
 $code[] = '    size_t argc';
 $code[] = ') {';
-$code[] = '    if (args != NULL && argc >= 1 && jinx_oracle_name_is_zend_container_builtin(name)) {';
+$code[] = '    if (jinx_oracle_name_is_zend_container_builtin(name) && (args != NULL || argc == 0)) {';
 $code[] = '        return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
 $code[] = '    }';
 $code[] = '';
