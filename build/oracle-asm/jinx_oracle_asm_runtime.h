@@ -7255,7 +7255,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (jinx_oracle_name_is(name, "floatval")) {
+    if (jinx_oracle_name_is(name, "floatval") ||
+        jinx_oracle_name_is(name, "doubleval")) {
         ret = jinx_oracle_float_value(jinx_oracle_floatish(arg0));
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -7273,7 +7274,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (argc >= 1 && jinx_oracle_name_is(name, "count")) {
+    if (argc >= 1 && (jinx_oracle_name_is(name, "count") ||
+        jinx_oracle_name_is(name, "sizeof"))) {
         ret = jinx_oracle_int_value(arg0.type == 4u ? (int64_t)arg0.flags : jinx_oracle_intish(arg0));
         jinx_oracle_return(ctx, ret);
         return ret;
