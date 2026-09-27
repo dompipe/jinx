@@ -4727,6 +4727,71 @@ static inline JinxValue jinx_oracle_round_value(
     );
 }
 
+
+static inline int jinx_oracle_parse_ipv4(JinxValue value, uint32_t *out) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint32_t octets[4] = {0u, 0u, 0u, 0u};
+    uint32_t part = 0u;
+    uint32_t i = 0u;
+
+    if (len == 0u || out == NULL) return 0;
+
+    while (part < 4u) {
+        uint32_t start = i;
+        uint32_t number = 0u;
+        uint32_t digits = 0u;
+
+        while (i < len && bytes[i] >= (unsigned char)'0' && bytes[i] <= (unsigned char)'9') {
+            if (digits >= 3u) return 0;
+            number = number * 10u + (uint32_t)(bytes[i] - (unsigned char)'0');
+            digits++;
+            i++;
+        }
+
+        if (digits == 0u || number > 255u) return 0;
+        if (digits > 1u && bytes[start] == (unsigned char)'0') return 0;
+
+        octets[part++] = number;
+
+        if (part == 4u) {
+            if (i != len) return 0;
+        } else {
+            if (i >= len || bytes[i] != (unsigned char)'.') return 0;
+            i++;
+        }
+    }
+
+    *out = (octets[0] << 24u) |
+        (octets[1] << 16u) |
+        (octets[2] << 8u) |
+        octets[3];
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_ip2long_value(JinxValue value) {
+    uint32_t ipv4 = 0u;
+    if (!jinx_oracle_parse_ipv4(value, &ipv4)) {
+        return jinx_oracle_bool_value(0);
+    }
+    return jinx_oracle_int_value((int64_t)(uint64_t)ipv4);
+}
+
+static inline JinxValue jinx_oracle_long2ip_value(JinxValue value) {
+    uint32_t ipv4 = (uint32_t)(uint64_t)jinx_oracle_intish(value);
+    char *out = jinx_oracle_scratch_string(15u);
+    int len = snprintf(
+        out,
+        16u,
+        "%u.%u.%u.%u",
+        (unsigned)((ipv4 >> 24u) & 0xffu),
+        (unsigned)((ipv4 >> 16u) & 0xffu),
+        (unsigned)((ipv4 >> 8u) & 0xffu),
+        (unsigned)(ipv4 & 0xffu)
+    );
+    return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -5419,6 +5484,18 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         }
 
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "ip2long")) {
+        ret = jinx_oracle_ip2long_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "long2ip")) {
+        ret = jinx_oracle_long2ip_value(arg0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
