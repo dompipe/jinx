@@ -163,6 +163,21 @@ $multiKeyPrimary = [2, 1];
 $multiKeyPayload = ['x' => 'X', 7 => 'Y'];
 array_multisort($multiKeyPrimary, $multiKeyPayload);
 
+$mappedNamed = array_map('strlen', ['short' => 'a', 5 => 'four', 'x' => 'xx']);
+$mappedMulti = array_map('max', [1, 5, 3], [4, 2, 9]);
+$mappedNull = array_map(null, [1, 5, 3], [4, 2, 9]);
+$reducedNamed = array_reduce([1, 5, 3], 'max', 0);
+$filteredNamed = array_filter(['a' => '1', 'b' => 'x', 'c' => '2'], 'is_numeric');
+
+$predicateSource = ['a' => 'apple', 'b' => 'banana', 'x' => 'carrot'];
+$filteredBoth = array_filter($predicateSource, 'str_starts_with', ARRAY_FILTER_USE_BOTH);
+$foundNamed = array_find($predicateSource, 'str_starts_with');
+$foundKeyNamed = array_find_key($predicateSource, 'str_starts_with');
+$anyNamed = array_any($predicateSource, 'str_starts_with');
+$allNamed = array_all($predicateSource, 'str_starts_with');
+$allTrueNamed = array_all(['a' => 'apple', 'b' => 'banana'], 'str_starts_with');
+$allEmptyNamed = array_all([], 'str_starts_with');
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -272,7 +287,20 @@ $expectedParity = 'PARITY:'
     . ';natsort=' . $pairs($naturalValues)
     . ';natcase=' . $pairs($natcaseValues)
     . ';multisort=' . implode(',', $multiPrimary) . '|' . implode(',', $multiSecondary)
-    . ';multikeys=' . $pairs($multiKeyPayload);
+    . ';multikeys=' . $pairs($multiKeyPayload)
+    . ';map=' . $pairs($mappedNamed)
+    . ';map2=' . implode(',', $mappedMulti)
+    . ';mapnull=' . implode('|', array_map(static fn (array $row): string => implode(',', $row), $mappedNull))
+    . ';reduce=' . $reducedNamed
+    . ';filtercb=' . $pairs($filteredNamed)
+    . ';filterboth=' . $pairs($filteredBoth)
+    . ';find='
+        . $foundNamed . '|'
+        . $foundKeyNamed . '|'
+        . ($anyNamed ? '1' : '0') . '|'
+        . ($allNamed ? '1' : '0') . '|'
+        . ($allTrueNamed ? '1' : '0') . '|'
+        . ($allEmptyNamed ? '1' : '0');
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
