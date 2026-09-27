@@ -2649,6 +2649,89 @@ static inline JinxValue jinx_oracle_zend_parse_str_special(
     return jinx_oracle_zero_value();
 }
 
+
+static inline int jinx_oracle_zend_add_cstring(
+    JinxZendArray *array,
+    const char *key,
+    const char *value
+) {
+    if (value == 0) value = "";
+
+    JinxZendString *string = jinx_zend_string_new(value, strlen(value));
+    if (string == 0) return 0;
+
+    int ok = jinx_zend_array_add_assoc(
+        array,
+        key,
+        strlen(key),
+        jinx_zend_string_value(string)
+    );
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static inline JinxZendArray *jinx_oracle_zend_locale_grouping_array(const char *grouping) {
+    JinxZendArray *result = jinx_zend_array_new_packed(4u);
+    if (result == 0) return 0;
+    if (grouping == 0) return result;
+
+    for (size_t i = 0u; grouping[i] != '\0'; i++) {
+        unsigned char value = (unsigned char)grouping[i];
+        if (!jinx_zend_array_append(result, jinx_zend_long((int64_t)value))) {
+            jinx_zend_array_release(result);
+            return 0;
+        }
+        if (value == (unsigned char)CHAR_MAX) break;
+    }
+
+    return result;
+}
+
+static inline JinxValue jinx_oracle_zend_localeconv_special(void) {
+    struct lconv *lc = localeconv();
+    if (lc == 0) return jinx_oracle_zero_value();
+
+    JinxZendArray *result = jinx_zend_array_new_packed(18u);
+    JinxZendArray *grouping = jinx_oracle_zend_locale_grouping_array(lc->grouping);
+    JinxZendArray *mon_grouping = jinx_oracle_zend_locale_grouping_array(lc->mon_grouping);
+    if (result == 0 || grouping == 0 || mon_grouping == 0) {
+        jinx_zend_array_release(result);
+        jinx_zend_array_release(grouping);
+        jinx_zend_array_release(mon_grouping);
+        return jinx_oracle_zero_value();
+    }
+
+    int ok =
+        jinx_oracle_zend_add_cstring(result, "decimal_point", lc->decimal_point) &&
+        jinx_oracle_zend_add_cstring(result, "thousands_sep", lc->thousands_sep) &&
+        jinx_oracle_zend_add_cstring(result, "int_curr_symbol", lc->int_curr_symbol) &&
+        jinx_oracle_zend_add_cstring(result, "currency_symbol", lc->currency_symbol) &&
+        jinx_oracle_zend_add_cstring(result, "mon_decimal_point", lc->mon_decimal_point) &&
+        jinx_oracle_zend_add_cstring(result, "mon_thousands_sep", lc->mon_thousands_sep) &&
+        jinx_oracle_zend_add_cstring(result, "positive_sign", lc->positive_sign) &&
+        jinx_oracle_zend_add_cstring(result, "negative_sign", lc->negative_sign) &&
+        jinx_zend_array_add_assoc(result, "int_frac_digits", 15u, jinx_zend_long((unsigned char)lc->int_frac_digits)) &&
+        jinx_zend_array_add_assoc(result, "frac_digits", 11u, jinx_zend_long((unsigned char)lc->frac_digits)) &&
+        jinx_zend_array_add_assoc(result, "p_cs_precedes", 13u, jinx_zend_long((unsigned char)lc->p_cs_precedes)) &&
+        jinx_zend_array_add_assoc(result, "p_sep_by_space", 14u, jinx_zend_long((unsigned char)lc->p_sep_by_space)) &&
+        jinx_zend_array_add_assoc(result, "n_cs_precedes", 13u, jinx_zend_long((unsigned char)lc->n_cs_precedes)) &&
+        jinx_zend_array_add_assoc(result, "n_sep_by_space", 14u, jinx_zend_long((unsigned char)lc->n_sep_by_space)) &&
+        jinx_zend_array_add_assoc(result, "p_sign_posn", 11u, jinx_zend_long((unsigned char)lc->p_sign_posn)) &&
+        jinx_zend_array_add_assoc(result, "n_sign_posn", 11u, jinx_zend_long((unsigned char)lc->n_sign_posn)) &&
+        jinx_zend_array_add_assoc(result, "grouping", 8u, jinx_zend_array_value(grouping)) &&
+        jinx_zend_array_add_assoc(result, "mon_grouping", 12u, jinx_zend_array_value(mon_grouping));
+
+    jinx_zend_array_release(grouping);
+    jinx_zend_array_release(mon_grouping);
+
+    if (!ok) {
+        jinx_zend_array_release(result);
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
 static inline int jinx_oracle_zend_http_query_scalar(
     JinxZendValue value,
     JinxValue *out
@@ -3263,7 +3346,13 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     JinxValue *args,
     size_t argc
 ) {
-    if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
+    if (name == 0) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "localeconv") == 0) {
+        return jinx_oracle_zend_localeconv_special();
+    }
+
+    if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
     if (strcmp(name, "pathinfo") == 0) {
         return jinx_oracle_zend_pathinfo_special(args, argc);
