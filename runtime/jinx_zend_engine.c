@@ -187,6 +187,7 @@ JinxZendArray jinx_zend_array_count_view(size_t count) {
     array.count = count;
     array.capacity = count;
     array.next_index = count;
+    array.internal_pointer = 0u;
     array.buckets = 0;
     return array;
 }
@@ -214,6 +215,7 @@ JinxZendArray *jinx_zend_array_new_packed(size_t capacity) {
     array->count = 0;
     array->capacity = capacity;
     array->next_index = 0;
+    array->internal_pointer = 0u;
     return array;
 }
 
@@ -289,6 +291,7 @@ JinxZendArray *jinx_zend_array_clone(const JinxZendArray *array) {
     copy->flags = array->flags;
     copy->count = array->count;
     copy->next_index = array->next_index;
+    copy->internal_pointer = array->internal_pointer;
 
     for (size_t i = 0; i < array->count; i++) {
         copy->buckets[i].h = array->buckets[i].h;
