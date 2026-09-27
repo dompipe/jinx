@@ -344,8 +344,24 @@ json_decode('{"a":1}', true, 512, 0);
 $jsonValidCode = json_last_error();
 $jsonValidMessage = json_last_error_msg();
 
+$jsonEncoded = json_encode(['x' => 2, 'y' => 'z'], 0, 512);
+$jsonEmojiBytes = hex2bin('f09f9880');
+if ($jsonEmojiBytes === false) {
+    fail('could not construct PHP json_encode Unicode fixture');
+}
+$jsonEscapeEncoded = json_encode("x/y\n" . $jsonEmojiBytes, 0, 512);
+json_encode("\xFF", 0, 512);
+$jsonEncodeUtf8Code = json_last_error();
+$jsonEncodeUtf8Message = json_last_error_msg();
+$jsonEncodeReset = json_encode(['x' => 2, 'y' => 'z'], 0, 512);
+$jsonEncodeResetCode = json_last_error();
+$jsonEncodeResetMessage = json_last_error_msg();
+
 if (!is_array($jsonDecoded) || !is_array($jsonBigDecoded)) {
     fail('PHP json_decode parity setup did not produce arrays');
+}
+if (!is_string($jsonEncoded) || !is_string($jsonEscapeEncoded) || !is_string($jsonEncodeReset)) {
+    fail('PHP json_encode parity setup did not produce strings');
 }
 
 $expectedJsonParity = 'JSON_PARITY:'
@@ -356,7 +372,11 @@ $expectedJsonParity = 'JSON_PARITY:'
     . ';emoji=' . bin2hex($jsonDecoded['emoji'])
     . ';bigint=' . $jsonBigDecoded['n']
     . ';syntax=' . $jsonSyntaxCode . '|' . $jsonSyntaxMessage
-    . ';valid=' . $jsonValidCode . '|' . $jsonValidMessage;
+    . ';valid=' . $jsonValidCode . '|' . $jsonValidMessage
+    . ';encode=' . $jsonEncoded
+    . ';escape=' . $jsonEscapeEncoded
+    . ';encode_utf8=' . $jsonEncodeUtf8Code . '|' . $jsonEncodeUtf8Message
+    . ';encode_reset=' . $jsonEncodeResetCode . '|' . $jsonEncodeResetMessage;
 
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
