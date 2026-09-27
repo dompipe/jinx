@@ -231,12 +231,43 @@ static inline JinxZendArray *jinx_zend_array_live_keys(const JinxZendArray *arra
 
 static inline int jinx_zend_array_compact(JinxZendArray *array) {
     size_t write = 0;
+    size_t old_count;
+    size_t old_pointer;
+    size_t effective_pointer;
+    size_t new_pointer = 0u;
 
     if (array == 0 || array->buckets == 0) {
         return 0;
     }
 
-    for (size_t read = 0; read < array->count; read++) {
+    old_count = array->count;
+    old_pointer = array->internal_pointer;
+    effective_pointer = old_count;
+
+    if (old_pointer < old_count) {
+        for (size_t i = old_pointer; i < old_count; i++) {
+            if (!jinx_zend_bucket_is_tombstone(&array->buckets[i])) {
+                effective_pointer = i;
+                break;
+            }
+        }
+    }
+
+    if (effective_pointer < old_count) {
+        for (size_t i = 0u; i < effective_pointer; i++) {
+            if (!jinx_zend_bucket_is_tombstone(&array->buckets[i])) {
+                new_pointer++;
+            }
+        }
+    } else {
+        for (size_t i = 0u; i < old_count; i++) {
+            if (!jinx_zend_bucket_is_tombstone(&array->buckets[i])) {
+                new_pointer++;
+            }
+        }
+    }
+
+    for (size_t read = 0; read < old_count; read++) {
         if (jinx_zend_bucket_is_tombstone(&array->buckets[read])) {
             continue;
         }
@@ -248,6 +279,7 @@ static inline int jinx_zend_array_compact(JinxZendArray *array) {
     }
 
     array->count = write;
+    array->internal_pointer = new_pointer <= write ? new_pointer : write;
     return 1;
 }
 
