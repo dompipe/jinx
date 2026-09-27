@@ -350,6 +350,52 @@ int jinx_zend_array_append_separate(JinxZendArray **slot, JinxZendValue value) {
     return jinx_zend_array_append(array, value);
 }
 
+int jinx_zend_array_add_index(JinxZendArray *array, size_t index, JinxZendValue value) {
+    JinxZendBucket *bucket;
+
+    if (array == 0) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < array->count; i++) {
+        bucket = &array->buckets[i];
+        if (bucket->key == 0 && bucket->h == index) {
+            jinx_zend_value_release(bucket->value);
+            bucket->value = jinx_zend_value_copy(value);
+            return 1;
+        }
+    }
+
+    if (!jinx_zend_array_reserve(array, array->count + 1u)) {
+        return 0;
+    }
+
+    bucket = &array->buckets[array->count];
+    bucket->h = index;
+    bucket->key = 0;
+    bucket->value = jinx_zend_value_copy(value);
+    array->count++;
+
+    if (index >= array->next_index) {
+        array->next_index = index + 1u;
+    }
+
+    if (index != array->count - 1u) {
+        array->flags = (array->flags & ~JINX_ZEND_ARRAY_PACKED) | JINX_ZEND_ARRAY_MIXED;
+    }
+
+    return 1;
+}
+
+int jinx_zend_array_add_index_separate(JinxZendArray **slot, size_t index, JinxZendValue value) {
+    JinxZendArray *array = jinx_zend_array_separate(slot);
+    if (array == 0) {
+        return 0;
+    }
+
+    return jinx_zend_array_add_index(array, index, value);
+}
+
 int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value) {
     uint64_t hash;
     JinxZendBucket *bucket;
