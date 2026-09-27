@@ -2372,9 +2372,75 @@ int main(void) {
         return fail("json_decode valid error reset");
     }
 
+    JinxZendArray *json_encode_source = jinx_zend_array_new_packed(2u);
+    JinxZendString *json_encode_z = jinx_zend_string_new("z", 1u);
+    if (json_encode_source == 0 || json_encode_z == 0 ||
+        !jinx_zend_array_add_assoc(json_encode_source, "x", 1u, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(
+            json_encode_source,
+            "y",
+            1u,
+            jinx_zend_string_value(json_encode_z)
+        )) {
+        return fail("json_encode associative source");
+    }
+    jinx_zend_string_release(json_encode_z);
+
+    JinxValue json_encode_args[3];
+    json_encode_args[0] = jinx_oracle_zend_array_value_borrowed(json_encode_source);
+    json_encode_args[1] = jinx_oracle_int_value(0);
+    json_encode_args[2] = jinx_oracle_int_value(512);
+    JinxValue json_encoded = jinx_call_builtin_through_oracle("json_encode", json_encode_args, 3);
+    if (json_encoded.type != 3u || json_encoded.flags != 15u ||
+        memcmp(json_encoded.as.ptr, "{\"x\":2,\"y\":\"z\"}", 15u) != 0) {
+        return fail("json_encode associative object");
+    }
+
+    json_encode_args[0] = jinx_oracle_string_value_len("x/y\n\xF0\x9F\x98\x80", 8u);
+    JinxValue json_escape_encoded = jinx_call_builtin_through_oracle("json_encode", json_encode_args, 3);
+    static const char expected_json_escape[] = "\"x\\/y\\n\\ud83d\\ude00\"";
+    if (json_escape_encoded.type != 3u ||
+        json_escape_encoded.flags != sizeof(expected_json_escape) - 1u ||
+        memcmp(
+            json_escape_encoded.as.ptr,
+            expected_json_escape,
+            sizeof(expected_json_escape) - 1u
+        ) != 0) {
+        return fail("json_encode default escaping");
+    }
+
+    json_encode_args[0] = jinx_oracle_string_value_len("\xFF", 1u);
+    JinxValue json_encode_invalid = jinx_call_builtin_through_oracle("json_encode", json_encode_args, 3);
+    if (!expect_bool(json_encode_invalid, 0)) return fail("json_encode invalid UTF-8 return");
+    JinxValue json_encode_utf8_code = jinx_call_builtin_through_oracle("json_last_error", json_encode_args, 0);
+    JinxValue json_encode_utf8_msg = jinx_call_builtin_through_oracle("json_last_error_msg", json_encode_args, 0);
+    if (!expect_int(json_encode_utf8_code, 5) ||
+        json_encode_utf8_msg.type != 3u ||
+        json_encode_utf8_msg.flags != 56u ||
+        memcmp(
+            json_encode_utf8_msg.as.ptr,
+            "Malformed UTF-8 characters, possibly incorrectly encoded",
+            56u
+        ) != 0) {
+        return fail("json_encode invalid UTF-8 error state");
+    }
+
+    json_encode_args[0] = jinx_oracle_zend_array_value_borrowed(json_encode_source);
+    JinxValue json_encode_reset = jinx_call_builtin_through_oracle("json_encode", json_encode_args, 3);
+    if (json_encode_reset.type != 3u) return fail("json_encode error reset result");
+    JinxValue json_encode_reset_code = jinx_call_builtin_through_oracle("json_last_error", json_encode_args, 0);
+    JinxValue json_encode_reset_msg = jinx_call_builtin_through_oracle("json_last_error_msg", json_encode_args, 0);
+    if (!expect_int(json_encode_reset_code, 0) ||
+        json_encode_reset_msg.type != 3u ||
+        json_encode_reset_msg.flags != 8u ||
+        memcmp(json_encode_reset_msg.as.ptr, "No error", 8u) != 0) {
+        return fail("json_encode valid error reset");
+    }
+
     printf(
         "JSON_PARITY:name=%.*s;nums=%lld,%lld;ok=1;none=null;"
-        "emoji=%02x%02x%02x%02x;bigint=%.*s;syntax=%lld|%.*s;valid=%lld|%.*s\\n",
+        "emoji=%02x%02x%02x%02x;bigint=%.*s;syntax=%lld|%.*s;valid=%lld|%.*s;"
+        "encode=%.*s;escape=%.*s;encode_utf8=%lld|%.*s;encode_reset=%lld|%.*s\\n",
         (int)json_name->value.str->len,
         json_name->value.str->bytes,
         (long long)jinx_zend_array_index(json_nums->value.array, 0u)->value.lval,
@@ -2390,11 +2456,22 @@ int main(void) {
         (const char *)json_syntax_msg.as.ptr,
         (long long)json_valid_code.as.i64,
         (int)json_valid_msg.flags,
-        (const char *)json_valid_msg.as.ptr
+        (const char *)json_valid_msg.as.ptr,
+        (int)json_encoded.flags,
+        (const char *)json_encoded.as.ptr,
+        (int)json_escape_encoded.flags,
+        (const char *)json_escape_encoded.as.ptr,
+        (long long)json_encode_utf8_code.as.i64,
+        (int)json_encode_utf8_msg.flags,
+        (const char *)json_encode_utf8_msg.as.ptr,
+        (long long)json_encode_reset_code.as.i64,
+        (int)json_encode_reset_msg.flags,
+        (const char *)json_encode_reset_msg.as.ptr
     );
 
     jinx_oracle_zend_array_value_release(json_result);
     jinx_oracle_zend_array_value_release(json_big_result);
+    jinx_zend_array_release(json_encode_source);
 
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
