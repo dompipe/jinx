@@ -139,7 +139,7 @@ $expectedParity = 'PARITY:'
     . ';csvq=' . implode('|', $csvQuoted)
     . ';csvesc=' . implode('|', $csvEscaped)
     . ';csvtrail=' . implode('|', $csvTrailing)
-    . ';csvempty=' . (($csvEmpty[0] ?? 'not-null') === null ? 'null' : 'not-null');
+    . ';csvempty=' . (array_key_exists(0, $csvEmpty) && $csvEmpty[0] === null ? 'null' : 'not-null');
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
