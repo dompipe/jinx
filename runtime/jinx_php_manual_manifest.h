@@ -224,11 +224,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "calendar-core",
         "https://www.php.net/manual/en/ref.calendar.php",
-        "gregoriantojd/juliantojd/jdtogregorian/jdtojulian/frenchtojd/jdtofrench/jewishtojd/jdtojewish(numeric form)/jddayofweek/jdmonthname/cal_to_jd/cal_from_jd/cal_info/cal_days_in_month",
+        "gregoriantojd/juliantojd/jdtogregorian/jdtojulian/frenchtojd/jdtofrench/jewishtojd/jdtojewish(numeric form)/jddayofweek/jdmonthname/cal_to_jd/cal_from_jd/cal_info/cal_days_in_month/easter_days/easter_date",
         "int|string|array",
         "jinx_oracle_asm_call_builtin + jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native PHP-calendar arithmetic for Gregorian, Julian, French Republican, and Jewish conversions, weekday/month display helpers, and carried-array cal_from_jd/cal_info results. PHP-derived parity covers representative boundary/leap cases, all four calendar IDs for cal_to_jd/cal_days_in_month, every jdmonthname mode, jddayofweek number/long/short modes, four-calendar cal_from_jd field sets, and cal_info single/all-calendar metadata. Hebrew-form jdtojewish(..., true), including ISO-8859-8 Hebrew-number formatting flags, remains outside this native subset; invalid-ID exception transport remains outside the scalar carrier."
+        "Native PHP-calendar arithmetic for Gregorian, Julian, French Republican, and Jewish conversions, weekday/month display helpers, and carried-array cal_from_jd/cal_info results. PHP-derived parity covers representative boundary/leap cases, all four calendar IDs for cal_to_jd/cal_days_in_month, every jdmonthname mode, jddayofweek number/long/short modes, four-calendar cal_from_jd field sets, and cal_info single/all-calendar metadata. Easter calculations use PHP 8.4's Julian/Gregorian cutoff methods; easter_date mirrors PHP's process-local mktime/DST behavior and explicit-year range rules. Hebrew-form jdtojewish(..., true), including ISO-8859-8 Hebrew-number formatting flags, remains outside this native subset; invalid-ID exception transport remains outside the scalar carrier."
     }
 };
 
@@ -378,7 +378,8 @@ static inline int jinx_php_manual_name_is_calendar_core(const char *name) {
         strcmp(name, "jewishtojd") == 0 || strcmp(name, "jdtojewish") == 0 ||
         strcmp(name, "jddayofweek") == 0 || strcmp(name, "jdmonthname") == 0 ||
         strcmp(name, "cal_to_jd") == 0 || strcmp(name, "cal_from_jd") == 0 ||
-        strcmp(name, "cal_info") == 0 || strcmp(name, "cal_days_in_month") == 0;
+        strcmp(name, "cal_info") == 0 || strcmp(name, "cal_days_in_month") == 0 ||
+        strcmp(name, "easter_days") == 0 || strcmp(name, "easter_date") == 0;
 }
 
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
