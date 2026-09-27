@@ -5,6 +5,8 @@
 #include "jinx_zend_array_delete.h"
 #include "jinx_builtin_dispatch.h"
 
+#include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -5996,6 +5998,385 @@ static inline JinxValue jinx_oracle_zend_json_decode_special(
     return result;
 }
 
+
+typedef struct JinxOracleJsonEncodeBuffer {
+    char *data;
+    size_t len;
+    size_t cap;
+    int error;
+    int max_depth;
+} JinxOracleJsonEncodeBuffer;
+
+typedef struct JinxOracleJsonEncodeFrame {
+    const JinxZendArray *array;
+    const struct JinxOracleJsonEncodeFrame *parent;
+} JinxOracleJsonEncodeFrame;
+
+static inline int jinx_oracle_json_encode_reserve(
+    JinxOracleJsonEncodeBuffer *buffer,
+    size_t extra
+) {
+    if (buffer == 0 || extra > SIZE_MAX - buffer->len - 1u) return 0;
+    size_t needed = buffer->len + extra + 1u;
+    if (needed <= buffer->cap) return 1;
+
+    size_t cap = buffer->cap == 0u ? 64u : buffer->cap;
+    while (cap < needed) {
+        size_t next = cap <= SIZE_MAX / 2u ? cap * 2u : needed;
+        if (next < cap || next < needed) {
+            cap = needed;
+            break;
+        }
+        cap = next;
+    }
+
+    char *grown = (char *)realloc(buffer->data, cap);
+    if (grown == 0) return 0;
+    buffer->data = grown;
+    buffer->cap = cap;
+    return 1;
+}
+
+static inline int jinx_oracle_json_encode_append(
+    JinxOracleJsonEncodeBuffer *buffer,
+    const char *text,
+    size_t len
+) {
+    if (!jinx_oracle_json_encode_reserve(buffer, len)) return 0;
+    if (len != 0u) memcpy(buffer->data + buffer->len, text, len);
+    buffer->len += len;
+    buffer->data[buffer->len] = '\0';
+    return 1;
+}
+
+static inline int jinx_oracle_json_encode_char(
+    JinxOracleJsonEncodeBuffer *buffer,
+    char ch
+) {
+    return jinx_oracle_json_encode_append(buffer, &ch, 1u);
+}
+
+static inline int jinx_oracle_json_encode_hex4(
+    JinxOracleJsonEncodeBuffer *buffer,
+    uint32_t code
+) {
+    static const char hex[] = "0123456789abcdef";
+    char out[6] = {
+        '\\', 'u',
+        hex[(code >> 12u) & 0x0fu],
+        hex[(code >> 8u) & 0x0fu],
+        hex[(code >> 4u) & 0x0fu],
+        hex[code & 0x0fu]
+    };
+    return jinx_oracle_json_encode_append(buffer, out, sizeof(out));
+}
+
+static inline uint32_t jinx_oracle_json_decode_utf8_codepoint(
+    const unsigned char *bytes,
+    uint32_t seq
+) {
+    if (seq == 1u) return bytes[0];
+    if (seq == 2u) {
+        return ((uint32_t)(bytes[0] & 0x1fu) << 6u) |
+            (uint32_t)(bytes[1] & 0x3fu);
+    }
+    if (seq == 3u) {
+        return ((uint32_t)(bytes[0] & 0x0fu) << 12u) |
+            ((uint32_t)(bytes[1] & 0x3fu) << 6u) |
+            (uint32_t)(bytes[2] & 0x3fu);
+    }
+    return ((uint32_t)(bytes[0] & 0x07u) << 18u) |
+        ((uint32_t)(bytes[1] & 0x3fu) << 12u) |
+        ((uint32_t)(bytes[2] & 0x3fu) << 6u) |
+        (uint32_t)(bytes[3] & 0x3fu);
+}
+
+static inline int jinx_oracle_json_encode_string_bytes(
+    JinxOracleJsonEncodeBuffer *buffer,
+    const unsigned char *bytes,
+    uint32_t len
+) {
+    if (!jinx_oracle_json_encode_char(buffer, '"')) return 0;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char ch = bytes[i];
+        switch (ch) {
+            case '"':
+                if (!jinx_oracle_json_encode_append(buffer, "\\\"", 2u)) return 0;
+                continue;
+            case '\\':
+                if (!jinx_oracle_json_encode_append(buffer, "\\\\", 2u)) return 0;
+                continue;
+            case '/':
+                if (!jinx_oracle_json_encode_append(buffer, "\\/", 2u)) return 0;
+                continue;
+            case '\b':
+                if (!jinx_oracle_json_encode_append(buffer, "\\b", 2u)) return 0;
+                continue;
+            case '\f':
+                if (!jinx_oracle_json_encode_append(buffer, "\\f", 2u)) return 0;
+                continue;
+            case '\n':
+                if (!jinx_oracle_json_encode_append(buffer, "\\n", 2u)) return 0;
+                continue;
+            case '\r':
+                if (!jinx_oracle_json_encode_append(buffer, "\\r", 2u)) return 0;
+                continue;
+            case '\t':
+                if (!jinx_oracle_json_encode_append(buffer, "\\t", 2u)) return 0;
+                continue;
+            default:
+                break;
+        }
+
+        if (ch < 0x20u) {
+            if (!jinx_oracle_json_encode_hex4(buffer, ch)) return 0;
+            continue;
+        }
+
+        if (ch < 0x80u) {
+            if (!jinx_oracle_json_encode_char(buffer, (char)ch)) return 0;
+            continue;
+        }
+
+        uint32_t seq = jinx_oracle_json_utf8_sequence_len(bytes, len, i);
+        if (seq == 0u) {
+            buffer->error = JINX_JSON_ERROR_UTF8;
+            return 0;
+        }
+
+        uint32_t code = jinx_oracle_json_decode_utf8_codepoint(bytes + i, seq);
+        i += seq - 1u;
+        if (code <= 0xffffu) {
+            if (!jinx_oracle_json_encode_hex4(buffer, code)) return 0;
+        } else {
+            code -= 0x10000u;
+            uint32_t high = 0xd800u | (code >> 10u);
+            uint32_t low = 0xdc00u | (code & 0x3ffu);
+            if (!jinx_oracle_json_encode_hex4(buffer, high) ||
+                !jinx_oracle_json_encode_hex4(buffer, low)) {
+                return 0;
+            }
+        }
+    }
+
+    return jinx_oracle_json_encode_char(buffer, '"');
+}
+
+static inline int jinx_oracle_json_encode_zend_value(
+    JinxOracleJsonEncodeBuffer *buffer,
+    JinxZendValue value,
+    int depth,
+    const JinxOracleJsonEncodeFrame *parent
+);
+
+static inline int jinx_oracle_json_encode_array(
+    JinxOracleJsonEncodeBuffer *buffer,
+    JinxZendArray *array,
+    int depth,
+    const JinxOracleJsonEncodeFrame *parent
+) {
+    if (array == 0) {
+        buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+        return 0;
+    }
+    if (depth >= buffer->max_depth) {
+        buffer->error = JINX_JSON_ERROR_DEPTH;
+        return 0;
+    }
+
+    for (const JinxOracleJsonEncodeFrame *frame = parent; frame != 0; frame = frame->parent) {
+        if (frame->array == array) {
+            buffer->error = JINX_JSON_ERROR_RECURSION;
+            return 0;
+        }
+    }
+
+    JinxOracleJsonEncodeFrame frame = { array, parent };
+    int list = jinx_zend_array_live_is_list(array);
+    if (!jinx_oracle_json_encode_char(buffer, list ? '[' : '{')) return 0;
+
+    size_t live = jinx_zend_array_live_count(array);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0) continue;
+        if (i != 0u && !jinx_oracle_json_encode_char(buffer, ',')) return 0;
+
+        if (!list) {
+            if (bucket->key != 0) {
+                uint32_t key_len = bucket->key->len > UINT32_MAX
+                    ? UINT32_MAX
+                    : (uint32_t)bucket->key->len;
+                if (!jinx_oracle_json_encode_string_bytes(
+                    buffer,
+                    (const unsigned char *)bucket->key->bytes,
+                    key_len
+                )) return 0;
+            } else {
+                char key[32];
+                int n = snprintf(key, sizeof(key), "%lld", (long long)(int64_t)bucket->h);
+                if (n < 0 || (size_t)n >= sizeof(key) ||
+                    !jinx_oracle_json_encode_string_bytes(
+                        buffer,
+                        (const unsigned char *)key,
+                        (uint32_t)n
+                    )) return 0;
+            }
+            if (!jinx_oracle_json_encode_char(buffer, ':')) return 0;
+        }
+
+        if (!jinx_oracle_json_encode_zend_value(
+            buffer,
+            bucket->value,
+            depth + 1,
+            &frame
+        )) return 0;
+    }
+
+    return jinx_oracle_json_encode_char(buffer, list ? ']' : '}');
+}
+
+static inline int jinx_oracle_json_encode_zend_value(
+    JinxOracleJsonEncodeBuffer *buffer,
+    JinxZendValue value,
+    int depth,
+    const JinxOracleJsonEncodeFrame *parent
+) {
+    char number[64];
+    int n;
+
+    switch (value.type) {
+        case JINX_ZEND_NULL:
+            return jinx_oracle_json_encode_append(buffer, "null", 4u);
+        case JINX_ZEND_FALSE:
+            return jinx_oracle_json_encode_append(buffer, "false", 5u);
+        case JINX_ZEND_TRUE:
+            return jinx_oracle_json_encode_append(buffer, "true", 4u);
+        case JINX_ZEND_LONG:
+            n = snprintf(number, sizeof(number), "%lld", (long long)value.value.lval);
+            return n >= 0 && (size_t)n < sizeof(number) &&
+                jinx_oracle_json_encode_append(buffer, number, (size_t)n);
+        case JINX_ZEND_DOUBLE:
+            if (!isfinite(value.value.dval)) {
+                buffer->error = JINX_JSON_ERROR_INF_OR_NAN;
+                return 0;
+            }
+            n = snprintf(number, sizeof(number), "%.17g", value.value.dval);
+            return n >= 0 && (size_t)n < sizeof(number) &&
+                jinx_oracle_json_encode_append(buffer, number, (size_t)n);
+        case JINX_ZEND_STRING:
+            if (value.value.str == 0 || value.value.str->len > UINT32_MAX) {
+                buffer->error = JINX_JSON_ERROR_UTF8;
+                return 0;
+            }
+            return jinx_oracle_json_encode_string_bytes(
+                buffer,
+                (const unsigned char *)value.value.str->bytes,
+                (uint32_t)value.value.str->len
+            );
+        case JINX_ZEND_ARRAY:
+            return jinx_oracle_json_encode_array(
+                buffer,
+                value.value.array,
+                depth,
+                parent
+            );
+        default:
+            buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+            return 0;
+    }
+}
+
+static inline int jinx_oracle_json_encode_jinx_value(
+    JinxOracleJsonEncodeBuffer *buffer,
+    JinxValue value,
+    int depth
+) {
+    char number[64];
+    int n;
+
+    if (jinx_oracle_value_is_zend_array(value)) {
+        return jinx_oracle_json_encode_array(
+            buffer,
+            jinx_oracle_zend_array_ptr(value),
+            depth,
+            0
+        );
+    }
+
+    if (value.type == 0u) return jinx_oracle_json_encode_append(buffer, "null", 4u);
+    if (value.type == 2u) {
+        return jinx_oracle_json_encode_append(
+            buffer,
+            value.as.i64 != 0 ? "true" : "false",
+            value.as.i64 != 0 ? 4u : 5u
+        );
+    }
+    if (value.type == 1u) {
+        n = snprintf(number, sizeof(number), "%lld", (long long)value.as.i64);
+        return n >= 0 && (size_t)n < sizeof(number) &&
+            jinx_oracle_json_encode_append(buffer, number, (size_t)n);
+    }
+    if (value.type == 5u) {
+        if (!isfinite(value.as.f64)) {
+            buffer->error = JINX_JSON_ERROR_INF_OR_NAN;
+            return 0;
+        }
+        n = snprintf(number, sizeof(number), "%.17g", value.as.f64);
+        return n >= 0 && (size_t)n < sizeof(number) &&
+            jinx_oracle_json_encode_append(buffer, number, (size_t)n);
+    }
+    if (value.type == 3u) {
+        return jinx_oracle_json_encode_string_bytes(
+            buffer,
+            jinx_oracle_string_bytes(value),
+            jinx_oracle_string_len(value)
+        );
+    }
+
+    buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+    return 0;
+}
+
+static inline JinxValue jinx_oracle_zend_json_encode_special(
+    const JinxValue *args,
+    size_t argc
+) {
+    if (args == 0 || argc < 1u) return jinx_oracle_zero_value();
+
+    int64_t options = argc >= 2u ? jinx_oracle_intish(args[1]) : 0;
+    int64_t depth = argc >= 3u ? jinx_oracle_intish(args[2]) : 512;
+    if (options != 0 || depth <= 0 || depth > INT_MAX) {
+        return jinx_oracle_zero_value();
+    }
+
+    JinxOracleJsonEncodeBuffer buffer = {0};
+    buffer.max_depth = (int)depth;
+    buffer.error = JINX_JSON_ERROR_NONE;
+    jinx_oracle_json_error_code = JINX_JSON_ERROR_NONE;
+
+    if (!jinx_oracle_json_encode_jinx_value(&buffer, args[0], 0)) {
+        if (buffer.error == JINX_JSON_ERROR_NONE) {
+            buffer.error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+        }
+        jinx_oracle_json_error_code = buffer.error;
+        free(buffer.data);
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (buffer.len > UINT32_MAX) {
+        jinx_oracle_json_error_code = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+        free(buffer.data);
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)buffer.len);
+    if (buffer.len != 0u) memcpy(out, buffer.data, buffer.len);
+    free(buffer.data);
+    jinx_oracle_json_error_code = JINX_JSON_ERROR_NONE;
+    return jinx_oracle_string_value_len(out, (uint32_t)buffer.len);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     JinxValue *args,
@@ -6015,6 +6396,10 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     if (strcmp(name, "json_decode") == 0) {
         return jinx_oracle_zend_json_decode_special(args, argc);
+    }
+
+    if (strcmp(name, "json_encode") == 0) {
+        return jinx_oracle_zend_json_encode_special(args, argc);
     }
 
     if (strcmp(name, "array_key_exists") == 0 || strcmp(name, "key_exists") == 0) {
