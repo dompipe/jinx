@@ -5033,6 +5033,190 @@ static inline JinxValue jinx_oracle_inet_ntop_value(JinxValue value) {
     return jinx_oracle_bool_value(0);
 }
 
+
+#define JINX_GREGOR_SDN_OFFSET 32045
+#define JINX_JULIAN_SDN_OFFSET 32083
+#define JINX_CAL_DAYS_PER_5_MONTHS 153
+#define JINX_CAL_DAYS_PER_4_YEARS 1461
+#define JINX_CAL_DAYS_PER_400_YEARS 146097
+
+static inline int64_t jinx_oracle_gregorian_to_sdn(int input_year, int input_month, int input_day) {
+    int64_t year;
+    int month;
+
+    if (input_year == 0 || input_year < -4714 ||
+        input_month <= 0 || input_month > 12 ||
+        input_day <= 0 || input_day > 31) {
+        return 0;
+    }
+
+    if (input_year == -4714) {
+        if (input_month < 11 || (input_month == 11 && input_day < 25)) return 0;
+    }
+
+    year = input_year < 0 ? (int64_t)input_year + 4801 : (int64_t)input_year + 4800;
+
+    if (input_month > 2) {
+        month = input_month - 3;
+    } else {
+        month = input_month + 9;
+        year--;
+    }
+
+    return (((year / 100) * JINX_CAL_DAYS_PER_400_YEARS) / 4
+        + ((year % 100) * JINX_CAL_DAYS_PER_4_YEARS) / 4
+        + (month * JINX_CAL_DAYS_PER_5_MONTHS + 2) / 5
+        + input_day
+        - JINX_GREGOR_SDN_OFFSET);
+}
+
+static inline void jinx_oracle_sdn_to_gregorian(
+    int64_t sdn,
+    int *year_out,
+    int *month_out,
+    int *day_out
+) {
+    int century;
+    int year;
+    int month;
+    int day;
+    int64_t temp;
+    int day_of_year;
+
+    if (sdn <= 0 || sdn > (INT64_MAX - 4LL * JINX_GREGOR_SDN_OFFSET) / 4LL) goto fail;
+
+    temp = (sdn + JINX_GREGOR_SDN_OFFSET) * 4 - 1;
+    if (temp < 0 || (temp / JINX_CAL_DAYS_PER_400_YEARS) > INT_MAX) goto fail;
+
+    century = (int)(temp / JINX_CAL_DAYS_PER_400_YEARS);
+    temp = ((temp % JINX_CAL_DAYS_PER_400_YEARS) / 4) * 4 + 3;
+
+    if (century > ((INT_MAX / 100) - (temp / JINX_CAL_DAYS_PER_4_YEARS))) goto fail;
+
+    year = century * 100 + (int)(temp / JINX_CAL_DAYS_PER_4_YEARS);
+    day_of_year = (int)((temp % JINX_CAL_DAYS_PER_4_YEARS) / 4 + 1);
+
+    temp = (int64_t)day_of_year * 5 - 3;
+    month = (int)(temp / JINX_CAL_DAYS_PER_5_MONTHS);
+    day = (int)((temp % JINX_CAL_DAYS_PER_5_MONTHS) / 5 + 1);
+
+    if (month < 10) {
+        month += 3;
+    } else {
+        year += 1;
+        month -= 9;
+    }
+
+    year -= 4800;
+    if (year <= 0) year--;
+
+    *year_out = year;
+    *month_out = month;
+    *day_out = day;
+    return;
+
+fail:
+    *year_out = 0;
+    *month_out = 0;
+    *day_out = 0;
+}
+
+static inline int64_t jinx_oracle_julian_to_sdn(int input_year, int input_month, int input_day) {
+    int64_t year;
+    int month;
+
+    if (input_year == 0 || input_year < -4713 ||
+        input_month <= 0 || input_month > 12 ||
+        input_day <= 0 || input_day > 31) {
+        return 0;
+    }
+
+    if (input_year == -4713 && input_month == 1 && input_day == 1) return 0;
+
+    year = input_year < 0 ? (int64_t)input_year + 4801 : (int64_t)input_year + 4800;
+
+    if (input_month > 2) {
+        month = input_month - 3;
+    } else {
+        month = input_month + 9;
+        year--;
+    }
+
+    return ((year * JINX_CAL_DAYS_PER_4_YEARS) / 4
+        + (month * JINX_CAL_DAYS_PER_5_MONTHS + 2) / 5
+        + input_day
+        - JINX_JULIAN_SDN_OFFSET);
+}
+
+static inline void jinx_oracle_sdn_to_julian(
+    int64_t sdn,
+    int *year_out,
+    int *month_out,
+    int *day_out
+) {
+    int year;
+    int month;
+    int day;
+    int64_t temp;
+    int day_of_year;
+
+    if (sdn <= 0) goto fail;
+    if (sdn > (INT64_MAX - (int64_t)JINX_JULIAN_SDN_OFFSET * 4 + 1) / 4 ||
+        sdn < INT64_MIN / 4) {
+        goto fail;
+    }
+
+    temp = sdn * 4 + (JINX_JULIAN_SDN_OFFSET * 4 - 1);
+
+    int64_t year64 = temp / JINX_CAL_DAYS_PER_4_YEARS;
+    if (year64 > INT_MAX || year64 < INT_MIN) goto fail;
+    year = (int)year64;
+    day_of_year = (int)((temp % JINX_CAL_DAYS_PER_4_YEARS) / 4 + 1);
+
+    temp = (int64_t)day_of_year * 5 - 3;
+    month = (int)(temp / JINX_CAL_DAYS_PER_5_MONTHS);
+    day = (int)((temp % JINX_CAL_DAYS_PER_5_MONTHS) / 5 + 1);
+
+    if (month < 10) {
+        month += 3;
+    } else {
+        year += 1;
+        month -= 9;
+    }
+
+    year -= 4800;
+    if (year <= 0) year--;
+
+    *year_out = year;
+    *month_out = month;
+    *day_out = day;
+    return;
+
+fail:
+    *year_out = 0;
+    *month_out = 0;
+    *day_out = 0;
+}
+
+static inline JinxValue jinx_oracle_calendar_date_string(
+    int64_t sdn,
+    int gregorian
+) {
+    int year = 0;
+    int month = 0;
+    int day = 0;
+
+    if (gregorian) {
+        jinx_oracle_sdn_to_gregorian(sdn, &year, &month, &day);
+    } else {
+        jinx_oracle_sdn_to_julian(sdn, &year, &month, &day);
+    }
+
+    char *out = jinx_oracle_scratch_string(48u);
+    int len = snprintf(out, 49u, "%d/%d/%d", month, day, year);
+    return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -5725,6 +5909,38 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         }
 
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "gregoriantojd")) {
+        ret = jinx_oracle_int_value(jinx_oracle_gregorian_to_sdn(
+            (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)),
+            (int)jinx_oracle_intish(arg0),
+            (int)jinx_oracle_intish(arg1)
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jdtogregorian")) {
+        ret = jinx_oracle_calendar_date_string(jinx_oracle_intish(arg0), 1);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "juliantojd")) {
+        ret = jinx_oracle_int_value(jinx_oracle_julian_to_sdn(
+            (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)),
+            (int)jinx_oracle_intish(arg0),
+            (int)jinx_oracle_intish(arg1)
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jdtojulian")) {
+        ret = jinx_oracle_calendar_date_string(jinx_oracle_intish(arg0), 0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
