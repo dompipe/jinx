@@ -3638,12 +3638,12 @@ static inline JinxValue jinx_oracle_parse_str_special(JinxValue *args, size_t ar
 
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
-    const JinxValue *args,
+    JinxValue *args,
     size_t argc
 ) {
     if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
-    if (strcmp(name, "parse_str") == 0) return jinx_oracle_parse_str_special((JinxValue *)args, argc);
+    if (strcmp(name, "parse_str") == 0) return jinx_oracle_parse_str_special(args, argc);
     if (strcmp(name, "http_build_query") == 0) return jinx_oracle_http_build_query_special(args, argc);
 
     if (strcmp(name, "parse_str") == 0) {
