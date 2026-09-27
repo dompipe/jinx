@@ -1895,6 +1895,93 @@ int main(void) {
     jinx_zend_array_release(natural_values);
     jinx_zend_array_release(natcase_values);
 
+    JinxZendArray *rand_source = jinx_zend_array_new_packed(5);
+    if (rand_source == 0 ||
+        !jinx_zend_array_add_assoc(rand_source, "a", 1, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(rand_source, "b", 1, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(rand_source, "c", 1, jinx_zend_long(3)) ||
+        !jinx_zend_array_add_assoc(rand_source, "d", 1, jinx_zend_long(4)) ||
+        !jinx_zend_array_add_assoc(rand_source, "e", 1, jinx_zend_long(5))) {
+        return fail("array_rand source");
+    }
+
+    int rng_ok = 0;
+    args[0] = jinx_oracle_int_value(1234);
+    result = jinx_call_builtin_through_oracle_checked("mt_srand", args, 1, &rng_ok);
+    if (!rng_ok || result.type != 0u) return fail("mt_srand seeded");
+
+    result = jinx_call_builtin_through_oracle("mt_rand", args, 0);
+    if (result.type != 1u) return fail("mt_rand no-arg");
+    long long rng_mt = (long long)result.as.i64;
+
+    args[0] = jinx_oracle_int_value(1234);
+    result = jinx_call_builtin_through_oracle_checked("mt_srand", args, 1, &rng_ok);
+    if (!rng_ok) return fail("mt_srand range seed");
+    args[0] = jinx_oracle_int_value(10);
+    args[1] = jinx_oracle_int_value(99);
+    result = jinx_call_builtin_through_oracle("mt_rand", args, 2);
+    if (result.type != 1u) return fail("mt_rand range");
+    long long rng_range = (long long)result.as.i64;
+
+    args[0] = jinx_oracle_int_value(1234);
+    result = jinx_call_builtin_through_oracle_checked("srand", args, 1, &rng_ok);
+    if (!rng_ok) return fail("srand alias seed");
+    args[0] = jinx_oracle_int_value(99);
+    args[1] = jinx_oracle_int_value(10);
+    result = jinx_call_builtin_through_oracle("rand", args, 2);
+    if (result.type != 1u) return fail("rand reversed range");
+    long long rng_reverse = (long long)result.as.i64;
+
+    result = jinx_call_builtin_through_oracle("mt_getrandmax", args, 0);
+    if (!expect_int(result, 2147483647LL)) return fail("mt_getrandmax");
+    long long rng_max = (long long)result.as.i64;
+    result = jinx_call_builtin_through_oracle("getrandmax", args, 0);
+    if (!expect_int(result, 2147483647LL)) return fail("getrandmax alias");
+
+    args[0] = jinx_oracle_int_value(1234);
+    result = jinx_call_builtin_through_oracle_checked("mt_srand", args, 1, &rng_ok);
+    if (!rng_ok) return fail("array_rand one seed");
+    args[0] = jinx_oracle_zend_array_value_borrowed(rand_source);
+    result = jinx_call_builtin_through_oracle("array_rand", args, 1);
+    if (result.type != 3u) return fail("array_rand one key");
+    JinxValue rand_one = result;
+
+    args[0] = jinx_oracle_int_value(1234);
+    result = jinx_call_builtin_through_oracle_checked("mt_srand", args, 1, &rng_ok);
+    if (!rng_ok) return fail("array_rand many seed");
+    args[0] = jinx_oracle_zend_array_value_borrowed(rand_source);
+    args[1] = jinx_oracle_int_value(3);
+    result = jinx_call_builtin_through_oracle("array_rand", args, 2);
+    if (!expect_array_count(result, 3)) return fail("array_rand many count");
+    JinxZendArray *rand_many = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *rand_many_0 = jinx_zend_array_index(rand_many, 0);
+    JinxZendValue *rand_many_1 = jinx_zend_array_index(rand_many, 1);
+    JinxZendValue *rand_many_2 = jinx_zend_array_index(rand_many, 2);
+    if (rand_many_0 == 0 || rand_many_0->type != JINX_ZEND_STRING ||
+        rand_many_1 == 0 || rand_many_1->type != JINX_ZEND_STRING ||
+        rand_many_2 == 0 || rand_many_2->type != JINX_ZEND_STRING) {
+        return fail("array_rand many keys");
+    }
+
+    printf(
+        "RNG_PARITY:mt=%lld;range=%lld;reverse=%lld;max=%lld;one=%.*s;many=%.*s,%.*s,%.*s\n",
+        rng_mt,
+        rng_range,
+        rng_reverse,
+        rng_max,
+        (int)rand_one.flags,
+        (const char *)rand_one.as.ptr,
+        (int)rand_many_0->value.str->len,
+        rand_many_0->value.str->bytes,
+        (int)rand_many_1->value.str->len,
+        rand_many_1->value.str->bytes,
+        (int)rand_many_2->value.str->len,
+        rand_many_2->value.str->bytes
+    );
+
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(rand_source);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
