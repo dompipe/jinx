@@ -77,6 +77,7 @@ $csvQuoted = str_getcsv(' "a,b",c', ',', '"', '\\');
 $csvEscaped = str_getcsv('"a""b","c\\"d"', ',', '"', '\\');
 $csvTrailing = str_getcsv("a,\r\n", ',', '"', '\\');
 $csvEmpty = str_getcsv('', ',', '"', '\\');
+$csvUnterminated = str_getcsv("\"unterminated\n", ',', '"', '\\');
 
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
@@ -139,7 +140,8 @@ $expectedParity = 'PARITY:'
     . ';csvq=' . implode('|', $csvQuoted)
     . ';csvesc=' . implode('|', $csvEscaped)
     . ';csvtrail=' . implode('|', $csvTrailing)
-    . ';csvempty=' . (array_key_exists(0, $csvEmpty) && $csvEmpty[0] === null ? 'null' : 'not-null');
+    . ';csvempty=' . (array_key_exists(0, $csvEmpty) && $csvEmpty[0] === null ? 'null' : 'not-null')
+    . ';csvunterminated=' . str_replace("\n", '\\n', $csvUnterminated[0]);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
