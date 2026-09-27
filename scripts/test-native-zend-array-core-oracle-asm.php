@@ -24,4 +24,27 @@ if ($code !== 0 || !str_contains($text, 'PASS: Oracle generated dispatch Zend-ar
     exit(1);
 }
 
-echo 'PASS: native Oracle ASM Zend-array core executes carried PHP-array semantics' . PHP_EOL;
+$pairs = static function (array $value): string {
+    $out = [];
+    foreach ($value as $key => $item) {
+        $out[] = $key . ':' . $item;
+    }
+    return implode(',', $out);
+};
+
+$base = [10, 20, 'name' => 30, 'keep' => 40];
+$expectedParity = 'PARITY:'
+    . 'sum=' . array_sum($base)
+    . ';product=' . array_product($base)
+    . ';implode=' . implode(',', $base)
+    . ';range=' . implode(',', range(1, 5))
+    . ';fill=' . $pairs(array_fill(2, 3, 9))
+    . ';combine=' . $pairs(array_combine([2, 'x'], [70, 80]))
+    . ';count_values=' . $pairs(array_count_values([2, 2, 'x', 'x', 'x']));
+
+if (!str_contains($text, $expectedParity)) {
+    fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
+    exit(1);
+}
+
+echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics' . PHP_EOL;
