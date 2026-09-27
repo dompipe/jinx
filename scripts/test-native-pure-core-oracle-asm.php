@@ -128,6 +128,21 @@ $cases = [
     ['image_type_to_extension', ['i:15']],
     ['image_type_to_extension', ['i:19']],
     ['image_type_to_extension', ['i:20']],
+    ['version_compare', ['s:1.0.0', 's:1.0.1']],
+    ['version_compare', ['s:1.0RC1', 's:1.0']],
+    ['version_compare', ['s:1.0pl1', 's:1.0']],
+    ['version_compare', ['s:1.0-dev', 's:1.0-alpha']],
+    ['version_compare', ['s:1.0-beta', 's:1.0RC1']],
+    ['version_compare', ['s:1.0+meta', 's:1.0.meta']],
+    ['version_compare', ['s:', 's:']],
+    ['version_compare', ['s:', 's:1']],
+    ['version_compare', ['s:2.0', 's:1.9', 's:>=']],
+    ['version_compare', ['s:1.0-dev', 's:1.0-alpha', 's:lt']],
+    ['version_compare', ['s:1.0', 's:1.0.0', 's:eq']],
+    ['version_compare', ['s:1.0pl1', 's:1.0', 's:>']],
+    ['version_compare', ['s:1.0', 's:1.0RC1', 's:ne']],
+    ['version_compare', ['s:1.0RC1', 's:1.0', 's:<=']],
+    ['version_compare', ['s:1.0', 's:1.0', 's:<>']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
