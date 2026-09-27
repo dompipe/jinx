@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <ctype.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -134,6 +136,7 @@ static inline uint32_t jinx_oracle_string_len(JinxValue value) {
 }
 
 static inline int64_t jinx_oracle_intish(JinxValue value);
+static inline double jinx_oracle_floatish(JinxValue value);
 
 static inline char *jinx_oracle_scratch_string(uint32_t len) {
     enum { JINX_ORACLE_SCRATCH_SLOTS = 8, JINX_ORACLE_SCRATCH_BYTES = 4096 };
@@ -327,6 +330,99 @@ static inline JinxValue jinx_oracle_str_repeat_value(JinxValue value, JinxValue 
     return jinx_oracle_string_value_len(out, out_len);
 }
 
+static inline int jinx_oracle_boolish(JinxValue value) {
+    if (value.type == 0u) {
+        return 0;
+    }
+
+    if (value.type == 1u || value.type == 2u || value.type == 4u) {
+        return value.as.i64 != 0 || value.flags != 0u;
+    }
+
+    if (value.type == 5u) {
+        return value.as.f64 != 0.0;
+    }
+
+    if (value.type == 3u) {
+        return value.flags != 0u;
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_strval_value(JinxValue value) {
+    char *out;
+
+    if (value.type == 3u) {
+        return value;
+    }
+
+    out = jinx_oracle_scratch_string(64u);
+
+    if (value.type == 0u) {
+        out[0] = '\0';
+        return jinx_oracle_string_value_len(out, 0u);
+    }
+
+    if (value.type == 2u) {
+        if (value.as.i64 != 0) {
+            memcpy(out, "1", 1u);
+            return jinx_oracle_string_value_len(out, 1u);
+        }
+
+        out[0] = '\0';
+        return jinx_oracle_string_value_len(out, 0u);
+    }
+
+    if (value.type == 5u) {
+        int len = snprintf(out, 64u, "%g", value.as.f64);
+        return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+    }
+
+    {
+        int len = snprintf(out, 64u, "%lld", (long long)jinx_oracle_intish(value));
+        return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+    }
+}
+
+static inline int jinx_oracle_string_is_numeric(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint32_t i = 0u;
+    int saw_digit = 0;
+    int saw_dot = 0;
+
+    while (i < len && isspace((int)bytes[i])) {
+        i++;
+    }
+
+    if (i < len && (bytes[i] == '+' || bytes[i] == '-')) {
+        i++;
+    }
+
+    while (i < len) {
+        if (isdigit((int)bytes[i])) {
+            saw_digit = 1;
+            i++;
+            continue;
+        }
+
+        if (bytes[i] == '.' && !saw_dot) {
+            saw_dot = 1;
+            i++;
+            continue;
+        }
+
+        break;
+    }
+
+    while (i < len && isspace((int)bytes[i])) {
+        i++;
+    }
+
+    return saw_digit && i == len;
+}
+
 static inline int jinx_oracle_mem_contains(const unsigned char *haystack, uint32_t haystack_len, const unsigned char *needle, uint32_t needle_len) {
     if (needle_len == 0u) {
         return 1;
@@ -405,7 +501,11 @@ static inline int64_t jinx_oracle_intish(JinxValue value) {
     }
 
     if (value.type == 3u) {
-        return (int64_t)value.flags;
+        char buffer[128];
+        uint32_t len = value.flags < 127u ? value.flags : 127u;
+        memcpy(buffer, jinx_oracle_string_bytes(value), len);
+        buffer[len] = '\0';
+        return (int64_t)strtoll(buffer, NULL, 10);
     }
 
     return 0;
@@ -414,6 +514,14 @@ static inline int64_t jinx_oracle_intish(JinxValue value) {
 static inline double jinx_oracle_floatish(JinxValue value) {
     if (value.type == 5u) {
         return value.as.f64;
+    }
+
+    if (value.type == 3u) {
+        char buffer[128];
+        uint32_t len = value.flags < 127u ? value.flags : 127u;
+        memcpy(buffer, jinx_oracle_string_bytes(value), len);
+        buffer[len] = '\0';
+        return strtod(buffer, NULL);
     }
 
     return (double)jinx_oracle_intish(value);
@@ -514,6 +622,82 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "str_repeat")) {
         ret = jinx_oracle_str_repeat_value(arg0, arg1);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_null")) {
+        ret = jinx_oracle_bool_value(arg0.type == 0u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_bool")) {
+        ret = jinx_oracle_bool_value(arg0.type == 2u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in3(name, "is_int", "is_integer", "is_long")) {
+        ret = jinx_oracle_bool_value(arg0.type == 1u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in3(name, "is_float", "is_double", "is_real")) {
+        ret = jinx_oracle_bool_value(arg0.type == 5u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_string")) {
+        ret = jinx_oracle_bool_value(arg0.type == 3u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_array")) {
+        ret = jinx_oracle_bool_value(arg0.type == 4u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_scalar")) {
+        ret = jinx_oracle_bool_value(arg0.type == 1u || arg0.type == 2u || arg0.type == 3u || arg0.type == 5u);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_numeric")) {
+        ret = jinx_oracle_bool_value(
+            arg0.type == 1u ||
+            arg0.type == 5u ||
+            (arg0.type == 3u && jinx_oracle_string_is_numeric(arg0))
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "boolval")) {
+        ret = jinx_oracle_bool_value(jinx_oracle_boolish(arg0));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "intval")) {
+        ret = jinx_oracle_int_value(jinx_oracle_intish(arg0));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "floatval")) {
+        ret = jinx_oracle_float_value(jinx_oracle_floatish(arg0));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "strval")) {
+        ret = jinx_oracle_strval_value(arg0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }

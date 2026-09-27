@@ -105,6 +105,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "Native ASCII byte-class checks for string JinxValue inputs; empty strings return false."
     },
     {
+        "scalar-core",
+        "https://www.php.net/manual/en/ref.var.php",
+        "is_null/is_bool/is_int/is_float/is_string/is_array/is_scalar/is_numeric/boolval/intval/floatval/strval",
+        "bool|int|float|string",
+        "jinx_oracle_asm_call_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Exact for the current native JinxValue scalar and array-count model, including numeric string conversion."
+    },
+    {
         "crypto-php-fallback",
         "https://www.php.net/manual/en/refs.crypto.php",
         "hash/md5/sha1/crypt/password_*/random_*/openssl_* selected pure value functions",
@@ -214,6 +223,17 @@ static inline int jinx_php_manual_name_is_crypto(const char *name) {
         jinx_php_manual_name_starts(name, "sodium_");
 }
 
+static inline int jinx_php_manual_name_is_scalar_core(const char *name) {
+    return strcmp(name, "is_null") == 0 || strcmp(name, "is_bool") == 0 ||
+        strcmp(name, "is_int") == 0 || strcmp(name, "is_integer") == 0 ||
+        strcmp(name, "is_long") == 0 || strcmp(name, "is_float") == 0 ||
+        strcmp(name, "is_double") == 0 || strcmp(name, "is_real") == 0 ||
+        strcmp(name, "is_string") == 0 || strcmp(name, "is_array") == 0 ||
+        strcmp(name, "is_scalar") == 0 || strcmp(name, "is_numeric") == 0 ||
+        strcmp(name, "boolval") == 0 || strcmp(name, "intval") == 0 ||
+        strcmp(name, "floatval") == 0 || strcmp(name, "strval") == 0;
+}
+
 static inline int jinx_php_manual_name_is_string_byte_transform(const char *name) {
     return strcmp(name, "strtolower") == 0 || strcmp(name, "strtoupper") == 0 ||
         strcmp(name, "lcfirst") == 0 || strcmp(name, "ucfirst") == 0 ||
@@ -238,12 +258,16 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         }
     }
 
-    if (jinx_php_manual_name_is_crypto(name)) {
+    if (jinx_php_manual_name_is_scalar_core(name)) {
         return &jinx_php_manual_handler_specs[8];
     }
 
-    if (jinx_php_manual_name_is_string_byte_transform(name)) {
+    if (jinx_php_manual_name_is_crypto(name)) {
         return &jinx_php_manual_handler_specs[9];
+    }
+
+    if (jinx_php_manual_name_is_string_byte_transform(name)) {
+        return &jinx_php_manual_handler_specs[10];
     }
 
     if (jinx_php_manual_name_is_math_trig_log(name)) {
@@ -255,12 +279,12 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
     }
 
     if (jinx_php_manual_name_starts(name, "array_")) {
-        return &jinx_php_manual_handler_specs[11];
+        return &jinx_php_manual_handler_specs[12];
     }
 
     if (jinx_php_manual_name_has(name, "class") || jinx_php_manual_name_has(name, "Class") ||
         jinx_php_manual_name_has(name, "Reflection") || jinx_php_manual_name_has(name, "::")) {
-        return &jinx_php_manual_handler_specs[12];
+        return &jinx_php_manual_handler_specs[13];
     }
 
     if (jinx_php_manual_name_has(name, "file") || jinx_php_manual_name_has(name, "stream") ||
@@ -268,10 +292,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         jinx_php_manual_name_has(name, "exec") || jinx_php_manual_name_has(name, "proc") ||
         jinx_php_manual_name_has(name, "curl") || jinx_php_manual_name_has(name, "pdo") ||
         jinx_php_manual_name_has(name, "mysqli") || jinx_php_manual_name_has(name, "mysql")) {
-        return &jinx_php_manual_handler_specs[13];
+        return &jinx_php_manual_handler_specs[14];
     }
 
-    return &jinx_php_manual_handler_specs[10];
+    return &jinx_php_manual_handler_specs[11];
 }
 
 static inline int jinx_php_manual_is_exact(const char *name) {
