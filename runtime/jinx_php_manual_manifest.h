@@ -258,13 +258,22 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "Native JSON decoding is enabled for associative object output: explicit associative=true, or associative=null with JSON_OBJECT_AS_ARRAY. Covered values include null/bool/int/float/string, nested arrays and associative objects, Unicode escapes and surrogate pairs, configured depth, JSON_BIGINT_AS_STRING, and shared JSON error state. Explicit associative=false/stdClass output, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_THROW_ON_ERROR, and other decode facets remain outside this native subset."
     },
     {
+        "json-encode-core",
+        "https://www.php.net/manual/en/function.json-encode.php",
+        "json_encode(mixed $value, int $flags = 0, int $depth = 512): string|false",
+        "string|false",
+        "jinx_oracle_zend_array_dispatch_builtin",
+        JINX_PHP_MANUAL_PARTIAL,
+        "Native options-zero JSON encoding covers null/bool/int/string values and carried Zend arrays, including list-vs-object array shape, string/control/slash escaping, Unicode-to-\\u escaping with surrogate pairs, configured depth, recursion detection, invalid UTF-8 failure, and shared JSON error state. JSON option flags, general PHP objects/JsonSerializable, exact full-domain floating-point formatting parity, and partial-output/throw behavior remain outside this promoted subset."
+    },
+    {
         "json-error-state-core",
         "https://www.php.net/manual/en/ref.json.php",
         "json_last_error(): int; json_last_error_msg(): string",
         "int|string",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_PARTIAL,
-        "Native JSON error code/message state follows json_validate and the native associative json_decode path, including successful reset and parser failures. Native json_encode error-state integration, JSON_THROW_ON_ERROR behavior, and location-bearing parser diagnostics are not yet promoted."
+        "Native JSON error code/message state follows json_validate, the native associative json_decode path, and options-zero native json_encode, including successful reset and parser/encoder failures. JSON_THROW_ON_ERROR behavior and location-bearing parser diagnostics are not yet promoted."
     }
 };
 
@@ -433,6 +442,10 @@ static inline int jinx_php_manual_name_is_json_decode_associative_core(const cha
     return strcmp(name, "json_decode") == 0;
 }
 
+static inline int jinx_php_manual_name_is_json_encode_core(const char *name) {
+    return strcmp(name, "json_encode") == 0;
+}
+
 static inline int jinx_php_manual_name_is_json_error_state_core(const char *name) {
     return strcmp(name, "json_last_error") == 0 || strcmp(name, "json_last_error_msg") == 0;
 }
@@ -575,6 +588,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_json_decode_associative_core(name)) {
         return jinx_php_manual_spec_by_pattern("json-decode-associative-core");
+    }
+
+    if (jinx_php_manual_name_is_json_encode_core(name)) {
+        return jinx_php_manual_spec_by_pattern("json-encode-core");
     }
 
     if (jinx_php_manual_name_is_json_error_state_core(name)) {
