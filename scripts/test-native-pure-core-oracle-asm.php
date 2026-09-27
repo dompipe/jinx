@@ -20,6 +20,7 @@ function decodeArg(string $arg): mixed
         'i' => (int)substr($arg, 2),
         'f' => (float)substr($arg, 2),
         'b' => substr($arg, 2) === 'true' || substr($arg, 2) === '1',
+        'a' => array_fill(0, max(0, (int) substr($arg, 2)), null),
         default => fail("unsupported typed argument {$arg}"),
     };
 }
@@ -143,6 +144,24 @@ $cases = [
     ['version_compare', ['s:1.0', 's:1.0RC1', 's:ne']],
     ['version_compare', ['s:1.0RC1', 's:1.0', 's:<=']],
     ['version_compare', ['s:1.0', 's:1.0', 's:<>']],
+    ['gettype', ['null']],
+    ['gettype', ['b:true']],
+    ['gettype', ['i:42']],
+    ['gettype', ['f:1.25']],
+    ['gettype', ['s:oracle']],
+    ['gettype', ['a:3']],
+    ['get_debug_type', ['null']],
+    ['get_debug_type', ['b:false']],
+    ['get_debug_type', ['i:42']],
+    ['get_debug_type', ['f:1.25']],
+    ['get_debug_type', ['s:oracle']],
+    ['get_debug_type', ['a:3']],
+    ['is_countable', ['a:3']],
+    ['is_countable', ['s:oracle']],
+    ['is_iterable', ['a:3']],
+    ['is_iterable', ['i:42']],
+    ['is_object', ['s:oracle']],
+    ['is_resource', ['a:3']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
