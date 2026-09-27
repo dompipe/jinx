@@ -4470,6 +4470,60 @@ static inline JinxValue jinx_oracle_version_compare_value(
     return jinx_oracle_bool_value(result);
 }
 
+
+static inline int jinx_oracle_int_pow_checked(
+    int64_t base,
+    int64_t exponent,
+    int64_t *out
+) {
+    if (base < 0 || exponent < 0 || out == 0) return 0;
+
+    uint64_t result = 1u;
+    uint64_t factor = (uint64_t)base;
+    uint64_t power = (uint64_t)exponent;
+
+    while (power != 0u) {
+        if ((power & 1u) != 0u) {
+            if (factor != 0u && result > (uint64_t)INT64_MAX / factor) return 0;
+            result *= factor;
+        }
+        power >>= 1u;
+        if (power != 0u) {
+            if (factor != 0u && factor > (uint64_t)INT64_MAX / factor) return 0;
+            factor *= factor;
+        }
+    }
+
+    *out = (int64_t)result;
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_pow_value(
+    JinxValue base_value,
+    JinxValue exponent_value,
+    int always_float
+) {
+    if (!always_float &&
+        base_value.type == 1u &&
+        exponent_value.type == 1u &&
+        base_value.as.i64 >= 0 &&
+        exponent_value.as.i64 >= 0) {
+        int64_t exact;
+        if (jinx_oracle_int_pow_checked(
+            base_value.as.i64,
+            exponent_value.as.i64,
+            &exact
+        )) {
+            return jinx_oracle_int_value(exact);
+        }
+    }
+
+    return jinx_oracle_float_value(pow(
+        jinx_oracle_floatish(base_value),
+        jinx_oracle_floatish(exponent_value)
+    ));
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -4531,6 +4585,12 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ctx->fault = "version_compare operator or allocation error";
             return jinx_oracle_zero_value();
         }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "pow", "fpow")) {
+        ret = jinx_oracle_pow_value(arg0, arg1, jinx_oracle_name_is(name, "fpow"));
         jinx_oracle_return(ctx, ret);
         return ret;
     }
