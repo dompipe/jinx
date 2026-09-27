@@ -1674,20 +1674,33 @@ static inline uint64_t jinx_oracle_similar_char(
     return sum;
 }
 
-static inline JinxValue jinx_oracle_similar_text_value(JinxValue a, JinxValue b) {
+static inline JinxValue jinx_oracle_similar_text_value(
+    JinxOracleAsmContext *ctx,
+    JinxValue a,
+    JinxValue b,
+    uint32_t argc
+) {
     uint32_t a_len = jinx_oracle_string_len(a);
     uint32_t b_len = jinx_oracle_string_len(b);
-
-    if ((uint64_t)a_len + (uint64_t)b_len == 0u) {
-        return jinx_oracle_int_value(0);
-    }
-
-    return jinx_oracle_int_value((int64_t)jinx_oracle_similar_char(
+    uint64_t similar = jinx_oracle_similar_char(
         jinx_oracle_string_bytes(a),
         a_len,
         jinx_oracle_string_bytes(b),
         b_len
-    ));
+    );
+
+    if (argc >= 3u) {
+        double percent = ((uint64_t)a_len + (uint64_t)b_len) == 0u
+            ? 0.0
+            : ((double)similar * 200.0) / (double)((uint64_t)a_len + (uint64_t)b_len);
+
+        if (!jinx_oracle_write_ref_arg(ctx, 2u, jinx_oracle_float_value(percent))) {
+            ctx->fault = "similar_text percent argument is not writable by reference";
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    return jinx_oracle_int_value((int64_t)similar);
 }
 
 static inline int jinx_oracle_metaphone_code(unsigned char c) {
@@ -3821,147 +3834,6 @@ static inline int jinx_oracle_write_ref_arg(
     return 1;
 }
 
-static inline int jinx_oracle_soundex_code(unsigned char c) {
-    c = jinx_oracle_ascii_upper_byte(c);
-    if (c == 'B' || c == 'F' || c == 'P' || c == 'V') return 1;
-    if (c == 'C' || c == 'G' || c == 'J' || c == 'K' || c == 'Q' || c == 'S' || c == 'X' || c == 'Z') return 2;
-    if (c == 'D' || c == 'T') return 3;
-    if (c == 'L') return 4;
-    if (c == 'M' || c == 'N') return 5;
-    if (c == 'R') return 6;
-    return 0;
-}
-
-static inline int jinx_oracle_ascii_letter(unsigned char c) {
-    return (c >= (unsigned char)'A' && c <= (unsigned char)'Z') ||
-        (c >= (unsigned char)'a' && c <= (unsigned char)'z');
-}
-
-static inline JinxValue jinx_oracle_soundex_value(JinxValue value) {
-    const unsigned char *bytes = jinx_oracle_string_bytes(value);
-    uint32_t len = jinx_oracle_string_len(value);
-    char *out = jinx_oracle_scratch_string(4u);
-    uint32_t first = len;
-    uint32_t pos = 1u;
-    int previous;
-
-    memcpy(out, "0000", 4u);
-
-    for (uint32_t i = 0u; i < len; i++) {
-        if (jinx_oracle_ascii_letter(bytes[i])) {
-            first = i;
-            break;
-        }
-    }
-
-    if (first == len) {
-        return jinx_oracle_string_value_len(out, 4u);
-    }
-
-    out[0] = (char)jinx_oracle_ascii_upper_byte(bytes[first]);
-    previous = jinx_oracle_soundex_code(bytes[first]);
-
-    for (uint32_t i = first + 1u; i < len && pos < 4u; i++) {
-        unsigned char c = jinx_oracle_ascii_upper_byte(bytes[i]);
-        int code;
-
-        if (!jinx_oracle_ascii_letter(c)) {
-            previous = 0;
-            continue;
-        }
-
-        code = jinx_oracle_soundex_code(c);
-        if (code == 0) {
-            if (c != 'H' && c != 'W') {
-                previous = 0;
-            }
-            continue;
-        }
-
-        if (code != previous) {
-            out[pos++] = (char)('0' + code);
-        }
-        previous = code;
-    }
-
-    while (pos < 4u) out[pos++] = '0';
-    return jinx_oracle_string_value_len(out, 4u);
-}
-
-static inline int64_t jinx_oracle_similar_chars(
-    const unsigned char *a,
-    uint32_t a_len,
-    const unsigned char *b,
-    uint32_t b_len
-) {
-    uint32_t best_a = 0u;
-    uint32_t best_b = 0u;
-    uint32_t best = 0u;
-
-    for (uint32_t i = 0u; i < a_len; i++) {
-        for (uint32_t j = 0u; j < b_len; j++) {
-            uint32_t run = 0u;
-            while (i + run < a_len && j + run < b_len && a[i + run] == b[j + run]) {
-                run++;
-            }
-            if (run > best) {
-                best = run;
-                best_a = i;
-                best_b = j;
-            }
-        }
-    }
-
-    if (best == 0u) {
-        return 0;
-    }
-
-    int64_t total = (int64_t)best;
-
-    if (best_a != 0u && best_b != 0u) {
-        total += jinx_oracle_similar_chars(a, best_a, b, best_b);
-    }
-
-    if (best_a + best < a_len && best_b + best < b_len) {
-        total += jinx_oracle_similar_chars(
-            a + best_a + best,
-            a_len - best_a - best,
-            b + best_b + best,
-            b_len - best_b - best
-        );
-    }
-
-    return total;
-}
-
-static inline JinxValue jinx_oracle_similar_text_value(
-    JinxOracleAsmContext *ctx,
-    JinxValue first,
-    JinxValue second,
-    uint32_t argc
-) {
-    uint32_t first_len = jinx_oracle_string_len(first);
-    uint32_t second_len = jinx_oracle_string_len(second);
-    int64_t similar = jinx_oracle_similar_chars(
-        jinx_oracle_string_bytes(first),
-        first_len,
-        jinx_oracle_string_bytes(second),
-        second_len
-    );
-
-    if (argc >= 3u) {
-        double percent = (first_len + second_len) == 0u
-            ? 0.0
-            : ((double)similar * 200.0) / (double)(first_len + second_len);
-        if (!jinx_oracle_write_ref_arg(ctx, 2u, jinx_oracle_float_value(percent))) {
-            ctx->fault = "similar_text percent argument is not writable by reference";
-            return jinx_oracle_zero_value();
-        }
-    }
-
-    return jinx_oracle_int_value(similar);
-}
-
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -3978,21 +3850,6 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
-
-    if (jinx_oracle_name_is(name, "soundex")) {
-        ret = jinx_oracle_soundex_value(arg0);
-        jinx_oracle_return(ctx, ret);
-        return ret;
-    }
-
-    if (jinx_oracle_name_is(name, "similar_text")) {
-        ret = jinx_oracle_similar_text_value(ctx, arg0, arg1, argc);
-        if (ctx->fault != NULL) {
-            return jinx_oracle_zero_value();
-        }
-        jinx_oracle_return(ctx, ret);
-        return ret;
-    }
 
     if (jinx_oracle_name_is(name, "chr")) {
         ret = jinx_oracle_chr_value(arg0);
@@ -4322,11 +4179,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "similar_text")) {
-        if (argc != 2u) {
-            ctx->fault = "similar_text percentage reference output is not native yet";
+        ret = jinx_oracle_similar_text_value(ctx, arg0, arg1, argc);
+        if (ctx->fault != NULL) {
             return jinx_oracle_zero_value();
         }
-        ret = jinx_oracle_similar_text_value(arg0, arg1);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
