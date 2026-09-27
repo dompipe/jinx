@@ -49,6 +49,12 @@ static int expect_string_key(JinxZendArray *array, const char *key, const char *
         memcmp(slot->value.str->bytes, expected, expected_len) == 0;
 }
 
+static int expect_long_key(JinxZendArray *array, const char *key, long long expected) {
+    JinxZendValue *slot = jinx_zend_array_find(array, key, strlen(key));
+    return slot != 0 && slot->type == JINX_ZEND_LONG && slot->value.lval == expected;
+}
+
+
 static int fail(const char *message) {
     fprintf(stderr, "FAIL: %s\n", message);
     return 1;
@@ -1894,6 +1900,139 @@ int main(void) {
     jinx_zend_array_release(ksort_values);
     jinx_zend_array_release(natural_values);
     jinx_zend_array_release(natcase_values);
+
+    args[0] = jinx_oracle_int_value(0);
+    args[1] = jinx_oracle_int_value(1);
+    args[2] = jinx_oracle_int_value(1);
+    args[3] = jinx_oracle_int_value(2024);
+    result = jinx_call_builtin_through_oracle("cal_to_jd", args, 4);
+    if (result.type != 1u) return fail("cal_to_jd gregorian");
+    long long greg_jd = (long long)result.as.i64;
+
+    args[0] = jinx_oracle_int_value(greg_jd);
+    args[1] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("cal_from_jd", args, 2);
+    if (!expect_array_count(result, 9)) return fail("cal_from_jd gregorian count");
+    JinxZendArray *cal_greg = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_key(cal_greg, "date", "1/1/2024") ||
+        !expect_long_key(cal_greg, "month", 1) ||
+        !expect_long_key(cal_greg, "day", 1) ||
+        !expect_long_key(cal_greg, "year", 2024) ||
+        !expect_long_key(cal_greg, "dow", 1) ||
+        !expect_string_key(cal_greg, "abbrevdayname", "Mon") ||
+        !expect_string_key(cal_greg, "dayname", "Monday") ||
+        !expect_string_key(cal_greg, "abbrevmonth", "Jan") ||
+        !expect_string_key(cal_greg, "monthname", "January")) {
+        return fail("cal_from_jd gregorian fields");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(1);
+    args[1] = jinx_oracle_int_value(1);
+    args[2] = jinx_oracle_int_value(1);
+    args[3] = jinx_oracle_int_value(2024);
+    result = jinx_call_builtin_through_oracle("cal_to_jd", args, 4);
+    if (result.type != 1u) return fail("cal_to_jd julian");
+    long long julian_jd = (long long)result.as.i64;
+    args[0] = jinx_oracle_int_value(julian_jd);
+    args[1] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("cal_from_jd", args, 2);
+    if (!expect_array_count(result, 9)) return fail("cal_from_jd julian count");
+    JinxZendArray *cal_julian = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_key(cal_julian, "date", "1/1/2024") ||
+        !expect_string_key(cal_julian, "abbrevmonth", "Jan") ||
+        !expect_string_key(cal_julian, "monthname", "January")) {
+        return fail("cal_from_jd julian fields");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(2);
+    args[1] = jinx_oracle_int_value(1);
+    args[2] = jinx_oracle_int_value(1);
+    args[3] = jinx_oracle_int_value(5771);
+    result = jinx_call_builtin_through_oracle("cal_to_jd", args, 4);
+    if (result.type != 1u) return fail("cal_to_jd jewish");
+    long long jewish_jd = (long long)result.as.i64;
+    args[0] = jinx_oracle_int_value(jewish_jd);
+    args[1] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("cal_from_jd", args, 2);
+    if (!expect_array_count(result, 9)) return fail("cal_from_jd jewish count");
+    JinxZendArray *cal_jewish = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_key(cal_jewish, "date", "1/1/5771") ||
+        !expect_string_key(cal_jewish, "abbrevmonth", "Tishri") ||
+        !expect_string_key(cal_jewish, "monthname", "Tishri")) {
+        return fail("cal_from_jd jewish fields");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(3);
+    args[1] = jinx_oracle_int_value(1);
+    args[2] = jinx_oracle_int_value(1);
+    args[3] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("cal_to_jd", args, 4);
+    if (result.type != 1u) return fail("cal_to_jd french");
+    long long french_jd = (long long)result.as.i64;
+    args[0] = jinx_oracle_int_value(french_jd);
+    args[1] = jinx_oracle_int_value(3);
+    result = jinx_call_builtin_through_oracle("cal_from_jd", args, 2);
+    if (!expect_array_count(result, 9)) return fail("cal_from_jd french count");
+    JinxZendArray *cal_french = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_key(cal_french, "date", "1/1/1") ||
+        !expect_string_key(cal_french, "abbrevmonth", "Vendemiaire") ||
+        !expect_string_key(cal_french, "monthname", "Vendemiaire")) {
+        return fail("cal_from_jd french fields");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("cal_info", args, 1);
+    if (!expect_array_count(result, 5)) return fail("cal_info gregorian count");
+    JinxZendArray *cal_info_greg = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_key(cal_info_greg, "calname", "Gregorian") ||
+        !expect_string_key(cal_info_greg, "calsymbol", "CAL_GREGORIAN") ||
+        !expect_long_key(cal_info_greg, "maxdaysinmonth", 31)) {
+        return fail("cal_info gregorian scalar fields");
+    }
+    JinxZendValue *greg_months_value = jinx_zend_array_find(cal_info_greg, "months", 6);
+    JinxZendValue *greg_short_value = jinx_zend_array_find(cal_info_greg, "abbrevmonths", 12);
+    if (greg_months_value == 0 || greg_months_value->type != JINX_ZEND_ARRAY ||
+        greg_short_value == 0 || greg_short_value->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(greg_months_value->value.array, 1, "January") ||
+        !expect_string_index(greg_short_value->value.array, 1, "Jan")) {
+        return fail("cal_info gregorian months");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("cal_info", args, 1);
+    if (!expect_array_count(result, 5)) return fail("cal_info jewish count");
+    JinxZendArray *cal_info_jewish = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_key(cal_info_jewish, "calname", "Jewish") ||
+        !expect_string_key(cal_info_jewish, "calsymbol", "CAL_JEWISH") ||
+        !expect_long_key(cal_info_jewish, "maxdaysinmonth", 30)) {
+        return fail("cal_info jewish scalar fields");
+    }
+    JinxZendValue *jewish_months_value = jinx_zend_array_find(cal_info_jewish, "months", 6);
+    if (jewish_months_value == 0 || jewish_months_value->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(jewish_months_value->value.array, 6, "Adar I") ||
+        !expect_string_index(jewish_months_value->value.array, 7, "Adar II")) {
+        return fail("cal_info jewish months");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    result = jinx_call_builtin_through_oracle("cal_info", args, 0);
+    if (!expect_array_count(result, 4)) return fail("cal_info all calendars");
+    jinx_oracle_zend_array_value_release(result);
+
+    printf(
+        "CAL_PARITY:greg=1/1/2024|1|Mon|Monday|Jan|January;"
+        "jul=1/1/2024|Jan|January;"
+        "jew=1/1/5771|Tishri;"
+        "french=1/1/1|Vendemiaire;"
+        "info0=Gregorian|CAL_GREGORIAN|31|Jan|January;"
+        "info2=Jewish|CAL_JEWISH|30|Adar I|Adar II;"
+        "all=4\n"
+    );
 
     JinxZendArray *rand_source = jinx_zend_array_new_packed(5);
     if (rand_source == 0 ||
