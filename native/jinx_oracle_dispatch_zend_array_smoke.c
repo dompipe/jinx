@@ -2332,6 +2332,105 @@ int main(void) {
         return fail("json_decode associative object values");
     }
 
+    JinxValue json_default_args[1];
+    json_default_args[0] = jinx_oracle_string_value(
+        "{\"name\":\"Ada\",\"1\":\"one\",\"nested\":{\"n\":1}}"
+    );
+    JinxValue json_default = jinx_call_builtin_through_oracle("json_decode", json_default_args, 1);
+    if (!jinx_oracle_value_is_zend_object(json_default)) {
+        return fail("json_decode default stdClass carrier");
+    }
+
+    JinxZendObject *json_default_object = jinx_oracle_zend_object_ptr(json_default);
+    if (json_default_object == 0 || json_default_object->class_name == 0 ||
+        strcmp(json_default_object->class_name, "stdClass") != 0 ||
+        json_default_object->properties == 0 ||
+        jinx_zend_array_live_count(json_default_object->properties) != 3u) {
+        return fail("json_decode default stdClass shape");
+    }
+
+    JinxZendValue *json_object_name = jinx_zend_array_find(
+        json_default_object->properties,
+        "name",
+        4u
+    );
+    JinxZendValue *json_object_numeric_name = jinx_zend_array_find(
+        json_default_object->properties,
+        "1",
+        1u
+    );
+    JinxZendValue *json_object_nested = jinx_zend_array_find(
+        json_default_object->properties,
+        "nested",
+        6u
+    );
+    if (json_object_name == 0 || json_object_name->type != JINX_ZEND_STRING ||
+        json_object_name->value.str == 0 ||
+        json_object_name->value.str->len != 3u ||
+        memcmp(json_object_name->value.str->bytes, "Ada", 3u) != 0 ||
+        json_object_numeric_name == 0 ||
+        json_object_numeric_name->type != JINX_ZEND_STRING ||
+        json_object_numeric_name->value.str == 0 ||
+        json_object_numeric_name->value.str->len != 3u ||
+        memcmp(json_object_numeric_name->value.str->bytes, "one", 3u) != 0 ||
+        jinx_zend_array_index(json_default_object->properties, 1u) != 0 ||
+        json_object_nested == 0 ||
+        json_object_nested->type != JINX_ZEND_OBJECT ||
+        json_object_nested->value.object == 0 ||
+        strcmp(json_object_nested->value.object->class_name, "stdClass") != 0) {
+        return fail("json_decode stdClass property values");
+    }
+
+    JinxZendValue *json_object_nested_n = jinx_zend_array_find(
+        json_object_nested->value.object->properties,
+        "n",
+        1u
+    );
+    if (json_object_nested_n == 0 ||
+        json_object_nested_n->type != JINX_ZEND_LONG ||
+        json_object_nested_n->value.lval != 1) {
+        return fail("json_decode nested stdClass property");
+    }
+
+    JinxValue json_object_encode_args[3];
+    json_object_encode_args[0] = json_default;
+    json_object_encode_args[1] = jinx_oracle_int_value(0);
+    json_object_encode_args[2] = jinx_oracle_int_value(512);
+    JinxValue json_object_encoded = jinx_call_builtin_through_oracle(
+        "json_encode",
+        json_object_encode_args,
+        3
+    );
+    static const char expected_json_object_encode[] =
+        "{\"name\":\"Ada\",\"1\":\"one\",\"nested\":{\"n\":1}}";
+    if (json_object_encoded.type != 3u ||
+        json_object_encoded.flags != sizeof(expected_json_object_encode) - 1u ||
+        memcmp(
+            json_object_encoded.as.ptr,
+            expected_json_object_encode,
+            sizeof(expected_json_object_encode) - 1u
+        ) != 0) {
+        return fail("json_encode stdClass carrier");
+    }
+
+    JinxValue json_false_override_args[4];
+    json_false_override_args[0] = jinx_oracle_string_value("{\"a\":1}");
+    json_false_override_args[1] = jinx_oracle_bool_value(0);
+    json_false_override_args[2] = jinx_oracle_int_value(512);
+    json_false_override_args[3] = jinx_oracle_int_value(1);
+    JinxValue json_false_override = jinx_call_builtin_through_oracle(
+        "json_decode",
+        json_false_override_args,
+        4
+    );
+    if (!jinx_oracle_value_is_zend_object(json_false_override) ||
+        strcmp(
+            jinx_oracle_zend_object_ptr(json_false_override)->class_name,
+            "stdClass"
+        ) != 0) {
+        return fail("json_decode explicit false overrides JSON_OBJECT_AS_ARRAY");
+    }
+
     json_args[0] = jinx_oracle_string_value("{\"n\":9223372036854775808}");
     json_args[3] = jinx_oracle_int_value(2);
     JinxValue json_big_result = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
@@ -2439,7 +2538,8 @@ int main(void) {
 
     printf(
         "JSON_PARITY:name=%.*s;nums=%lld,%lld;ok=1;none=null;"
-        "emoji=%02x%02x%02x%02x;bigint=%.*s;syntax=%lld|%.*s;valid=%lld|%.*s;"
+        "emoji=%02x%02x%02x%02x;object=%s|%.*s|%.*s|%s|%lld;"
+        "object_encode=%.*s;false_override=%s;bigint=%.*s;syntax=%lld|%.*s;valid=%lld|%.*s;"
         "encode=%.*s;escape=%.*s;encode_utf8=%lld|%.*s;encode_reset=%lld|%.*s\\n",
         (int)json_name->value.str->len,
         json_name->value.str->bytes,
@@ -2449,6 +2549,16 @@ int main(void) {
         (unsigned int)(unsigned char)json_emoji->value.str->bytes[1],
         (unsigned int)(unsigned char)json_emoji->value.str->bytes[2],
         (unsigned int)(unsigned char)json_emoji->value.str->bytes[3],
+        json_default_object->class_name,
+        (int)json_object_name->value.str->len,
+        json_object_name->value.str->bytes,
+        (int)json_object_numeric_name->value.str->len,
+        json_object_numeric_name->value.str->bytes,
+        json_object_nested->value.object->class_name,
+        (long long)json_object_nested_n->value.lval,
+        (int)json_object_encoded.flags,
+        (const char *)json_object_encoded.as.ptr,
+        jinx_oracle_zend_object_ptr(json_false_override)->class_name,
         (int)json_big->value.str->len,
         json_big->value.str->bytes,
         (long long)json_syntax_code.as.i64,
@@ -2470,6 +2580,8 @@ int main(void) {
     );
 
     jinx_oracle_zend_array_value_release(json_result);
+    jinx_oracle_zend_object_value_release(json_default);
+    jinx_oracle_zend_object_value_release(json_false_override);
     jinx_oracle_zend_array_value_release(json_big_result);
     jinx_zend_array_release(json_encode_source);
 
