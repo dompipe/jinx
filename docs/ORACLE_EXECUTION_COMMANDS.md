@@ -21,6 +21,24 @@ Run the facet audit when checking whether every declared family facet is represe
 ./jinx scripts/test-oracle-family-facet-audit.php
 ```
 
+## Native JSON boundary
+
+The PHP JSON declarations are all present in the generated dispatch table, but native promotion is intentionally facet-by-facet rather than declaration-by-declaration.
+
+```bash
+./jinx scripts/test-native-pure-core-oracle-asm.php
+./jinx scripts/test-native-zend-array-core-oracle-asm.php
+```
+
+Current native coverage:
+
+- `json_validate()`: strict JSON parser with PHP-compatible whitespace, literals, number grammar, strings/escapes, UTF-8 checks, UTF-16 surrogate pairing, arrays/objects, depth, and `JSON_INVALID_UTF8_IGNORE`.
+- `json_decode()`: associative-object slice only. Native routing is enabled for explicit `$associative = true`, or `$associative = null` with `JSON_OBJECT_AS_ARRAY`. The decoder covers nested arrays/associative objects, scalar values, Unicode escapes, depth, and `JSON_BIGINT_AS_STRING`.
+- `json_last_error()` and `json_last_error_msg()`: shared native error state for the promoted validate/decode paths. The Zend-array smoke proves syntax-error state and successful reset against PHP in the same process.
+- `json_encode()`: PHP-level Oracle execution remains covered by `json-encode-builtins`; native ASM encode is not promoted yet.
+
+Not yet claimed for native `json_decode()`: explicit `$associative = false` / `stdClass` construction, `JSON_INVALID_UTF8_IGNORE`, `JSON_INVALID_UTF8_SUBSTITUTE`, `JSON_THROW_ON_ERROR`, or broader object semantics. Explicit false overrides `JSON_OBJECT_AS_ARRAY`, matching PHP's compatibility rule, so that case is deliberately kept off the associative carrier.
+
 ## Native benchmarks
 
 Use the harness/process benchmark to time every executable family parity path against the PHP baseline and native `./jinx` path:
