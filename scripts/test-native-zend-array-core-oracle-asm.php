@@ -336,6 +336,14 @@ $jsonDecoded = json_decode(
     512,
     0
 );
+$jsonObjectDecoded = json_decode(
+    '{"name":"Ada","1":"one","nested":{"n":1}}',
+    false,
+    512,
+    0
+);
+$jsonObjectEncoded = json_encode($jsonObjectDecoded, 0, 512);
+$jsonFalseOverride = json_decode('{"a":1}', false, 512, JSON_OBJECT_AS_ARRAY);
 $jsonBigDecoded = json_decode('{"n":9223372036854775808}', true, 512, JSON_BIGINT_AS_STRING);
 json_decode('{"a":1,}', true, 512, 0);
 $jsonSyntaxCode = json_last_error();
@@ -360,7 +368,12 @@ $jsonEncodeResetMessage = json_last_error_msg();
 if (!is_array($jsonDecoded) || !is_array($jsonBigDecoded)) {
     fail('PHP json_decode parity setup did not produce arrays');
 }
-if (!is_string($jsonEncoded) || !is_string($jsonEscapeEncoded) || !is_string($jsonEncodeReset)) {
+if (!is_object($jsonObjectDecoded) || !is_object($jsonObjectDecoded->nested) ||
+    !is_object($jsonFalseOverride)) {
+    fail('PHP json_decode object parity setup did not produce stdClass objects');
+}
+if (!is_string($jsonObjectEncoded) ||
+    !is_string($jsonEncoded) || !is_string($jsonEscapeEncoded) || !is_string($jsonEncodeReset)) {
     fail('PHP json_encode parity setup did not produce strings');
 }
 
@@ -370,6 +383,14 @@ $expectedJsonParity = 'JSON_PARITY:'
     . ';ok=' . ($jsonDecoded['ok'] ? '1' : '0')
     . ';none=' . ($jsonDecoded['none'] === null ? 'null' : 'not-null')
     . ';emoji=' . bin2hex($jsonDecoded['emoji'])
+    . ';object='
+        . get_class($jsonObjectDecoded) . '|'
+        . $jsonObjectDecoded->name . '|'
+        . $jsonObjectDecoded->{'1'} . '|'
+        . get_class($jsonObjectDecoded->nested) . '|'
+        . $jsonObjectDecoded->nested->n
+    . ';object_encode=' . $jsonObjectEncoded
+    . ';false_override=' . get_class($jsonFalseOverride)
     . ';bigint=' . $jsonBigDecoded['n']
     . ';syntax=' . $jsonSyntaxCode . '|' . $jsonSyntaxMessage
     . ';valid=' . $jsonValidCode . '|' . $jsonValidMessage
