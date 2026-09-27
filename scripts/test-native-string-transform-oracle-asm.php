@@ -107,6 +107,7 @@ $cases = [
     ['addslashes', ["s:O'Reilly \"x\" \\end"]],
     ['stripslashes', ["s:Is your name O\\'reilly?"]],
     ['quotemeta', ['s:Hello world. (can you hear me?)']],
+    ['quotemeta', ['s:']],
     ['strpbrk', ['s:This is a Simple text.', 's:mi']],
     ['strpbrk', ['s:abcdef', 's:XYZ']],
     ['chunk_split', ['s:abcdefghij', 'i:4', 's:|']],
