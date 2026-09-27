@@ -8039,7 +8039,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ret = jinx_oracle_float_value(fabs(arg0.as.f64));
         } else {
             int64_t value = jinx_oracle_intish(arg0);
-            ret = jinx_oracle_int_value(value < 0 ? -value : value);
+            if (value == INT64_MIN) {
+                ret = jinx_oracle_float_value(-(double)INT64_MIN);
+            } else {
+                ret = jinx_oracle_int_value(value < 0 ? -value : value);
+            }
         }
         jinx_oracle_return(ctx, ret);
         return ret;
