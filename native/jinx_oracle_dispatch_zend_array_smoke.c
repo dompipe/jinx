@@ -28,6 +28,13 @@ static int expect_long_index(JinxZendArray *array, size_t index, long long expec
     return slot != 0 && slot->type == JINX_ZEND_LONG && slot->value.lval == expected;
 }
 
+static int expect_string_index(JinxZendArray *array, size_t index, const char *expected) {
+    JinxZendValue *slot = jinx_zend_array_index(array, index);
+    size_t len = strlen(expected);
+    return slot != 0 && slot->type == JINX_ZEND_STRING && slot->value.str != 0 &&
+        slot->value.str->len == len && memcmp(slot->value.str->bytes, expected, len) == 0;
+}
+
 static int fail(const char *message) {
     fprintf(stderr, "FAIL: %s\n", message);
     return 1;
@@ -304,13 +311,68 @@ int main(void) {
     jinx_oracle_zend_array_value_release(result);
     jinx_zend_array_release(filter);
 
+    args[0] = jinx_oracle_string_value(",");
+    args[1] = jinx_oracle_string_value("a,b,c");
+    result = jinx_call_builtin_through_oracle("explode", args, 2);
+    if (!expect_array_count(result, 3)) return fail("explode count");
+    JinxZendArray *exploded = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_index(exploded, 0, "a") ||
+        !expect_string_index(exploded, 1, "b") ||
+        !expect_string_index(exploded, 2, "c")) {
+        return fail("explode values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("abcdef");
+    args[1] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("str_split", args, 2);
+    if (!expect_array_count(result, 3)) return fail("str_split count");
+    JinxZendArray *split = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_index(split, 0, "ab") ||
+        !expect_string_index(split, 1, "cd") ||
+        !expect_string_index(split, 2, "ef")) {
+        return fail("str_split values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *rows = jinx_zend_array_new_packed(2);
+    JinxZendArray *row1 = jinx_zend_array_new_packed(2);
+    JinxZendArray *row2 = jinx_zend_array_new_packed(2);
+    JinxZendString *ada = jinx_zend_string_new("Ada", 3);
+    JinxZendString *grace = jinx_zend_string_new("Grace", 5);
+    if (rows == 0 || row1 == 0 || row2 == 0 || ada == 0 || grace == 0 ||
+        !jinx_zend_array_add_assoc(row1, "id", 2, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(row1, "name", 4, jinx_zend_string_value(ada)) ||
+        !jinx_zend_array_add_assoc(row2, "id", 2, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(row2, "name", 4, jinx_zend_string_value(grace)) ||
+        !jinx_zend_array_append(rows, jinx_zend_array_value(row1)) ||
+        !jinx_zend_array_append(rows, jinx_zend_array_value(row2))) {
+        return fail("array_column source");
+    }
+    jinx_zend_string_release(ada);
+    jinx_zend_string_release(grace);
+    jinx_zend_array_release(row1);
+    jinx_zend_array_release(row2);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(rows);
+    args[1] = jinx_oracle_string_value("name");
+    args[2] = jinx_oracle_string_value("id");
+    result = jinx_call_builtin_through_oracle("array_column", args, 3);
+    if (!expect_array_count(result, 2)) return fail("array_column count");
+    JinxZendArray *column = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_index(column, 1, "Ada") || !expect_string_index(column, 2, "Grace")) {
+        return fail("array_column keyed values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(rows);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40\n");
+    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
