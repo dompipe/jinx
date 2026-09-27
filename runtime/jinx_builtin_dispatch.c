@@ -36,11 +36,14 @@ JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {
     return NULL;
 }
 
-JinxValue jinx_call_builtin_through_oracle(
+JinxValue jinx_call_builtin_through_oracle_checked(
     const char *name,
     JinxValue *args,
-    size_t argc
+    size_t argc,
+    int *ok
 ) {
+    if (ok != NULL) *ok = 0;
+
     JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
 
     if (wrapper == NULL) {
@@ -56,5 +59,16 @@ JinxValue jinx_call_builtin_through_oracle(
         return jinx_value_null();
     }
 
+    if (ok != NULL) *ok = 1;
     return result;
+}
+
+JinxValue jinx_call_builtin_through_oracle(
+    const char *name,
+    JinxValue *args,
+    size_t argc
+) {
+    int ok = 0;
+    JinxValue result = jinx_call_builtin_through_oracle_checked(name, args, argc, &ok);
+    return ok ? result : jinx_value_null();
 }
