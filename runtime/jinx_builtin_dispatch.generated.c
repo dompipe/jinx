@@ -3622,18 +3622,25 @@ JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {
     return NULL;
 }
 
-JinxValue jinx_call_builtin_through_oracle(
+JinxValue jinx_call_builtin_through_oracle_checked(
     const char *name,
     JinxValue *args,
-    size_t argc
+    size_t argc,
+    int *ok
 ) {
+    if (ok != NULL) *ok = 0;
+
     if (jinx_oracle_name_is_zend_container_builtin(name) && (args != NULL || argc == 0)) {
-        return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+        if (ok != NULL) *ok = 1;
+        return result;
     }
 
     if (argc >= 1 && args != NULL && jinx_oracle_name_is_zend_array_builtin(name) &&
         jinx_oracle_value_is_zend_array(args[0])) {
-        return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+        if (ok != NULL) *ok = 1;
+        return result;
     }
 
     JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
@@ -3651,5 +3658,16 @@ JinxValue jinx_call_builtin_through_oracle(
         return jinx_value_null();
     }
 
+    if (ok != NULL) *ok = 1;
     return result;
+}
+
+JinxValue jinx_call_builtin_through_oracle(
+    const char *name,
+    JinxValue *args,
+    size_t argc
+) {
+    int ok = 0;
+    JinxValue result = jinx_call_builtin_through_oracle_checked(name, args, argc, &ok);
+    return ok ? result : jinx_value_null();
 }
