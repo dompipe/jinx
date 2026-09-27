@@ -96,7 +96,8 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "array_uintersect_assoc") == 0 ||
         strcmp(name, "array_uintersect_uassoc") == 0 ||
         strcmp(name, "array_walk") == 0 ||
-        strcmp(name, "array_walk_recursive") == 0
+        strcmp(name, "array_walk_recursive") == 0 ||
+        strcmp(name, "array_rand") == 0
     );
 }
 
