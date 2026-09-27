@@ -31,6 +31,10 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "array_pad") == 0 ||
         strcmp(name, "array_unique") == 0 ||
         strcmp(name, "array_filter") == 0 ||
+        strcmp(name, "array_push") == 0 ||
+        strcmp(name, "array_pop") == 0 ||
+        strcmp(name, "array_shift") == 0 ||
+        strcmp(name, "array_unshift") == 0 ||
         strcmp(name, "array_diff") == 0 ||
         strcmp(name, "array_diff_assoc") == 0 ||
         strcmp(name, "array_diff_key") == 0 ||
