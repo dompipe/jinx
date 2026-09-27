@@ -821,6 +821,184 @@ static inline JinxValue jinx_oracle_zend_array_diff_intersect_special(
     return jinx_oracle_zend_array_value_owned(result);
 }
 
+
+static inline int64_t jinx_oracle_zend_find_bytes(
+    const unsigned char *haystack,
+    uint32_t haystack_len,
+    const unsigned char *needle,
+    uint32_t needle_len,
+    uint32_t start
+) {
+    if (needle_len == 0u || start > haystack_len || needle_len > haystack_len - start) return -1;
+    for (uint32_t i = start; i + needle_len <= haystack_len; i++) {
+        if (memcmp(haystack + i, needle, needle_len) == 0) return (int64_t)i;
+    }
+    return -1;
+}
+
+static inline int jinx_oracle_zend_append_string_slice(
+    JinxZendArray *array,
+    const unsigned char *bytes,
+    uint32_t start,
+    uint32_t length
+) {
+    JinxZendString *string = jinx_zend_string_new((const char *)bytes + start, length);
+    if (string == 0) return 0;
+    int ok = jinx_zend_array_append(array, jinx_zend_string_value(string));
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static inline JinxValue jinx_oracle_zend_explode_special(const JinxValue *args, size_t argc) {
+    if (argc < 2u) return jinx_oracle_zero_value();
+
+    const unsigned char *separator = jinx_oracle_string_bytes(args[0]);
+    uint32_t separator_len = jinx_oracle_string_len(args[0]);
+    const unsigned char *text = jinx_oracle_string_bytes(args[1]);
+    uint32_t text_len = jinx_oracle_string_len(args[1]);
+    int64_t limit = argc >= 3u ? jinx_oracle_intish(args[2]) : INT64_MAX;
+
+    if (separator_len == 0u) return jinx_oracle_zero_value();
+    if (limit == 0) limit = 1;
+
+    uint64_t total_parts = 1u;
+    uint32_t scan = 0u;
+    while (scan <= text_len) {
+        int64_t found = jinx_oracle_zend_find_bytes(text, text_len, separator, separator_len, scan);
+        if (found < 0) break;
+        total_parts++;
+        scan = (uint32_t)found + separator_len;
+    }
+
+    uint64_t keep_parts = total_parts;
+    if (limit < 0) {
+        uint64_t drop = (uint64_t)(-(limit + 1)) + 1u;
+        keep_parts = drop >= total_parts ? 0u : total_parts - drop;
+    } else if ((uint64_t)limit < keep_parts) {
+        keep_parts = (uint64_t)limit;
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed(keep_parts == 0u ? 1u : (size_t)keep_parts);
+    if (result == 0) return jinx_oracle_zero_value();
+    if (keep_parts == 0u) return jinx_oracle_zend_array_value_owned(result);
+
+    uint32_t start = 0u;
+    uint64_t part = 0u;
+    while (part + 1u < keep_parts) {
+        int64_t found = jinx_oracle_zend_find_bytes(text, text_len, separator, separator_len, start);
+        if (found < 0) break;
+        if (!jinx_oracle_zend_append_string_slice(result, text, start, (uint32_t)found - start)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+        start = (uint32_t)found + separator_len;
+        part++;
+    }
+
+    if (limit > 0 && keep_parts < total_parts) {
+        if (!jinx_oracle_zend_append_string_slice(result, text, start, text_len - start)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    } else {
+        int64_t found = jinx_oracle_zend_find_bytes(text, text_len, separator, separator_len, start);
+        if (found >= 0 && part + 1u == keep_parts && limit < 0) {
+            if (!jinx_oracle_zend_append_string_slice(result, text, start, (uint32_t)found - start)) {
+                jinx_zend_array_release(result);
+                return jinx_oracle_zero_value();
+            }
+        } else if (!jinx_oracle_zend_append_string_slice(result, text, start, text_len - start)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
+static inline JinxValue jinx_oracle_zend_str_split_special(const JinxValue *args, size_t argc) {
+    if (argc < 1u) return jinx_oracle_zero_value();
+
+    const unsigned char *text = jinx_oracle_string_bytes(args[0]);
+    uint32_t text_len = jinx_oracle_string_len(args[0]);
+    int64_t length = argc >= 2u ? jinx_oracle_intish(args[1]) : 1;
+
+    if (length < 1) return jinx_oracle_zero_value();
+
+    uint64_t count = text_len == 0u ? 0u : ((uint64_t)text_len + (uint64_t)length - 1u) / (uint64_t)length;
+    JinxZendArray *result = jinx_zend_array_new_packed(count == 0u ? 1u : (size_t)count);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    for (uint32_t start = 0u; start < text_len;) {
+        uint32_t take = text_len - start;
+        if ((uint64_t)take > (uint64_t)length) take = (uint32_t)length;
+        if (!jinx_oracle_zend_append_string_slice(result, text, start, take)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+        start += take;
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
+static inline JinxZendValue *jinx_oracle_zend_row_value(JinxZendArray *row, JinxValue key) {
+    if (row == 0) return 0;
+    if (key.type == 1u) return jinx_zend_array_index(row, (size_t)key.as.i64);
+    if (key.type == 3u) return jinx_zend_array_find(row, (const char *)key.as.ptr, (size_t)key.flags);
+    return 0;
+}
+
+static inline int jinx_oracle_zend_array_column_insert(
+    JinxZendArray *result,
+    JinxZendValue value,
+    JinxZendValue *index_value
+) {
+    if (index_value == 0) return jinx_zend_array_append(result, value);
+    if (index_value->type == JINX_ZEND_LONG) {
+        return jinx_zend_array_add_index(result, (size_t)index_value->value.lval, value);
+    }
+    if (index_value->type == JINX_ZEND_STRING && index_value->value.str != 0) {
+        return jinx_zend_array_add_assoc(
+            result,
+            index_value->value.str->bytes,
+            index_value->value.str->len,
+            value
+        );
+    }
+    return jinx_zend_array_append(result, value);
+}
+
+static inline JinxValue jinx_oracle_zend_array_column_special(const JinxValue *args, size_t argc) {
+    if (argc < 2u) return jinx_oracle_zero_value();
+
+    JinxZendArray *rows = jinx_oracle_zend_array_ptr(args[0]);
+    if (rows == 0) return jinx_oracle_zero_value();
+
+    int whole_row = args[1].type == 0u;
+    int use_index = argc >= 3u && args[2].type != 0u;
+    size_t live = jinx_zend_array_live_count(rows);
+    JinxZendArray *result = jinx_zend_array_new_packed(live == 0u ? 1u : live);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *row_bucket = jinx_zend_array_live_iter_at(rows, i);
+        if (row_bucket == 0 || row_bucket->value.type != JINX_ZEND_ARRAY || row_bucket->value.value.array == 0) continue;
+
+        JinxZendArray *row = row_bucket->value.value.array;
+        JinxZendValue *column_value = whole_row ? &row_bucket->value : jinx_oracle_zend_row_value(row, args[1]);
+        if (column_value == 0) continue;
+
+        JinxZendValue *index_value = use_index ? jinx_oracle_zend_row_value(row, args[2]) : 0;
+        if (!jinx_oracle_zend_array_column_insert(result, *column_value, index_value)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
@@ -829,6 +1007,8 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
     if (strcmp(name, "count_chars") == 0) return jinx_oracle_zend_count_chars_special(args, argc);
+    if (strcmp(name, "explode") == 0) return jinx_oracle_zend_explode_special(args, argc);
+    if (strcmp(name, "str_split") == 0) return jinx_oracle_zend_str_split_special(args, argc);
     if (strcmp(name, "vsprintf") == 0) return jinx_oracle_zend_vsprintf_special(args, argc);
     if (strcmp(name, "implode") == 0 || strcmp(name, "join") == 0) return jinx_oracle_zend_implode_special(args, argc);
     if (strcmp(name, "range") == 0) return jinx_oracle_zend_range_special(args, argc);
@@ -900,6 +1080,7 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
         int upper = argc >= 2u && jinx_oracle_intish(args[1]) == 1;
         return jinx_oracle_zend_array_value_owned(jinx_oracle_zend_array_change_key_case_core(array, upper));
     }
+    if (strcmp(name, "array_column") == 0) return jinx_oracle_zend_array_column_special(args, argc);
     if (strcmp(name, "array_fill_keys") == 0) return jinx_oracle_zend_array_fill_keys_special(args, argc);
     if (strcmp(name, "array_combine") == 0) return jinx_oracle_zend_array_combine_special(args, argc);
     if (strcmp(name, "array_count_values") == 0) return jinx_oracle_zend_array_count_values_special(args, argc);
