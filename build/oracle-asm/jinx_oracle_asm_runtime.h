@@ -606,6 +606,127 @@ static inline JinxValue jinx_oracle_chunk_split_value(
     return jinx_oracle_string_value_len(out, pos);
 }
 
+static inline int jinx_oracle_byte_in_set(
+    unsigned char value,
+    const unsigned char *set,
+    uint32_t set_len
+) {
+    for (uint32_t i = 0u; i < set_len; i++) {
+        if (value == set[i]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static inline JinxValue jinx_oracle_strrchr_value(
+    JinxValue haystack_value,
+    JinxValue needle_value,
+    JinxValue before_value,
+    uint32_t argc
+) {
+    const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
+    const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
+    uint32_t haystack_len = jinx_oracle_string_len(haystack_value);
+    uint32_t needle_len = jinx_oracle_string_len(needle_value);
+    unsigned char target = needle_len == 0u ? 0u : needle[0];
+    int before = argc >= 3u && jinx_oracle_intish(before_value) != 0;
+
+    for (uint32_t i = haystack_len; i > 0u; i--) {
+        uint32_t position = i - 1u;
+        if (haystack[position] == target) {
+            if (before) {
+                return jinx_oracle_string_slice_copy(haystack, 0u, position);
+            }
+            return jinx_oracle_string_slice_copy(haystack, position, haystack_len - position);
+        }
+    }
+
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_span_value(
+    JinxValue value,
+    JinxValue characters_value,
+    JinxValue offset_value,
+    JinxValue length_value,
+    uint32_t argc,
+    int require_member
+) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    const unsigned char *characters = jinx_oracle_string_bytes(characters_value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint32_t characters_len = jinx_oracle_string_len(characters_value);
+    int64_t offset = argc >= 3u ? jinx_oracle_intish(offset_value) : 0;
+    int64_t start = offset < 0 ? (int64_t)len + offset : offset;
+    int64_t available;
+    int64_t requested;
+    uint32_t count = 0u;
+
+    if (start < 0) {
+        start = 0;
+    }
+    if (start > (int64_t)len) {
+        start = (int64_t)len;
+    }
+
+    available = (int64_t)len - start;
+    requested = (argc >= 4u && length_value.type != 0u)
+        ? jinx_oracle_intish(length_value)
+        : available;
+
+    if (requested < 0) {
+        requested = available + requested;
+    }
+    if (requested < 0) {
+        requested = 0;
+    }
+    if (requested > available) {
+        requested = available;
+    }
+
+    for (int64_t i = 0; i < requested; i++) {
+        int member = jinx_oracle_byte_in_set(
+            bytes[(uint32_t)(start + i)],
+            characters,
+            characters_len
+        );
+
+        if ((require_member && !member) || (!require_member && member)) {
+            break;
+        }
+        count++;
+    }
+
+    return jinx_oracle_int_value((int64_t)count);
+}
+
+static inline JinxValue jinx_oracle_ucwords_value(
+    JinxValue value,
+    JinxValue separators_value,
+    uint32_t argc
+) {
+    static const unsigned char default_separators[] = " \t\r\n\f\v";
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    const unsigned char *separators = argc >= 2u
+        ? jinx_oracle_string_bytes(separators_value)
+        : default_separators;
+    uint32_t len = jinx_oracle_string_len(value);
+    uint32_t separators_len = argc >= 2u
+        ? jinx_oracle_string_len(separators_value)
+        : 6u;
+    char *out = jinx_oracle_scratch_string(len);
+    int word_start = 1;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char c = bytes[i];
+        out[i] = (char)(word_start ? jinx_oracle_ascii_upper_byte(c) : c);
+        word_start = jinx_oracle_byte_in_set(c, separators, separators_len);
+    }
+
+    return jinx_oracle_string_value_len(out, len);
+}
+
 static inline JinxValue jinx_oracle_bin2hex_value(JinxValue value) {
     static const char hex[] = "0123456789abcdef";
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
@@ -1158,6 +1279,36 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             argc,
             jinx_oracle_name_is(name, "stristr")
         );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "strrchr")) {
+        ret = jinx_oracle_strrchr_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            argc
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "strspn", "strcspn")) {
+        ret = jinx_oracle_span_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            ctx->registers[JINX_ORA_R3],
+            argc,
+            jinx_oracle_name_is(name, "strspn")
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "ucwords")) {
+        ret = jinx_oracle_ucwords_value(arg0, arg1, argc);
         jinx_oracle_return(ctx, ret);
         return ret;
     }

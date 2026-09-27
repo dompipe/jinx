@@ -134,7 +134,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "string-byte-transform",
         "https://www.php.net/manual/en/ref.strings.php",
-        "strtolower/strtoupper/lcfirst/ucfirst/strrev/trim/ltrim/rtrim/chop/chr/ord/substr/strpos/stripos/strrpos/strripos/strstr/strchr/stristr/str_repeat/bin2hex/hex2bin/str_rot13/addslashes/stripslashes/quotemeta/strpbrk/chunk_split",
+        "strtolower/strtoupper/lcfirst/ucfirst/strrev/trim/ltrim/rtrim/chop/chr/ord/substr/strpos/stripos/strrpos/strripos/strstr/strchr/stristr/strrchr/strspn/strcspn/ucwords/str_repeat/bin2hex/hex2bin/str_rot13/addslashes/stripslashes/quotemeta/strpbrk/chunk_split",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -263,7 +263,9 @@ static inline int jinx_php_manual_name_is_string_byte_transform(const char *name
         strcmp(name, "strpos") == 0 || strcmp(name, "stripos") == 0 ||
         strcmp(name, "strrpos") == 0 || strcmp(name, "strripos") == 0 ||
         strcmp(name, "strstr") == 0 || strcmp(name, "strchr") == 0 ||
-        strcmp(name, "stristr") == 0 || strcmp(name, "str_repeat") == 0 ||
+        strcmp(name, "stristr") == 0 || strcmp(name, "strrchr") == 0 ||
+        strcmp(name, "strspn") == 0 || strcmp(name, "strcspn") == 0 ||
+        strcmp(name, "ucwords") == 0 || strcmp(name, "str_repeat") == 0 ||
         strcmp(name, "bin2hex") == 0 ||
         strcmp(name, "hex2bin") == 0 || strcmp(name, "str_rot13") == 0 ||
         strcmp(name, "addslashes") == 0 || strcmp(name, "stripslashes") == 0 ||
