@@ -596,13 +596,56 @@ int main(void) {
     jinx_oracle_zend_array_value_release(result);
     jinx_zend_array_release(numeric_rows);
 
+    args[0] = jinx_oracle_string_value("20");
+    args[1] = jinx_oracle_zend_array_value_borrowed(array);
+    args[2] = jinx_oracle_bool_value(0);
+    if (!expect_bool(jinx_call_builtin_through_oracle("in_array", args, 3), 1)) {
+        return fail("in_array loose scalar");
+    }
+    args[2] = jinx_oracle_bool_value(1);
+    if (!expect_bool(jinx_call_builtin_through_oracle("in_array", args, 3), 0)) {
+        return fail("in_array strict scalar");
+    }
+
+    args[0] = jinx_oracle_string_value("30");
+    args[1] = jinx_oracle_zend_array_value_borrowed(array);
+    args[2] = jinx_oracle_bool_value(0);
+    result = jinx_call_builtin_through_oracle("array_search", args, 3);
+    if (!expect_string(result, "name")) return fail("array_search loose key");
+    args[2] = jinx_oracle_bool_value(1);
+    result = jinx_call_builtin_through_oracle("array_search", args, 3);
+    if (!expect_bool(result, 0)) return fail("array_search strict miss");
+
+    JinxZendArray *filter_source = jinx_zend_array_new_packed(5);
+    JinxZendString *filter_zero = jinx_zend_string_new("0", 1);
+    JinxZendString *filter_x = jinx_zend_string_new("x", 1);
+    if (filter_source == 0 || filter_zero == 0 || filter_x == 0 ||
+        !jinx_zend_array_append(filter_source, jinx_zend_long(0)) ||
+        !jinx_zend_array_append(filter_source, jinx_zend_long(1)) ||
+        !jinx_zend_array_append(filter_source, jinx_zend_string_value(filter_zero)) ||
+        !jinx_zend_array_append(filter_source, jinx_zend_string_value(filter_x)) ||
+        !jinx_zend_array_append(filter_source, jinx_zend_bool(0))) {
+        return fail("array_filter source");
+    }
+    jinx_zend_string_release(filter_zero);
+    jinx_zend_string_release(filter_x);
+    args[0] = jinx_oracle_zend_array_value_borrowed(filter_source);
+    result = jinx_call_builtin_through_oracle("array_filter", args, 1);
+    if (!expect_array_count(result, 2)) return fail("array_filter default count");
+    JinxZendArray *filtered = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(filtered, 1, 1) || !expect_string_index(filtered, 3, "x")) {
+        return fail("array_filter default key preservation");
+    }
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(filter_source);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
