@@ -1038,6 +1038,310 @@ static inline JinxValue jinx_oracle_base_convert_value(JinxValue value, JinxValu
     return jinx_oracle_uint_to_base(jinx_oracle_parse_base_uint(value, from), to);
 }
 
+
+typedef struct JinxOracleFormatBuffer {
+    char *data;
+    size_t len;
+    size_t cap;
+} JinxOracleFormatBuffer;
+
+static inline int jinx_oracle_format_reserve(JinxOracleFormatBuffer *buffer, size_t extra) {
+    size_t needed = buffer->len + extra + 1u;
+    if (needed <= buffer->cap) return 1;
+
+    size_t cap = buffer->cap == 0u ? 128u : buffer->cap;
+    while (cap < needed) {
+        if (cap > SIZE_MAX / 2u) return 0;
+        cap *= 2u;
+    }
+
+    char *grown = (char *)realloc(buffer->data, cap);
+    if (grown == NULL) return 0;
+    buffer->data = grown;
+    buffer->cap = cap;
+    return 1;
+}
+
+static inline int jinx_oracle_format_append(JinxOracleFormatBuffer *buffer, const char *data, size_t len) {
+    if (!jinx_oracle_format_reserve(buffer, len)) return 0;
+    if (len != 0u) memcpy(buffer->data + buffer->len, data, len);
+    buffer->len += len;
+    buffer->data[buffer->len] = '\0';
+    return 1;
+}
+
+static inline int jinx_oracle_format_append_char(JinxOracleFormatBuffer *buffer, char ch) {
+    return jinx_oracle_format_append(buffer, &ch, 1u);
+}
+
+static inline int jinx_oracle_format_append_padded(
+    JinxOracleFormatBuffer *buffer,
+    const char *data,
+    size_t len,
+    size_t width,
+    char padding,
+    int left
+) {
+    size_t pad = width > len ? width - len : 0u;
+
+    if (!left && padding == '0' && len > 0u && (data[0] == '-' || data[0] == '+')) {
+        if (!jinx_oracle_format_append_char(buffer, data[0])) return 0;
+        for (size_t i = 0u; i < pad; i++) if (!jinx_oracle_format_append_char(buffer, '0')) return 0;
+        return jinx_oracle_format_append(buffer, data + 1u, len - 1u);
+    }
+
+    if (!left) {
+        for (size_t i = 0u; i < pad; i++) if (!jinx_oracle_format_append_char(buffer, padding)) return 0;
+    }
+    if (!jinx_oracle_format_append(buffer, data, len)) return 0;
+    if (left) {
+        for (size_t i = 0u; i < pad; i++) if (!jinx_oracle_format_append_char(buffer, padding)) return 0;
+    }
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_format_string_value(JinxValue value) {
+    if (value.type == 3u) return value;
+    if (value.type == 6u || value.type == 4u) return jinx_oracle_string_value("Array");
+    return jinx_oracle_strval_value(value);
+}
+
+static inline int jinx_oracle_format_read_number(
+    const unsigned char *format,
+    uint32_t len,
+    uint32_t *position,
+    int *out
+) {
+    uint64_t value = 0u;
+    uint32_t start = *position;
+
+    while (*position < len && format[*position] >= '0' && format[*position] <= '9') {
+        value = value * 10u + (uint64_t)(format[*position] - '0');
+        if (value > INT32_MAX) return 0;
+        (*position)++;
+    }
+
+    if (*position == start) return 0;
+    *out = (int)value;
+    return 1;
+}
+
+static inline int jinx_oracle_format_argument_index(
+    const unsigned char *format,
+    uint32_t len,
+    uint32_t *position
+) {
+    uint32_t save = *position;
+    int number = 0;
+
+    if (!jinx_oracle_format_read_number(format, len, position, &number) ||
+        *position >= len || format[*position] != '$') {
+        *position = save;
+        return -1;
+    }
+
+    (*position)++;
+    return number > 0 ? number - 1 : -2;
+}
+
+static inline JinxValue jinx_oracle_sprintf_values(
+    JinxValue format_value,
+    const JinxValue *values,
+    uint32_t value_count,
+    int *ok
+) {
+    const unsigned char *format = jinx_oracle_string_bytes(format_value);
+    uint32_t format_len = jinx_oracle_string_len(format_value);
+    JinxOracleFormatBuffer out = {0};
+    uint32_t pos = 0u;
+    uint32_t next_arg = 0u;
+
+    *ok = 0;
+
+    while (pos < format_len) {
+        if (format[pos] != '%') {
+            uint32_t start = pos;
+            while (pos < format_len && format[pos] != '%') pos++;
+            if (!jinx_oracle_format_append(&out, (const char *)format + start, pos - start)) goto fail;
+            continue;
+        }
+
+        pos++;
+        if (pos >= format_len) goto fail;
+
+        if (format[pos] == '%') {
+            if (!jinx_oracle_format_append_char(&out, '%')) goto fail;
+            pos++;
+            continue;
+        }
+
+        int arg_index = jinx_oracle_format_argument_index(format, format_len, &pos);
+        if (arg_index == -2) goto fail;
+
+        char padding = ' ';
+        int left = 0;
+        int always_sign = 0;
+
+        for (;;) {
+            if (pos >= format_len) goto fail;
+            if (format[pos] == ' ' || format[pos] == '0') {
+                padding = (char)format[pos++];
+            } else if (format[pos] == '-') {
+                left = 1;
+                pos++;
+            } else if (format[pos] == '+') {
+                always_sign = 1;
+                pos++;
+            } else if (format[pos] == '\'') {
+                pos++;
+                if (pos >= format_len) goto fail;
+                padding = (char)format[pos++];
+            } else {
+                break;
+            }
+        }
+
+        int width = 0;
+        if (pos < format_len && format[pos] == '*') {
+            pos++;
+            int width_index = jinx_oracle_format_argument_index(format, format_len, &pos);
+            if (width_index == -2) goto fail;
+            if (width_index < 0) width_index = (int)next_arg++;
+            if ((uint32_t)width_index >= value_count || values[width_index].type != 1u) goto fail;
+            int64_t raw_width = values[width_index].as.i64;
+            if (raw_width < 0 || raw_width > INT32_MAX) goto fail;
+            width = (int)raw_width;
+        } else if (pos < format_len && format[pos] >= '0' && format[pos] <= '9') {
+            if (!jinx_oracle_format_read_number(format, format_len, &pos, &width)) goto fail;
+        }
+
+        int precision = 0;
+        int has_precision = 0;
+        if (pos < format_len && format[pos] == '.') {
+            pos++;
+            has_precision = 1;
+
+            if (pos < format_len && format[pos] == '*') {
+                pos++;
+                int precision_index = jinx_oracle_format_argument_index(format, format_len, &pos);
+                if (precision_index == -2) goto fail;
+                if (precision_index < 0) precision_index = (int)next_arg++;
+                if ((uint32_t)precision_index >= value_count || values[precision_index].type != 1u) goto fail;
+                int64_t raw_precision = values[precision_index].as.i64;
+                if (raw_precision < -1 || raw_precision > INT32_MAX) goto fail;
+                precision = (int)raw_precision;
+            } else if (pos < format_len && format[pos] >= '0' && format[pos] <= '9') {
+                if (!jinx_oracle_format_read_number(format, format_len, &pos, &precision)) goto fail;
+            } else {
+                precision = 0;
+            }
+        }
+
+        if (pos < format_len && format[pos] == 'l') pos++;
+        if (pos >= format_len) goto fail;
+
+        char spec = (char)format[pos++];
+
+        if (arg_index < 0) arg_index = (int)next_arg++;
+        if ((uint32_t)arg_index >= value_count) goto fail;
+        JinxValue value = values[arg_index];
+
+        if (spec == 'c') {
+            if (!jinx_oracle_format_append_char(&out, (char)jinx_oracle_intish(value))) goto fail;
+            continue;
+        }
+
+        if (spec == 's') {
+            JinxValue string_value = jinx_oracle_format_string_value(value);
+            const char *bytes = (const char *)jinx_oracle_string_bytes(string_value);
+            size_t string_len = jinx_oracle_string_len(string_value);
+            if (has_precision && precision >= 0 && (size_t)precision < string_len) string_len = (size_t)precision;
+            if (!jinx_oracle_format_append_padded(&out, bytes, string_len, (size_t)width, padding, left)) goto fail;
+            continue;
+        }
+
+        if (spec == 'd' || spec == 'u') {
+            char piece[96];
+            int n;
+
+            if (spec == 'd') {
+                int64_t number = jinx_oracle_intish(value);
+                n = always_sign && number >= 0
+                    ? snprintf(piece, sizeof(piece), "+%lld", (long long)number)
+                    : snprintf(piece, sizeof(piece), "%lld", (long long)number);
+            } else {
+                uint64_t number = (uint64_t)jinx_oracle_intish(value);
+                n = snprintf(piece, sizeof(piece), "%llu", (unsigned long long)number);
+            }
+
+            if (n < 0 || !jinx_oracle_format_append_padded(&out, piece, (size_t)n, (size_t)width, padding, left)) goto fail;
+            continue;
+        }
+
+        if (spec == 'b' || spec == 'o' || spec == 'x' || spec == 'X') {
+            int base = spec == 'b' ? 2 : (spec == 'o' ? 8 : 16);
+            JinxValue converted = jinx_oracle_uint_to_base((uint64_t)jinx_oracle_intish(value), base);
+            const char *bytes = (const char *)jinx_oracle_string_bytes(converted);
+            size_t converted_len = jinx_oracle_string_len(converted);
+
+            char *upper = NULL;
+            if (spec == 'X' && converted_len != 0u) {
+                upper = (char *)malloc(converted_len);
+                if (upper == NULL) goto fail;
+                for (size_t i = 0u; i < converted_len; i++) upper[i] = (char)jinx_oracle_ascii_upper_byte((unsigned char)bytes[i]);
+                bytes = upper;
+            }
+
+            int appended = jinx_oracle_format_append_padded(&out, bytes, converted_len, (size_t)width, padding, left);
+            free(upper);
+            if (!appended) goto fail;
+            continue;
+        }
+
+        if (spec == 'e' || spec == 'E' || spec == 'f' || spec == 'F' ||
+            spec == 'g' || spec == 'G' || spec == 'h' || spec == 'H') {
+            double number = jinx_oracle_floatish(value);
+            int effective_precision = has_precision ? precision : 6;
+            if (effective_precision < 0) effective_precision = 6;
+            if (effective_precision > 53) effective_precision = 53;
+            char c_spec = spec == 'h' ? 'g' : (spec == 'H' ? 'G' : spec);
+            char conversion[16];
+            snprintf(conversion, sizeof(conversion), "%%%s.%d%c", always_sign ? "+" : "", effective_precision, c_spec);
+
+            int needed = snprintf(NULL, 0, conversion, number);
+            if (needed < 0) goto fail;
+            char *piece = (char *)malloc((size_t)needed + 1u);
+            if (piece == NULL) goto fail;
+            snprintf(piece, (size_t)needed + 1u, conversion, number);
+
+            int appended = jinx_oracle_format_append_padded(&out, piece, (size_t)needed, (size_t)width, padding, left);
+            free(piece);
+            if (!appended) goto fail;
+            continue;
+        }
+
+        goto fail;
+    }
+
+    if (out.data == NULL) {
+        out.data = (char *)calloc(1u, 1u);
+        if (out.data == NULL) goto fail;
+    }
+
+    if (out.len > UINT32_MAX) goto fail;
+    {
+        char *scratch = jinx_oracle_scratch_string((uint32_t)out.len);
+        if (out.len != 0u) memcpy(scratch, out.data, out.len);
+        free(out.data);
+        *ok = 1;
+        return jinx_oracle_string_value_len(scratch, (uint32_t)out.len);
+    }
+
+fail:
+    free(out.data);
+    return jinx_oracle_zero_value();
+}
+
 static inline uint32_t jinx_oracle_crc32_bytes(const unsigned char *bytes, uint32_t len) {
     uint32_t crc = 0xffffffffu;
 
@@ -2329,6 +2633,22 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             jinx_oracle_call_arg(ctx, 3u),
             argc
         );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "sprintf")) {
+        int format_ok = 0;
+        ret = jinx_oracle_sprintf_values(
+            arg0,
+            ctx->call_argc > 1u ? &ctx->call_args[1] : NULL,
+            ctx->call_argc > 1u ? ctx->call_argc - 1u : 0u,
+            &format_ok
+        );
+        if (!format_ok) {
+            ctx->fault = "sprintf format/argument error";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
