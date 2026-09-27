@@ -5778,6 +5778,129 @@ static inline JinxValue jinx_oracle_jdmonthname_value(
     return jinx_oracle_string_value(name);
 }
 
+
+static inline int jinx_oracle_easter_current_local_year(int64_t *year_out) {
+    if (year_out == NULL) return 0;
+
+    time_t now = time(NULL);
+    struct tm local_value;
+
+#if defined(_WIN32)
+    if (localtime_s(&local_value, &now) != 0) return 0;
+#else
+    struct tm *local_ptr = localtime(&now);
+    if (local_ptr == NULL) return 0;
+    local_value = *local_ptr;
+#endif
+
+    *year_out = (int64_t)local_value.tm_year + 1900;
+    return 1;
+}
+
+static inline int jinx_oracle_easter_days_core(
+    int64_t year,
+    int64_t method,
+    int64_t *easter_out
+) {
+    if (easter_out == NULL) return 0;
+
+    const int64_t max_year = (INT64_MAX / 5) * 4;
+    if (year <= 0 || year > max_year) return 0;
+
+    int64_t golden = (year % 19) + 1;
+    int64_t solar = 0;
+    int64_t lunar = 0;
+    int64_t pfm;
+    int64_t dom;
+
+    if ((year <= 1582 && method != 2) ||
+        (year >= 1583 && year <= 1752 && method != 1 && method != 2) ||
+        method == 3) {
+        dom = (year + (year / 4) + 5) % 7;
+        if (dom < 0) dom += 7;
+
+        pfm = (3 - (11 * golden) - 7) % 30;
+        if (pfm < 0) pfm += 30;
+    } else {
+        dom = (year + (year / 4) - (year / 100) + (year / 400)) % 7;
+        if (dom < 0) dom += 7;
+
+        solar = (year - 1600) / 100 - (year - 1600) / 400;
+        lunar = (((year - 1400) / 100) * 8) / 25;
+
+        pfm = (3 - (11 * golden) + solar - lunar) % 30;
+        if (pfm < 0) pfm += 30;
+    }
+
+    if (pfm == 29 || (pfm == 28 && golden > 11)) {
+        pfm--;
+    }
+
+    int64_t tmp = (4 - pfm - dom) % 7;
+    if (tmp < 0) tmp += 7;
+
+    *easter_out = pfm + tmp + 1;
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_easter_value(
+    JinxOracleAsmContext *ctx,
+    int timestamp_mode
+) {
+    uint32_t argc = ctx != NULL ? ctx->call_argc : 0u;
+    int64_t year = 0;
+    int64_t method = argc >= 2u
+        ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 1u))
+        : 0;
+
+    if (argc >= 1u && jinx_oracle_call_arg(ctx, 0u).type != 0u) {
+        year = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 0u));
+    } else if (!jinx_oracle_easter_current_local_year(&year)) {
+        year = 1900;
+    }
+
+    int64_t easter = 0;
+    if (!jinx_oracle_easter_days_core(year, method, &easter)) {
+        ctx->fault = "Easter year outside PHP native range";
+        return jinx_oracle_zero_value();
+    }
+
+    if (!timestamp_mode) {
+        return jinx_oracle_int_value(easter);
+    }
+
+    if (sizeof(time_t) > 4u) {
+        if (year < 1970 || year > 2000000000LL) {
+            ctx->fault = "easter_date year outside 64-bit timestamp range";
+            return jinx_oracle_zero_value();
+        }
+    } else {
+        if (year < 1970 || year > 2037) {
+            ctx->fault = "easter_date year outside 32-bit timestamp range";
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    struct tm te;
+    memset(&te, 0, sizeof(te));
+    te.tm_isdst = -1;
+    te.tm_year = (int)(year - 1900);
+    te.tm_sec = 0;
+    te.tm_min = 0;
+    te.tm_hour = 0;
+
+    if (easter < 11) {
+        te.tm_mon = 2;
+        te.tm_mday = (int)easter + 21;
+    } else {
+        te.tm_mon = 3;
+        te.tm_mday = (int)easter - 10;
+    }
+
+    time_t result = mktime(&te);
+    return jinx_oracle_int_value((int64_t)result);
+}
+
 static inline int64_t jinx_oracle_calendar_to_sdn(int cal, int year, int month, int day) {
     switch (cal) {
         case 0: return jinx_oracle_gregorian_to_sdn(year, month, day);
@@ -6845,6 +6968,20 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         }
 
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "easter_days")) {
+        ret = jinx_oracle_easter_value(ctx, 0);
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "easter_date")) {
+        ret = jinx_oracle_easter_value(ctx, 1);
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
         jinx_oracle_return(ctx, ret);
         return ret;
     }
