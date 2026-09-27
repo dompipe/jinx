@@ -380,7 +380,7 @@ static inline JinxValue jinx_oracle_zend_count_chars_special(const JinxValue *ar
         return jinx_oracle_string_value_len(out, pos);
     }
 
-    if (mode < 0 || mode > 2) return jinx_oracle_bool_value(0);
+    if (mode < 0 || mode > 2) return jinx_oracle_zero_value();
 
     JinxZendArray *result = jinx_zend_array_new_packed(256u);
     if (result == 0) return jinx_oracle_zero_value();
@@ -417,38 +417,55 @@ static inline int jinx_oracle_jinx_value_to_zend(JinxValue value, JinxZendValue 
     return 0;
 }
 
+static inline uint64_t jinx_oracle_zend_unsigned_distance(int64_t high, int64_t low) {
+    return (uint64_t)high - (uint64_t)low;
+}
+
 static inline JinxValue jinx_oracle_zend_range_special(const JinxValue *args, size_t argc) {
     if (argc < 2u) return jinx_oracle_zero_value();
 
     int64_t start = jinx_oracle_intish(args[0]);
     int64_t end = jinx_oracle_intish(args[1]);
-    int64_t step = argc >= 3u ? jinx_oracle_intish(args[2]) : 1;
-    if (step <= 0) return jinx_oracle_bool_value(0);
+    int64_t signed_step = argc >= 3u ? jinx_oracle_intish(args[2]) : 1;
+    int step_negative = signed_step < 0;
+    uint64_t step;
 
-    uint64_t distance = start <= end
-        ? (uint64_t)(end - start)
-        : (uint64_t)(start - end);
-    uint64_t count = distance / (uint64_t)step + 1u;
-    if (count > UINT32_MAX) return jinx_oracle_bool_value(0);
+    if (signed_step == 0 || signed_step == INT64_MIN) return jinx_oracle_zero_value();
+
+    step = (uint64_t)(step_negative ? -signed_step : signed_step);
+
+    if (start < end && step_negative) return jinx_oracle_zero_value();
+
+    if (start == end) {
+        JinxZendArray *single = jinx_zend_array_new_packed(1u);
+        if (single == 0 || !jinx_zend_array_append(single, jinx_zend_long(start))) {
+            jinx_zend_array_release(single);
+            return jinx_oracle_zero_value();
+        }
+        return jinx_oracle_zend_array_value_owned(single);
+    }
+
+    uint64_t distance = start < end
+        ? jinx_oracle_zend_unsigned_distance(end, start)
+        : jinx_oracle_zend_unsigned_distance(start, end);
+
+    if (step > distance) return jinx_oracle_zero_value();
+
+    uint64_t count = distance / step + 1u;
+    if (count > UINT32_MAX) return jinx_oracle_zero_value();
 
     JinxZendArray *result = jinx_zend_array_new_packed((size_t)count);
     if (result == 0) return jinx_oracle_zero_value();
 
-    if (start <= end) {
-        for (int64_t value = start; value <= end;) {
-            if (!jinx_zend_array_append(result, jinx_zend_long(value))) {
-                jinx_zend_array_release(result); return jinx_oracle_zero_value();
-            }
-            if (end - value < step) break;
-            value += step;
-        }
-    } else {
-        for (int64_t value = start; value >= end;) {
-            if (!jinx_zend_array_append(result, jinx_zend_long(value))) {
-                jinx_zend_array_release(result); return jinx_oracle_zero_value();
-            }
-            if (value - end < step) break;
-            value -= step;
+    for (uint64_t i = 0u; i < count; i++) {
+        uint64_t delta = i * step;
+        int64_t value = start < end
+            ? (int64_t)((uint64_t)start + delta)
+            : (int64_t)((uint64_t)start - delta);
+
+        if (!jinx_zend_array_append(result, jinx_zend_long(value))) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
         }
     }
 
@@ -460,17 +477,24 @@ static inline JinxValue jinx_oracle_zend_array_fill_special(const JinxValue *arg
 
     int64_t start = jinx_oracle_intish(args[0]);
     int64_t count = jinx_oracle_intish(args[1]);
-    if (count <= 0 || count > UINT32_MAX) return jinx_oracle_bool_value(0);
+
+    if (count < 0 || count > INT_MAX) return jinx_oracle_zero_value();
+    if (count > 0 && start > INT64_MAX - count + 1) return jinx_oracle_zero_value();
+
+    JinxZendArray *result = jinx_zend_array_new_packed(count == 0 ? 1u : (size_t)count);
+    if (result == 0) return jinx_oracle_zero_value();
+    if (count == 0) return jinx_oracle_zend_array_value_owned(result);
 
     JinxZendValue fill;
     JinxZendString *owned_string = 0;
-    if (!jinx_oracle_jinx_value_to_zend(args[2], &fill, &owned_string)) return jinx_oracle_bool_value(0);
-
-    JinxZendArray *result = jinx_zend_array_new_packed((size_t)count);
-    if (result == 0) { jinx_zend_string_release(owned_string); return jinx_oracle_zero_value(); }
+    if (!jinx_oracle_jinx_value_to_zend(args[2], &fill, &owned_string)) {
+        jinx_zend_array_release(result);
+        return jinx_oracle_zero_value();
+    }
 
     for (int64_t i = 0; i < count; i++) {
-        if (!jinx_zend_array_add_index(result, (size_t)(start + i), fill)) {
+        int64_t key = start + i;
+        if (!jinx_zend_array_add_index(result, (size_t)key, fill)) {
             jinx_zend_string_release(owned_string);
             jinx_zend_array_release(result);
             return jinx_oracle_zero_value();
@@ -521,7 +545,7 @@ static inline JinxValue jinx_oracle_zend_array_combine_special(const JinxValue *
     if (keys == 0 || values == 0) return jinx_oracle_zero_value();
 
     size_t count = jinx_zend_array_live_count(keys);
-    if (count != jinx_zend_array_live_count(values)) return jinx_oracle_bool_value(0);
+    if (count != jinx_zend_array_live_count(values)) return jinx_oracle_zero_value();
 
     JinxZendArray *result = jinx_zend_array_new_packed(count + 1u);
     if (result == 0) return jinx_oracle_zero_value();
