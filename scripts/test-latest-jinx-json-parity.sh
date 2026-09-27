@@ -63,15 +63,17 @@ log "Basic native smoke"
 ./build/native/jinx-zend-smoke
 
 log "JSON declaration parity"
-./jinx scripts/test-native-pure-core-oracle-asm.php
-./jinx scripts/test-native-zend-array-core-oracle-asm.php
+# These are PHP oracle harnesses: run them with PHP so they independently
+# compute PHP behavior and invoke ./jinx only for the Jinx side.
+php scripts/test-native-pure-core-oracle-asm.php
+php scripts/test-native-zend-array-core-oracle-asm.php
 
 log "Full registered Jinx parity/test suite"
-./jinx scripts/test-bin-jinx.php
+php scripts/test-bin-jinx.php
 
 if [[ -f scripts/test-jinx-native-suite.php ]]; then
     log "Native suite"
-    ./jinx scripts/test-jinx-native-suite.php
+    php scripts/test-jinx-native-suite.php
 fi
 
 log "Generated-function smoke"
