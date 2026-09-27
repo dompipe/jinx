@@ -1483,6 +1483,179 @@ int main(void) {
         return fail("array_multisort string key value");
     }
 
+    JinxZendArray *map_source = jinx_zend_array_new_packed(3);
+    JinxZendString *map_a = jinx_zend_string_new("a", 1);
+    JinxZendString *map_four = jinx_zend_string_new("four", 4);
+    JinxZendString *map_xx = jinx_zend_string_new("xx", 2);
+    if (map_source == 0 || map_a == 0 || map_four == 0 || map_xx == 0 ||
+        !jinx_zend_array_add_assoc(map_source, "short", 5, jinx_zend_string_value(map_a)) ||
+        !jinx_zend_array_add_index(map_source, 5, jinx_zend_string_value(map_four)) ||
+        !jinx_zend_array_add_assoc(map_source, "x", 1, jinx_zend_string_value(map_xx))) {
+        return fail("array_map named source");
+    }
+    jinx_zend_string_release(map_a);
+    jinx_zend_string_release(map_four);
+    jinx_zend_string_release(map_xx);
+
+    args[0] = jinx_oracle_string_value("strlen");
+    args[1] = jinx_oracle_zend_array_value_borrowed(map_source);
+    result = jinx_call_builtin_through_oracle("array_map", args, 2);
+    if (!expect_array_count(result, 3)) return fail("array_map named count");
+    JinxZendArray *mapped = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *mapped_short = jinx_zend_array_find(mapped, "short", 5);
+    JinxZendValue *mapped_x = jinx_zend_array_find(mapped, "x", 1);
+    if (mapped_short == 0 || mapped_short->type != JINX_ZEND_LONG || mapped_short->value.lval != 1 ||
+        !expect_long_index(mapped, 5, 4) ||
+        mapped_x == 0 || mapped_x->type != JINX_ZEND_LONG || mapped_x->value.lval != 2) {
+        return fail("array_map named preserve keys");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *map_left = jinx_zend_array_new_packed(3);
+    JinxZendArray *map_right = jinx_zend_array_new_packed(3);
+    if (map_left == 0 || map_right == 0 ||
+        !jinx_zend_array_append(map_left, jinx_zend_long(1)) ||
+        !jinx_zend_array_append(map_left, jinx_zend_long(5)) ||
+        !jinx_zend_array_append(map_left, jinx_zend_long(3)) ||
+        !jinx_zend_array_append(map_right, jinx_zend_long(4)) ||
+        !jinx_zend_array_append(map_right, jinx_zend_long(2)) ||
+        !jinx_zend_array_append(map_right, jinx_zend_long(9))) {
+        return fail("array_map multi source");
+    }
+
+    args[0] = jinx_oracle_string_value("max");
+    args[1] = jinx_oracle_zend_array_value_borrowed(map_left);
+    args[2] = jinx_oracle_zend_array_value_borrowed(map_right);
+    result = jinx_call_builtin_through_oracle("array_map", args, 3);
+    if (!expect_array_count(result, 3)) return fail("array_map multi count");
+    JinxZendArray *mapped_multi = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(mapped_multi, 0, 4) ||
+        !expect_long_index(mapped_multi, 1, 5) ||
+        !expect_long_index(mapped_multi, 2, 9)) {
+        return fail("array_map multi values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_zero_value();
+    result = jinx_call_builtin_through_oracle("array_map", args, 3);
+    if (!expect_array_count(result, 3)) return fail("array_map null callback count");
+    JinxZendArray *mapped_rows = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *row0 = jinx_zend_array_index(mapped_rows, 0);
+    JinxZendValue *row1 = jinx_zend_array_index(mapped_rows, 1);
+    JinxZendValue *row2 = jinx_zend_array_index(mapped_rows, 2);
+    if (row0 == 0 || row0->type != JINX_ZEND_ARRAY ||
+        row1 == 0 || row1->type != JINX_ZEND_ARRAY ||
+        row2 == 0 || row2->type != JINX_ZEND_ARRAY ||
+        !expect_long_index(row0->value.array, 0, 1) ||
+        !expect_long_index(row0->value.array, 1, 4) ||
+        !expect_long_index(row1->value.array, 0, 5) ||
+        !expect_long_index(row1->value.array, 1, 2) ||
+        !expect_long_index(row2->value.array, 0, 3) ||
+        !expect_long_index(row2->value.array, 1, 9)) {
+        return fail("array_map null callback rows");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(map_left);
+    args[1] = jinx_oracle_string_value("max");
+    args[2] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("array_reduce", args, 3);
+    if (!expect_int(result, 5)) return fail("array_reduce named max");
+
+    JinxZendArray *filter_named_source = jinx_zend_array_new_packed(3);
+    JinxZendString *filter_one = jinx_zend_string_new("1", 1);
+    JinxZendString *filter_bad = jinx_zend_string_new("x", 1);
+    JinxZendString *filter_two = jinx_zend_string_new("2", 1);
+    if (filter_named_source == 0 || filter_one == 0 || filter_bad == 0 || filter_two == 0 ||
+        !jinx_zend_array_add_assoc(filter_named_source, "a", 1, jinx_zend_string_value(filter_one)) ||
+        !jinx_zend_array_add_assoc(filter_named_source, "b", 1, jinx_zend_string_value(filter_bad)) ||
+        !jinx_zend_array_add_assoc(filter_named_source, "c", 1, jinx_zend_string_value(filter_two))) {
+        return fail("array_filter named source");
+    }
+    jinx_zend_string_release(filter_one);
+    jinx_zend_string_release(filter_bad);
+    jinx_zend_string_release(filter_two);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(filter_named_source);
+    args[1] = jinx_oracle_string_value("is_numeric");
+    args[2] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("array_filter", args, 3);
+    if (!expect_array_count(result, 2)) return fail("array_filter named count");
+    JinxZendArray *filtered_named = jinx_oracle_zend_array_ptr(result);
+    if (jinx_zend_array_find(filtered_named, "a", 1) == 0 ||
+        jinx_zend_array_find(filtered_named, "b", 1) != 0 ||
+        jinx_zend_array_find(filtered_named, "c", 1) == 0) {
+        return fail("array_filter named values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *predicate_source = jinx_zend_array_new_packed(3);
+    JinxZendString *apple = jinx_zend_string_new("apple", 5);
+    JinxZendString *banana = jinx_zend_string_new("banana", 6);
+    JinxZendString *carrot = jinx_zend_string_new("carrot", 6);
+    if (predicate_source == 0 || apple == 0 || banana == 0 || carrot == 0 ||
+        !jinx_zend_array_add_assoc(predicate_source, "a", 1, jinx_zend_string_value(apple)) ||
+        !jinx_zend_array_add_assoc(predicate_source, "b", 1, jinx_zend_string_value(banana)) ||
+        !jinx_zend_array_add_assoc(predicate_source, "x", 1, jinx_zend_string_value(carrot))) {
+        return fail("array predicate source");
+    }
+    jinx_zend_string_release(apple);
+    jinx_zend_string_release(banana);
+    jinx_zend_string_release(carrot);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(predicate_source);
+    args[1] = jinx_oracle_string_value("str_starts_with");
+    args[2] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("array_filter", args, 3);
+    if (!expect_array_count(result, 2)) return fail("array_filter both count");
+    JinxZendArray *filtered_both = jinx_oracle_zend_array_ptr(result);
+    if (jinx_zend_array_find(filtered_both, "a", 1) == 0 ||
+        jinx_zend_array_find(filtered_both, "b", 1) == 0 ||
+        jinx_zend_array_find(filtered_both, "x", 1) != 0) {
+        return fail("array_filter both values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(predicate_source);
+    args[1] = jinx_oracle_string_value("str_starts_with");
+    result = jinx_call_builtin_through_oracle("array_find", args, 2);
+    if (!expect_string(result, "apple")) return fail("array_find named");
+    result = jinx_call_builtin_through_oracle("array_find_key", args, 2);
+    if (!expect_string(result, "a")) return fail("array_find_key named");
+    result = jinx_call_builtin_through_oracle("array_any", args, 2);
+    if (!expect_bool(result, 1)) return fail("array_any named");
+    result = jinx_call_builtin_through_oracle("array_all", args, 2);
+    if (!expect_bool(result, 0)) return fail("array_all named false");
+
+    JinxZendArray *all_source = jinx_zend_array_new_packed(2);
+    JinxZendString *all_apple = jinx_zend_string_new("apple", 5);
+    JinxZendString *all_banana = jinx_zend_string_new("banana", 6);
+    if (all_source == 0 || all_apple == 0 || all_banana == 0 ||
+        !jinx_zend_array_add_assoc(all_source, "a", 1, jinx_zend_string_value(all_apple)) ||
+        !jinx_zend_array_add_assoc(all_source, "b", 1, jinx_zend_string_value(all_banana))) {
+        return fail("array_all true source");
+    }
+    jinx_zend_string_release(all_apple);
+    jinx_zend_string_release(all_banana);
+    args[0] = jinx_oracle_zend_array_value_borrowed(all_source);
+    args[1] = jinx_oracle_string_value("str_starts_with");
+    result = jinx_call_builtin_through_oracle("array_all", args, 2);
+    if (!expect_bool(result, 1)) return fail("array_all named true");
+
+    JinxZendArray *empty_predicate = jinx_zend_array_new_packed(1);
+    if (empty_predicate == 0) return fail("array_all empty source");
+    args[0] = jinx_oracle_zend_array_value_borrowed(empty_predicate);
+    result = jinx_call_builtin_through_oracle("array_all", args, 2);
+    if (!expect_bool(result, 1)) return fail("array_all empty true");
+
+    jinx_zend_array_release(map_source);
+    jinx_zend_array_release(map_left);
+    jinx_zend_array_release(map_right);
+    jinx_zend_array_release(filter_named_source);
+    jinx_zend_array_release(predicate_source);
+    jinx_zend_array_release(all_source);
+    jinx_zend_array_release(empty_predicate);
+
     jinx_zend_array_release(multi_primary);
     jinx_zend_array_release(multi_secondary);
     jinx_zend_array_release(multi_key_primary);
@@ -1502,7 +1675,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc;array_min=2;array_max=3.5;array_tie_type=integer;sort=1,2,3;rsort_num=10,2,1;asort=a:1,c:1,b:2;arsort=b:3,c:2,a:1;ksort=a:1,b:2,c:3;krsort=c:3,b:2,a:1;natsort=3:img1.png,2:img2.png,1:img10.png,0:img12.png;natcase=2:Img1,1:img2,0:IMG12;multisort=10,10,20,20|b,a,d,c;multikeys=0:Y,x:X\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc;array_min=2;array_max=3.5;array_tie_type=integer;sort=1,2,3;rsort_num=10,2,1;asort=a:1,c:1,b:2;arsort=b:3,c:2,a:1;ksort=a:1,b:2,c:3;krsort=c:3,b:2,a:1;natsort=3:img1.png,2:img2.png,1:img10.png,0:img12.png;natcase=2:Img1,1:img2,0:IMG12;multisort=10,10,20,20|b,a,d,c;multikeys=0:Y,x:X;map=short:1,5:4,x:2;map2=4,5,9;mapnull=1,4|5,2|3,9;reduce=5;filtercb=a:1,c:2;filterboth=a:apple,b:banana;find=apple|a|1|0|1|1\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
