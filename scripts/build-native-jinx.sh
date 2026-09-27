@@ -28,6 +28,7 @@ php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
+    -lz \
     -o "$OUT"
 
 "$CC_BIN" \
