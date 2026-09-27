@@ -58,6 +58,9 @@ array_push($mutation, 50);
 $shiftValue = array_shift($mutation);
 $unshiftCount = array_unshift($mutation, 5, 6);
 
+$splice = [10, 'keep' => 20, 2 => 30, 'tail' => 40, 5 => 50];
+$spliced = array_splice($splice, 2, 2, [70, 80]);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -104,7 +107,9 @@ $expectedParity = 'PARITY:'
     . ';pop=' . $popValue
     . ';shift=' . $shiftValue
     . ';unshift=' . $unshiftCount
-    . ';mutation=' . $pairs($mutation);
+    . ';mutation=' . $pairs($mutation)
+    . ';splice=' . $pairs($splice)
+    . ';spliced=' . $pairs($spliced);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
