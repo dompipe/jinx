@@ -184,6 +184,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "sandbox-blocked",
         JINX_PHP_MANUAL_SANDBOX_BLOCKED,
         "Resolved by policy: these are blocked from blind native execution until an explicit sandbox/security policy exists."
+    },
+    {
+        "pure-value-core",
+        "https://www.php.net/manual/en/refs.basic.text.php",
+        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format",
+        "string|int|bool",
+        "jinx_oracle_asm_call_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Native Oracle ASM handlers for pure scalar/string behavior in the current JinxValue model; host-state and container forms remain outside this family."
     }
 };
 
@@ -273,6 +282,19 @@ static inline int jinx_php_manual_name_is_string_byte_transform(const char *name
         strcmp(name, "chunk_split") == 0;
 }
 
+static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
+    return strcmp(name, "base64_encode") == 0 || strcmp(name, "base64_decode") == 0 ||
+        strcmp(name, "urlencode") == 0 || strcmp(name, "urldecode") == 0 ||
+        strcmp(name, "rawurlencode") == 0 || strcmp(name, "rawurldecode") == 0 ||
+        strcmp(name, "basename") == 0 || strcmp(name, "dirname") == 0 ||
+        strcmp(name, "base_convert") == 0 || strcmp(name, "bindec") == 0 ||
+        strcmp(name, "hexdec") == 0 || strcmp(name, "octdec") == 0 ||
+        strcmp(name, "decbin") == 0 || strcmp(name, "dechex") == 0 ||
+        strcmp(name, "decoct") == 0 || strcmp(name, "crc32") == 0 ||
+        strcmp(name, "checkdate") == 0 || strcmp(name, "nl2br") == 0 ||
+        strcmp(name, "number_format") == 0;
+}
+
 static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {
     return strcmp(name, "strcmp") == 0 || strcmp(name, "strcasecmp") == 0 ||
         strcmp(name, "strncmp") == 0 || strcmp(name, "strncasecmp") == 0 ||
@@ -311,6 +333,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_math_trig_log(name)) {
         return &jinx_php_manual_handler_specs[3];
+    }
+
+    if (jinx_php_manual_name_is_pure_value_core(name)) {
+        return &jinx_php_manual_handler_specs[16];
     }
 
     if (jinx_php_manual_name_starts(name, "ctype_")) {

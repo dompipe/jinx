@@ -732,6 +732,449 @@ static inline JinxValue jinx_oracle_ucwords_value(
     return jinx_oracle_string_value_len(out, len);
 }
 
+
+static inline int jinx_oracle_ascii_alnum(unsigned char c) {
+    return (c >= (unsigned char)'A' && c <= (unsigned char)'Z') ||
+        (c >= (unsigned char)'a' && c <= (unsigned char)'z') ||
+        (c >= (unsigned char)'0' && c <= (unsigned char)'9');
+}
+
+static inline JinxValue jinx_oracle_base64_encode_value(JinxValue value) {
+    static const char alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint64_t needed = ((uint64_t)len + 2u) / 3u * 4u;
+
+    if (needed > UINT32_MAX) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+
+    for (uint32_t i = 0u; i < len; i += 3u) {
+        uint32_t remain = len - i;
+        uint32_t triple = (uint32_t)bytes[i] << 16u;
+
+        if (remain > 1u) {
+            triple |= (uint32_t)bytes[i + 1u] << 8u;
+        }
+        if (remain > 2u) {
+            triple |= (uint32_t)bytes[i + 2u];
+        }
+
+        out[pos++] = alphabet[(triple >> 18u) & 0x3fu];
+        out[pos++] = alphabet[(triple >> 12u) & 0x3fu];
+        out[pos++] = remain > 1u ? alphabet[(triple >> 6u) & 0x3fu] : '=';
+        out[pos++] = remain > 2u ? alphabet[triple & 0x3fu] : '=';
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline int jinx_oracle_base64_digit(unsigned char c) {
+    if (c >= (unsigned char)'A' && c <= (unsigned char)'Z') return (int)(c - (unsigned char)'A');
+    if (c >= (unsigned char)'a' && c <= (unsigned char)'z') return 26 + (int)(c - (unsigned char)'a');
+    if (c >= (unsigned char)'0' && c <= (unsigned char)'9') return 52 + (int)(c - (unsigned char)'0');
+    if (c == (unsigned char)'+') return 62;
+    if (c == (unsigned char)'/') return 63;
+    return -1;
+}
+
+static inline JinxValue jinx_oracle_base64_decode_value(JinxValue value, JinxValue strict_value, uint32_t argc) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int strict = argc >= 2u && jinx_oracle_boolish(strict_value);
+    char *out = jinx_oracle_scratch_string(len);
+    uint32_t pos = 0u;
+    int quartet[4];
+    uint32_t q = 0u;
+    int saw_padding = 0;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char c = bytes[i];
+
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            continue;
+        }
+
+        if (c == '=') {
+            saw_padding = 1;
+            quartet[q++] = -2;
+        } else {
+            int digit = jinx_oracle_base64_digit(c);
+            if (digit < 0) {
+                if (strict) {
+                    return jinx_oracle_bool_value(0);
+                }
+                continue;
+            }
+            if (saw_padding) {
+                return jinx_oracle_bool_value(0);
+            }
+            quartet[q++] = digit;
+        }
+
+        if (q == 4u) {
+            if (quartet[0] < 0 || quartet[1] < 0 ||
+                (quartet[2] == -2 && quartet[3] != -2)) {
+                return jinx_oracle_bool_value(0);
+            }
+
+            uint32_t triple =
+                ((uint32_t)quartet[0] << 18u) |
+                ((uint32_t)quartet[1] << 12u) |
+                ((uint32_t)(quartet[2] < 0 ? 0 : quartet[2]) << 6u) |
+                (uint32_t)(quartet[3] < 0 ? 0 : quartet[3]);
+
+            out[pos++] = (char)((triple >> 16u) & 0xffu);
+            if (quartet[2] != -2) out[pos++] = (char)((triple >> 8u) & 0xffu);
+            if (quartet[3] != -2) out[pos++] = (char)(triple & 0xffu);
+            q = 0u;
+        }
+    }
+
+    if (q != 0u) {
+        if (strict || q == 1u) {
+            return jinx_oracle_bool_value(0);
+        }
+
+        while (q < 4u) {
+            quartet[q++] = -2;
+        }
+
+        if (quartet[0] < 0 || quartet[1] < 0) {
+            return jinx_oracle_bool_value(0);
+        }
+
+        uint32_t triple =
+            ((uint32_t)quartet[0] << 18u) |
+            ((uint32_t)quartet[1] << 12u) |
+            ((uint32_t)(quartet[2] < 0 ? 0 : quartet[2]) << 6u);
+
+        out[pos++] = (char)((triple >> 16u) & 0xffu);
+        if (quartet[2] != -2) out[pos++] = (char)((triple >> 8u) & 0xffu);
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_urlencode_value(JinxValue value, int raw) {
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint64_t needed = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char c = bytes[i];
+        int safe = jinx_oracle_ascii_alnum(c) || c == '-' || c == '_' || c == '.' || (raw && c == '~');
+        needed += safe || (!raw && c == ' ') ? 1u : 3u;
+    }
+
+    if (needed > UINT32_MAX) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char c = bytes[i];
+        int safe = jinx_oracle_ascii_alnum(c) || c == '-' || c == '_' || c == '.' || (raw && c == '~');
+
+        if (safe) {
+            out[pos++] = (char)c;
+        } else if (!raw && c == ' ') {
+            out[pos++] = '+';
+        } else {
+            out[pos++] = '%';
+            out[pos++] = hex[(c >> 4u) & 0x0fu];
+            out[pos++] = hex[c & 0x0fu];
+        }
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_urldecode_value(JinxValue value, int raw) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(len);
+    uint32_t pos = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char c = bytes[i];
+
+        if (!raw && c == '+') {
+            out[pos++] = ' ';
+            continue;
+        }
+
+        if (c == '%' && i + 2u < len) {
+            int hi = jinx_oracle_hex_nibble(bytes[i + 1u]);
+            int lo = jinx_oracle_hex_nibble(bytes[i + 2u]);
+            if (hi >= 0 && lo >= 0) {
+                out[pos++] = (char)((hi << 4) | lo);
+                i += 2u;
+                continue;
+            }
+        }
+
+        out[pos++] = (char)c;
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline int jinx_oracle_path_sep(unsigned char c) {
+#ifdef _WIN32
+    return c == '/' || c == '\\';
+#else
+    return c == '/';
+#endif
+}
+
+static inline JinxValue jinx_oracle_basename_value(JinxValue path_value, JinxValue suffix_value, uint32_t argc) {
+    const unsigned char *path = jinx_oracle_string_bytes(path_value);
+    uint32_t len = jinx_oracle_string_len(path_value);
+    uint32_t end = len;
+    uint32_t start;
+    uint32_t out_len;
+
+    while (end > 0u && jinx_oracle_path_sep(path[end - 1u])) end--;
+    start = end;
+    while (start > 0u && !jinx_oracle_path_sep(path[start - 1u])) start--;
+
+    out_len = end - start;
+
+    if (argc >= 2u && suffix_value.type == 3u) {
+        const unsigned char *suffix = jinx_oracle_string_bytes(suffix_value);
+        uint32_t suffix_len = jinx_oracle_string_len(suffix_value);
+        if (suffix_len > 0u && suffix_len <= out_len &&
+            memcmp(path + end - suffix_len, suffix, suffix_len) == 0) {
+            out_len -= suffix_len;
+        }
+    }
+
+    return jinx_oracle_string_slice_copy(path, start, out_len);
+}
+
+static inline JinxValue jinx_oracle_dirname_value(JinxValue path_value, JinxValue levels_value, uint32_t argc) {
+    const unsigned char *path = jinx_oracle_string_bytes(path_value);
+    uint32_t len = jinx_oracle_string_len(path_value);
+    int64_t levels = argc >= 2u ? jinx_oracle_intish(levels_value) : 1;
+    uint32_t end = len;
+
+    if (levels < 1) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    while (levels-- > 0) {
+        while (end > 1u && jinx_oracle_path_sep(path[end - 1u])) end--;
+        while (end > 0u && !jinx_oracle_path_sep(path[end - 1u])) end--;
+        while (end > 1u && jinx_oracle_path_sep(path[end - 1u])) end--;
+
+        if (end == 0u) {
+            return jinx_oracle_string_value(".");
+        }
+    }
+
+    return jinx_oracle_string_slice_copy(path, 0u, end);
+}
+
+static inline int jinx_oracle_base_digit(unsigned char c) {
+    if (c >= '0' && c <= '9') return (int)(c - '0');
+    if (c >= 'a' && c <= 'z') return 10 + (int)(c - 'a');
+    if (c >= 'A' && c <= 'Z') return 10 + (int)(c - 'A');
+    return -1;
+}
+
+static inline uint64_t jinx_oracle_parse_base_uint(JinxValue value, int base) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint64_t n = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        int digit = jinx_oracle_base_digit(bytes[i]);
+        if (digit < 0 || digit >= base) continue;
+        n = n * (uint64_t)base + (uint64_t)digit;
+    }
+
+    return n;
+}
+
+static inline JinxValue jinx_oracle_uint_to_base(uint64_t n, int base) {
+    static const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char tmp[80];
+    uint32_t pos = 0u;
+
+    if (base < 2 || base > 36) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    do {
+        tmp[pos++] = digits[n % (uint64_t)base];
+        n /= (uint64_t)base;
+    } while (n != 0u && pos < sizeof(tmp));
+
+    char *out = jinx_oracle_scratch_string(pos);
+    for (uint32_t i = 0u; i < pos; i++) {
+        out[i] = tmp[pos - 1u - i];
+    }
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_base_convert_value(JinxValue value, JinxValue from_value, JinxValue to_value) {
+    int from = (int)jinx_oracle_intish(from_value);
+    int to = (int)jinx_oracle_intish(to_value);
+
+    if (from < 2 || from > 36 || to < 2 || to > 36) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    return jinx_oracle_uint_to_base(jinx_oracle_parse_base_uint(value, from), to);
+}
+
+static inline uint32_t jinx_oracle_crc32_bytes(const unsigned char *bytes, uint32_t len) {
+    uint32_t crc = 0xffffffffu;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        crc ^= (uint32_t)bytes[i];
+        for (uint32_t bit = 0u; bit < 8u; bit++) {
+            uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+            crc = (crc >> 1u) ^ (0xedb88320u & mask);
+        }
+    }
+
+    return crc ^ 0xffffffffu;
+}
+
+static inline int jinx_oracle_is_leap_year(int64_t year) {
+    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+}
+
+static inline JinxValue jinx_oracle_checkdate_value(JinxValue month_value, JinxValue day_value, JinxValue year_value) {
+    int64_t month = jinx_oracle_intish(month_value);
+    int64_t day = jinx_oracle_intish(day_value);
+    int64_t year = jinx_oracle_intish(year_value);
+    static const unsigned char days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+    if (year < 1 || year > 32767 || month < 1 || month > 12 || day < 1) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    int64_t max_day = days[month - 1];
+    if (month == 2 && jinx_oracle_is_leap_year(year)) max_day = 29;
+    return jinx_oracle_bool_value(day <= max_day);
+}
+
+static inline JinxValue jinx_oracle_nl2br_value(JinxValue value, JinxValue xhtml_value, uint32_t argc) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int xhtml = argc < 2u || jinx_oracle_boolish(xhtml_value);
+    const char *tag = xhtml ? "<br />" : "<br>";
+    uint32_t tag_len = xhtml ? 6u : 4u;
+    uint64_t breaks = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (bytes[i] == '\r' || bytes[i] == '\n') {
+            breaks++;
+            if (bytes[i] == '\r' && i + 1u < len && bytes[i + 1u] == '\n') i++;
+        }
+    }
+
+    uint64_t needed = (uint64_t)len + breaks * tag_len;
+    if (needed > UINT32_MAX) return jinx_oracle_bool_value(0);
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (bytes[i] == '\r' || bytes[i] == '\n') {
+            memcpy(out + pos, tag, tag_len);
+            pos += tag_len;
+            out[pos++] = (char)bytes[i];
+            if (bytes[i] == '\r' && i + 1u < len && bytes[i + 1u] == '\n') {
+                out[pos++] = '\n';
+                i++;
+            }
+        } else {
+            out[pos++] = (char)bytes[i];
+        }
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_number_format_value(
+    JinxValue number_value,
+    JinxValue decimals_value,
+    JinxValue decimal_sep_value,
+    JinxValue thousands_sep_value,
+    uint32_t argc
+) {
+    double number = jinx_oracle_floatish(number_value);
+    int64_t decimals_raw = argc >= 2u ? jinx_oracle_intish(decimals_value) : 0;
+    int decimals = decimals_raw < 0 ? 0 : (decimals_raw > 18 ? 18 : (int)decimals_raw);
+    const unsigned char *decimal_sep = argc >= 3u ? jinx_oracle_string_bytes(decimal_sep_value) : (const unsigned char *)".";
+    uint32_t decimal_sep_len = argc >= 3u ? jinx_oracle_string_len(decimal_sep_value) : 1u;
+    const unsigned char *thousands_sep = argc >= 4u ? jinx_oracle_string_bytes(thousands_sep_value) : (const unsigned char *)",";
+    uint32_t thousands_sep_len = argc >= 4u ? jinx_oracle_string_len(thousands_sep_value) : 1u;
+    double scale = pow(10.0, (double)decimals);
+    double rounded = round(number * scale) / scale;
+    int plain_len = snprintf(NULL, 0, "%.*f", decimals, rounded);
+
+    if (plain_len < 0) return jinx_oracle_bool_value(0);
+
+    char *plain = (char *)malloc((size_t)plain_len + 1u);
+    if (plain == NULL) return jinx_oracle_bool_value(0);
+    snprintf(plain, (size_t)plain_len + 1u, "%.*f", decimals, rounded);
+
+    char *dot = strchr(plain, '.');
+    uint32_t integer_start = plain[0] == '-' ? 1u : 0u;
+    uint32_t integer_end = dot == NULL ? (uint32_t)plain_len : (uint32_t)(dot - plain);
+    uint32_t integer_digits = integer_end - integer_start;
+    uint32_t groups = integer_digits > 0u ? (integer_digits - 1u) / 3u : 0u;
+    uint64_t needed = (uint64_t)plain_len + (uint64_t)groups * thousands_sep_len;
+
+    if (dot != NULL) {
+        needed += decimal_sep_len;
+        needed -= 1u;
+    }
+
+    if (needed > UINT32_MAX) {
+        free(plain);
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+
+    if (integer_start != 0u) out[pos++] = '-';
+
+    for (uint32_t i = integer_start; i < integer_end; i++) {
+        uint32_t remaining = integer_end - i;
+        out[pos++] = plain[i];
+        if (remaining > 1u && (remaining - 1u) % 3u == 0u && thousands_sep_len != 0u) {
+            memcpy(out + pos, thousands_sep, thousands_sep_len);
+            pos += thousands_sep_len;
+        }
+    }
+
+    if (dot != NULL) {
+        if (decimal_sep_len != 0u) {
+            memcpy(out + pos, decimal_sep, decimal_sep_len);
+            pos += decimal_sep_len;
+        }
+        memcpy(out + pos, dot + 1, (size_t)plain_len - (size_t)(dot - plain) - 1u);
+        pos += (uint32_t)((size_t)plain_len - (size_t)(dot - plain) - 1u);
+    }
+
+    free(plain);
+    return jinx_oracle_string_value_len(out, pos);
+}
+
 static inline JinxValue jinx_oracle_bin2hex_value(JinxValue value) {
     static const char hex[] = "0123456789abcdef";
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
@@ -1416,6 +1859,95 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             arg0,
             arg1,
             jinx_oracle_call_arg(ctx, 2u),
+            argc
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "base64_encode")) {
+        ret = jinx_oracle_base64_encode_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "base64_decode")) {
+        ret = jinx_oracle_base64_decode_value(arg0, arg1, argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "urlencode", "rawurlencode")) {
+        ret = jinx_oracle_urlencode_value(arg0, jinx_oracle_name_is(name, "rawurlencode"));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "urldecode", "rawurldecode")) {
+        ret = jinx_oracle_urldecode_value(arg0, jinx_oracle_name_is(name, "rawurldecode"));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "basename")) {
+        ret = jinx_oracle_basename_value(arg0, arg1, argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "dirname")) {
+        ret = jinx_oracle_dirname_value(arg0, arg1, argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "base_convert")) {
+        ret = jinx_oracle_base_convert_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in3(name, "bindec", "hexdec", "octdec")) {
+        int base = jinx_oracle_name_is(name, "bindec") ? 2 : (jinx_oracle_name_is(name, "hexdec") ? 16 : 8);
+        ret = jinx_oracle_int_value((int64_t)jinx_oracle_parse_base_uint(arg0, base));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in3(name, "decbin", "dechex", "decoct")) {
+        int base = jinx_oracle_name_is(name, "decbin") ? 2 : (jinx_oracle_name_is(name, "dechex") ? 16 : 8);
+        ret = jinx_oracle_uint_to_base((uint64_t)jinx_oracle_intish(arg0), base);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "crc32")) {
+        ret = jinx_oracle_int_value((int64_t)jinx_oracle_crc32_bytes(
+            jinx_oracle_string_bytes(arg0),
+            jinx_oracle_string_len(arg0)
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "checkdate")) {
+        ret = jinx_oracle_checkdate_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "nl2br")) {
+        ret = jinx_oracle_nl2br_value(arg0, arg1, argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "number_format")) {
+        ret = jinx_oracle_number_format_value(
+            arg0,
+            arg1,
+            jinx_oracle_call_arg(ctx, 2u),
+            jinx_oracle_call_arg(ctx, 3u),
             argc
         );
         jinx_oracle_return(ctx, ret);
