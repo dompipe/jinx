@@ -29,6 +29,18 @@ if (!str_contains($text, 'vprintf:7:Amsterdam')) {
     exit(1);
 }
 
+$localeInfo = localeconv();
+$localeExpected = 'LOCALE:decimal=' . $localeInfo['decimal_point']
+    . ';thousands=' . $localeInfo['thousands_sep']
+    . ';frac=' . $localeInfo['frac_digits']
+    . ';grouping=' . count($localeInfo['grouping'])
+    . ';mon_grouping=' . count($localeInfo['mon_grouping']);
+
+if (!str_contains($text, $localeExpected)) {
+    fwrite(STDERR, "FAIL: native localeconv mismatch\nPHP: {$localeExpected}\nJINX:\n{$text}\n");
+    exit(1);
+}
+
 $pairs = static function (array $value): string {
     $out = [];
     foreach ($value as $key => $item) {
