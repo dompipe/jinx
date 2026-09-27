@@ -3997,10 +3997,6 @@ static inline JinxValue jinx_oracle_zend_array_multisort_special(
 ) {
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
-    if (strcmp(name, "json_decode") == 0) {
-        return jinx_oracle_zend_json_decode_special(args, argc);
-    }
-
     JinxOracleMultiSortColumn columns[32];
     size_t column_count = 0u;
     size_t row_count = SIZE_MAX;
@@ -5953,7 +5949,8 @@ static inline JinxValue jinx_oracle_zend_json_decode_special(
     }
 
     int associative = 0;
-    if (argc >= 2u && args[1].type != 0u) {
+    int associative_is_null = argc < 2u || args[1].type == 0u;
+    if (!associative_is_null) {
         associative = jinx_oracle_boolish(args[1]);
     }
 
@@ -5962,7 +5959,7 @@ static inline JinxValue jinx_oracle_zend_json_decode_special(
 
     if (depth <= 0 || depth > INT_MAX) return jinx_oracle_zero_value();
     if ((options & ~3LL) != 0) return jinx_oracle_zero_value();
-    if ((options & 1LL) != 0) associative = 1;
+    if (associative_is_null && (options & 1LL) != 0) associative = 1;
 
     JinxOracleJsonDecoder parser;
     parser.bytes = jinx_oracle_string_bytes(args[0]);
@@ -6015,6 +6012,10 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     }
 
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "json_decode") == 0) {
+        return jinx_oracle_zend_json_decode_special(args, argc);
+    }
 
     if (strcmp(name, "array_key_exists") == 0 || strcmp(name, "key_exists") == 0) {
         if (argc < 2u) return jinx_oracle_zero_value();
