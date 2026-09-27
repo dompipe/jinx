@@ -183,6 +183,15 @@ natsort($naturalValues);
 $natcaseValues = ['IMG12', 'img2', 'Img1'];
 natcasesort($natcaseValues);
 
+$userSort = ['b', 'a', 'c'];
+usort($userSort, 'strcmp');
+
+$userAsort = ['first' => 'b', 'left' => 'a', 'right' => 'a'];
+uasort($userAsort, 'strcmp');
+
+$userKsort = ['b' => 2, 'a' => 1, 'c' => 3];
+uksort($userKsort, 'strcmp');
+
 $multiPrimary = [10, 10, 20, 20];
 $multiSecondary = ['a', 'b', 'c', 'd'];
 array_multisort($multiPrimary, SORT_ASC, $multiSecondary, SORT_DESC, SORT_STRING);
@@ -426,6 +435,9 @@ $expectedParity = 'PARITY:'
     . ';krsort=' . $pairs($ksortValues)
     . ';natsort=' . $pairs($naturalValues)
     . ';natcase=' . $pairs($natcaseValues)
+    . ';usersort=' . implode(',', $userSort)
+    . ';userasort=' . $pairs($userAsort)
+    . ';userksort=' . $pairs($userKsort)
     . ';multisort=' . implode(',', $multiPrimary) . '|' . implode(',', $multiSecondary)
     . ';multikeys=' . $pairs($multiKeyPayload)
     . ';map=' . $pairs($mappedNamed)
