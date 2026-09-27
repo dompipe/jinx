@@ -141,7 +141,9 @@ $code[] = '}';
 $code[] = '';
 $code[] = 'static int jinx_oracle_name_is_zend_container_builtin(const char *name) {';
 $code[] = '    return name != NULL && (';
-$code[] = '        strcmp(name, "localeconv") == 0 ||
+$code[] = '        strcmp(name, "localeconv") == 0 ||';
+$code[] = '        strcmp(name, "cal_info") == 0 ||';
+$code[] = '        strcmp(name, "cal_from_jd") == 0 ||
         strcmp(name, "pathinfo") == 0 ||
         strcmp(name, "parse_str") == 0 ||
         strcmp(name, "http_build_query") == 0 ||
