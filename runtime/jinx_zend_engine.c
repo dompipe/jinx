@@ -37,6 +37,8 @@ JinxZendValue jinx_zend_value_copy(JinxZendValue value) {
         value.value.str = jinx_zend_string_retain(value.value.str);
     } else if (value.type == JINX_ZEND_ARRAY) {
         value.value.array = jinx_zend_array_retain(value.value.array);
+    } else if (value.type == JINX_ZEND_OBJECT) {
+        value.value.object = jinx_zend_object_retain(value.value.object);
     }
 
     return value;
@@ -47,6 +49,8 @@ void jinx_zend_value_release(JinxZendValue value) {
         jinx_zend_string_release(value.value.str);
     } else if (value.type == JINX_ZEND_ARRAY) {
         jinx_zend_array_release(value.value.array);
+    } else if (value.type == JINX_ZEND_OBJECT) {
+        jinx_zend_object_release(value.value.object);
     }
 }
 
@@ -246,6 +250,59 @@ void jinx_zend_array_release(JinxZendArray *array) {
     }
 
     free(array);
+}
+
+JinxZendObject *jinx_zend_object_new(const char *class_name) {
+    const char *name = class_name != 0 ? class_name : "stdClass";
+    size_t name_len = strlen(name);
+
+    JinxZendObject *object = (JinxZendObject *)calloc(1u, sizeof(JinxZendObject));
+    if (object == 0) return 0;
+
+    char *owned_name = (char *)calloc(name_len + 1u, sizeof(char));
+    if (owned_name == 0) {
+        free(object);
+        return 0;
+    }
+    if (name_len != 0u) memcpy(owned_name, name, name_len);
+    owned_name[name_len] = '\0';
+
+    object->properties = jinx_zend_array_new_packed(4u);
+    if (object->properties == 0) {
+        free(owned_name);
+        free(object);
+        return 0;
+    }
+
+    object->refcount = 1u;
+    object->flags = 0u;
+    object->class_name = owned_name;
+    return object;
+}
+
+JinxZendObject *jinx_zend_object_retain(JinxZendObject *object) {
+    if (object != 0) object->refcount++;
+    return object;
+}
+
+void jinx_zend_object_release(JinxZendObject *object) {
+    if (object == 0) return;
+
+    if (object->refcount > 1u) {
+        object->refcount--;
+        return;
+    }
+
+    jinx_zend_array_release(object->properties);
+    free((void *)object->class_name);
+    free(object);
+}
+
+JinxZendValue jinx_zend_object_value(JinxZendObject *object) {
+    JinxZendValue value = jinx_zend_null();
+    value.type = JINX_ZEND_OBJECT;
+    value.value.object = object;
+    return value;
 }
 
 static int jinx_zend_array_reserve(JinxZendArray *array, size_t needed) {
