@@ -5140,6 +5140,26 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
+    if (strcmp(name, "array_key_exists") == 0 || strcmp(name, "key_exists") == 0) {
+        if (argc < 2u) return jinx_oracle_zero_value();
+        JinxZendArray *key_array = jinx_oracle_zend_array_ptr(args[1]);
+        if (key_array == 0) return jinx_oracle_zero_value();
+
+        JinxValue key = args[0];
+        if (key.type == 3u) {
+            return jinx_oracle_bool_value(jinx_zend_array_live_key_exists_string(
+                key_array,
+                (const char *)key.as.ptr,
+                (size_t)key.flags
+            ));
+        }
+
+        return jinx_oracle_bool_value(jinx_zend_array_live_key_exists_index(
+            key_array,
+            (size_t)jinx_oracle_intish(key)
+        ));
+    }
+
     if (strcmp(name, "cal_from_jd") == 0) {
         return jinx_oracle_zend_cal_from_jd_special(args, argc);
     }
@@ -5238,20 +5258,8 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
         );
     }
 
-    if (strcmp(name, "count") == 0) {
+    if (strcmp(name, "count") == 0 || strcmp(name, "sizeof") == 0) {
         return jinx_oracle_zend_count_value(args, argc);
-    }
-
-    if (strcmp(name, "array_key_exists") == 0) {
-        JinxValue key = argc >= 2u ? args[1] : jinx_oracle_zero_value();
-        if (key.type == 3u) {
-            return jinx_oracle_bool_value(jinx_zend_array_live_key_exists_string(
-                array, (const char *)key.as.ptr, (size_t)key.flags
-            ));
-        }
-        return jinx_oracle_bool_value(jinx_zend_array_live_key_exists_index(
-            array, (size_t)jinx_oracle_intish(key)
-        ));
     }
 
     if (strcmp(name, "array_is_list") == 0) {
