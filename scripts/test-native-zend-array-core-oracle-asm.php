@@ -224,6 +224,58 @@ $rngOne = array_rand($rngSource);
 mt_srand(1234);
 $rngMany = array_rand($rngSource, 3);
 
+$calGreg = cal_from_jd(
+    cal_to_jd(CAL_GREGORIAN, 1, 1, 2024),
+    CAL_GREGORIAN
+);
+$calJulian = cal_from_jd(
+    cal_to_jd(CAL_JULIAN, 1, 1, 2024),
+    CAL_JULIAN
+);
+$calJewish = cal_from_jd(
+    cal_to_jd(CAL_JEWISH, 1, 1, 5771),
+    CAL_JEWISH
+);
+$calFrench = cal_from_jd(
+    cal_to_jd(CAL_FRENCH, 1, 1, 1),
+    CAL_FRENCH
+);
+$calInfoGregorian = cal_info(CAL_GREGORIAN);
+$calInfoJewish = cal_info(CAL_JEWISH);
+$calInfoAll = cal_info();
+
+$expectedCalParity = 'CAL_PARITY:'
+    . 'greg='
+        . $calGreg['date'] . '|'
+        . $calGreg['dow'] . '|'
+        . $calGreg['abbrevdayname'] . '|'
+        . $calGreg['dayname'] . '|'
+        . $calGreg['abbrevmonth'] . '|'
+        . $calGreg['monthname']
+    . ';jul='
+        . $calJulian['date'] . '|'
+        . $calJulian['abbrevmonth'] . '|'
+        . $calJulian['monthname']
+    . ';jew='
+        . $calJewish['date'] . '|'
+        . $calJewish['monthname']
+    . ';french='
+        . $calFrench['date'] . '|'
+        . $calFrench['monthname']
+    . ';info0='
+        . $calInfoGregorian['calname'] . '|'
+        . $calInfoGregorian['calsymbol'] . '|'
+        . $calInfoGregorian['maxdaysinmonth'] . '|'
+        . $calInfoGregorian['abbrevmonths'][1] . '|'
+        . $calInfoGregorian['months'][1]
+    . ';info2='
+        . $calInfoJewish['calname'] . '|'
+        . $calInfoJewish['calsymbol'] . '|'
+        . $calInfoJewish['maxdaysinmonth'] . '|'
+        . $calInfoJewish['months'][6] . '|'
+        . $calInfoJewish['months'][7]
+    . ';all=' . count($calInfoAll);
+
 $expectedRngParity = 'RNG_PARITY:'
     . 'mt=' . $rngMt
     . ';range=' . $rngRange
@@ -383,6 +435,11 @@ if (!str_contains($text, $expectedParity)) {
 
 if (!str_contains($text, $expectedRngParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX MT19937/array_rand parity mismatch\nPHP: {$expectedRngParity}\nJINX:\n{$text}\n");
+    exit(1);
+}
+
+if (!str_contains($text, $expectedCalParity)) {
+    fwrite(STDERR, "FAIL: PHP-vs-JINX calendar array parity mismatch\nPHP: {$expectedCalParity}\nJINX:\n{$text}\n");
     exit(1);
 }
 
