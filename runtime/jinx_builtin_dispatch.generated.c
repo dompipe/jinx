@@ -84,7 +84,17 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "array_find") == 0 ||
         strcmp(name, "array_find_key") == 0 ||
         strcmp(name, "array_any") == 0 ||
-        strcmp(name, "array_all") == 0
+        strcmp(name, "array_all") == 0 ||
+        strcmp(name, "array_diff_uassoc") == 0 ||
+        strcmp(name, "array_diff_ukey") == 0 ||
+        strcmp(name, "array_udiff") == 0 ||
+        strcmp(name, "array_udiff_assoc") == 0 ||
+        strcmp(name, "array_udiff_uassoc") == 0 ||
+        strcmp(name, "array_intersect_uassoc") == 0 ||
+        strcmp(name, "array_intersect_ukey") == 0 ||
+        strcmp(name, "array_uintersect") == 0 ||
+        strcmp(name, "array_uintersect_assoc") == 0 ||
+        strcmp(name, "array_uintersect_uassoc") == 0
     );
 }
 
