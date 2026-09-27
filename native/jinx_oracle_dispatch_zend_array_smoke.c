@@ -972,13 +972,81 @@ int main(void) {
     }
     jinx_zend_array_release(allowed_tags);
 
+    args[0] = jinx_oracle_string_value("http://username:password@hostname:9090/path?arg=value#anchor");
+    result = jinx_call_builtin_through_oracle("parse_url", args, 1);
+    if (!expect_array_count(result, 8)) return fail("parse_url full count");
+    JinxZendArray *parsed = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *url_scheme = jinx_zend_array_find(parsed, "scheme", 6);
+    JinxZendValue *url_host = jinx_zend_array_find(parsed, "host", 4);
+    JinxZendValue *url_port = jinx_zend_array_find(parsed, "port", 4);
+    JinxZendValue *url_user = jinx_zend_array_find(parsed, "user", 4);
+    JinxZendValue *url_pass = jinx_zend_array_find(parsed, "pass", 4);
+    JinxZendValue *url_path = jinx_zend_array_find(parsed, "path", 4);
+    JinxZendValue *url_query = jinx_zend_array_find(parsed, "query", 5);
+    JinxZendValue *url_fragment = jinx_zend_array_find(parsed, "fragment", 8);
+    if (url_scheme == 0 || url_scheme->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_scheme->value.str, "http", 4) ||
+        url_host == 0 || url_host->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_host->value.str, "hostname", 8) ||
+        url_port == 0 || url_port->type != JINX_ZEND_LONG || url_port->value.lval != 9090 ||
+        url_user == 0 || url_user->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_user->value.str, "username", 8) ||
+        url_pass == 0 || url_pass->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_pass->value.str, "password", 8) ||
+        url_path == 0 || url_path->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_path->value.str, "/path", 5) ||
+        url_query == 0 || url_query->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_query->value.str, "arg=value", 9) ||
+        url_fragment == 0 || url_fragment->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_fragment->value.str, "anchor", 6)) {
+        return fail("parse_url full components");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("//www.example.com/path?googleguy=googley");
+    result = jinx_call_builtin_through_oracle("parse_url", args, 1);
+    if (!expect_array_count(result, 3)) return fail("parse_url schemeless count");
+    parsed = jinx_oracle_zend_array_ptr(result);
+    url_host = jinx_zend_array_find(parsed, "host", 4);
+    url_path = jinx_zend_array_find(parsed, "path", 4);
+    url_query = jinx_zend_array_find(parsed, "query", 5);
+    if (url_host == 0 || url_host->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_host->value.str, "www.example.com", 15) ||
+        url_path == 0 || url_path->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_path->value.str, "/path", 5) ||
+        url_query == 0 || url_query->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(url_query->value.str, "googleguy=googley", 18)) {
+        return fail("parse_url schemeless components");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("http://example.com/path?#");
+    result = jinx_call_builtin_through_oracle("parse_url", args, 1);
+    if (!expect_array_count(result, 5)) return fail("parse_url empty query fragment count");
+    parsed = jinx_oracle_zend_array_ptr(result);
+    url_query = jinx_zend_array_find(parsed, "query", 5);
+    url_fragment = jinx_zend_array_find(parsed, "fragment", 8);
+    if (url_query == 0 || url_query->type != JINX_ZEND_STRING || url_query->value.str->len != 0u ||
+        url_fragment == 0 || url_fragment->type != JINX_ZEND_STRING || url_fragment->value.str->len != 0u) {
+        return fail("parse_url empty query fragment");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("http://example.com:8080/a");
+    args[1] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("parse_url", args, 2);
+    if (!expect_string(result, "example.com")) return fail("parse_url host component");
+    args[1] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("parse_url", args, 2);
+    if (!expect_int(result, 8080)) return fail("parse_url port component");
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
