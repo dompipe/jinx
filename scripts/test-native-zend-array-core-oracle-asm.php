@@ -51,6 +51,13 @@ $mustReject(static fn () => array_fill(2, -1, 9), 'array_fill negative count');
 $mustReject(static fn () => array_combine([1, 2], [3]), 'array_combine mismatched counts');
 
 $base = [10, 20, 'name' => 30, 'keep' => 40];
+$mutation = [10, 'x' => 20, 2 => 30];
+$pushCount = array_push($mutation, 40);
+$popValue = array_pop($mutation);
+array_push($mutation, 50);
+$shiftValue = array_shift($mutation);
+$unshiftCount = array_unshift($mutation, 5, 6);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -92,7 +99,12 @@ $expectedParity = 'PARITY:'
     . ';in_strict=' . (in_array('20', $base, true) ? '1' : '0')
     . ';search_loose=' . (($search = array_search('30', $base, false)) === false ? 'false' : $search)
     . ';search_strict=' . (array_search('30', $base, true) === false ? 'false' : 'unexpected')
-    . ';filter=' . $pairs(array_filter([0, 1, '0', 'x', false]));
+    . ';filter=' . $pairs(array_filter([0, 1, '0', 'x', false]))
+    . ';push=' . $pushCount
+    . ';pop=' . $popValue
+    . ';shift=' . $shiftValue
+    . ';unshift=' . $unshiftCount
+    . ';mutation=' . $pairs($mutation);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
