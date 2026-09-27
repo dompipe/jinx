@@ -22,7 +22,20 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "array_merge") == 0 ||
         strcmp(name, "array_replace") == 0 ||
         strcmp(name, "array_flip") == 0 ||
-        strcmp(name, "array_change_key_case") == 0
+        strcmp(name, "array_change_key_case") == 0 ||
+        strcmp(name, "array_fill_keys") == 0 ||
+        strcmp(name, "array_combine") == 0 ||
+        strcmp(name, "array_count_values") == 0
+    );
+}
+
+static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
+    return name != NULL && (
+        strcmp(name, "count_chars") == 0 ||
+        strcmp(name, "implode") == 0 ||
+        strcmp(name, "join") == 0 ||
+        strcmp(name, "range") == 0 ||
+        strcmp(name, "array_fill") == 0
     );
 }
 
@@ -3572,6 +3585,10 @@ JinxValue jinx_call_builtin_through_oracle(
     const JinxValue *args,
     size_t argc
 ) {
+    if (args != NULL && argc >= 1 && jinx_oracle_name_is_zend_container_builtin(name)) {
+        return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+    }
+
     if (argc >= 1 && args != NULL && jinx_oracle_name_is_zend_array_builtin(name) &&
         jinx_oracle_value_is_zend_array(args[0])) {
         return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
