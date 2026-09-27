@@ -124,6 +124,92 @@ int main(void) {
     jinx_oracle_zend_array_value_release(result);
     jinx_zend_array_release(case_source);
 
+    args[0] = jinx_oracle_string_value("abca");
+    args[1] = jinx_oracle_int_value(3);
+    result = jinx_call_builtin_through_oracle("count_chars", args, 2);
+    if (!expect_string(result, "abc")) return fail("count_chars mode 3");
+
+    args[0] = jinx_oracle_string_value(",");
+    args[1] = jinx_oracle_zend_array_value_borrowed(array);
+    result = jinx_call_builtin_through_oracle("implode", args, 2);
+    if (!expect_string(result, "10,20,30,40")) return fail("implode");
+
+    args[0] = jinx_oracle_int_value(1);
+    args[1] = jinx_oracle_int_value(5);
+    result = jinx_call_builtin_through_oracle("range", args, 2);
+    if (!expect_array_count(result, 5)) return fail("range count");
+    JinxZendArray *range_array = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(range_array, 0, 1) || !expect_long_index(range_array, 4, 5)) return fail("range values");
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(2);
+    args[1] = jinx_oracle_int_value(3);
+    args[2] = jinx_oracle_int_value(9);
+    result = jinx_call_builtin_through_oracle("array_fill", args, 3);
+    if (!expect_array_count(result, 3)) return fail("array_fill count");
+    JinxZendArray *filled = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(filled, 2, 9) || !expect_long_index(filled, 4, 9)) return fail("array_fill values");
+    jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *key_array = jinx_zend_array_new_packed(2);
+    JinxZendArray *value_array = jinx_zend_array_new_packed(2);
+    JinxZendString *x_string = jinx_zend_string_new("x", 1);
+    if (key_array == 0 || value_array == 0 || x_string == 0 ||
+        !jinx_zend_array_append(key_array, jinx_zend_long(2)) ||
+        !jinx_zend_array_append(key_array, jinx_zend_string_value(x_string)) ||
+        !jinx_zend_array_append(value_array, jinx_zend_long(70)) ||
+        !jinx_zend_array_append(value_array, jinx_zend_long(80))) {
+        return fail("combine source");
+    }
+    jinx_zend_string_release(x_string);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(key_array);
+    args[1] = jinx_oracle_int_value(7);
+    result = jinx_call_builtin_through_oracle("array_fill_keys", args, 2);
+    if (!expect_array_count(result, 2)) return fail("array_fill_keys count");
+    JinxZendArray *fill_keys = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *x_slot = jinx_zend_array_find(fill_keys, "x", 1);
+    if (!expect_long_index(fill_keys, 2, 7) || x_slot == 0 || x_slot->type != JINX_ZEND_LONG || x_slot->value.lval != 7) {
+        return fail("array_fill_keys values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(key_array);
+    args[1] = jinx_oracle_zend_array_value_borrowed(value_array);
+    result = jinx_call_builtin_through_oracle("array_combine", args, 2);
+    if (!expect_array_count(result, 2)) return fail("array_combine count");
+    JinxZendArray *combined = jinx_oracle_zend_array_ptr(result);
+    x_slot = jinx_zend_array_find(combined, "x", 1);
+    if (!expect_long_index(combined, 2, 70) || x_slot == 0 || x_slot->type != JINX_ZEND_LONG || x_slot->value.lval != 80) {
+        return fail("array_combine values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *count_source = jinx_zend_array_new_packed(5);
+    JinxZendString *count_x = jinx_zend_string_new("x", 1);
+    if (count_source == 0 || count_x == 0 ||
+        !jinx_zend_array_append(count_source, jinx_zend_long(2)) ||
+        !jinx_zend_array_append(count_source, jinx_zend_long(2)) ||
+        !jinx_zend_array_append(count_source, jinx_zend_string_value(count_x)) ||
+        !jinx_zend_array_append(count_source, jinx_zend_string_value(count_x)) ||
+        !jinx_zend_array_append(count_source, jinx_zend_string_value(count_x))) {
+        return fail("count_values source");
+    }
+    jinx_zend_string_release(count_x);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(count_source);
+    result = jinx_call_builtin_through_oracle("array_count_values", args, 1);
+    if (!expect_array_count(result, 2)) return fail("array_count_values count");
+    JinxZendArray *counted = jinx_oracle_zend_array_ptr(result);
+    x_slot = jinx_zend_array_find(counted, "x", 1);
+    if (!expect_long_index(counted, 2, 2) || x_slot == 0 || x_slot->type != JINX_ZEND_LONG || x_slot->value.lval != 3) {
+        return fail("array_count_values values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    jinx_zend_array_release(count_source);
+    jinx_zend_array_release(value_array);
+    jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
