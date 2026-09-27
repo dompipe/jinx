@@ -51,6 +51,8 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
 static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
     return name != NULL && (
         strcmp(name, "localeconv") == 0 ||
+        strcmp(name, "cal_info") == 0 ||
+        strcmp(name, "cal_from_jd") == 0 ||
         strcmp(name, "pathinfo") == 0 ||
         strcmp(name, "parse_str") == 0 ||
         strcmp(name, "http_build_query") == 0 ||
