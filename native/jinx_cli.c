@@ -762,8 +762,22 @@ static int command_oracle_call(int argc, char **argv, int hex_output) {
     result = jinx_call_builtin_through_oracle(name, args, (size_t)supplied_argc);
 
     if (result.type == 0u) {
-        fprintf(stderr, "null/fault: %s\n", name);
-        exit_code = 1;
+        int valid_json_null = 0;
+        if (strcmp(name, "json_decode") == 0) {
+            JinxValue json_error = jinx_call_builtin_through_oracle(
+                "json_last_error",
+                NULL,
+                0u
+            );
+            valid_json_null = json_error.type == 1u && json_error.as.i64 == 0;
+        }
+
+        if (valid_json_null) {
+            print_value_line(result);
+        } else {
+            fprintf(stderr, "null/fault: %s\n", name);
+            exit_code = 1;
+        }
     } else if (hex_output) {
         print_value_hex_line(result);
     } else {
