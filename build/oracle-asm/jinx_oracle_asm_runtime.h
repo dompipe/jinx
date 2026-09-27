@@ -4650,6 +4650,162 @@ static inline JinxValue jinx_oracle_round_value(
     return jinx_oracle_float_value(result);
 }
 
+
+#define JINX_PHP_ROUND_HALF_UP 1
+#define JINX_PHP_ROUND_HALF_DOWN 2
+#define JINX_PHP_ROUND_HALF_EVEN 3
+#define JINX_PHP_ROUND_HALF_ODD 4
+#define JINX_PHP_ROUND_CEILING 5
+#define JINX_PHP_ROUND_FLOOR 6
+#define JINX_PHP_ROUND_TOWARD_ZERO 7
+#define JINX_PHP_ROUND_AWAY_FROM_ZERO 8
+
+static inline double jinx_oracle_intpow10(int power) {
+    static const double powers[] = {
+        1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
+        1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
+    };
+    if (power >= 0 && power <= 22) return powers[power];
+    return pow(10.0, (double)power);
+}
+
+static inline double jinx_oracle_round_basic_edge(double integral, double exponent, int places) {
+    return places > 0
+        ? fabs((integral + copysign(0.5, integral)) / exponent)
+        : fabs((integral + copysign(0.5, integral)) * exponent);
+}
+
+static inline double jinx_oracle_round_zero_edge(double integral, double exponent, int places) {
+    return places > 0
+        ? fabs(integral / exponent)
+        : fabs(integral * exponent);
+}
+
+static inline double jinx_oracle_round_helper(
+    double integral,
+    double value,
+    double exponent,
+    int places,
+    int mode
+) {
+    double value_abs = fabs(value);
+    double edge_case;
+
+    switch (mode) {
+        case JINX_PHP_ROUND_HALF_UP:
+            edge_case = jinx_oracle_round_basic_edge(integral, exponent, places);
+            return value_abs >= edge_case
+                ? integral + copysign(1.0, integral)
+                : integral;
+
+        case JINX_PHP_ROUND_HALF_DOWN:
+            edge_case = jinx_oracle_round_basic_edge(integral, exponent, places);
+            return value_abs > edge_case
+                ? integral + copysign(1.0, integral)
+                : integral;
+
+        case JINX_PHP_ROUND_CEILING:
+            edge_case = jinx_oracle_round_zero_edge(integral, exponent, places);
+            return value > 0.0 && value_abs > edge_case ? integral + 1.0 : integral;
+
+        case JINX_PHP_ROUND_FLOOR:
+            edge_case = jinx_oracle_round_zero_edge(integral, exponent, places);
+            return value < 0.0 && value_abs > edge_case ? integral - 1.0 : integral;
+
+        case JINX_PHP_ROUND_TOWARD_ZERO:
+            return integral;
+
+        case JINX_PHP_ROUND_AWAY_FROM_ZERO:
+            edge_case = jinx_oracle_round_zero_edge(integral, exponent, places);
+            return value_abs > edge_case
+                ? integral + copysign(1.0, integral)
+                : integral;
+
+        case JINX_PHP_ROUND_HALF_EVEN:
+            edge_case = jinx_oracle_round_basic_edge(integral, exponent, places);
+            if (value_abs > edge_case) {
+                return integral + copysign(1.0, integral);
+            }
+            if (value_abs == edge_case && fmod(integral, 2.0) != 0.0) {
+                return integral + copysign(1.0, integral);
+            }
+            return integral;
+
+        case JINX_PHP_ROUND_HALF_ODD:
+            edge_case = jinx_oracle_round_basic_edge(integral, exponent, places);
+            if (value_abs > edge_case) {
+                return integral + copysign(1.0, integral);
+            }
+            if (value_abs == edge_case && fmod(integral, 2.0) == 0.0) {
+                return integral + copysign(1.0, integral);
+            }
+            return integral;
+
+        default:
+            return value;
+    }
+}
+
+static inline double jinx_oracle_php_round(double value, int places, int mode) {
+    if (!isfinite(value) || value == 0.0) return value;
+
+    if (places < INT_MIN + 1) places = INT_MIN + 1;
+    int power = places < 0 ? -places : places;
+    double exponent = jinx_oracle_intpow10(power);
+    double tmp_value;
+    double tmp_value2;
+
+    if (value >= 0.0) {
+        tmp_value = floor(places > 0 ? value * exponent : value / exponent);
+        tmp_value2 = tmp_value + 1.0;
+    } else {
+        tmp_value = ceil(places > 0 ? value * exponent : value / exponent);
+        tmp_value2 = tmp_value - 1.0;
+    }
+
+    if ((places > 0 ? tmp_value2 / exponent : tmp_value2 * exponent) == value) {
+        tmp_value = tmp_value2;
+    }
+
+    if (fabs(tmp_value) >= 1e16) return value;
+
+    tmp_value = jinx_oracle_round_helper(tmp_value, value, exponent, places, mode);
+
+    if (power < 23) {
+        return places > 0 ? tmp_value / exponent : tmp_value * exponent;
+    }
+
+    char buf[40];
+    snprintf(buf, 39u, "%15fe%d", tmp_value, -places);
+    buf[39] = '\0';
+    double parsed = strtod(buf, NULL);
+    return !isfinite(parsed) || isnan(parsed) ? value : parsed;
+}
+
+static inline JinxValue jinx_oracle_round_value(
+    JinxValue value,
+    JinxValue precision_value,
+    JinxValue mode_value,
+    uint32_t argc,
+    int *ok
+) {
+    int64_t raw_precision = argc >= 2u ? jinx_oracle_intish(precision_value) : 0;
+    int places = raw_precision > INT_MAX
+        ? INT_MAX
+        : (raw_precision < INT_MIN ? INT_MIN : (int)raw_precision);
+    int mode = argc >= 3u ? (int)jinx_oracle_intish(mode_value) : JINX_PHP_ROUND_HALF_UP;
+
+    *ok = 0;
+    if (mode < JINX_PHP_ROUND_HALF_UP || mode > JINX_PHP_ROUND_AWAY_FROM_ZERO) {
+        return jinx_oracle_zero_value();
+    }
+
+    *ok = 1;
+    return jinx_oracle_float_value(
+        jinx_oracle_php_round(jinx_oracle_floatish(value), places, mode)
+    );
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -4693,6 +4849,23 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         } else {
             int include_dot = argc < 2u || jinx_oracle_boolish(arg1);
             ret = jinx_oracle_string_value(include_dot ? extension : extension + 1);
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "round")) {
+        int round_ok = 0;
+        ret = jinx_oracle_round_value(
+            arg0,
+            arg1,
+            jinx_oracle_call_arg(ctx, 2u),
+            argc,
+            &round_ok
+        );
+        if (!round_ok) {
+            ctx->fault = "round mode must be a PHP 8.4 integer rounding mode";
+            return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
         return ret;
