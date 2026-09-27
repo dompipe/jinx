@@ -43,6 +43,7 @@ $tests = [
     'scripts/test-oracle-loop-execution.php' => 'PASS: Oracle executes loop PHP subset',
     'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
     'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
+    'scripts/test-native-string-transform-oracle-asm.php' => 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP',
     'scripts/test-oracle-execution-families.php' => 'PASS: Oracle execution families expose',
 ];
 
@@ -112,4 +113,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle function execution, Oracle execution families, web-plan, web-compile, and web-statements\n";
+echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle function execution, native Oracle ASM PHP parity checks, Oracle execution families, web-plan, web-compile, and web-statements\n";

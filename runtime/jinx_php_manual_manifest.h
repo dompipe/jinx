@@ -134,11 +134,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "string-byte-transform",
         "https://www.php.net/manual/en/ref.strings.php",
-        "strtolower/strtoupper/lcfirst/ucfirst/strrev/trim/ltrim/rtrim/chop/chr/ord/substr/strpos/str_repeat",
+        "strtolower/strtoupper/lcfirst/ucfirst/strrev/trim/ltrim/rtrim/chop/chr/ord/substr/strpos/stripos/strrpos/strripos/str_repeat",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Exact for ASCII byte transforms, default trim characters, and bounded byte primitives in the current native JinxValue string model."
+        "Exact for ASCII byte transforms, default trim characters, bounded byte primitives, and valid-offset forward/backward byte searches in the current native JinxValue string model."
     },
     {
         "string-byte-compare",
@@ -259,7 +259,9 @@ static inline int jinx_php_manual_name_is_string_byte_transform(const char *name
         strcmp(name, "ltrim") == 0 || strcmp(name, "rtrim") == 0 ||
         strcmp(name, "chop") == 0 || strcmp(name, "chr") == 0 ||
         strcmp(name, "ord") == 0 || strcmp(name, "substr") == 0 ||
-        strcmp(name, "strpos") == 0 || strcmp(name, "str_repeat") == 0;
+        strcmp(name, "strpos") == 0 || strcmp(name, "stripos") == 0 ||
+        strcmp(name, "strrpos") == 0 || strcmp(name, "strripos") == 0 ||
+        strcmp(name, "str_repeat") == 0;
 }
 
 static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {

@@ -274,13 +274,53 @@ static inline JinxValue jinx_oracle_substr_value(JinxValue value, JinxValue offs
     return jinx_oracle_string_value_len(out, out_len);
 }
 
-static inline JinxValue jinx_oracle_strpos_value(JinxValue haystack_value, JinxValue needle_value, JinxValue offset_value, uint32_t argc) {
+static inline unsigned char jinx_oracle_ascii_lower_byte(unsigned char c) {
+    return c >= (unsigned char)'A' && c <= (unsigned char)'Z'
+        ? (unsigned char)(c + ((unsigned char)'a' - (unsigned char)'A'))
+        : c;
+}
+
+static inline int jinx_oracle_string_match_at(
+    const unsigned char *haystack,
+    const unsigned char *needle,
+    uint32_t needle_len,
+    uint32_t offset,
+    int fold_case
+) {
+    for (uint32_t i = 0u; i < needle_len; i++) {
+        unsigned char a = haystack[offset + i];
+        unsigned char b = needle[i];
+
+        if (fold_case) {
+            a = jinx_oracle_ascii_lower_byte(a);
+            b = jinx_oracle_ascii_lower_byte(b);
+        }
+
+        if (a != b) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_strpos_value(
+    JinxValue haystack_value,
+    JinxValue needle_value,
+    JinxValue offset_value,
+    uint32_t argc,
+    int fold_case
+) {
     const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
     const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
     uint32_t haystack_len = jinx_oracle_string_len(haystack_value);
     uint32_t needle_len = jinx_oracle_string_len(needle_value);
     int64_t raw_offset = argc >= 3u ? jinx_oracle_intish(offset_value) : 0;
     uint32_t offset;
+
+    if (raw_offset < 0) {
+        raw_offset = (int64_t)haystack_len + raw_offset;
+    }
 
     if (raw_offset < 0 || raw_offset > (int64_t)haystack_len) {
         return jinx_oracle_bool_value(0);
@@ -297,8 +337,65 @@ static inline JinxValue jinx_oracle_strpos_value(JinxValue haystack_value, JinxV
     }
 
     for (uint32_t i = offset; i <= haystack_len - needle_len; i++) {
-        if (memcmp(haystack + i, needle, needle_len) == 0) {
+        if (jinx_oracle_string_match_at(haystack, needle, needle_len, i, fold_case)) {
             return jinx_oracle_int_value((int64_t)i);
+        }
+    }
+
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_strrpos_value(
+    JinxValue haystack_value,
+    JinxValue needle_value,
+    JinxValue offset_value,
+    uint32_t argc,
+    int fold_case
+) {
+    const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
+    const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
+    uint32_t haystack_len = jinx_oracle_string_len(haystack_value);
+    uint32_t needle_len = jinx_oracle_string_len(needle_value);
+    int64_t raw_offset = argc >= 3u ? jinx_oracle_intish(offset_value) : 0;
+    int64_t min_start = 0;
+    int64_t max_start;
+
+    if (raw_offset > (int64_t)haystack_len || raw_offset < -(int64_t)haystack_len) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (raw_offset >= 0) {
+        min_start = raw_offset;
+        max_start = (int64_t)haystack_len;
+    } else {
+        max_start = (int64_t)haystack_len + raw_offset;
+    }
+
+    if (needle_len == 0u) {
+        if (max_start < min_start) {
+            return jinx_oracle_bool_value(0);
+        }
+        return jinx_oracle_int_value(max_start);
+    }
+
+    if (needle_len > haystack_len) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    {
+        int64_t last_valid_start = (int64_t)(haystack_len - needle_len);
+        if (max_start > last_valid_start) {
+            max_start = last_valid_start;
+        }
+    }
+
+    if (max_start < min_start) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    for (int64_t i = max_start; i >= min_start; i--) {
+        if (jinx_oracle_string_match_at(haystack, needle, needle_len, (uint32_t)i, fold_case)) {
+            return jinx_oracle_int_value(i);
         }
     }
 
@@ -352,8 +449,8 @@ static inline int jinx_oracle_string_compare_value(JinxValue left_value, JinxVal
         unsigned char b = right[i];
 
         if (fold_case) {
-            a = (unsigned char)tolower((int)a);
-            b = (unsigned char)tolower((int)b);
+            a = jinx_oracle_ascii_lower_byte(a);
+            b = jinx_oracle_ascii_lower_byte(b);
         }
 
         if (a != b) {
@@ -712,8 +809,26 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (jinx_oracle_name_is(name, "strpos")) {
-        ret = jinx_oracle_strpos_value(arg0, arg1, ctx->registers[JINX_ORA_R2], argc);
+    if (jinx_oracle_name_in2(name, "strpos", "stripos")) {
+        ret = jinx_oracle_strpos_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            argc,
+            jinx_oracle_name_is(name, "stripos")
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "strrpos", "strripos")) {
+        ret = jinx_oracle_strrpos_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            argc,
+            jinx_oracle_name_is(name, "strripos")
+        );
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -1047,7 +1162,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_in8(name, "array_key_first", "array_key_last", "array_product", "array_sum", "bindec", "cal_days_in_month", "cal_to_jd", "connection_aborted") ||
         jinx_oracle_name_in8(name, "connection_status", "crc32", "call_user_func", "intval", "ord", "rand", "random_int", "strlen") ||
-        jinx_oracle_name_in8(name, "strpos", "stripos", "strrpos", "strripos", "substr_count", "time", "mktime", "gmmktime") ||
+        jinx_oracle_name_in3(name, "time", "mktime", "gmmktime") ||
         jinx_oracle_name_in8(name, "memory_get_usage", "memory_get_peak_usage", "getmypid", "getmyuid", "getmygid", "getlastmod", "filemtime", "filesize")) {
         ret = jinx_oracle_int_value(jinx_oracle_intish(arg0) != 0 ? jinx_oracle_intish(arg0) : 1);
         jinx_oracle_return(ctx, ret);
