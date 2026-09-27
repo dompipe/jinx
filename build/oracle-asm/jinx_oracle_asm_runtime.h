@@ -2428,6 +2428,130 @@ static inline int jinx_oracle_string_compare_value(JinxValue left_value, JinxVal
     return left_len < right_len ? -1 : 1;
 }
 
+static inline int jinx_oracle_nat_compare_right(
+    const unsigned char **a,
+    const unsigned char *a_end,
+    const unsigned char **b,
+    const unsigned char *b_end
+) {
+    int bias = 0;
+
+    for (;;) {
+        int a_digit = *a < a_end && isdigit((int)**a);
+        int b_digit = *b < b_end && isdigit((int)**b);
+
+        if (!a_digit && !b_digit) return bias;
+        if (!a_digit) return -1;
+        if (!b_digit) return 1;
+
+        if (**a < **b && bias == 0) bias = -1;
+        else if (**a > **b && bias == 0) bias = 1;
+
+        (*a)++;
+        (*b)++;
+    }
+}
+
+static inline int jinx_oracle_nat_compare_left(
+    const unsigned char **a,
+    const unsigned char *a_end,
+    const unsigned char **b,
+    const unsigned char *b_end
+) {
+    for (;;) {
+        int a_digit = *a < a_end && isdigit((int)**a);
+        int b_digit = *b < b_end && isdigit((int)**b);
+
+        if (!a_digit && !b_digit) return 0;
+        if (!a_digit) return -1;
+        if (!b_digit) return 1;
+        if (**a < **b) return -1;
+        if (**a > **b) return 1;
+
+        (*a)++;
+        (*b)++;
+    }
+}
+
+static inline int jinx_oracle_strnatcmp_bytes(
+    const unsigned char *a,
+    uint32_t a_len,
+    const unsigned char *b,
+    uint32_t b_len,
+    int case_insensitive
+) {
+    const unsigned char *ap;
+    const unsigned char *bp;
+    const unsigned char *a_end = a + a_len;
+    const unsigned char *b_end = b + b_len;
+    unsigned char ca;
+    unsigned char cb;
+
+    if (a_len == 0u || b_len == 0u) {
+        return a_len == b_len ? 0 : (a_len > b_len ? 1 : -1);
+    }
+
+    ap = a;
+    bp = b;
+    ca = *ap;
+    cb = *bp;
+
+    while (ca == (unsigned char)'0' && ap + 1 < a_end && isdigit((int)ap[1])) {
+        ca = *++ap;
+    }
+    while (cb == (unsigned char)'0' && bp + 1 < b_end && isdigit((int)bp[1])) {
+        cb = *++bp;
+    }
+
+    for (;;) {
+        while (ap < a_end && isspace((int)ca)) {
+            ap++;
+            if (ap < a_end) ca = *ap;
+        }
+        while (bp < b_end && isspace((int)cb)) {
+            bp++;
+            if (bp < b_end) cb = *bp;
+        }
+
+        if (ap >= a_end || bp >= b_end) {
+            if (ap >= a_end && bp >= b_end) return 0;
+            return ap >= a_end ? -1 : 1;
+        }
+
+        if (isdigit((int)ca) && isdigit((int)cb)) {
+            int fractional = ca == (unsigned char)'0' || cb == (unsigned char)'0';
+            int result = fractional
+                ? jinx_oracle_nat_compare_left(&ap, a_end, &bp, b_end)
+                : jinx_oracle_nat_compare_right(&ap, a_end, &bp, b_end);
+
+            if (result != 0) return result;
+            if (ap == a_end && bp == b_end) return 0;
+            if (ap == a_end) return -1;
+            if (bp == b_end) return 1;
+
+            ca = *ap;
+            cb = *bp;
+        }
+
+        if (case_insensitive) {
+            ca = (unsigned char)toupper((int)ca);
+            cb = (unsigned char)toupper((int)cb);
+        }
+
+        if (ca < cb) return -1;
+        if (ca > cb) return 1;
+
+        ap++;
+        bp++;
+        if (ap >= a_end && bp >= b_end) return 0;
+        if (ap >= a_end) return -1;
+        if (bp >= b_end) return 1;
+
+        ca = *ap;
+        cb = *bp;
+    }
+}
+
 static inline JinxValue jinx_oracle_substr_count_value(JinxValue haystack_value, JinxValue needle_value, JinxValue offset_value, JinxValue length_value, uint32_t argc) {
     const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
     const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
@@ -3352,6 +3476,18 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "convert_uudecode")) {
         ret = jinx_oracle_uudecode_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "strnatcmp", "strnatcasecmp")) {
+        ret = jinx_oracle_int_value((int64_t)jinx_oracle_strnatcmp_bytes(
+            jinx_oracle_string_bytes(arg0),
+            jinx_oracle_string_len(arg0),
+            jinx_oracle_string_bytes(arg1),
+            jinx_oracle_string_len(arg1),
+            jinx_oracle_name_is(name, "strnatcasecmp")
+        ));
         jinx_oracle_return(ctx, ret);
         return ret;
     }
