@@ -16,8 +16,6 @@
  * retained lifetime should retain/release the corresponding Zend container.
  */
 
-#define JINX_ORACLE_VALUE_ZEND_ARRAY 6u
-#define JINX_ORACLE_VALUE_ZEND_OBJECT 7u
 #define JINX_ORACLE_ZEND_ARRAY_BORROWED 0u
 #define JINX_ORACLE_ZEND_ARRAY_RETAINED 1u
 #define JINX_ORACLE_ZEND_OBJECT_BORROWED 0u
