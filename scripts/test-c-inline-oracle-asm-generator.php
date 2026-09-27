@@ -107,4 +107,14 @@ if ($gcc !== '') {
     }
 }
 
-echo "PASS: C inline Oracle-ASM generator emitted callable wrappers, by-ref/variadic handling, method wrappers, and compilable headers\n";
+$sentinel = "/* preserve-existing-runtime */\n";
+file_put_contents($runtimeHeader, $sentinel);
+$output2 = [];
+$code2 = 0;
+exec($cmd, $output2, $code2);
+if ($code2 !== 0 || (string)file_get_contents($runtimeHeader) !== $sentinel) {
+    fwrite(STDERR, "Generator overwrote an existing Oracle ASM runtime header\n");
+    exit(1);
+}
+
+echo "PASS: C inline Oracle-ASM generator emitted callable wrappers, by-ref/variadic handling, method wrappers, compilable headers, and preserves the implemented runtime\n";

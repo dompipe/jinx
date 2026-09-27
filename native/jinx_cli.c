@@ -697,7 +697,7 @@ static int command_oracle_call(int argc, char **argv) {
         args[i] = parse_cli_value(argv[i + 3]);
     }
 
-    result = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
+    result = jinx_call_builtin_through_oracle(name, args, (size_t)supplied_argc);
 
     if (result.type == 0u) {
         fprintf(stderr, "null/fault: %s\n", name);

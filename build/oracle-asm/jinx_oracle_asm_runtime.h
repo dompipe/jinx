@@ -69,8 +69,13 @@ enum JinxOracleRegister {
 
 struct JinxOracleAsmContext {
     JinxValue registers[64];
+    JinxValue call_args[64];
+    uint8_t register_valid[64];
+    uint8_t register_arg_index[64];
+    uint8_t call_arg_kinds[64];
     JinxValue *argv;
     uint32_t argc;
+    uint32_t call_argc;
     const char *fault;
 };
 
@@ -1184,33 +1189,77 @@ static inline int jinx_oracle_ctype_all(JinxValue value, int (*predicate)(int)) 
 
 static inline JinxValue jinx_oracle_asm_load_arg(JinxOracleAsmContext *ctx, uint32_t reg, uint32_t arg_index) {
     JinxValue value = jinx_oracle_zero_value();
+
     if (ctx != NULL && arg_index < ctx->argc && ctx->argv != NULL) {
         value = ctx->argv[arg_index];
-    } else if (ctx != NULL) {
-        ctx->fault = "LOAD_ARG out of range";
+        if (reg < 64u) {
+            ctx->register_valid[reg] = 1u;
+            ctx->register_arg_index[reg] = arg_index < 255u ? (uint8_t)arg_index : 255u;
+        }
+    } else if (ctx != NULL && reg < 64u) {
+        ctx->register_valid[reg] = 0u;
+        ctx->register_arg_index[reg] = 255u;
     }
-    if (ctx != NULL && reg < 64) {
+
+    if (ctx != NULL && reg < 64u) {
         ctx->registers[reg] = value;
     }
+
     return value;
 }
 
+static inline void jinx_oracle_asm_frame_push(JinxOracleAsmContext *ctx, JinxValue value, uint8_t kind) {
+    if (ctx == NULL) {
+        return;
+    }
+
+    if (ctx->call_argc >= 64u) {
+        ctx->fault = "Oracle ASM call frame overflow";
+        return;
+    }
+
+    ctx->call_args[ctx->call_argc] = value;
+    ctx->call_arg_kinds[ctx->call_argc] = kind;
+    ctx->call_argc++;
+}
+
 static inline void jinx_oracle_asm_push_arg(JinxOracleAsmContext *ctx, uint32_t reg) {
-    (void)ctx;
-    (void)reg;
-    /* Placeholder: backend/runtime call frame push. */
+    if (ctx != NULL && reg < 64u && ctx->register_valid[reg]) {
+        jinx_oracle_asm_frame_push(ctx, ctx->registers[reg], 0u);
+    }
 }
 
 static inline void jinx_oracle_asm_push_arg_ref(JinxOracleAsmContext *ctx, uint32_t reg) {
-    (void)ctx;
-    (void)reg;
-    /* Placeholder: backend/runtime by-reference push. */
+    if (ctx != NULL && reg < 64u && ctx->register_valid[reg]) {
+        jinx_oracle_asm_frame_push(ctx, ctx->registers[reg], 1u);
+    }
 }
 
 static inline void jinx_oracle_asm_push_arg_variadic(JinxOracleAsmContext *ctx, uint32_t reg) {
-    (void)ctx;
-    (void)reg;
-    /* Placeholder: backend/runtime variadic spread push. */
+    uint32_t start;
+
+    if (ctx == NULL || reg >= 64u || !ctx->register_valid[reg]) {
+        return;
+    }
+
+    start = (uint32_t)ctx->register_arg_index[reg];
+    if (ctx->argv == NULL || start >= ctx->argc) {
+        return;
+    }
+
+    for (uint32_t i = start; i < ctx->argc; i++) {
+        jinx_oracle_asm_frame_push(ctx, ctx->argv[i], 2u);
+        if (ctx->fault != NULL) {
+            return;
+        }
+    }
+}
+
+static inline JinxValue jinx_oracle_call_arg(JinxOracleAsmContext *ctx, uint32_t index) {
+    if (ctx != NULL && index < ctx->call_argc) {
+        return ctx->call_args[index];
+    }
+    return jinx_oracle_zero_value();
 }
 
 static inline JinxValue jinx_oracle_asm_call_builtin(
@@ -1226,8 +1275,9 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    arg0 = ctx->registers[JINX_ORA_R0];
-    arg1 = ctx->registers[JINX_ORA_R1];
+    argc = ctx->call_argc;
+    arg0 = jinx_oracle_call_arg(ctx, 0u);
+    arg1 = jinx_oracle_call_arg(ctx, 1u);
 
     if (jinx_oracle_name_is(name, "chr")) {
         ret = jinx_oracle_chr_value(arg0);
@@ -1242,7 +1292,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "substr")) {
-        ret = jinx_oracle_substr_value(arg0, arg1, ctx->registers[JINX_ORA_R2], argc);
+        ret = jinx_oracle_substr_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), argc);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -1251,7 +1301,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_strpos_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_call_arg(ctx, 2u),
             argc,
             jinx_oracle_name_is(name, "stripos")
         );
@@ -1263,7 +1313,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_strrpos_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_call_arg(ctx, 2u),
             argc,
             jinx_oracle_name_is(name, "strripos")
         );
@@ -1275,7 +1325,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_strstr_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_call_arg(ctx, 2u),
             argc,
             jinx_oracle_name_is(name, "stristr")
         );
@@ -1287,7 +1337,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_strrchr_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_call_arg(ctx, 2u),
             argc
         );
         jinx_oracle_return(ctx, ret);
@@ -1298,8 +1348,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_span_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
-            ctx->registers[JINX_ORA_R3],
+            jinx_oracle_call_arg(ctx, 2u),
+            jinx_oracle_call_arg(ctx, 3u),
             argc,
             jinx_oracle_name_is(name, "strspn")
         );
@@ -1365,7 +1415,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_chunk_split_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_call_arg(ctx, 2u),
             argc
         );
         jinx_oracle_return(ctx, ret);
@@ -1376,7 +1426,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_int_value((int64_t)jinx_oracle_string_compare_value(
             arg0,
             arg1,
-            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_call_arg(ctx, 2u),
             jinx_oracle_name_starts(name, "strn") ? 3u : 2u,
             jinx_oracle_name_is(name, "strcasecmp") || jinx_oracle_name_is(name, "strncasecmp")
         ));
@@ -1385,7 +1435,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "substr_count")) {
-        ret = jinx_oracle_substr_count_value(arg0, arg1, ctx->registers[JINX_ORA_R2], ctx->registers[JINX_ORA_R3], argc);
+        ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
         jinx_oracle_return(ctx, ret);
         return ret;
     }

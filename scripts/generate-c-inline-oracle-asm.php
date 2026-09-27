@@ -33,7 +33,9 @@ if (!is_array($manifest) || !isset($manifest['functions']) || !is_array($manifes
 @mkdir($outDir . '/stubs', 0777, true);
 
 $runtimeHeader = $outDir . '/jinx_oracle_asm_runtime.h';
-file_put_contents($runtimeHeader, emit_runtime_header());
+if (!is_file($runtimeHeader)) {
+    file_put_contents($runtimeHeader, emit_runtime_header());
+}
 
 $groups = group_functions_by_stub($manifest['functions']);
 $index = [
