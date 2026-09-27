@@ -3641,6 +3641,11 @@ static inline int jinx_oracle_stable_sort_entries(
 }
 
 
+static inline int jinx_oracle_replace_array_contents(
+    JinxZendArray *target,
+    JinxZendArray *replacement
+);
+
 static inline int jinx_oracle_user_sort_entry_compare(
     const JinxOracleSortEntry *a,
     const JinxOracleSortEntry *b,
