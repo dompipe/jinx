@@ -128,6 +128,10 @@ $pathFlags = [
     pathinfo('/www/htdocs/inc/lib.inc.php', PATHINFO_FILENAME),
 ];
 
+$arrayMin = min([2, 3.5, 3]);
+$arrayMax = max([2, 3.5, 3]);
+$arrayTie = max([4, 4.0]);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -224,7 +228,10 @@ $expectedParity = 'PARITY:'
         . $pathInfo['filename']
     . ';path_dot=' . $pathDot['extension'] . '|' . $pathDot['filename']
     . ';path_noext=' . (array_key_exists('extension', $pathNoExt) ? '1' : '0')
-    . ';path_flags=' . implode('|', $pathFlags);
+    . ';path_flags=' . implode('|', $pathFlags)
+    . ';array_min=' . $arrayMin
+    . ';array_max=' . $arrayMax
+    . ';array_tie_type=' . gettype($arrayTie);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
