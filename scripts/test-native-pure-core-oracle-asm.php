@@ -120,6 +120,19 @@ $cases = [
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
 
+$hebrewBytes = hex2bin('e0e1e2');
+$mixedHebrewBytes = hex2bin('e0e1e220414243');
+$punctuatedHebrewBytes = hex2bin('28e0e129');
+$wrappedHebrewBytes = hex2bin('e0e1e220e3e4e520414243');
+if ($hebrewBytes === false || $mixedHebrewBytes === false ||
+    $punctuatedHebrewBytes === false || $wrappedHebrewBytes === false) {
+    fail('could not construct hebrev parity fixtures');
+}
+$cases[] = ['hebrev', ['s:' . $hebrewBytes]];
+$cases[] = ['hebrev', ['s:' . $mixedHebrewBytes]];
+$cases[] = ['hebrev', ['s:' . $punctuatedHebrewBytes]];
+$cases[] = ['hebrev', ['s:' . $wrappedHebrewBytes, 'i:5']];
+
 foreach ($cases as [$function, $args]) {
     $phpArgs = array_map('decodeArg', $args);
     $expected = encodeValue($function(...$phpArgs));
