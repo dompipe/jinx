@@ -155,6 +155,14 @@ natsort($naturalValues);
 $natcaseValues = ['IMG12', 'img2', 'Img1'];
 natcasesort($natcaseValues);
 
+$multiPrimary = [10, 10, 20, 20];
+$multiSecondary = ['a', 'b', 'c', 'd'];
+array_multisort($multiPrimary, SORT_ASC, $multiSecondary, SORT_DESC, SORT_STRING);
+
+$multiKeyPrimary = [2, 1];
+$multiKeyPayload = ['x' => 'X', 7 => 'Y'];
+array_multisort($multiKeyPrimary, $multiKeyPayload);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -262,7 +270,9 @@ $expectedParity = 'PARITY:'
     . ';ksort=' . $pairs($ksortSnapshot)
     . ';krsort=' . $pairs($ksortValues)
     . ';natsort=' . $pairs($naturalValues)
-    . ';natcase=' . $pairs($natcaseValues);
+    . ';natcase=' . $pairs($natcaseValues)
+    . ';multisort=' . implode(',', $multiPrimary) . '|' . implode(',', $multiSecondary)
+    . ';multikeys=' . $pairs($multiKeyPayload);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
