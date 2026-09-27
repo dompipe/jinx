@@ -1859,12 +1859,177 @@ static inline JinxValue jinx_oracle_zend_array_replace_recursive_special(const J
     return jinx_oracle_zend_array_value_owned(result);
 }
 
+
+static inline int jinx_oracle_zend_csv_leading_space(unsigned char ch) {
+    return ch == (unsigned char)' ' || ch == (unsigned char)'\t' ||
+        ch == (unsigned char)'\v' || ch == (unsigned char)'\f';
+}
+
+static inline int jinx_oracle_zend_csv_append_field(
+    JinxZendArray *result,
+    const char *bytes,
+    uint32_t len
+) {
+    JinxZendString *field = jinx_zend_string_new(bytes, len);
+    if (field == 0) return 0;
+
+    int ok = jinx_zend_array_append(result, jinx_zend_string_value(field));
+    jinx_zend_string_release(field);
+    return ok;
+}
+
+static inline JinxValue jinx_oracle_zend_str_getcsv_special(const JinxValue *args, size_t argc) {
+    if (argc < 1u) return jinx_oracle_zero_value();
+
+    const unsigned char *input = jinx_oracle_string_bytes(args[0]);
+    uint32_t input_len = jinx_oracle_string_len(args[0]);
+
+    const unsigned char *separator_bytes = argc >= 2u
+        ? jinx_oracle_string_bytes(args[1])
+        : (const unsigned char *)",";
+    uint32_t separator_len = argc >= 2u ? jinx_oracle_string_len(args[1]) : 1u;
+
+    const unsigned char *enclosure_bytes = argc >= 3u
+        ? jinx_oracle_string_bytes(args[2])
+        : (const unsigned char *)"\"";
+    uint32_t enclosure_len = argc >= 3u ? jinx_oracle_string_len(args[2]) : 1u;
+
+    const unsigned char *escape_bytes = argc >= 4u
+        ? jinx_oracle_string_bytes(args[3])
+        : (const unsigned char *)"\\";
+    uint32_t escape_len = argc >= 4u ? jinx_oracle_string_len(args[3]) : 1u;
+
+    if (separator_len != 1u || enclosure_len != 1u || escape_len > 1u) {
+        return jinx_oracle_zero_value();
+    }
+
+    unsigned char separator = separator_bytes[0];
+    unsigned char enclosure = enclosure_bytes[0];
+    int escape_enabled = escape_len == 1u;
+    unsigned char escape = escape_enabled ? escape_bytes[0] : 0u;
+
+    JinxZendArray *result = jinx_zend_array_new_packed(4u);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    if (input_len == 0u) {
+        if (!jinx_zend_array_append(result, jinx_zend_null())) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+        return jinx_oracle_zend_array_value_owned(result);
+    }
+
+    /*
+     * str_getcsv() parses one CSV record. A trailing record delimiter is not
+     * part of the final unquoted field; a CRLF pair is removed together.
+     */
+    uint32_t record_len = input_len;
+    if (record_len != 0u && input[record_len - 1u] == (unsigned char)'\n') {
+        record_len--;
+        if (record_len != 0u && input[record_len - 1u] == (unsigned char)'\r') record_len--;
+    } else if (record_len != 0u && input[record_len - 1u] == (unsigned char)'\r') {
+        record_len--;
+    }
+
+    uint32_t pos = 0u;
+    for (;;) {
+        uint32_t field_start = pos;
+        uint32_t quote_probe = pos;
+
+        while (quote_probe < record_len && jinx_oracle_zend_csv_leading_space(input[quote_probe])) {
+            quote_probe++;
+        }
+
+        int quoted = quote_probe < record_len && input[quote_probe] == enclosure;
+        char *field = (char *)malloc((size_t)record_len + 1u);
+        if (field == 0) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+
+        uint32_t out_len = 0u;
+
+        if (quoted) {
+            pos = quote_probe + 1u;
+            int closed = 0;
+
+            while (pos < record_len) {
+                unsigned char ch = input[pos];
+
+                if (escape_enabled && ch == escape &&
+                    pos + 1u < record_len && input[pos + 1u] == enclosure) {
+                    field[out_len++] = (char)ch;
+                    field[out_len++] = (char)enclosure;
+                    pos += 2u;
+                    continue;
+                }
+
+                if (ch == enclosure) {
+                    if (pos + 1u < record_len && input[pos + 1u] == enclosure) {
+                        field[out_len++] = (char)enclosure;
+                        pos += 2u;
+                        continue;
+                    }
+
+                    pos++;
+                    closed = 1;
+                    break;
+                }
+
+                field[out_len++] = (char)ch;
+                pos++;
+            }
+
+            /*
+             * PHP keeps bytes between a closing enclosure and the separator.
+             * This also reproduces the proprietary-escape-disabled case where
+             * a later enclosure is simply ordinary post-quote data.
+             */
+            if (closed) {
+                while (pos < record_len && input[pos] != separator) {
+                    field[out_len++] = (char)input[pos++];
+                }
+            }
+        } else {
+            pos = field_start;
+            while (pos < record_len && input[pos] != separator) {
+                field[out_len++] = (char)input[pos++];
+            }
+        }
+
+        if (!jinx_oracle_zend_csv_append_field(result, field, out_len)) {
+            free(field);
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+        free(field);
+
+        if (pos >= record_len) break;
+
+        /* The current byte is the separator. Preserve a final empty field. */
+        pos++;
+        if (pos == record_len) {
+            if (!jinx_oracle_zend_csv_append_field(result, "", 0u)) {
+                jinx_zend_array_release(result);
+                return jinx_oracle_zero_value();
+            }
+            break;
+        }
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
     size_t argc
 ) {
     if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "str_getcsv") == 0) {
+        return jinx_oracle_zend_str_getcsv_special(args, argc);
+    }
 
     if (strcmp(name, "in_array") == 0 || strcmp(name, "array_search") == 0) {
         return jinx_oracle_zend_in_array_search_special(name, args, argc);
