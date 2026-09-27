@@ -4792,6 +4792,247 @@ static inline JinxValue jinx_oracle_long2ip_value(JinxValue value) {
     return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
 }
 
+
+static inline int jinx_oracle_hex_digit_value(unsigned char c) {
+    if (c >= (unsigned char)'0' && c <= (unsigned char)'9') return (int)(c - (unsigned char)'0');
+    if (c >= (unsigned char)'a' && c <= (unsigned char)'f') return 10 + (int)(c - (unsigned char)'a');
+    if (c >= (unsigned char)'A' && c <= (unsigned char)'F') return 10 + (int)(c - (unsigned char)'A');
+    return -1;
+}
+
+static inline int jinx_oracle_parse_ipv6(JinxValue value, unsigned char out[16]) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint16_t words[8] = {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u};
+    uint32_t word_count = 0u;
+    int compress_at = -1;
+    uint32_t i = 0u;
+
+    if (len == 0u || out == NULL) return 0;
+
+    for (uint32_t n = 0u; n < len; n++) {
+        if (bytes[n] == 0u || bytes[n] == (unsigned char)'%') return 0;
+    }
+
+    if (bytes[0] == (unsigned char)':') {
+        if (len < 2u || bytes[1] != (unsigned char)':') return 0;
+        compress_at = 0;
+        i = 2u;
+        if (i == len) {
+            memset(out, 0, 16u);
+            return 1;
+        }
+    }
+
+    while (i < len) {
+        if (word_count >= 8u) return 0;
+
+        uint32_t start = i;
+        int has_dot = 0;
+        while (i < len && bytes[i] != (unsigned char)':') {
+            if (bytes[i] == (unsigned char)'.') has_dot = 1;
+            i++;
+        }
+        uint32_t token_len = i - start;
+        if (token_len == 0u) return 0;
+
+        if (has_dot) {
+            if (word_count > 6u || i != len) return 0;
+            uint32_t ipv4 = 0u;
+            JinxValue token = jinx_oracle_string_value_len(
+                (const char *)(bytes + start),
+                token_len
+            );
+            if (!jinx_oracle_parse_ipv4(token, &ipv4)) return 0;
+            words[word_count++] = (uint16_t)((ipv4 >> 16u) & 0xffffu);
+            words[word_count++] = (uint16_t)(ipv4 & 0xffffu);
+            break;
+        }
+
+        if (token_len > 4u) return 0;
+        uint32_t word = 0u;
+        for (uint32_t p = start; p < i; p++) {
+            int digit = jinx_oracle_hex_digit_value(bytes[p]);
+            if (digit < 0) return 0;
+            word = (word << 4u) | (uint32_t)digit;
+        }
+        words[word_count++] = (uint16_t)word;
+
+        if (i == len) break;
+
+        if (i + 1u < len && bytes[i + 1u] == (unsigned char)':') {
+            if (compress_at >= 0) return 0;
+            compress_at = (int)word_count;
+            i += 2u;
+            if (i == len) break;
+        } else {
+            i++;
+            if (i == len) return 0;
+        }
+    }
+
+    if (compress_at >= 0) {
+        if (word_count >= 8u) return 0;
+        uint32_t missing = 8u - word_count;
+        uint32_t suffix = word_count - (uint32_t)compress_at;
+
+        for (uint32_t n = 0u; n < suffix; n++) {
+            words[7u - n] = words[word_count - 1u - n];
+        }
+        for (uint32_t n = 0u; n < missing; n++) {
+            words[(uint32_t)compress_at + n] = 0u;
+        }
+        word_count = 8u;
+    }
+
+    if (word_count != 8u) return 0;
+
+    for (uint32_t n = 0u; n < 8u; n++) {
+        out[n * 2u] = (unsigned char)(words[n] >> 8u);
+        out[n * 2u + 1u] = (unsigned char)(words[n] & 0xffu);
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_inet_pton_value(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (bytes[i] == 0u) return jinx_oracle_bool_value(0);
+    }
+
+    int has_colon = 0;
+    int has_dot = 0;
+    for (uint32_t i = 0u; i < len; i++) {
+        if (bytes[i] == (unsigned char)':') has_colon = 1;
+        if (bytes[i] == (unsigned char)'.') has_dot = 1;
+    }
+
+    if (has_colon) {
+        unsigned char packed[16];
+        if (!jinx_oracle_parse_ipv6(value, packed)) return jinx_oracle_bool_value(0);
+        char *out = jinx_oracle_scratch_string(16u);
+        memcpy(out, packed, 16u);
+        return jinx_oracle_string_value_len(out, 16u);
+    }
+
+    if (has_dot) {
+        uint32_t ipv4 = 0u;
+        if (!jinx_oracle_parse_ipv4(value, &ipv4)) return jinx_oracle_bool_value(0);
+        char *out = jinx_oracle_scratch_string(4u);
+        out[0] = (char)((ipv4 >> 24u) & 0xffu);
+        out[1] = (char)((ipv4 >> 16u) & 0xffu);
+        out[2] = (char)((ipv4 >> 8u) & 0xffu);
+        out[3] = (char)(ipv4 & 0xffu);
+        return jinx_oracle_string_value_len(out, 4u);
+    }
+
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_inet_ntop_ipv4(const unsigned char *bytes) {
+    char *out = jinx_oracle_scratch_string(15u);
+    int len = snprintf(
+        out,
+        16u,
+        "%u.%u.%u.%u",
+        (unsigned)bytes[0],
+        (unsigned)bytes[1],
+        (unsigned)bytes[2],
+        (unsigned)bytes[3]
+    );
+    return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+}
+
+static inline JinxValue jinx_oracle_inet_ntop_ipv6(const unsigned char *bytes) {
+    uint16_t words[8];
+    for (uint32_t i = 0u; i < 8u; i++) {
+        words[i] = (uint16_t)(((uint16_t)bytes[i * 2u] << 8u) | bytes[i * 2u + 1u]);
+    }
+
+    if (words[0] == 0u && words[1] == 0u && words[2] == 0u &&
+        words[3] == 0u && words[4] == 0u && words[5] == 0xffffu) {
+        char *out = jinx_oracle_scratch_string(45u);
+        int len = snprintf(
+            out,
+            46u,
+            "::ffff:%u.%u.%u.%u",
+            (unsigned)bytes[12],
+            (unsigned)bytes[13],
+            (unsigned)bytes[14],
+            (unsigned)bytes[15]
+        );
+        return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+    }
+
+    if (words[0] == 0u && words[1] == 0u && words[2] == 0u &&
+        words[3] == 0u && words[4] == 0u && words[5] == 0u &&
+        words[6] != 0u) {
+        char *out = jinx_oracle_scratch_string(45u);
+        int len = snprintf(
+            out,
+            46u,
+            "::%u.%u.%u.%u",
+            (unsigned)bytes[12],
+            (unsigned)bytes[13],
+            (unsigned)bytes[14],
+            (unsigned)bytes[15]
+        );
+        return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+    }
+
+    int best_start = -1;
+    int best_len = 0;
+    for (int i = 0; i < 8;) {
+        if (words[i] != 0u) {
+            i++;
+            continue;
+        }
+        int start = i;
+        while (i < 8 && words[i] == 0u) i++;
+        int run = i - start;
+        if (run > best_len) {
+            best_start = start;
+            best_len = run;
+        }
+    }
+    if (best_len < 2) {
+        best_start = -1;
+        best_len = 0;
+    }
+
+    char *out = jinx_oracle_scratch_string(45u);
+    uint32_t pos = 0u;
+
+    for (int i = 0; i < 8; i++) {
+        if (i == best_start) {
+            out[pos++] = ':';
+            out[pos++] = ':';
+            i += best_len - 1;
+            continue;
+        }
+
+        if (pos != 0u && out[pos - 1u] != ':') out[pos++] = ':';
+
+        int written = snprintf(out + pos, 46u - pos, "%x", (unsigned)words[i]);
+        if (written < 0) return jinx_oracle_bool_value(0);
+        pos += (uint32_t)written;
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_inet_ntop_value(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+
+    if (len == 4u) return jinx_oracle_inet_ntop_ipv4(bytes);
+    if (len == 16u) return jinx_oracle_inet_ntop_ipv6(bytes);
+    return jinx_oracle_bool_value(0);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -5484,6 +5725,18 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         }
 
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "inet_pton")) {
+        ret = jinx_oracle_inet_pton_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "inet_ntop")) {
+        ret = jinx_oracle_inet_ntop_value(arg0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
