@@ -255,7 +255,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "mixed",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_PARTIAL,
-        "Native JSON decoding covers PHP's default stdClass object output plus associative arrays from explicit associative=true or associative=null with JSON_OBJECT_AS_ARRAY. Covered values include null/bool/int/float/string, nested arrays/objects, object-property key preservation, Unicode escapes and surrogate pairs, configured depth, JSON_BIGINT_AS_STRING, explicit-false precedence over JSON_OBJECT_AS_ARRAY, and shared JSON error state. JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_THROW_ON_ERROR, and other decode flags remain outside this native subset."
+        "Native JSON decoding covers PHP's default stdClass object output plus associative arrays from explicit associative=true or associative=null with JSON_OBJECT_AS_ARRAY. Covered values include null/bool/int/float/string, nested arrays/objects, object-property key preservation, Unicode escapes and surrogate pairs, configured depth, JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, explicit-false precedence over JSON_OBJECT_AS_ARRAY, and shared JSON error state. JSON_THROW_ON_ERROR and other unsupported decode flags remain outside this native subset."
     },
     {
         "json-encode-core",
