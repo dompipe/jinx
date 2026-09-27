@@ -135,3 +135,4 @@ foreach ($cases as [$function, $args]) {
 }
 
 echo 'PASS: native Oracle ASM scalar-core builtins match PHP for covered JinxValue semantics' . PHP_EOL;
+echo 'PASS: native Oracle ASM scalar-core builtins execute' . PHP_EOL;
