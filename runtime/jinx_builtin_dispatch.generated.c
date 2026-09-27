@@ -3665,6 +3665,13 @@ JinxValue jinx_call_builtin_through_oracle_checked(
 ) {
     if (ok != NULL) *ok = 0;
 
+    if (name != NULL && strcmp(name, "json_encode") == 0 && args != NULL && argc >= 1 &&
+        (argc < 2 || ((args[1].type == 1u || args[1].type == 2u) && args[1].as.i64 == 0))) {
+        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+        if (ok != NULL) *ok = 1;
+        return result;
+    }
+
     if (name != NULL && strcmp(name, "json_decode") == 0 && args != NULL && argc >= 2 &&
         ((args[1].type == 2u && args[1].as.i64 != 0) ||
          (argc >= 4 && args[1].type == 0u && (args[3].type == 1u || args[3].type == 2u) &&
