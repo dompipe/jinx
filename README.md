@@ -201,8 +201,8 @@ Current Zend-shaped native structures:
 ```text
 JinxZendValue       zval-like tagged value
 JinxZendString      zend_string-like string view
-JinxZendArray       HashTable/zend_array count shell
-JinxZendObject      object/class shell
+JinxZendArray       refcounted HashTable/zend_array carrier
+JinxZendObject      refcounted object carrier with class name + properties
 JinxZendReference   reference shell
 JinxZendCallFrame   function call frame shell
 JinxZendExecutor    executor/request state shell
@@ -268,7 +268,7 @@ Primary families:
 | string-core | mixed-native-and-fallback | `ext/standard/string.c`, `ext/standard/html.c` | string runtime |
 | ctype | exact-native | `ext/ctype/ctype.c` | ctype byte-class runtime |
 | array | php-fallback until native HashTable | `ext/standard/array.c`, `Zend/zend_hash.c` | native array runtime |
-| json | php-fallback | `ext/json/` | JSON runtime after arrays/objects |
+| json | mixed-native-and-fallback | `ext/json/` | native validate/decode/encode/error-state core; fallback for unpromoted flags/hooks |
 | regex-pcre | php-fallback | `ext/pcre/` | PCRE runtime/binding |
 | crypto | php-fallback | `ext/hash/`, `ext/openssl/`, `ext/random/`, `ext/sodium/` | reviewed crypto runtime |
 | date-time | php-fallback | `ext/date/` | date/time + timezone runtime |
@@ -409,6 +409,10 @@ Current resolved groups:
 | math trig/log | exact for scalar values | native Oracle/PASM C / libm |
 | `str_contains`, `str_starts_with`, `str_ends_with` | exact | native byte checks |
 | `ctype_*` | exact | native byte-class checks |
+| `json_validate` | exact promoted core | native JSON parser + shared error state |
+| `json_decode` | partial | native scalar/array/`stdClass` decode; object/BigInt/UTF-8 recovery flags covered |
+| `json_encode` | partial | native options-zero scalar/array/object encode; broader flag/hooks remain |
+| `json_last_error*` | partial | native shared state for promoted validate/decode/encode paths |
 | crypto/hash/password/random | php-fallback | original PHP |
 | complex string transforms | php-fallback | original PHP until exact native handlers exist |
 | array family | php-fallback | original PHP until native array storage exists |
