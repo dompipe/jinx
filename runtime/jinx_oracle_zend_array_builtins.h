@@ -2428,12 +2428,306 @@ finish:
     return jinx_oracle_string_value_len(out, out_len);
 }
 
+
+typedef struct JinxOracleParsedUrl {
+    const unsigned char *src;
+    uint32_t len;
+    uint32_t scheme_start, scheme_len;
+    uint32_t host_start, host_len;
+    uint32_t user_start, user_len;
+    uint32_t pass_start, pass_len;
+    uint32_t path_start, path_len;
+    uint32_t query_start, query_len;
+    uint32_t fragment_start, fragment_len;
+    int64_t port;
+    uint8_t has_scheme, has_host, has_user, has_pass, has_path;
+    uint8_t has_query, has_fragment, has_port;
+} JinxOracleParsedUrl;
+
+static inline int jinx_oracle_url_scheme_char(unsigned char c, int first) {
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) return 1;
+    return !first && ((c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.');
+}
+
+static inline int jinx_oracle_url_all_digits(
+    const unsigned char *src,
+    uint32_t start,
+    uint32_t end,
+    int64_t *value
+) {
+    if (start >= end) return 0;
+    int64_t n = 0;
+    for (uint32_t i = start; i < end; i++) {
+        if (src[i] < '0' || src[i] > '9') return 0;
+        n = n * 10 + (int64_t)(src[i] - '0');
+        if (n > 65535) return 0;
+    }
+    *value = n;
+    return 1;
+}
+
+static inline int jinx_oracle_parse_url_parts(JinxValue value, JinxOracleParsedUrl *out) {
+    memset(out, 0, sizeof(*out));
+    out->src = jinx_oracle_string_bytes(value);
+    out->len = jinx_oracle_string_len(value);
+
+    const unsigned char *src = out->src;
+    uint32_t len = out->len;
+    uint32_t main_end = len;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (src[i] == '#') {
+            out->has_fragment = 1u;
+            out->fragment_start = i + 1u;
+            out->fragment_len = len - i - 1u;
+            main_end = i;
+            break;
+        }
+    }
+
+    for (uint32_t i = 0u; i < main_end; i++) {
+        if (src[i] == '?') {
+            out->has_query = 1u;
+            out->query_start = i + 1u;
+            out->query_len = main_end - i - 1u;
+            main_end = i;
+            break;
+        }
+    }
+
+    uint32_t rest = 0u;
+    uint32_t colon = UINT32_MAX;
+    int valid_scheme = len != 0u && jinx_oracle_url_scheme_char(src[0], 1);
+
+    if (valid_scheme) {
+        for (uint32_t i = 1u; i < main_end; i++) {
+            if (src[i] == ':') {
+                colon = i;
+                break;
+            }
+            if (src[i] == '/' || !jinx_oracle_url_scheme_char(src[i], 0)) {
+                valid_scheme = 0;
+                break;
+            }
+        }
+    }
+
+    if (valid_scheme && colon != UINT32_MAX) {
+        out->has_scheme = 1u;
+        out->scheme_start = 0u;
+        out->scheme_len = colon;
+        rest = colon + 1u;
+    }
+
+    int has_authority = 0;
+    uint32_t authority_start = 0u;
+    uint32_t authority_end = 0u;
+
+    if (rest + 1u < main_end && src[rest] == '/' && src[rest + 1u] == '/') {
+        has_authority = 1;
+        authority_start = rest + 2u;
+    } else if (!out->has_scheme && main_end >= 2u && src[0] == '/' && src[1] == '/') {
+        has_authority = 1;
+        authority_start = 2u;
+        rest = 0u;
+    }
+
+    if (has_authority) {
+        authority_end = authority_start;
+        while (authority_end < main_end && src[authority_end] != '/') authority_end++;
+
+        uint32_t hostport_start = authority_start;
+        uint32_t at = UINT32_MAX;
+        for (uint32_t i = authority_start; i < authority_end; i++) {
+            if (src[i] == '@') at = i;
+        }
+
+        if (at != UINT32_MAX) {
+            uint32_t userinfo_end = at;
+            uint32_t pass_colon = UINT32_MAX;
+            for (uint32_t i = authority_start; i < userinfo_end; i++) {
+                if (src[i] == ':') {
+                    pass_colon = i;
+                    break;
+                }
+            }
+
+            out->has_user = 1u;
+            out->user_start = authority_start;
+            out->user_len = (pass_colon == UINT32_MAX ? userinfo_end : pass_colon) - authority_start;
+
+            if (pass_colon != UINT32_MAX) {
+                out->has_pass = 1u;
+                out->pass_start = pass_colon + 1u;
+                out->pass_len = userinfo_end - pass_colon - 1u;
+            }
+
+            hostport_start = at + 1u;
+        }
+
+        if (hostport_start < authority_end && src[hostport_start] == '[') {
+            uint32_t close = hostport_start + 1u;
+            while (close < authority_end && src[close] != ']') close++;
+            if (close >= authority_end) return 0;
+
+            out->has_host = 1u;
+            out->host_start = hostport_start;
+            out->host_len = close - hostport_start + 1u;
+
+            if (close + 1u < authority_end) {
+                if (src[close + 1u] != ':') return 0;
+                int64_t port = 0;
+                if (!jinx_oracle_url_all_digits(src, close + 2u, authority_end, &port)) return 0;
+                out->has_port = 1u;
+                out->port = port;
+            }
+        } else if (hostport_start < authority_end) {
+            uint32_t port_colon = UINT32_MAX;
+            for (uint32_t i = hostport_start; i < authority_end; i++) {
+                if (src[i] == ':') port_colon = i;
+            }
+
+            if (port_colon != UINT32_MAX) {
+                int64_t port = 0;
+                if (!jinx_oracle_url_all_digits(src, port_colon + 1u, authority_end, &port)) return 0;
+                out->has_port = 1u;
+                out->port = port;
+                out->has_host = port_colon > hostport_start;
+                out->host_start = hostport_start;
+                out->host_len = port_colon - hostport_start;
+            } else {
+                out->has_host = 1u;
+                out->host_start = hostport_start;
+                out->host_len = authority_end - hostport_start;
+            }
+        }
+
+        if (authority_end < main_end) {
+            out->has_path = 1u;
+            out->path_start = authority_end;
+            out->path_len = main_end - authority_end;
+        }
+    } else {
+        uint32_t path_start = out->has_scheme ? rest : 0u;
+        out->has_path = 1u;
+        out->path_start = path_start;
+        out->path_len = main_end >= path_start ? main_end - path_start : 0u;
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_url_component_string(
+    const JinxOracleParsedUrl *url,
+    uint32_t start,
+    uint32_t len
+) {
+    char *out = jinx_oracle_scratch_string(len);
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char ch = url->src[start + i];
+        out[i] = iscntrl((int)ch) ? '_' : (char)ch;
+    }
+    return jinx_oracle_string_value_len(out, len);
+}
+
+static inline int jinx_oracle_zend_add_url_string(
+    JinxZendArray *array,
+    const char *key,
+    const JinxOracleParsedUrl *url,
+    uint32_t start,
+    uint32_t len
+) {
+    char *tmp = (char *)malloc((size_t)len + 1u);
+    if (tmp == 0) return 0;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char ch = url->src[start + i];
+        tmp[i] = iscntrl((int)ch) ? '_' : (char)ch;
+    }
+    tmp[len] = '\0';
+
+    JinxZendString *string = jinx_zend_string_new(tmp, len);
+    free(tmp);
+    if (string == 0) return 0;
+
+    int ok = jinx_zend_array_add_assoc(array, key, strlen(key), jinx_zend_string_value(string));
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static inline JinxValue jinx_oracle_zend_parse_url_special(const JinxValue *args, size_t argc) {
+    JinxOracleParsedUrl url;
+    if (argc < 1u || !jinx_oracle_parse_url_parts(args[0], &url)) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    int64_t component = argc >= 2u ? jinx_oracle_intish(args[1]) : -1;
+
+    if (component >= 0) {
+        switch (component) {
+            case 0:
+                return url.has_scheme
+                    ? jinx_oracle_url_component_string(&url, url.scheme_start, url.scheme_len)
+                    : jinx_oracle_zero_value();
+            case 1:
+                return url.has_host
+                    ? jinx_oracle_url_component_string(&url, url.host_start, url.host_len)
+                    : jinx_oracle_zero_value();
+            case 2:
+                return url.has_port ? jinx_oracle_int_value(url.port) : jinx_oracle_zero_value();
+            case 3:
+                return url.has_user
+                    ? jinx_oracle_url_component_string(&url, url.user_start, url.user_len)
+                    : jinx_oracle_zero_value();
+            case 4:
+                return url.has_pass
+                    ? jinx_oracle_url_component_string(&url, url.pass_start, url.pass_len)
+                    : jinx_oracle_zero_value();
+            case 5:
+                return url.has_path
+                    ? jinx_oracle_url_component_string(&url, url.path_start, url.path_len)
+                    : jinx_oracle_zero_value();
+            case 6:
+                return url.has_query
+                    ? jinx_oracle_url_component_string(&url, url.query_start, url.query_len)
+                    : jinx_oracle_zero_value();
+            case 7:
+                return url.has_fragment
+                    ? jinx_oracle_url_component_string(&url, url.fragment_start, url.fragment_len)
+                    : jinx_oracle_zero_value();
+            default:
+                return jinx_oracle_bool_value(0);
+        }
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed(8u);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    if ((url.has_scheme && !jinx_oracle_zend_add_url_string(result, "scheme", &url, url.scheme_start, url.scheme_len)) ||
+        (url.has_host && !jinx_oracle_zend_add_url_string(result, "host", &url, url.host_start, url.host_len)) ||
+        (url.has_port && !jinx_zend_array_add_assoc(result, "port", 4u, jinx_zend_long(url.port))) ||
+        (url.has_user && !jinx_oracle_zend_add_url_string(result, "user", &url, url.user_start, url.user_len)) ||
+        (url.has_pass && !jinx_oracle_zend_add_url_string(result, "pass", &url, url.pass_start, url.pass_len)) ||
+        (url.has_path && !jinx_oracle_zend_add_url_string(result, "path", &url, url.path_start, url.path_len)) ||
+        (url.has_query && !jinx_oracle_zend_add_url_string(result, "query", &url, url.query_start, url.query_len)) ||
+        (url.has_fragment && !jinx_oracle_zend_add_url_string(result, "fragment", &url, url.fragment_start, url.fragment_len))) {
+        jinx_zend_array_release(result);
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
     size_t argc
 ) {
     if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "parse_url") == 0) {
+        return jinx_oracle_zend_parse_url_special(args, argc);
+    }
 
     if (strcmp(name, "str_getcsv") == 0) {
         return jinx_oracle_zend_str_getcsv_special(args, argc);
