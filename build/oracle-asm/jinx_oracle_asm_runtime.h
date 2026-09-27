@@ -1610,6 +1610,147 @@ static inline JinxValue jinx_oracle_uudecode_value(JinxValue value) {
     return jinx_oracle_bool_value(0);
 }
 
+
+static inline JinxValue jinx_oracle_soundex_value(JinxValue value) {
+    static const unsigned char soundex_table[26] = {
+        0, '1', '2', '3', 0, '1', '2', 0, 0, '2', '2', '4', '5',
+        '5', 0, '1', '2', '6', '2', '3', 0, '1', 0, '2', 0, '2'
+    };
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char out[4] = {'0', '0', '0', '0'};
+    uint32_t pos = 0u;
+    int last = -1;
+
+    for (uint32_t i = 0u; i < len && pos < 4u; i++) {
+        int code = toupper(bytes[i]);
+        if (code < 'A' || code > 'Z') continue;
+
+        if (pos == 0u) {
+            out[pos++] = (char)code;
+            last = soundex_table[code - 'A'];
+        } else {
+            int mapped = soundex_table[code - 'A'];
+            if (mapped != last) {
+                if (mapped != 0) out[pos++] = (char)mapped;
+                last = mapped;
+            }
+        }
+    }
+
+    char *scratch = jinx_oracle_scratch_string(4u);
+    memcpy(scratch, out, 4u);
+    return jinx_oracle_string_value_len(scratch, 4u);
+}
+
+static inline int jinx_oracle_is_hex_digit(unsigned char c) {
+    return (c >= '0' && c <= '9') ||
+        (c >= 'A' && c <= 'F') ||
+        (c >= 'a' && c <= 'f');
+}
+
+static inline JinxValue jinx_oracle_quoted_printable_decode_value(JinxValue value) {
+    const unsigned char *src = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(len);
+    uint32_t i = 0u;
+    uint32_t pos = 0u;
+
+    while (i < len && src[i] != '\0') {
+        if (src[i] == '=') {
+            if (i + 2u < len && src[i + 1u] != '\0' && src[i + 2u] != '\0' &&
+                jinx_oracle_is_hex_digit(src[i + 1u]) &&
+                jinx_oracle_is_hex_digit(src[i + 2u])) {
+                int hi = jinx_oracle_hex_nibble(src[i + 1u]);
+                int lo = jinx_oracle_hex_nibble(src[i + 2u]);
+                out[pos++] = (char)((hi << 4) | lo);
+                i += 3u;
+                continue;
+            }
+
+            uint32_t k = 1u;
+            while (i + k < len && (src[i + k] == ' ' || src[i + k] == '\t')) k++;
+
+            if (i + k >= len || src[i + k] == '\0') {
+                i += k;
+                continue;
+            }
+            if (src[i + k] == '\r' && i + k + 1u < len && src[i + k + 1u] == '\n') {
+                i += k + 2u;
+                continue;
+            }
+            if (src[i + k] == '\r' || src[i + k] == '\n') {
+                i += k + 1u;
+                continue;
+            }
+
+            out[pos++] = '=';
+            i++;
+            continue;
+        }
+
+        out[pos++] = (char)src[i++];
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_quoted_printable_encode_value(JinxValue value) {
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char *src = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint64_t needed = (uint64_t)len * 4u + 8u;
+
+    if (needed > UINT32_MAX) return jinx_oracle_bool_value(0);
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+    uint32_t lp = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char ch = src[i];
+
+        if (ch == '\r' && i + 1u < len && src[i + 1u] == '\n') {
+            out[pos++] = '\r';
+            out[pos++] = '\n';
+            i++;
+            lp = 0u;
+            continue;
+        }
+
+        int encode = iscntrl(ch) || ch == 0x7fu || (ch & 0x80u) != 0u || ch == '=' ||
+            (ch == ' ' && i + 1u < len && src[i + 1u] == '\r');
+
+        if (encode) {
+            lp += 3u;
+            int wrap =
+                ((lp > 75u) && ch <= 0x7fu) ||
+                ((ch > 0x7fu && ch <= 0xdfu) && (lp + 3u > 75u)) ||
+                ((ch > 0xdfu && ch <= 0xefu) && (lp + 6u > 75u)) ||
+                ((ch > 0xefu && ch <= 0xf4u) && (lp + 9u > 75u));
+            if (wrap) {
+                out[pos++] = '=';
+                out[pos++] = '\r';
+                out[pos++] = '\n';
+                lp = 3u;
+            }
+            out[pos++] = '=';
+            out[pos++] = hex[ch >> 4u];
+            out[pos++] = hex[ch & 0x0fu];
+        } else {
+            lp++;
+            if (lp > 75u) {
+                out[pos++] = '=';
+                out[pos++] = '\r';
+                out[pos++] = '\n';
+                lp = 1u;
+            }
+            out[pos++] = (char)ch;
+        }
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
 static inline uint32_t jinx_oracle_crc32_bytes(const unsigned char *bytes, uint32_t len) {
     uint32_t crc = 0xffffffffu;
 
@@ -2868,6 +3009,24 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     if (jinx_oracle_name_in3(name, "decbin", "dechex", "decoct")) {
         int base = jinx_oracle_name_is(name, "decbin") ? 2 : (jinx_oracle_name_is(name, "dechex") ? 16 : 8);
         ret = jinx_oracle_uint_to_base((uint64_t)jinx_oracle_intish(arg0), base);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "soundex")) {
+        ret = jinx_oracle_soundex_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "quoted_printable_decode")) {
+        ret = jinx_oracle_quoted_printable_decode_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "quoted_printable_encode")) {
+        ret = jinx_oracle_quoted_printable_encode_value(arg0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
