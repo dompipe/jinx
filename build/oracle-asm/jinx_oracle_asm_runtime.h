@@ -4212,7 +4212,6 @@ static inline const char *jinx_oracle_image_type_mime(int64_t image_type) {
         case 17: return "image/vnd.microsoft.icon";
         case 18: return "image/webp";
         case 19: return "image/avif";
-        case 20: return "image/heif";
         default: return "application/octet-stream";
     }
 }
@@ -4238,7 +4237,6 @@ static inline const char *jinx_oracle_image_type_extension(int64_t image_type) {
         case 17: return ".ico";
         case 18: return ".webp";
         case 19: return ".avif";
-        case 20: return ".heif";
         default: return NULL;
     }
 }
