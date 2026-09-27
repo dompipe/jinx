@@ -277,6 +277,50 @@ static inline uint32_t jinx_oracle_zend_scalar_write(char *out, JinxZendValue va
     return 5u;
 }
 
+
+static inline int jinx_oracle_zend_to_jinx_value(JinxZendValue value, JinxValue *out) {
+    if (value.type == JINX_ZEND_NULL) { *out = jinx_oracle_zero_value(); return 1; }
+    if (value.type == JINX_ZEND_FALSE) { *out = jinx_oracle_bool_value(0); return 1; }
+    if (value.type == JINX_ZEND_TRUE) { *out = jinx_oracle_bool_value(1); return 1; }
+    if (value.type == JINX_ZEND_LONG) { *out = jinx_oracle_int_value(value.value.lval); return 1; }
+    if (value.type == JINX_ZEND_DOUBLE) { *out = jinx_oracle_float_value(value.value.dval); return 1; }
+    if (value.type == JINX_ZEND_STRING && value.value.str != 0) {
+        *out = jinx_oracle_string_value_len(value.value.str->bytes, (uint32_t)value.value.str->len);
+        return 1;
+    }
+    if (value.type == JINX_ZEND_ARRAY && value.value.array != 0) {
+        *out = jinx_oracle_zend_array_value_borrowed(value.value.array);
+        return 1;
+    }
+    return 0;
+}
+
+static inline JinxValue jinx_oracle_zend_vsprintf_special(const JinxValue *args, size_t argc) {
+    if (argc < 2u) return jinx_oracle_zero_value();
+
+    JinxZendArray *values_array = jinx_oracle_zend_array_ptr(args[1]);
+    if (values_array == 0) return jinx_oracle_zero_value();
+
+    size_t count = jinx_zend_array_live_count(values_array);
+    if (count > UINT32_MAX) return jinx_oracle_bool_value(0);
+
+    JinxValue *values = count == 0u ? NULL : (JinxValue *)calloc(count, sizeof(JinxValue));
+    if (count != 0u && values == NULL) return jinx_oracle_zero_value();
+
+    for (size_t i = 0u; i < count; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(values_array, i);
+        if (bucket == 0 || !jinx_oracle_zend_to_jinx_value(bucket->value, &values[i])) {
+            free(values);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    int ok = 0;
+    JinxValue result = jinx_oracle_sprintf_values(args[0], values, (uint32_t)count, &ok);
+    free(values);
+    return ok ? result : jinx_oracle_zero_value();
+}
+
 static inline JinxValue jinx_oracle_zend_implode_special(const JinxValue *args, size_t argc) {
     JinxZendArray *array = 0;
     const unsigned char *separator = (const unsigned char *)"";
@@ -541,6 +585,7 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
     if (strcmp(name, "count_chars") == 0) return jinx_oracle_zend_count_chars_special(args, argc);
+    if (strcmp(name, "vsprintf") == 0) return jinx_oracle_zend_vsprintf_special(args, argc);
     if (strcmp(name, "implode") == 0 || strcmp(name, "join") == 0) return jinx_oracle_zend_implode_special(args, argc);
     if (strcmp(name, "range") == 0) return jinx_oracle_zend_range_special(args, argc);
     if (strcmp(name, "array_fill") == 0) return jinx_oracle_zend_array_fill_special(args, argc);
