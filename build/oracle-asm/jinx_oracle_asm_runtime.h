@@ -4190,6 +4190,59 @@ static inline JinxValue jinx_oracle_strip_tags_value(
     return jinx_oracle_string_value_len(out, pos);
 }
 
+
+static inline const char *jinx_oracle_image_type_mime(int64_t image_type) {
+    switch (image_type) {
+        case 1: return "image/gif";
+        case 2: return "image/jpeg";
+        case 3: return "image/png";
+        case 4:
+        case 13: return "application/x-shockwave-flash";
+        case 5: return "image/psd";
+        case 6: return "image/bmp";
+        case 7:
+        case 8: return "image/tiff";
+        case 9:
+        case 11:
+        case 12: return "application/octet-stream";
+        case 10: return "image/jp2";
+        case 14: return "image/iff";
+        case 15: return "image/vnd.wap.wbmp";
+        case 16: return "image/xbm";
+        case 17: return "image/vnd.microsoft.icon";
+        case 18: return "image/webp";
+        case 19: return "image/avif";
+        case 20: return "image/heif";
+        default: return "application/octet-stream";
+    }
+}
+
+static inline const char *jinx_oracle_image_type_extension(int64_t image_type) {
+    switch (image_type) {
+        case 1: return ".gif";
+        case 2: return ".jpeg";
+        case 3: return ".png";
+        case 4:
+        case 13: return ".swf";
+        case 5: return ".psd";
+        case 6:
+        case 15: return ".bmp";
+        case 7:
+        case 8: return ".tiff";
+        case 9: return ".jpc";
+        case 10: return ".jp2";
+        case 11: return ".jpx";
+        case 12: return ".jb2";
+        case 14: return ".iff";
+        case 16: return ".xbm";
+        case 17: return ".ico";
+        case 18: return ".webp";
+        case 19: return ".avif";
+        case 20: return ".heif";
+        default: return NULL;
+    }
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -4213,6 +4266,26 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         if (!strip_ok) {
             ctx->fault = "strip_tags array allowed-tags overload is not native yet";
             return jinx_oracle_zero_value();
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "image_type_to_mime_type")) {
+        ret = jinx_oracle_string_value(
+            jinx_oracle_image_type_mime(jinx_oracle_intish(arg0))
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "image_type_to_extension")) {
+        const char *extension = jinx_oracle_image_type_extension(jinx_oracle_intish(arg0));
+        if (extension == NULL) {
+            ret = jinx_oracle_bool_value(0);
+        } else {
+            int include_dot = argc < 2u || jinx_oracle_boolish(arg1);
+            ret = jinx_oracle_string_value(include_dot ? extension : extension + 1);
         }
         jinx_oracle_return(ctx, ret);
         return ret;
