@@ -8,6 +8,7 @@
 
 static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
     return name != NULL && (
+        strcmp(name, "min") == 0 || strcmp(name, "max") == 0 ||
         strcmp(name, "count") == 0 ||
         strcmp(name, "array_key_exists") == 0 ||
         strcmp(name, "array_is_list") == 0 ||
