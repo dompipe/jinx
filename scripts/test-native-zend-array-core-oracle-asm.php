@@ -330,6 +330,13 @@ $expectedRngParity = 'RNG_PARITY:'
     . ';shuffle=' . implode(',', $shuffleValues)
     . ';shuffle_after=' . $shuffleAfter;
 
+$jsonValidateInvalid = json_validate('{"a":1,}', 512, 0);
+$jsonValidateErrorCode = json_last_error();
+$jsonValidateErrorMessage = json_last_error_msg();
+$jsonValidateValid = json_validate('{"a":1}', 512, 0);
+$jsonValidateValidCode = json_last_error();
+$jsonValidateValidMessage = json_last_error_msg();
+
 $jsonDecoded = json_decode(
     '{"name":"Ada","nums":[1,2],"ok":true,"none":null,"emoji":"\\uD83D\\uDE00"}',
     true,
@@ -389,7 +396,12 @@ if (!is_string($jsonObjectEncoded) ||
 }
 
 $expectedJsonParity = 'JSON_PARITY:'
-    . 'name=' . $jsonDecoded['name']
+    . 'validate='
+        . ($jsonValidateInvalid ? '1' : '0') . '|'
+        . $jsonValidateErrorCode . '|' . $jsonValidateErrorMessage . '|'
+        . ($jsonValidateValid ? '1' : '0') . '|'
+        . $jsonValidateValidCode . '|' . $jsonValidateValidMessage
+    . ';name=' . $jsonDecoded['name']
     . ';nums=' . implode(',', $jsonDecoded['nums'])
     . ';ok=' . ($jsonDecoded['ok'] ? '1' : '0')
     . ';none=' . ($jsonDecoded['none'] === null ? 'null' : 'not-null')
