@@ -5128,6 +5128,171 @@ static inline JinxValue jinx_oracle_zend_cal_info_special(
     );
 }
 
+
+static inline size_t jinx_oracle_zend_cursor_valid_pos(
+    const JinxZendArray *array,
+    size_t position
+) {
+    if (array == 0 || array->buckets == 0 || position >= array->count) {
+        return array != 0 ? array->count : 0u;
+    }
+
+    for (size_t i = position; i < array->count; i++) {
+        if (!jinx_zend_bucket_is_tombstone(&array->buckets[i])) {
+            return i;
+        }
+    }
+
+    return array->count;
+}
+
+static inline const JinxZendBucket *jinx_oracle_zend_cursor_bucket(
+    const JinxZendArray *array
+) {
+    if (array == 0) return 0;
+
+    size_t position = jinx_oracle_zend_cursor_valid_pos(
+        array,
+        array->internal_pointer
+    );
+    return position < array->count ? &array->buckets[position] : 0;
+}
+
+static inline JinxValue jinx_oracle_zend_cursor_current(
+    JinxZendArray *array
+) {
+    const JinxZendBucket *bucket = jinx_oracle_zend_cursor_bucket(array);
+    return bucket != 0
+        ? jinx_oracle_zend_value_return_copy(bucket->value)
+        : jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_zend_cursor_key(
+    JinxZendArray *array
+) {
+    const JinxZendBucket *bucket = jinx_oracle_zend_cursor_bucket(array);
+    return bucket != 0
+        ? jinx_oracle_zend_bucket_key_value(bucket)
+        : jinx_oracle_zero_value();
+}
+
+static inline JinxValue jinx_oracle_zend_cursor_reset(
+    JinxZendArray *array
+) {
+    if (array == 0 || jinx_zend_array_live_count(array) == 0u) {
+        if (array != 0) array->internal_pointer = 0u;
+        return jinx_oracle_bool_value(0);
+    }
+
+    array->internal_pointer = jinx_oracle_zend_cursor_valid_pos(array, 0u);
+    return jinx_oracle_zend_cursor_current(array);
+}
+
+static inline JinxValue jinx_oracle_zend_cursor_end(
+    JinxZendArray *array
+) {
+    if (array == 0 || jinx_zend_array_live_count(array) == 0u) {
+        if (array != 0) array->internal_pointer = 0u;
+        return jinx_oracle_bool_value(0);
+    }
+
+    for (size_t i = array->count; i > 0u; i--) {
+        size_t position = i - 1u;
+        if (!jinx_zend_bucket_is_tombstone(&array->buckets[position])) {
+            array->internal_pointer = position;
+            return jinx_oracle_zend_cursor_current(array);
+        }
+    }
+
+    array->internal_pointer = array->count;
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_zend_cursor_next(
+    JinxZendArray *array
+) {
+    if (array == 0 || jinx_zend_array_live_count(array) == 0u) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    size_t position = jinx_oracle_zend_cursor_valid_pos(
+        array,
+        array->internal_pointer
+    );
+
+    if (position >= array->count) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    for (size_t i = position + 1u; i < array->count; i++) {
+        if (!jinx_zend_bucket_is_tombstone(&array->buckets[i])) {
+            array->internal_pointer = i;
+            return jinx_oracle_zend_cursor_current(array);
+        }
+    }
+
+    array->internal_pointer = array->count;
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_zend_cursor_prev(
+    JinxZendArray *array
+) {
+    if (array == 0 || jinx_zend_array_live_count(array) == 0u) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    size_t position = array->internal_pointer;
+    if (position >= array->count) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    while (position > 0u) {
+        position--;
+        if (!jinx_zend_bucket_is_tombstone(&array->buckets[position])) {
+            array->internal_pointer = position;
+            return jinx_oracle_zend_cursor_current(array);
+        }
+    }
+
+    array->internal_pointer = array->count;
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_zend_array_pointer_special(
+    const char *name,
+    JinxValue *args,
+    size_t argc
+) {
+    if (name == 0 || args == 0 || argc < 1u) {
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
+    if (array == 0) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "current") == 0 || strcmp(name, "pos") == 0) {
+        return jinx_oracle_zend_cursor_current(array);
+    }
+    if (strcmp(name, "key") == 0) {
+        return jinx_oracle_zend_cursor_key(array);
+    }
+    if (strcmp(name, "next") == 0) {
+        return jinx_oracle_zend_cursor_next(array);
+    }
+    if (strcmp(name, "prev") == 0) {
+        return jinx_oracle_zend_cursor_prev(array);
+    }
+    if (strcmp(name, "reset") == 0) {
+        return jinx_oracle_zend_cursor_reset(array);
+    }
+    if (strcmp(name, "end") == 0) {
+        return jinx_oracle_zend_cursor_end(array);
+    }
+
+    return jinx_oracle_zero_value();
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     JinxValue *args,
@@ -5255,6 +5420,13 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
     if (array == 0) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "current") == 0 || strcmp(name, "pos") == 0 ||
+        strcmp(name, "key") == 0 || strcmp(name, "next") == 0 ||
+        strcmp(name, "prev") == 0 || strcmp(name, "reset") == 0 ||
+        strcmp(name, "end") == 0) {
+        return jinx_oracle_zend_array_pointer_special(name, args, argc);
+    }
 
     if (strcmp(name, "min") == 0 || strcmp(name, "max") == 0) {
         return jinx_oracle_zend_numeric_extreme_array(
