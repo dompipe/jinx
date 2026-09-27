@@ -1832,22 +1832,56 @@ static inline JinxValue jinx_oracle_number_format_value(
 ) {
     double number = jinx_oracle_floatish(number_value);
     int64_t decimals_raw = argc >= 2u ? jinx_oracle_intish(decimals_value) : 0;
-    int decimals = decimals_raw < 0 ? 0 : (decimals_raw > 18 ? 18 : (int)decimals_raw);
-    const unsigned char *decimal_sep = argc >= 3u ? jinx_oracle_string_bytes(decimal_sep_value) : (const unsigned char *)".";
-    uint32_t decimal_sep_len = argc >= 3u ? jinx_oracle_string_len(decimal_sep_value) : 1u;
-    const unsigned char *thousands_sep = argc >= 4u ? jinx_oracle_string_bytes(thousands_sep_value) : (const unsigned char *)",";
-    uint32_t thousands_sep_len = argc >= 4u ? jinx_oracle_string_len(thousands_sep_value) : 1u;
-    double scale = pow(10.0, (double)decimals);
-    double rounded = round(number * scale) / scale;
-    int plain_len = snprintf(NULL, 0, "%.*f", decimals, rounded);
+    const unsigned char *decimal_sep = argc >= 3u && decimal_sep_value.type != 0u
+        ? jinx_oracle_string_bytes(decimal_sep_value)
+        : (const unsigned char *)".";
+    uint32_t decimal_sep_len = argc >= 3u && decimal_sep_value.type != 0u
+        ? jinx_oracle_string_len(decimal_sep_value)
+        : 1u;
+    const unsigned char *thousands_sep = argc >= 4u && thousands_sep_value.type != 0u
+        ? jinx_oracle_string_bytes(thousands_sep_value)
+        : (const unsigned char *)",";
+    uint32_t thousands_sep_len = argc >= 4u && thousands_sep_value.type != 0u
+        ? jinx_oracle_string_len(thousands_sep_value)
+        : 1u;
+    int decimals;
+    double rounded = number;
 
-    if (plain_len < 0) return jinx_oracle_bool_value(0);
+    if (decimals_raw > INT_MAX || decimals_raw < INT_MIN) {
+        return jinx_oracle_zero_value();
+    }
+
+    decimals = decimals_raw > 0 ? (int)decimals_raw : 0;
+
+    if (decimals_raw < 0) {
+        int64_t places = -decimals_raw;
+        if (places > 308) {
+            rounded = 0.0;
+        } else {
+            double scale = pow(10.0, (double)places);
+            rounded = round(number / scale) * scale;
+        }
+    } else if (decimals_raw > 0 && decimals_raw <= 308) {
+        double scale = pow(10.0, (double)decimals_raw);
+        if (isfinite(scale) && isfinite(number * scale)) {
+            rounded = round(number * scale) / scale;
+        }
+    } else {
+        rounded = round(number);
+    }
+
+    if (rounded == 0.0) {
+        rounded = 0.0;
+    }
+
+    int plain_len = snprintf(NULL, 0, "%.*f", decimals, rounded);
+    if (plain_len < 0) return jinx_oracle_zero_value();
 
     char *plain = (char *)malloc((size_t)plain_len + 1u);
-    if (plain == NULL) return jinx_oracle_bool_value(0);
+    if (plain == NULL) return jinx_oracle_zero_value();
     snprintf(plain, (size_t)plain_len + 1u, "%.*f", decimals, rounded);
 
-    char *dot = strchr(plain, '.');
+    char *dot = decimals > 0 ? strchr(plain, '.') : NULL;
     uint32_t integer_start = plain[0] == '-' ? 1u : 0u;
     uint32_t integer_end = dot == NULL ? (uint32_t)plain_len : (uint32_t)(dot - plain);
     uint32_t integer_digits = integer_end - integer_start;
@@ -1861,7 +1895,7 @@ static inline JinxValue jinx_oracle_number_format_value(
 
     if (needed > UINT32_MAX) {
         free(plain);
-        return jinx_oracle_bool_value(0);
+        return jinx_oracle_zero_value();
     }
 
     char *out = jinx_oracle_scratch_string((uint32_t)needed);
@@ -3254,6 +3288,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "number_format")) {
+        if (argc >= 2u) {
+            int64_t decimals = jinx_oracle_intish(arg1);
+            if (decimals > INT_MAX || decimals < INT_MIN) {
+                ctx->fault = "number_format decimals must fit a C int";
+                return jinx_oracle_zero_value();
+            }
+        }
         ret = jinx_oracle_number_format_value(
             arg0,
             arg1,
@@ -3261,6 +3302,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             jinx_oracle_call_arg(ctx, 3u),
             argc
         );
+        if (ret.type == 0u) {
+            ctx->fault = "number_format native formatting failed";
+            return ret;
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
