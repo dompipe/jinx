@@ -45,6 +45,10 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 
 $cases = [
     ['fmod', ['f:5.5', 'f:2']],
+    ['fdiv', ['f:7', 'f:2']],
+    ['fdiv', ['f:-7', 'f:2']],
+    ['log1p', ['f:0.0000001']],
+    ['log1p', ['f:1']],
     ['intdiv', ['i:7', 'i:2']],
     ['deg2rad', ['f:180']],
     ['rad2deg', ['f:3.141592653589793']],
