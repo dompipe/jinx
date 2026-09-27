@@ -10,6 +10,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Forward declarations for helpers used by the user-sort implementation
+ * before their full definitions later in this header.
+ */
+static inline int jinx_oracle_zend_to_jinx_borrowed(
+    JinxZendValue value,
+    JinxValue *out
+);
+static inline int jinx_oracle_named_comparator_result(
+    JinxValue callback,
+    JinxValue left,
+    JinxValue right,
+    int *ok
+);
+
 static inline JinxValue jinx_oracle_zend_bucket_key_value(const JinxZendBucket *bucket) {
     if (bucket == 0) return jinx_oracle_zero_value();
     if (bucket->key != 0) {
