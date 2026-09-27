@@ -986,7 +986,7 @@ static inline JinxValue jinx_oracle_zend_array_column_special(const JinxValue *a
         if (row_bucket == 0 || row_bucket->value.type != JINX_ZEND_ARRAY || row_bucket->value.value.array == 0) continue;
 
         JinxZendArray *row = row_bucket->value.value.array;
-        JinxZendValue *column_value = whole_row ? &row_bucket->value : jinx_oracle_zend_row_value(row, args[1]);
+        const JinxZendValue *column_value = whole_row ? &row_bucket->value : jinx_oracle_zend_row_value(row, args[1]);
         if (column_value == 0) continue;
 
         JinxZendValue *index_value = use_index ? jinx_oracle_zend_row_value(row, args[2]) : 0;
