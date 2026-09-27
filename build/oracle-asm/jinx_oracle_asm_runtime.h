@@ -4532,6 +4532,45 @@ static inline JinxValue jinx_oracle_pow_value(
     ));
 }
 
+
+static inline int jinx_oracle_numeric_scalar(JinxValue value) {
+    return value.type == 1u || value.type == 5u;
+}
+
+static inline JinxValue jinx_oracle_numeric_extreme(
+    JinxOracleAsmContext *ctx,
+    int want_max
+) {
+    if (ctx == NULL || ctx->call_argc < 2u) {
+        if (ctx != NULL) ctx->fault = "min/max scalar form requires at least two values";
+        return jinx_oracle_zero_value();
+    }
+
+    JinxValue best = jinx_oracle_call_arg(ctx, 0u);
+    if (!jinx_oracle_numeric_scalar(best)) {
+        ctx->fault = "min/max mixed-type comparison is not native yet";
+        return jinx_oracle_zero_value();
+    }
+    double best_value = jinx_oracle_floatish(best);
+
+    for (uint32_t i = 1u; i < ctx->call_argc; i++) {
+        JinxValue candidate = jinx_oracle_call_arg(ctx, i);
+        if (!jinx_oracle_numeric_scalar(candidate)) {
+            ctx->fault = "min/max mixed-type comparison is not native yet";
+            return jinx_oracle_zero_value();
+        }
+
+        double candidate_value = jinx_oracle_floatish(candidate);
+        if ((want_max && candidate_value > best_value) ||
+            (!want_max && candidate_value < best_value)) {
+            best = candidate;
+            best_value = candidate_value;
+        }
+    }
+
+    return best;
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -4593,6 +4632,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ctx->fault = "version_compare operator or allocation error";
             return jinx_oracle_zero_value();
         }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "min", "max")) {
+        ret = jinx_oracle_numeric_extreme(ctx, jinx_oracle_name_is(name, "max"));
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
         jinx_oracle_return(ctx, ret);
         return ret;
     }
