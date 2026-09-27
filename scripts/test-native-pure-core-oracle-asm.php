@@ -113,6 +113,9 @@ $cases = [
     ['utf8_encode', ['s:café']],
     ['utf8_decode', ['s:plain ASCII']],
     ['utf8_decode', ['s:café']],
+    ['strip_tags', ['s:<p>Test paragraph.</p><!-- Comment --> <a href="#fragment">Other text</a>']],
+    ['strip_tags', ['s:<p>Test paragraph.</p><!-- Comment --> <a href="#fragment">Other text</a>', 's:<p><a>']],
+    ['strip_tags', ['s:<a title="1>2">quoted</a> tail']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
