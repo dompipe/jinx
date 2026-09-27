@@ -138,8 +138,19 @@ int main(void) {
     if (!expect_int(jinx_call_builtin_through_oracle("array_sum", args, 1), 100)) return fail("sum");
     if (!expect_int(jinx_call_builtin_through_oracle("array_product", args, 1), 240000)) return fail("product");
 
-    args[1] = jinx_oracle_string_value("keep");
-    if (!expect_bool(jinx_call_builtin_through_oracle("array_key_exists", args, 2), 1)) return fail("key exists");
+    args[0] = jinx_oracle_string_value("keep");
+    args[1] = jinx_oracle_zend_array_value_borrowed(array);
+    if (!expect_bool(jinx_call_builtin_through_oracle("array_key_exists", args, 2), 1)) {
+        return fail("array_key_exists PHP argument order");
+    }
+    if (!expect_bool(jinx_call_builtin_through_oracle("key_exists", args, 2), 1)) {
+        return fail("key_exists alias PHP argument order");
+    }
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(array);
+    if (!expect_int(jinx_call_builtin_through_oracle("sizeof", args, 1), 4)) {
+        return fail("sizeof alias");
+    }
 
     args[1] = jinx_oracle_bool_value(0);
     result = jinx_call_builtin_through_oracle("array_reverse", args, 2);
@@ -2127,7 +2138,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc;array_min=2;array_max=3.5;array_tie_type=integer;sort=1,2,3;rsort_num=10,2,1;asort=a:1,c:1,b:2;arsort=b:3,c:2,a:1;ksort=a:1,b:2,c:3;krsort=c:3,b:2,a:1;natsort=3:img1.png,2:img2.png,1:img10.png,0:img12.png;natcase=2:Img1,1:img2,0:IMG12;multisort=10,10,20,20|b,a,d,c;multikeys=0:Y,x:X;map=short:1,5:4,x:2;map2=4,5,9;mapnull=1,4|5,2|3,9;reduce=5;filtercb=a:1,c:2;filterboth=a:apple,b:banana;find=apple|a|1|0|1|1;udiff=a:red;duassoc=a:red,b:green;dukey=a:red;udassoc=a:red,b:green;uduassoc=a:red,b:green;uinter=b:green,c:blue;iuassoc=c:blue;iukey=b:green,c:blue;uiassoc=c:blue;uiuassoc=c:blue;uinter3=b:green;walk=42|7|false;walkrec=9|8|true;walkdata=2\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;keyexists=1|1;sizeof=4;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc;array_min=2;array_max=3.5;array_tie_type=integer;sort=1,2,3;rsort_num=10,2,1;asort=a:1,c:1,b:2;arsort=b:3,c:2,a:1;ksort=a:1,b:2,c:3;krsort=c:3,b:2,a:1;natsort=3:img1.png,2:img2.png,1:img10.png,0:img12.png;natcase=2:Img1,1:img2,0:IMG12;multisort=10,10,20,20|b,a,d,c;multikeys=0:Y,x:X;map=short:1,5:4,x:2;map2=4,5,9;mapnull=1,4|5,2|3,9;reduce=5;filtercb=a:1,c:2;filterboth=a:apple,b:banana;find=apple|a|1|0|1|1;udiff=a:red;duassoc=a:red,b:green;dukey=a:red;udassoc=a:red,b:green;uduassoc=a:red,b:green;uinter=b:green,c:blue;iuassoc=c:blue;iukey=b:green,c:blue;uiassoc=c:blue;uiuassoc=c:blue;uinter3=b:green;walk=42|7|false;walkrec=9|8|true;walkdata=2\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
