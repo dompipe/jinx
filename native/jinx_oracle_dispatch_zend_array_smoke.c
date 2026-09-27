@@ -60,6 +60,36 @@ int main(void) {
     args[0] = jinx_oracle_zend_array_value_borrowed(array);
 
     if (!expect_int(jinx_call_builtin_through_oracle("count", args, 1), 4)) return fail("count");
+
+    JinxZendArray *recursive_inner = jinx_zend_array_new_packed(2);
+    JinxZendArray *recursive_outer = jinx_zend_array_new_packed(2);
+    if (recursive_inner == 0 || recursive_outer == 0 ||
+        !jinx_zend_array_append(recursive_inner, jinx_zend_long(1)) ||
+        !jinx_zend_array_append(recursive_inner, jinx_zend_long(2)) ||
+        !jinx_zend_array_append(recursive_outer, jinx_zend_array_value(recursive_inner)) ||
+        !jinx_zend_array_append(recursive_outer, jinx_zend_long(3))) {
+        return fail("recursive count source");
+    }
+    jinx_zend_array_release(recursive_inner);
+    args[0] = jinx_oracle_zend_array_value_borrowed(recursive_outer);
+    args[1] = jinx_oracle_int_value(1);
+    if (!expect_int(jinx_call_builtin_through_oracle("count", args, 2), 4)) return fail("recursive count");
+    jinx_zend_array_release(recursive_outer);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(array);
+    args[1] = jinx_oracle_string_value("20");
+    args[2] = jinx_oracle_bool_value(0);
+    result = jinx_call_builtin_through_oracle("array_keys", args, 3);
+    if (!expect_array_count(result, 1) || !expect_long_index(jinx_oracle_zend_array_ptr(result), 0, 1)) {
+        return fail("array_keys loose filter");
+    }
+    jinx_oracle_zend_array_value_release(result);
+    args[2] = jinx_oracle_bool_value(1);
+    result = jinx_call_builtin_through_oracle("array_keys", args, 3);
+    if (!expect_array_count(result, 0)) return fail("array_keys strict filter");
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(array);
     if (!expect_int(jinx_call_builtin_through_oracle("array_key_first", args, 1), 0)) return fail("key first");
     if (!expect_string(jinx_call_builtin_through_oracle("array_key_last", args, 1), "keep")) return fail("key last");
     if (!expect_int(jinx_call_builtin_through_oracle("array_sum", args, 1), 100)) return fail("sum");
@@ -372,7 +402,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
