@@ -5241,6 +5241,90 @@ static const int jinx_oracle_jewish_year_offset[19] = {
     136, 148, 160, 173, 185, 197, 210, 222
 };
 
+static const char * const jinx_oracle_month_name_short[13] = {
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+
+static const char * const jinx_oracle_month_name_long[13] = {
+    "", "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+};
+
+static const char * const jinx_oracle_day_name_short[7] = {
+    "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+};
+
+static const char * const jinx_oracle_day_name_long[7] = {
+    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+};
+
+static const char * const jinx_oracle_french_month_name[14] = {
+    "",
+    "Vendemiaire",
+    "Brumaire",
+    "Frimaire",
+    "Nivose",
+    "Pluviose",
+    "Ventose",
+    "Germinal",
+    "Floreal",
+    "Prairial",
+    "Messidor",
+    "Thermidor",
+    "Fructidor",
+    "Extra"
+};
+
+static const char * const jinx_oracle_jewish_month_name_leap[14] = {
+    "",
+    "Tishri",
+    "Heshvan",
+    "Kislev",
+    "Tevet",
+    "Shevat",
+    "Adar I",
+    "Adar II",
+    "Nisan",
+    "Iyyar",
+    "Sivan",
+    "Tammuz",
+    "Av",
+    "Elul"
+};
+
+static const char * const jinx_oracle_jewish_month_name_regular[14] = {
+    "",
+    "Tishri",
+    "Heshvan",
+    "Kislev",
+    "Tevet",
+    "Shevat",
+    "",
+    "Adar",
+    "Nisan",
+    "Iyyar",
+    "Sivan",
+    "Tammuz",
+    "Av",
+    "Elul"
+};
+
+static inline int jinx_oracle_day_of_week(int64_t sdn) {
+    return (int)(((sdn % 7) + 8) % 7);
+}
+
+static inline int jinx_oracle_jewish_is_leap_year(int year) {
+    return year > 0 && jinx_oracle_jewish_months_per_year[(year - 1) % 19] == 13;
+}
+
+static inline const char *jinx_oracle_jewish_month_name(int year, int month) {
+    if (year <= 0 || month < 0 || month > 13) return "";
+    return jinx_oracle_jewish_is_leap_year(year)
+        ? jinx_oracle_jewish_month_name_leap[month]
+        : jinx_oracle_jewish_month_name_regular[month];
+}
+
 static inline int64_t jinx_oracle_french_to_sdn(int year, int month, int day) {
     if (year < 1 || year > 14 || month < 1 || month > 13 || day < 1 || day > 30) {
         return 0;
@@ -5419,6 +5503,279 @@ static inline int64_t jinx_oracle_jewish_to_sdn(int year, int month, int day) {
     }
 
     return sdn + JINX_JEWISH_SDN_OFFSET;
+}
+
+
+#define JINX_JEWISH_SDN_MAX INT64_C(324542846)
+
+static inline int jinx_oracle_jewish_find_tishri_molad(
+    int64_t input_day,
+    int *metonic_cycle_out,
+    int *metonic_year_out,
+    int64_t *molad_day_out,
+    int64_t *molad_halakim_out
+) {
+    if (metonic_cycle_out == NULL || metonic_year_out == NULL ||
+        molad_day_out == NULL || molad_halakim_out == NULL) {
+        return 0;
+    }
+
+    int64_t cycle64 = (input_day + 310) / 6940;
+    if (cycle64 < 0 || cycle64 > INT_MAX) return 0;
+
+    int metonic_cycle = (int)cycle64;
+    int64_t molad_day = 0;
+    int64_t molad_halakim = 0;
+
+    if (!jinx_oracle_jewish_molad_of_cycle(
+        metonic_cycle,
+        &molad_day,
+        &molad_halakim
+    )) {
+        return 0;
+    }
+
+    while (molad_day < input_day - 6940 + 310) {
+        if (metonic_cycle == INT_MAX) return 0;
+        metonic_cycle++;
+        molad_halakim += (int64_t)JINX_HALAKIM_PER_METONIC_CYCLE;
+        molad_day += molad_halakim / JINX_HALAKIM_PER_DAY;
+        molad_halakim %= JINX_HALAKIM_PER_DAY;
+    }
+
+    int metonic_year;
+    for (metonic_year = 0; metonic_year < 18; metonic_year++) {
+        if (molad_day > input_day - 74) break;
+        molad_halakim += (int64_t)JINX_HALAKIM_PER_LUNAR_CYCLE *
+            jinx_oracle_jewish_months_per_year[metonic_year];
+        molad_day += molad_halakim / JINX_HALAKIM_PER_DAY;
+        molad_halakim %= JINX_HALAKIM_PER_DAY;
+    }
+
+    *metonic_cycle_out = metonic_cycle;
+    *metonic_year_out = metonic_year;
+    *molad_day_out = molad_day;
+    *molad_halakim_out = molad_halakim;
+    return 1;
+}
+
+static inline void jinx_oracle_sdn_to_jewish(
+    int64_t sdn,
+    int *year_out,
+    int *month_out,
+    int *day_out
+) {
+    if (year_out == NULL || month_out == NULL || day_out == NULL) return;
+
+    *year_out = 0;
+    *month_out = 0;
+    *day_out = 0;
+
+    if (sdn <= JINX_JEWISH_SDN_OFFSET || sdn > JINX_JEWISH_SDN_MAX) return;
+
+    int64_t input_day = sdn - JINX_JEWISH_SDN_OFFSET;
+    int64_t molad_day = 0;
+    int64_t molad_halakim = 0;
+    int metonic_cycle = 0;
+    int metonic_year = 0;
+
+    if (!jinx_oracle_jewish_find_tishri_molad(
+        input_day,
+        &metonic_cycle,
+        &metonic_year,
+        &molad_day,
+        &molad_halakim
+    )) {
+        return;
+    }
+
+    int64_t tishri1 = jinx_oracle_jewish_tishri1(
+        metonic_year,
+        molad_day,
+        molad_halakim
+    );
+    int64_t tishri1_after = 0;
+
+    if (input_day >= tishri1) {
+        int64_t year64 = (int64_t)metonic_cycle * 19 + metonic_year + 1;
+        if (year64 <= 0 || year64 > INT_MAX) return;
+        *year_out = (int)year64;
+
+        if (input_day < tishri1 + 59) {
+            if (input_day < tishri1 + 30) {
+                *month_out = 1;
+                *day_out = (int)(input_day - tishri1 + 1);
+            } else {
+                *month_out = 2;
+                *day_out = (int)(input_day - tishri1 - 29);
+            }
+            return;
+        }
+
+        molad_halakim += (int64_t)JINX_HALAKIM_PER_LUNAR_CYCLE *
+            jinx_oracle_jewish_months_per_year[metonic_year];
+        molad_day += molad_halakim / JINX_HALAKIM_PER_DAY;
+        molad_halakim %= JINX_HALAKIM_PER_DAY;
+        tishri1_after = jinx_oracle_jewish_tishri1(
+            (metonic_year + 1) % 19,
+            molad_day,
+            molad_halakim
+        );
+    } else {
+        int64_t year64 = (int64_t)metonic_cycle * 19 + metonic_year;
+        if (year64 <= 0 || year64 > INT_MAX) return;
+        *year_out = (int)year64;
+
+        if (input_day >= tishri1 - 177) {
+            if (input_day > tishri1 - 30) {
+                *month_out = 13;
+                *day_out = (int)(input_day - tishri1 + 30);
+            } else if (input_day > tishri1 - 60) {
+                *month_out = 12;
+                *day_out = (int)(input_day - tishri1 + 60);
+            } else if (input_day > tishri1 - 89) {
+                *month_out = 11;
+                *day_out = (int)(input_day - tishri1 + 89);
+            } else if (input_day > tishri1 - 119) {
+                *month_out = 10;
+                *day_out = (int)(input_day - tishri1 + 119);
+            } else if (input_day > tishri1 - 148) {
+                *month_out = 9;
+                *day_out = (int)(input_day - tishri1 + 148);
+            } else {
+                *month_out = 8;
+                *day_out = (int)(input_day - tishri1 + 178);
+            }
+            return;
+        }
+
+        if (jinx_oracle_jewish_months_per_year[(*year_out - 1) % 19] == 13) {
+            *month_out = 7;
+            *day_out = (int)(input_day - tishri1 + 207);
+            if (*day_out > 0) return;
+            (*month_out)--;
+            *day_out += 30;
+            if (*day_out > 0) return;
+            (*month_out)--;
+            *day_out += 30;
+        } else {
+            *month_out = 7;
+            *day_out = (int)(input_day - tishri1 + 207);
+            if (*day_out > 0) return;
+            *month_out -= 2;
+            *day_out += 30;
+        }
+
+        if (*day_out > 0) return;
+        (*month_out)--;
+        *day_out += 29;
+        if (*day_out > 0) return;
+
+        tishri1_after = tishri1;
+        if (!jinx_oracle_jewish_find_tishri_molad(
+            molad_day - 365,
+            &metonic_cycle,
+            &metonic_year,
+            &molad_day,
+            &molad_halakim
+        )) {
+            *year_out = *month_out = *day_out = 0;
+            return;
+        }
+        tishri1 = jinx_oracle_jewish_tishri1(
+            metonic_year,
+            molad_day,
+            molad_halakim
+        );
+    }
+
+    int64_t year_length = tishri1_after - tishri1;
+    int64_t day = input_day - tishri1 - 29;
+
+    if (year_length == 355 || year_length == 385) {
+        if (day <= 30) {
+            *month_out = 2;
+            *day_out = (int)day;
+            return;
+        }
+        day -= 30;
+    } else {
+        if (day <= 29) {
+            *month_out = 2;
+            *day_out = (int)day;
+            return;
+        }
+        day -= 29;
+    }
+
+    *month_out = 3;
+    *day_out = (int)day;
+}
+
+static inline JinxValue jinx_oracle_jewish_date_string(int64_t sdn) {
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    jinx_oracle_sdn_to_jewish(sdn, &year, &month, &day);
+
+    char *out = jinx_oracle_scratch_string(48u);
+    int len = snprintf(out, 49u, "%d/%d/%d", month, day, year);
+    return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+}
+
+static inline JinxValue jinx_oracle_jddayofweek_value(
+    JinxValue jd_value,
+    JinxValue mode_value,
+    uint32_t argc
+) {
+    int day = jinx_oracle_day_of_week(jinx_oracle_intish(jd_value));
+    int mode = argc >= 2u ? (int)jinx_oracle_intish(mode_value) : 0;
+
+    if (mode == 1) return jinx_oracle_string_value(jinx_oracle_day_name_long[day]);
+    if (mode == 2) return jinx_oracle_string_value(jinx_oracle_day_name_short[day]);
+    return jinx_oracle_int_value(day);
+}
+
+static inline JinxValue jinx_oracle_jdmonthname_value(
+    JinxValue jd_value,
+    JinxValue mode_value
+) {
+    int64_t jd = jinx_oracle_intish(jd_value);
+    int mode = (int)jinx_oracle_intish(mode_value);
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    const char *name = "";
+
+    switch (mode) {
+        case 1:
+            jinx_oracle_sdn_to_gregorian(jd, &year, &month, &day);
+            if (month >= 0 && month <= 12) name = jinx_oracle_month_name_long[month];
+            break;
+        case 2:
+            jinx_oracle_sdn_to_julian(jd, &year, &month, &day);
+            if (month >= 0 && month <= 12) name = jinx_oracle_month_name_short[month];
+            break;
+        case 3:
+            jinx_oracle_sdn_to_julian(jd, &year, &month, &day);
+            if (month >= 0 && month <= 12) name = jinx_oracle_month_name_long[month];
+            break;
+        case 4:
+            jinx_oracle_sdn_to_jewish(jd, &year, &month, &day);
+            name = jinx_oracle_jewish_month_name(year, month);
+            break;
+        case 5:
+            jinx_oracle_sdn_to_french(jd, &year, &month, &day);
+            if (month >= 0 && month <= 13) name = jinx_oracle_french_month_name[month];
+            break;
+        case 0:
+        default:
+            jinx_oracle_sdn_to_gregorian(jd, &year, &month, &day);
+            if (month >= 0 && month <= 12) name = jinx_oracle_month_name_short[month];
+            break;
+    }
+
+    return jinx_oracle_string_value(name);
 }
 
 static inline int64_t jinx_oracle_calendar_to_sdn(int cal, int year, int month, int day) {
@@ -6488,6 +6845,28 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         }
 
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jdtojewish")) {
+        if (argc >= 2u && jinx_oracle_boolish(arg1)) {
+            ctx->fault = "jdtojewish Hebrew formatted mode is outside native subset";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_jewish_date_string(jinx_oracle_intish(arg0));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jddayofweek")) {
+        ret = jinx_oracle_jddayofweek_value(arg0, arg1, argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jdmonthname")) {
+        ret = jinx_oracle_jdmonthname_value(arg0, arg1);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
