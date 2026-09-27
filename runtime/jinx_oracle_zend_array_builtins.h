@@ -1521,6 +1521,10 @@ static inline JinxValue jinx_oracle_zend_value_return_copy(JinxZendValue value) 
         return jinx_oracle_zend_array_value_retained(value.value.array);
     }
 
+    if (value.type == JINX_ZEND_OBJECT && value.value.object != 0) {
+        return jinx_oracle_zend_object_value_retained(value.value.object);
+    }
+
     return jinx_oracle_zero_value();
 }
 
@@ -5817,10 +5821,6 @@ static inline int jinx_oracle_json_decode_object(
     int depth,
     JinxZendValue *out
 ) {
-    if (!p->associative) {
-        p->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
-        return 0;
-    }
     if (depth >= p->max_depth) {
         p->error = JINX_JSON_ERROR_DEPTH;
         return 0;
@@ -5829,26 +5829,40 @@ static inline int jinx_oracle_json_decode_object(
     p->pos++;
     jinx_oracle_json_decode_skip_ws(p);
 
-    JinxZendArray *array = jinx_zend_array_new_packed(4u);
-    if (array == 0) return 0;
+    JinxZendObject *object = 0;
+    JinxZendArray *array = 0;
+    if (p->associative) {
+        array = jinx_zend_array_new_packed(4u);
+    } else {
+        object = jinx_zend_object_new("stdClass");
+        array = object != 0 ? object->properties : 0;
+    }
+    if (array == 0) {
+        jinx_zend_object_release(object);
+        return 0;
+    }
 
     if (p->pos < p->len && p->bytes[p->pos] == '}') {
         p->pos++;
-        *out = jinx_zend_array_value(array);
+        *out = p->associative
+            ? jinx_zend_array_value(array)
+            : jinx_zend_object_value(object);
         return 1;
     }
 
     for (;;) {
         JinxZendString *key = jinx_oracle_json_decode_string(p);
         if (key == 0) {
-            jinx_zend_array_release(array);
+            if (object != 0) jinx_zend_object_release(object);
+            else jinx_zend_array_release(array);
             return 0;
         }
 
         jinx_oracle_json_decode_skip_ws(p);
         if (p->pos >= p->len || p->bytes[p->pos] != ':') {
             jinx_zend_string_release(key);
-            jinx_zend_array_release(array);
+            if (object != 0) jinx_zend_object_release(object);
+            else jinx_zend_array_release(array);
             p->error = JINX_JSON_ERROR_SYNTAX;
             return 0;
         }
@@ -5859,32 +5873,34 @@ static inline int jinx_oracle_json_decode_object(
         JinxZendValue value;
         if (!jinx_oracle_json_decode_value(p, depth + 1, &value)) {
             jinx_zend_string_release(key);
-            jinx_zend_array_release(array);
+            if (object != 0) jinx_zend_object_release(object);
+            else jinx_zend_array_release(array);
             return 0;
         }
 
-        int added = jinx_zend_array_add_symtable(
-            array,
-            key->bytes,
-            key->len,
-            value
-        );
+        int added = p->associative
+            ? jinx_zend_array_add_symtable(array, key->bytes, key->len, value)
+            : jinx_zend_array_add_assoc(array, key->bytes, key->len, value);
         jinx_zend_value_release(value);
         jinx_zend_string_release(key);
 
         if (!added) {
-            jinx_zend_array_release(array);
+            if (object != 0) jinx_zend_object_release(object);
+            else jinx_zend_array_release(array);
             return 0;
         }
 
         jinx_oracle_json_decode_skip_ws(p);
         if (p->pos < p->len && p->bytes[p->pos] == '}') {
             p->pos++;
-            *out = jinx_zend_array_value(array);
+            *out = p->associative
+                ? jinx_zend_array_value(array)
+                : jinx_zend_object_value(object);
             return 1;
         }
         if (p->pos >= p->len || p->bytes[p->pos] != ',') {
-            jinx_zend_array_release(array);
+            if (object != 0) jinx_zend_object_release(object);
+            else jinx_zend_array_release(array);
             p->error = JINX_JSON_ERROR_SYNTAX;
             return 0;
         }
@@ -6016,7 +6032,8 @@ static inline int jinx_oracle_json_encode_reserve(
     JinxOracleJsonEncodeBuffer *buffer,
     size_t extra
 ) {
-    if (buffer == 0 || extra > SIZE_MAX - buffer->len - 1u) return 0;
+    if (buffer == 0 || buffer->len == SIZE_MAX ||
+        extra > SIZE_MAX - buffer->len - 1u) return 0;
     size_t needed = buffer->len + extra + 1u;
     if (needed <= buffer->cap) return 1;
 
@@ -6174,7 +6191,8 @@ static inline int jinx_oracle_json_encode_array(
     JinxOracleJsonEncodeBuffer *buffer,
     JinxZendArray *array,
     int depth,
-    const JinxOracleJsonEncodeFrame *parent
+    const JinxOracleJsonEncodeFrame *parent,
+    int force_object
 ) {
     if (array == 0) {
         buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
@@ -6193,7 +6211,7 @@ static inline int jinx_oracle_json_encode_array(
     }
 
     JinxOracleJsonEncodeFrame frame = { array, parent };
-    int list = jinx_zend_array_live_is_list(array);
+    int list = !force_object && jinx_zend_array_live_is_list(array);
     if (!jinx_oracle_json_encode_char(buffer, list ? '[' : '{')) return 0;
 
     size_t live = jinx_zend_array_live_count(array);
@@ -6279,7 +6297,20 @@ static inline int jinx_oracle_json_encode_zend_value(
                 buffer,
                 value.value.array,
                 depth,
-                parent
+                parent,
+                0
+            );
+        case JINX_ZEND_OBJECT:
+            if (value.value.object == 0 || value.value.object->properties == 0) {
+                buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+                return 0;
+            }
+            return jinx_oracle_json_encode_array(
+                buffer,
+                value.value.object->properties,
+                depth,
+                parent,
+                1
             );
         default:
             buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
@@ -6300,7 +6331,23 @@ static inline int jinx_oracle_json_encode_jinx_value(
             buffer,
             jinx_oracle_zend_array_ptr(value),
             depth,
+            0,
             0
+        );
+    }
+
+    if (jinx_oracle_value_is_zend_object(value)) {
+        JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
+        if (object == 0 || object->properties == 0) {
+            buffer->error = JINX_JSON_ERROR_UNSUPPORTED_TYPE;
+            return 0;
+        }
+        return jinx_oracle_json_encode_array(
+            buffer,
+            object->properties,
+            depth,
+            0,
+            1
         );
     }
 
