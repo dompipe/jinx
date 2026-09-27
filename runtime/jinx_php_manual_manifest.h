@@ -238,6 +238,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
         "Native one-shot zlib compression/decompression using the system zlib library linked into ./jinx. PHP 8.4 window modes are preserved: raw=-15, deflate=15, gzip=31, and zlib_decode auto-detect=47 with raw retry. Compression levels -1..9, explicit zlib_encode encoding, decoder max_length, binary-safe output, and PHP-derived byte parity are covered; PHP warning/ValueError transport remains outside the scalar carrier."
+    },
+    {
+        "json-validate-core",
+        "https://www.php.net/manual/en/function.json-validate.php",
+        "json_validate(string $json, int $depth = 512, int $flags = 0): bool",
+        "bool",
+        "jinx_oracle_asm_call_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Native strict JSON validation for flags 0 and JSON_INVALID_UTF8_IGNORE. The parser covers PHP-compatible JSON whitespace, literals, strict number grammar, strings/escapes, UTF-8 validity, UTF-16 surrogate pairing, arrays/objects, and configured nesting depth. Decode/object construction and broader JSON encode/decode flags remain outside this validator-only subset."
     }
 };
 
@@ -398,6 +407,10 @@ static inline int jinx_php_manual_name_is_zlib_pure_core(const char *name) {
         strcmp(name, "zlib_encode") == 0 || strcmp(name, "zlib_decode") == 0;
 }
 
+static inline int jinx_php_manual_name_is_json_validate_core(const char *name) {
+    return strcmp(name, "json_validate") == 0;
+}
+
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
     return strcmp(name, "count_chars") == 0 || strcmp(name, "str_word_count") == 0 ||
         strcmp(name, "implode") == 0 || strcmp(name, "join") == 0 ||
@@ -528,6 +541,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_zlib_pure_core(name)) {
         return jinx_php_manual_spec_by_pattern("zlib-pure-core");
+    }
+
+    if (jinx_php_manual_name_is_json_validate_core(name)) {
+        return jinx_php_manual_spec_by_pattern("json-validate-core");
     }
 
     if (jinx_php_manual_name_is_pure_value_core(name)) {
