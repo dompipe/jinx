@@ -91,6 +91,7 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "usort") == 0 ||
         strcmp(name, "uasort") == 0 ||
         strcmp(name, "uksort") == 0 ||
+        strcmp(name, "shuffle") == 0 ||
         strcmp(name, "array_multisort") == 0 ||
         strcmp(name, "array_map") == 0 ||
         strcmp(name, "array_reduce") == 0 ||
