@@ -140,7 +140,8 @@ $code[] = '}';
 $code[] = '';
 $code[] = 'static int jinx_oracle_name_is_zend_container_builtin(const char *name) {';
 $code[] = '    return name != NULL && (';
-$code[] = '        strcmp(name, "count_chars") == 0 ||';
+$code[] = '        strcmp(name, "count_chars") == 0 ||
+        strcmp(name, "str_getcsv") == 0 ||';
 $code[] = '        strcmp(name, "in_array") == 0 ||';
 $code[] = '        strcmp(name, "array_search") == 0 ||';
 $code[] = '        strcmp(name, "str_word_count") == 0 ||';
