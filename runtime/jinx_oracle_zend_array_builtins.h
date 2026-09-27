@@ -1919,18 +1919,7 @@ static inline JinxValue jinx_oracle_zend_str_getcsv_special(const JinxValue *arg
         return jinx_oracle_zend_array_value_owned(result);
     }
 
-    /*
-     * str_getcsv() parses one CSV record. A trailing record delimiter is not
-     * part of the final unquoted field; a CRLF pair is removed together.
-     */
     uint32_t record_len = input_len;
-    if (record_len != 0u && input[record_len - 1u] == (unsigned char)'\n') {
-        record_len--;
-        if (record_len != 0u && input[record_len - 1u] == (unsigned char)'\r') record_len--;
-    } else if (record_len != 0u && input[record_len - 1u] == (unsigned char)'\r') {
-        record_len--;
-    }
-
     uint32_t pos = 0u;
     for (;;) {
         uint32_t field_start = pos;
@@ -1952,6 +1941,7 @@ static inline JinxValue jinx_oracle_zend_str_getcsv_special(const JinxValue *arg
         if (quoted) {
             pos = quote_probe + 1u;
             int closed = 0;
+            uint32_t payload_len_at_close = 0u;
 
             while (pos < record_len) {
                 unsigned char ch = input[pos];
@@ -1973,6 +1963,7 @@ static inline JinxValue jinx_oracle_zend_str_getcsv_special(const JinxValue *arg
 
                     pos++;
                     closed = 1;
+                    payload_len_at_close = out_len;
                     break;
                 }
 
@@ -1989,11 +1980,31 @@ static inline JinxValue jinx_oracle_zend_str_getcsv_special(const JinxValue *arg
                 while (pos < record_len && input[pos] != separator) {
                     field[out_len++] = (char)input[pos++];
                 }
+
+                /* Strip only record-ending CR/LF bytes that occur after the closing enclosure. */
+                if (pos == record_len && out_len > payload_len_at_close) {
+                    if (out_len > payload_len_at_close && field[out_len - 1u] == '\n') {
+                        out_len--;
+                        if (out_len > payload_len_at_close && field[out_len - 1u] == '\r') out_len--;
+                    } else if (out_len > payload_len_at_close && field[out_len - 1u] == '\r') {
+                        out_len--;
+                    }
+                }
             }
         } else {
             pos = field_start;
             while (pos < record_len && input[pos] != separator) {
                 field[out_len++] = (char)input[pos++];
+            }
+
+            /* Unquoted final fields exclude the record's terminal CR/LF. */
+            if (pos == record_len) {
+                if (out_len != 0u && field[out_len - 1u] == '\n') {
+                    out_len--;
+                    if (out_len != 0u && field[out_len - 1u] == '\r') out_len--;
+                } else if (out_len != 0u && field[out_len - 1u] == '\r') {
+                    out_len--;
+                }
             }
         }
 
