@@ -12,6 +12,7 @@
 #define JINX_NATIVE_SAMPLE_ARGC 32u
 
 static void print_value(JinxValue value);
+static void print_value_hex_line(JinxValue value);
 static JinxValue make_zend_array_fixture(int deleted);
 static void release_cli_value(JinxValue value);
 static void release_cli_values(JinxValue *values, size_t count);
@@ -22,6 +23,7 @@ static void usage(const char *argv0) {
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
+    printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
     printf("  %s first100\n", argv0);
     printf("  %s first100-list\n", argv0);
@@ -39,6 +41,7 @@ static void usage(const char *argv0) {
     printf("  f:<float>     floating point value\n");
     printf("  b:true|false  boolean value\n");
     printf("  s:<text>      string value\n");
+    printf("  h:<hex>       binary string from hexadecimal bytes\n");
     printf("  a:<count>     array-count stand-in\n");
     printf("  za:sample     native Zend array [10, 20, \"name\" => 30, \"keep\" => 40]\n");
     printf("  za:deleted    same native Zend array with index 1 and key \"name\" tombstoned\n");
@@ -292,7 +295,15 @@ static JinxValue make_zend_array_fixture(int deleted) {
     return value;
 }
 
-static JinxValue parse_cli_value(const char *text) {
+static int cli_hex_nibble(unsigned char c) {
+    if (c >= (unsigned char)'0' && c <= (unsigned char)'9') return (int)(c - (unsigned char)'0');
+    if (c >= (unsigned char)'a' && c <= (unsigned char)'f') return 10 + (int)(c - (unsigned char)'a');
+    if (c >= (unsigned char)'A' && c <= (unsigned char)'F') return 10 + (int)(c - (unsigned char)'A');
+    return -1;
+}
+
+static JinxValue parse_cli_value(const char *text, void **owned) {
+    if (owned != NULL) *owned = NULL;
     if (text == NULL || strcmp(text, "null") == 0) {
         return jinx_value_null();
     }
@@ -314,6 +325,31 @@ static JinxValue parse_cli_value(const char *text) {
         return jinx_value_string(text + 2, (uint32_t) strlen(text + 2));
     }
 
+    if (strncmp(text, "h:", 2) == 0) {
+        const char *hex = text + 2;
+        size_t hex_len = strlen(hex);
+        if ((hex_len & 1u) != 0u || hex_len / 2u > UINT32_MAX) {
+            return jinx_value_null();
+        }
+
+        size_t byte_len = hex_len / 2u;
+        unsigned char *bytes = (unsigned char *)malloc(byte_len == 0u ? 1u : byte_len);
+        if (bytes == NULL) return jinx_value_null();
+
+        for (size_t i = 0u; i < byte_len; i++) {
+            int hi = cli_hex_nibble((unsigned char)hex[i * 2u]);
+            int lo = cli_hex_nibble((unsigned char)hex[i * 2u + 1u]);
+            if (hi < 0 || lo < 0) {
+                free(bytes);
+                return jinx_value_null();
+            }
+            bytes[i] = (unsigned char)((hi << 4) | lo);
+        }
+
+        if (owned != NULL) *owned = bytes;
+        return jinx_value_string((const char *)bytes, (uint32_t)byte_len);
+    }
+
     if (strncmp(text, "a:", 2) == 0) {
         long long count = atoll(text + 2);
         return jinx_value_array_count(count < 0 ? 0u : (uint32_t) count);
@@ -332,6 +368,20 @@ static JinxValue parse_cli_value(const char *text) {
 
 static void print_value_line(JinxValue value) {
     print_value(value);
+    printf("\n");
+}
+
+static void print_value_hex_line(JinxValue value) {
+    if (value.type != 3u) {
+        print_value_line(value);
+        return;
+    }
+
+    const unsigned char *bytes = (const unsigned char *)value.as.ptr;
+    printf("hex:");
+    for (uint32_t i = 0u; i < value.flags; i++) {
+        printf("%02x", (unsigned)bytes[i]);
+    }
     printf("\n");
 }
 
@@ -666,12 +716,13 @@ static int command_oracle_smoke(void) {
     return 0;
 }
 
-static int command_oracle_call(int argc, char **argv) {
+static int command_oracle_call(int argc, char **argv, int hex_output) {
     const char *name;
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
     JinxValue result;
     int supplied_argc;
     int exit_code = 0;
+    void *owned_args[JINX_NATIVE_SAMPLE_ARGC] = {0};
 
     if (argc < 3) {
         return fail("oracle-call requires a function name");
@@ -694,7 +745,7 @@ static int command_oracle_call(int argc, char **argv) {
     all_function_args(name, args);
 
     for (int i = 0; i < supplied_argc; i++) {
-        args[i] = parse_cli_value(argv[i + 3]);
+        args[i] = parse_cli_value(argv[i + 3], &owned_args[i]);
     }
 
     result = jinx_call_builtin_through_oracle(name, args, (size_t)supplied_argc);
@@ -702,12 +753,17 @@ static int command_oracle_call(int argc, char **argv) {
     if (result.type == 0u) {
         fprintf(stderr, "null/fault: %s\n", name);
         exit_code = 1;
+    } else if (hex_output) {
+        print_value_hex_line(result);
     } else {
         print_value_line(result);
     }
 
     release_cli_value(result);
     release_cli_values(args, JINX_NATIVE_SAMPLE_ARGC);
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        free(owned_args[i]);
+    }
     return exit_code;
 }
 
@@ -764,7 +820,11 @@ int main(int argc, char **argv) {
     }
 
     if (strcmp(argv[1], "oracle-call") == 0) {
-        return command_oracle_call(argc, argv);
+        return command_oracle_call(argc, argv, 0);
+    }
+
+    if (strcmp(argv[1], "oracle-call-hex") == 0) {
+        return command_oracle_call(argc, argv, 1);
     }
 
     if (strcmp(argv[1], "bench-oracle") == 0) {
