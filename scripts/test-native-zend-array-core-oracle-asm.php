@@ -37,6 +37,7 @@ $expectedParity = 'PARITY:'
     . 'sum=' . array_sum($base)
     . ';product=' . array_product($base)
     . ';implode=' . implode(',', $base)
+    . ';vsprintf=' . vsprintf('There are %u million bicycles in %s.', [7, 'Amsterdam'])
     . ';range=' . implode(',', range(1, 5))
     . ';fill=' . $pairs(array_fill(2, 3, 9))
     . ';combine=' . $pairs(array_combine([2, 'x'], [70, 80]))
