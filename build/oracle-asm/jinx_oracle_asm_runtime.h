@@ -8155,6 +8155,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ret = jinx_oracle_float_value(log10(x));
         } else if (jinx_oracle_name_is(name, "log1p")) {
             ret = jinx_oracle_float_value(log1p(x));
+        } else if (jinx_oracle_name_is(name, "cosh")) {
+            ret = jinx_oracle_float_value(cosh(x));
         } else {
             ret = jinx_oracle_float_value(cos(x));
         }
