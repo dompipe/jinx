@@ -73,6 +73,7 @@ struct JinxZendArray {
     size_t count;
     size_t capacity;
     size_t next_index;
+    size_t internal_pointer;
     JinxZendBucket *buckets;
 };
 
