@@ -116,6 +116,18 @@ $cases = [
     ['strip_tags', ['s:<p>Test paragraph.</p><!-- Comment --> <a href="#fragment">Other text</a>']],
     ['strip_tags', ['s:<p>Test paragraph.</p><!-- Comment --> <a href="#fragment">Other text</a>', 's:<p><a>']],
     ['strip_tags', ['s:<a title="1>2">quoted</a> tail']],
+    ['image_type_to_mime_type', ['i:1']],
+    ['image_type_to_mime_type', ['i:2']],
+    ['image_type_to_mime_type', ['i:9']],
+    ['image_type_to_mime_type', ['i:17']],
+    ['image_type_to_mime_type', ['i:18']],
+    ['image_type_to_mime_type', ['i:19']],
+    ['image_type_to_mime_type', ['i:20']],
+    ['image_type_to_extension', ['i:2']],
+    ['image_type_to_extension', ['i:2', 'b:false']],
+    ['image_type_to_extension', ['i:15']],
+    ['image_type_to_extension', ['i:19']],
+    ['image_type_to_extension', ['i:20']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
