@@ -4427,6 +4427,27 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
+    if (jinx_oracle_name_is(name, "printf")) {
+        int format_ok = 0;
+        ret = jinx_oracle_sprintf_values(
+            arg0,
+            ctx->call_argc > 1u ? &ctx->call_args[1] : NULL,
+            ctx->call_argc > 1u ? ctx->call_argc - 1u : 0u,
+            &format_ok
+        );
+        if (!format_ok || ret.type != 3u) {
+            ctx->fault = "printf format/argument error";
+            return jinx_oracle_zero_value();
+        }
+        if (ret.flags != 0u && fwrite(ret.as.ptr, 1u, ret.flags, stdout) != ret.flags) {
+            ctx->fault = "printf output write failed";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_int_value((int64_t)ret.flags);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
     if (jinx_oracle_name_is(name, "sprintf")) {
         int format_ok = 0;
         ret = jinx_oracle_sprintf_values(
