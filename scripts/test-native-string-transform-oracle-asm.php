@@ -101,6 +101,17 @@ $cases = [
     ['ucwords', ['s:hello|world', 's:|']],
     ['str_repeat', ['s:ab', 'i:3']],
     ['str_repeat', ['s:ab', 'i:3000']],
+    ['str_increment', ['s:ABC']],
+    ['str_increment', ['s:DZ']],
+    ['str_increment', ['s:ZZ']],
+    ['str_increment', ['s:zZ9']],
+    ['str_increment', ['s:9zZ']],
+    ['str_decrement', ['s:ABC']],
+    ['str_decrement', ['s:ZA']],
+    ['str_decrement', ['s:AA']],
+    ['str_decrement', ['s:A0']],
+    ['str_decrement', ['s:10A0']],
+    ['str_decrement', ['s:1']],
     ['bin2hex', ['s:Hello!']],
     ['hex2bin', ['s:48656c6c6f21']],
     ['str_rot13', ['s:PHP 4.3.0']],
@@ -150,6 +161,43 @@ foreach ($cases as [$function, $args]) {
 
     if ($actual !== $expected) {
         fail("oracle-call {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
+    }
+}
+
+
+$rejectCases = [
+    ['str_increment', ['s:']],
+    ['str_increment', ['s:abc-1']],
+    ['str_decrement', ['s:A']],
+    ['str_decrement', ['s:0']],
+    ['str_decrement', ['s:009']],
+];
+
+foreach ($rejectCases as [$function, $args]) {
+    $phpArgs = array_map('decodeTypedArg', $args);
+    $phpRejected = false;
+
+    try {
+        $function(...$phpArgs);
+    } catch (ValueError) {
+        $phpRejected = true;
+    }
+
+    if (!$phpRejected) {
+        fail("PHP did not reject {$function} rejection fixture");
+    }
+
+    $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($function);
+    foreach ($args as $arg) {
+        $command .= ' ' . escapeshellarg($arg);
+    }
+
+    $output = [];
+    $code = 0;
+    exec($command . ' 2>&1', $output, $code);
+
+    if ($code === 0) {
+        fail("oracle-call {$function} accepted a PHP-rejected input: " . implode(PHP_EOL, $output));
     }
 }
 
