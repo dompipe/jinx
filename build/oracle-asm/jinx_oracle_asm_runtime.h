@@ -1766,7 +1766,10 @@ static inline JinxValue jinx_oracle_metaphone_value(JinxValue value, JinxValue m
 
     char *out = jinx_oracle_scratch_string(capacity);
 
-    while (w < len && !isalpha((int)word[w])) w++;
+    while (w < len && !isalpha((int)word[w])) {
+        if (word[w] == 0u) return jinx_oracle_string_value_len(out, 0u);
+        w++;
+    }
     if (w >= len) return jinx_oracle_string_value_len(out, 0u);
 
     unsigned char curr = (unsigned char)toupper((int)word[w]);
