@@ -71,7 +71,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "math-core",
         "https://www.php.net/manual/en/ref.math.php",
-        "fmod/fdiv/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan/pow(native int|float)/fpow(float)",
+        "fmod/fdiv/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan/pow(native int|float)/fpow(float)/round(integer PHP_ROUND_* modes 1-8)",
         "int|float|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -266,7 +266,7 @@ static inline int jinx_php_manual_name_is_math_core(const char *name) {
         strcmp(name, "pi") == 0 || strcmp(name, "hypot") == 0 ||
         strcmp(name, "is_finite") == 0 || strcmp(name, "is_infinite") == 0 ||
         strcmp(name, "is_nan") == 0 || strcmp(name, "pow") == 0 ||
-        strcmp(name, "fpow") == 0;
+        strcmp(name, "fpow") == 0 || strcmp(name, "round") == 0;
 }
 
 static inline int jinx_php_manual_name_is_crypto(const char *name) {
