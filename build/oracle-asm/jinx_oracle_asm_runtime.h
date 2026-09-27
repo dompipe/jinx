@@ -733,6 +733,8 @@ static inline JinxValue jinx_oracle_ucwords_value(
 }
 
 
+static inline int jinx_oracle_hex_nibble(unsigned char c);
+
 static inline int jinx_oracle_ascii_alnum(unsigned char c) {
     return (c >= (unsigned char)'A' && c <= (unsigned char)'Z') ||
         (c >= (unsigned char)'a' && c <= (unsigned char)'z') ||
