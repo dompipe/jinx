@@ -749,13 +749,136 @@ int main(void) {
     jinx_zend_array_release(splice_replacement);
     jinx_zend_array_release(splice_source);
 
+    JinxZendArray *merge_color1 = jinx_zend_array_new_packed(2);
+    JinxZendArray *merge_color2 = jinx_zend_array_new_packed(2);
+    JinxZendArray *merge_a = jinx_zend_array_new_packed(2);
+    JinxZendArray *merge_b = jinx_zend_array_new_packed(2);
+    JinxZendString *red = jinx_zend_string_new("red", 3);
+    JinxZendString *green = jinx_zend_string_new("green", 5);
+    JinxZendString *blue = jinx_zend_string_new("blue", 4);
+    if (merge_color1 == 0 || merge_color2 == 0 || merge_a == 0 || merge_b == 0 ||
+        red == 0 || green == 0 || blue == 0 ||
+        !jinx_zend_array_add_assoc(merge_color1, "favorite", 8, jinx_zend_string_value(red)) ||
+        !jinx_zend_array_add_assoc(merge_color2, "favorite", 8, jinx_zend_string_value(green)) ||
+        !jinx_zend_array_append(merge_color2, jinx_zend_string_value(blue)) ||
+        !jinx_zend_array_add_assoc(merge_a, "color", 5, jinx_zend_array_value(merge_color1)) ||
+        !jinx_zend_array_append(merge_a, jinx_zend_long(5)) ||
+        !jinx_zend_array_append(merge_b, jinx_zend_long(10)) ||
+        !jinx_zend_array_add_assoc(merge_b, "color", 5, jinx_zend_array_value(merge_color2))) {
+        return fail("array_merge_recursive source");
+    }
+    jinx_zend_string_release(red);
+    jinx_zend_string_release(green);
+    jinx_zend_string_release(blue);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(merge_a);
+    args[1] = jinx_oracle_zend_array_value_borrowed(merge_b);
+    result = jinx_call_builtin_through_oracle("array_merge_recursive", args, 2);
+    if (!expect_array_count(result, 3)) return fail("array_merge_recursive outer count");
+    JinxZendArray *merge_result = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *merged_color_value = jinx_zend_array_find(merge_result, "color", 5);
+    if (merged_color_value == 0 || merged_color_value->type != JINX_ZEND_ARRAY) {
+        return fail("array_merge_recursive color");
+    }
+    JinxZendArray *merged_color = merged_color_value->value.array;
+    JinxZendValue *favorite_value = jinx_zend_array_find(merged_color, "favorite", 8);
+    if (favorite_value == 0 || favorite_value->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(favorite_value->value.array, 0, "red") ||
+        !expect_string_index(favorite_value->value.array, 1, "green") ||
+        !expect_string_index(merged_color, 0, "blue") ||
+        !expect_long_index(merge_result, 0, 5) ||
+        !expect_long_index(merge_result, 1, 10)) {
+        return fail("array_merge_recursive nested values");
+    }
+    JinxZendValue *source_favorite = jinx_zend_array_find(merge_color1, "favorite", 8);
+    if (source_favorite == 0 || source_favorite->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(source_favorite->value.str, "red", 3)) {
+        return fail("array_merge_recursive mutated source");
+    }
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(merge_a);
+    jinx_zend_array_release(merge_b);
+    jinx_zend_array_release(merge_color1);
+    jinx_zend_array_release(merge_color2);
+
+    JinxZendArray *base_citrus = jinx_zend_array_new_packed(2);
+    JinxZendArray *base_pome = jinx_zend_array_new_packed(1);
+    JinxZendArray *replace_base = jinx_zend_array_new_packed(2);
+    JinxZendArray *rep1_citrus = jinx_zend_array_new_packed(1);
+    JinxZendArray *replace_one = jinx_zend_array_new_packed(1);
+    JinxZendArray *rep2_citrus = jinx_zend_array_new_packed(2);
+    JinxZendArray *rep2_pome = jinx_zend_array_new_packed(1);
+    JinxZendArray *replace_two = jinx_zend_array_new_packed(2);
+    JinxZendString *orange = jinx_zend_string_new("orange", 6);
+    JinxZendString *lemon = jinx_zend_string_new("lemon", 5);
+    JinxZendString *apple = jinx_zend_string_new("apple", 5);
+    JinxZendString *grapefruit = jinx_zend_string_new("grapefruit", 10);
+    JinxZendString *kumquat = jinx_zend_string_new("kumquat", 7);
+    JinxZendString *citron = jinx_zend_string_new("citron", 6);
+    JinxZendString *loquat = jinx_zend_string_new("loquat", 6);
+
+    if (base_citrus == 0 || base_pome == 0 || replace_base == 0 ||
+        rep1_citrus == 0 || replace_one == 0 || rep2_citrus == 0 ||
+        rep2_pome == 0 || replace_two == 0 || orange == 0 || lemon == 0 ||
+        apple == 0 || grapefruit == 0 || kumquat == 0 || citron == 0 || loquat == 0 ||
+        !jinx_zend_array_append(base_citrus, jinx_zend_string_value(orange)) ||
+        !jinx_zend_array_append(base_citrus, jinx_zend_string_value(lemon)) ||
+        !jinx_zend_array_append(base_pome, jinx_zend_string_value(apple)) ||
+        !jinx_zend_array_add_assoc(replace_base, "citrus", 6, jinx_zend_array_value(base_citrus)) ||
+        !jinx_zend_array_add_assoc(replace_base, "pome", 4, jinx_zend_array_value(base_pome)) ||
+        !jinx_zend_array_append(rep1_citrus, jinx_zend_string_value(grapefruit)) ||
+        !jinx_zend_array_add_assoc(replace_one, "citrus", 6, jinx_zend_array_value(rep1_citrus)) ||
+        !jinx_zend_array_append(rep2_citrus, jinx_zend_string_value(kumquat)) ||
+        !jinx_zend_array_append(rep2_citrus, jinx_zend_string_value(citron)) ||
+        !jinx_zend_array_append(rep2_pome, jinx_zend_string_value(loquat)) ||
+        !jinx_zend_array_add_assoc(replace_two, "citrus", 6, jinx_zend_array_value(rep2_citrus)) ||
+        !jinx_zend_array_add_assoc(replace_two, "pome", 4, jinx_zend_array_value(rep2_pome))) {
+        return fail("array_replace_recursive source");
+    }
+
+    jinx_zend_string_release(orange);
+    jinx_zend_string_release(lemon);
+    jinx_zend_string_release(apple);
+    jinx_zend_string_release(grapefruit);
+    jinx_zend_string_release(kumquat);
+    jinx_zend_string_release(citron);
+    jinx_zend_string_release(loquat);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(replace_base);
+    args[1] = jinx_oracle_zend_array_value_borrowed(replace_one);
+    args[2] = jinx_oracle_zend_array_value_borrowed(replace_two);
+    result = jinx_call_builtin_through_oracle("array_replace_recursive", args, 3);
+    if (!expect_array_count(result, 2)) return fail("array_replace_recursive outer count");
+    JinxZendArray *replace_result = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *citrus_value = jinx_zend_array_find(replace_result, "citrus", 6);
+    JinxZendValue *pome_value = jinx_zend_array_find(replace_result, "pome", 4);
+    if (citrus_value == 0 || citrus_value->type != JINX_ZEND_ARRAY ||
+        pome_value == 0 || pome_value->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(citrus_value->value.array, 0, "kumquat") ||
+        !expect_string_index(citrus_value->value.array, 1, "citron") ||
+        !expect_string_index(pome_value->value.array, 0, "loquat") ||
+        !expect_string_index(base_citrus, 0, "orange") ||
+        !expect_string_index(base_citrus, 1, "lemon")) {
+        return fail("array_replace_recursive nested values");
+    }
+
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(replace_base);
+    jinx_zend_array_release(replace_one);
+    jinx_zend_array_release(replace_two);
+    jinx_zend_array_release(base_citrus);
+    jinx_zend_array_release(base_pome);
+    jinx_zend_array_release(rep1_citrus);
+    jinx_zend_array_release(rep2_citrus);
+    jinx_zend_array_release(rep2_pome);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
