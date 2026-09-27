@@ -64,6 +64,48 @@ static inline int jinx_oracle_zend_numeric_value(
     return 0;
 }
 
+
+static inline JinxValue jinx_oracle_zend_numeric_extreme_array(
+    JinxZendArray *array,
+    int want_max
+) {
+    size_t live = jinx_zend_array_live_count(array);
+    if (live == 0u) return jinx_oracle_zero_value();
+
+    const JinxZendBucket *first = jinx_zend_array_live_iter_at(array, 0u);
+    if (first == 0 ||
+        (first->value.type != JINX_ZEND_LONG && first->value.type != JINX_ZEND_DOUBLE)) {
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendValue best = first->value;
+    double best_value = best.type == JINX_ZEND_DOUBLE
+        ? best.value.dval
+        : (double)best.value.lval;
+
+    for (size_t i = 1u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0 ||
+            (bucket->value.type != JINX_ZEND_LONG && bucket->value.type != JINX_ZEND_DOUBLE)) {
+            return jinx_oracle_zero_value();
+        }
+
+        double candidate = bucket->value.type == JINX_ZEND_DOUBLE
+            ? bucket->value.value.dval
+            : (double)bucket->value.value.lval;
+
+        if ((want_max && candidate > best_value) ||
+            (!want_max && candidate < best_value)) {
+            best = bucket->value;
+            best_value = candidate;
+        }
+    }
+
+    return best.type == JINX_ZEND_DOUBLE
+        ? jinx_oracle_float_value(best.value.dval)
+        : jinx_oracle_int_value(best.value.lval);
+}
+
 static inline JinxValue jinx_oracle_zend_array_sum_product(JinxZendArray *array, int product) {
     int64_t int_acc = product ? 1 : 0;
     double double_acc = product ? 1.0 : 0.0;
@@ -3393,6 +3435,13 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
     if (array == 0) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "min") == 0 || strcmp(name, "max") == 0) {
+        return jinx_oracle_zend_numeric_extreme_array(
+            array,
+            strcmp(name, "max") == 0
+        );
+    }
 
     if (strcmp(name, "count") == 0) {
         return jinx_oracle_zend_count_value(args, argc);
