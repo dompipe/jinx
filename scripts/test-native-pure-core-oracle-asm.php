@@ -212,6 +212,13 @@ $cases = [
     ['jdmonthname', ['i:2460311', 'i:4']],
     ['jdmonthname', ['i:2375840', 'i:5']],
     ['jdmonthname', ['i:2460311', 'i:99']],
+    ['easter_days', ['i:2024']],
+    ['easter_days', ['i:1582', 'i:0']],
+    ['easter_days', ['i:1582', 'i:2']],
+    ['easter_days', ['i:1700', 'i:0']],
+    ['easter_days', ['i:1700', 'i:1']],
+    ['easter_days', ['i:2024', 'i:3']],
+    ['easter_date', ['i:2024']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
