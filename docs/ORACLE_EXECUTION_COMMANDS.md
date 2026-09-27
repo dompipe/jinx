@@ -33,11 +33,11 @@ The PHP JSON declarations are all present in the generated dispatch table, but n
 Current native coverage:
 
 - `json_validate()`: strict JSON parser with PHP-compatible whitespace, literals, number grammar, strings/escapes, UTF-8 checks, UTF-16 surrogate pairing, arrays/objects, depth, and `JSON_INVALID_UTF8_IGNORE`.
-- `json_decode()`: native scalar/array/object decoding. Default and explicit-`false` object output uses the refcounted `JinxZendObject` carrier for `stdClass`; explicit `true` or `null` + `JSON_OBJECT_AS_ARRAY` uses Zend arrays. The decoder covers nested arrays/objects, numeric-looking object property names, Unicode escapes, depth, `JSON_BIGINT_AS_STRING`, and PHP's explicit-bool precedence over `JSON_OBJECT_AS_ARRAY`.
+- `json_decode()`: native scalar/array/object decoding. Default and explicit-`false` object output uses the refcounted `JinxZendObject` carrier for `stdClass`; explicit `true` or `null` + `JSON_OBJECT_AS_ARRAY` uses Zend arrays. The decoder covers nested arrays/objects, numeric-looking object property names, Unicode escapes, depth, `JSON_BIGINT_AS_STRING`, `JSON_INVALID_UTF8_IGNORE`, `JSON_INVALID_UTF8_SUBSTITUTE`, and PHP's explicit-bool precedence over `JSON_OBJECT_AS_ARRAY`.
 - `json_encode()`: native options-zero encoding for scalar values plus carried Zend arrays/objects, including PHP list-vs-object array shape, object property emission, default string/control/slash escaping, Unicode `\\u` escapes and surrogate pairs, depth/recursion checks, invalid-UTF-8 failure, and shared error state. The earlier PHP-level Oracle `json-encode-builtins` fixture remains as a separate execution-layer check.
 - `json_last_error()` and `json_last_error_msg()`: shared native error state for the promoted validate/decode/encode paths. The Zend-array smoke proves decode syntax state, encode UTF-8 state, and successful resets against PHP in the same process.
 
-Not yet claimed for native `json_decode()`: `JSON_INVALID_UTF8_IGNORE`, `JSON_INVALID_UTF8_SUBSTITUTE`, `JSON_THROW_ON_ERROR`, and other flag-bearing/error-throw facets beyond `JSON_OBJECT_AS_ARRAY` and `JSON_BIGINT_AS_STRING`.
+Not yet claimed for native `json_decode()`: `JSON_THROW_ON_ERROR` and any remaining flag/error-throw facets beyond the promoted object/BigInt/invalid-UTF-8 modes.
 
 Not yet claimed for native `json_encode()`: flag-bearing modes such as pretty/unescaped/hex/force-object/partial-output/throw behavior, `JsonSerializable` or custom object serialization hooks, and full-domain floating-point byte parity.
 
