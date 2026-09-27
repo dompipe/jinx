@@ -24,6 +24,11 @@ if ($code !== 0 || !str_contains($text, 'PASS: Oracle generated dispatch Zend-ar
     exit(1);
 }
 
+if (!str_contains($text, 'vprintf:7:Amsterdam')) {
+    fwrite(STDERR, "FAIL: native vprintf did not emit expected formatted output\n{$text}\n");
+    exit(1);
+}
+
 $pairs = static function (array $value): string {
     $out = [];
     foreach ($value as $key => $item) {
