@@ -5540,6 +5540,8 @@ typedef struct JinxOracleJsonDecoder {
     int max_depth;
     int associative;
     int bigint_as_string;
+    int invalid_utf8_ignore;
+    int invalid_utf8_substitute;
     int error;
 } JinxOracleJsonDecoder;
 
@@ -5582,7 +5584,14 @@ static inline JinxZendString *jinx_oracle_json_decode_string(JinxOracleJsonDecod
     if (p->pos >= p->len || p->bytes[p->pos] != '"') return 0;
     p->pos++;
 
-    uint32_t capacity = p->len - p->pos + 1u;
+    uint32_t remaining = p->len - p->pos;
+    if (p->invalid_utf8_substitute && remaining > (UINT32_MAX - 1u) / 3u) {
+        p->error = JINX_JSON_ERROR_UTF8;
+        return 0;
+    }
+    uint32_t capacity = p->invalid_utf8_substitute
+        ? remaining * 3u + 1u
+        : remaining + 1u;
     char *buffer = (char *)malloc(capacity);
     if (buffer == 0) {
         p->error = JINX_JSON_ERROR_SYNTAX;
@@ -5674,6 +5683,15 @@ static inline JinxZendString *jinx_oracle_json_decode_string(JinxOracleJsonDecod
             uint32_t start = p->pos - 1u;
             uint32_t seq = jinx_oracle_json_utf8_sequence_len(p->bytes, p->len, start);
             if (seq == 0u) {
+                if (p->invalid_utf8_ignore) {
+                    continue;
+                }
+                if (p->invalid_utf8_substitute) {
+                    buffer[used++] = (char)0xEFu;
+                    buffer[used++] = (char)0xBFu;
+                    buffer[used++] = (char)0xBDu;
+                    continue;
+                }
                 free(buffer);
                 p->error = JINX_JSON_ERROR_UTF8;
                 return 0;
@@ -5975,9 +5993,14 @@ static inline JinxValue jinx_oracle_zend_json_decode_special(
     int64_t depth = argc >= 3u ? jinx_oracle_intish(args[2]) : 512;
     int64_t options = argc >= 4u ? jinx_oracle_intish(args[3]) : 0;
 
+    const int64_t supported_options =
+        JINX_JSON_OBJECT_AS_ARRAY |
+        JINX_JSON_BIGINT_AS_STRING |
+        JINX_JSON_INVALID_UTF8_IGNORE |
+        JINX_JSON_INVALID_UTF8_SUBSTITUTE;
     if (depth <= 0 || depth > INT_MAX) return jinx_oracle_zero_value();
-    if ((options & ~3LL) != 0) return jinx_oracle_zero_value();
-    if (associative_is_null && (options & 1LL) != 0) associative = 1;
+    if ((options & ~supported_options) != 0) return jinx_oracle_zero_value();
+    if (associative_is_null && (options & JINX_JSON_OBJECT_AS_ARRAY) != 0) associative = 1;
 
     JinxOracleJsonDecoder parser;
     parser.bytes = jinx_oracle_string_bytes(args[0]);
@@ -5985,7 +6008,9 @@ static inline JinxValue jinx_oracle_zend_json_decode_special(
     parser.pos = 0u;
     parser.max_depth = (int)depth;
     parser.associative = associative;
-    parser.bigint_as_string = (options & 2LL) != 0;
+    parser.bigint_as_string = (options & JINX_JSON_BIGINT_AS_STRING) != 0;
+    parser.invalid_utf8_ignore = (options & JINX_JSON_INVALID_UTF8_IGNORE) != 0;
+    parser.invalid_utf8_substitute = (options & JINX_JSON_INVALID_UTF8_SUBSTITUTE) != 0;
     parser.error = JINX_JSON_ERROR_NONE;
 
     if (parser.len == 0u) {
