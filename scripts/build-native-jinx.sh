@@ -22,7 +22,7 @@ php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
     -I"${ROOT_DIR}/runtime" \
     -I"${ROOT_DIR}/build/oracle-asm" \
     -include "${ROOT_DIR}/runtime/jinx_php_manual_manifest.h" \
-    "${ROOT_DIR}/native/jinx_cli.c" \
+    "${ROOT_DIR}/native/jinx_cli_with_web_plan.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
@@ -57,6 +57,15 @@ if [ "$STRTOUPPER_SMOKE" != "string:JINX" ]; then
     exit 1
 fi
 
+WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
+case "$WEB_PLAN_SMOKE" in
+    *WEB_IF_MISSING_ARRAY_KEY*) ;;
+    *)
+        echo "FAIL: post-build web-plan smoke did not contain WEB_IF_MISSING_ARRAY_KEY" >&2
+        exit 1
+        ;;
+esac
+
 echo "Built native JINX CLI: $OUT"
 echo "Copied native JINX CLI: $COPY_OUT"
 echo "Built native Zend smoke: $ZEND_SMOKE_OUT"
@@ -65,5 +74,6 @@ echo "Zend skeleton compiled: runtime/jinx_zend_engine.c"
 echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
+echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
