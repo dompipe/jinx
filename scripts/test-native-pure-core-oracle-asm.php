@@ -78,6 +78,8 @@ $cases = [
     ['str_ireplace', ['s:WORLD', 's:JINX', 's:hello World world']],
     ['strtr', ['s:baab', 's:ab', 's:01']],
     ['levenshtein', ['s:kitten', 's:sitting']],
+    ['similar_text', ['s:Hello World!', 's:Hello Peter!']],
+    ['similar_text', ['s:', 's:']],
     ['htmlspecialchars', ["s:<a href='x'>&\""]],
     ['htmlspecialchars', ['s:&amp;<', 'i:11', 'null', 'b:false']],
     ['htmlspecialchars_decode', ['s:&lt;b&gt;&quot;x&quot;&#039;y&#039;&lt;/b&gt;']],
