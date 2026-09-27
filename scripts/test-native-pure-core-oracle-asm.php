@@ -85,7 +85,10 @@ $cases = [
     ['wordwrap', ['s:The quick brown fox jumped over the lazy dog.', 'i:20', "s:<br />\n"]],
     ['wordwrap', ['s:A very long woooooooooooord.', 'i:8', 's:|', 'b:true']],
     ['wordwrap', ["s:one two\nthree four", 'i:7']],
+    ['convert_uuencode', ['s:JINX oracle']],
 ];
+
+$cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
 
 foreach ($cases as [$function, $args]) {
     $phpArgs = array_map('decodeArg', $args);
