@@ -164,6 +164,14 @@ $cases = [
     ['is_resource', ['a:3']],
     ['getrandmax', []],
     ['mt_getrandmax', []],
+    ['ip2long', ['s:127.0.0.1']],
+    ['ip2long', ['s:255.255.255.255']],
+    ['ip2long', ['s:0.0.0.0']],
+    ['ip2long', ['s:777.777.777.777']],
+    ['ip2long', ['s:192.168.001.1']],
+    ['long2ip', ['i:2130706433']],
+    ['long2ip', ['i:4294967295']],
+    ['long2ip', ['i:-110000']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
