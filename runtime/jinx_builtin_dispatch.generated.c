@@ -52,6 +52,8 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "parse_str") == 0 ||
         strcmp(name, "http_build_query") == 0 ||
         strcmp(name, "parse_url") == 0 ||
+        strcmp(name, "parse_str") == 0 ||
+        strcmp(name, "http_build_query") == 0 ||
         strcmp(name, "count_chars") == 0 ||
         strcmp(name, "str_getcsv") == 0 ||
         strcmp(name, "strip_tags") == 0 ||
