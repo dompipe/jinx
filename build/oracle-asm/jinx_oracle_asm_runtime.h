@@ -139,16 +139,25 @@ static inline int64_t jinx_oracle_intish(JinxValue value);
 static inline double jinx_oracle_floatish(JinxValue value);
 
 static inline char *jinx_oracle_scratch_string(uint32_t len) {
-    enum { JINX_ORACLE_SCRATCH_SLOTS = 8, JINX_ORACLE_SCRATCH_BYTES = 4096 };
-    static char buffers[JINX_ORACLE_SCRATCH_SLOTS][JINX_ORACLE_SCRATCH_BYTES];
+    enum { JINX_ORACLE_SCRATCH_SLOTS = 8 };
+    static char *buffers[JINX_ORACLE_SCRATCH_SLOTS] = {0};
+    static size_t capacities[JINX_ORACLE_SCRATCH_SLOTS] = {0};
     static uint32_t slot = 0u;
+    size_t needed = (size_t)len + 1u;
     char *buffer;
 
-    if (len >= JINX_ORACLE_SCRATCH_BYTES) {
-        len = JINX_ORACLE_SCRATCH_BYTES - 1u;
+    slot = (slot + 1u) % JINX_ORACLE_SCRATCH_SLOTS;
+
+    if (capacities[slot] < needed) {
+        char *grown = (char *)realloc(buffers[slot], needed);
+        if (grown == NULL) {
+            fputs("JINX Oracle ASM scratch allocation failed\n", stderr);
+            abort();
+        }
+        buffers[slot] = grown;
+        capacities[slot] = needed;
     }
 
-    slot = (slot + 1u) % JINX_ORACLE_SCRATCH_SLOTS;
     buffer = buffers[slot];
     buffer[len] = '\0';
     return buffer;
@@ -406,11 +415,16 @@ static inline JinxValue jinx_oracle_bin2hex_value(JinxValue value) {
     static const char hex[] = "0123456789abcdef";
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
     uint32_t len = jinx_oracle_string_len(value);
-    uint32_t safe_len = len > 2047u ? 2047u : len;
-    uint32_t out_len = safe_len * 2u;
+    uint32_t out_len;
+
+    if (len > UINT32_MAX / 2u) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    out_len = len * 2u;
     char *out = jinx_oracle_scratch_string(out_len);
 
-    for (uint32_t i = 0u; i < safe_len; i++) {
+    for (uint32_t i = 0u; i < len; i++) {
         out[i * 2u] = hex[(bytes[i] >> 4u) & 0x0fu];
         out[i * 2u + 1u] = hex[bytes[i] & 0x0fu];
     }
@@ -479,17 +493,18 @@ static inline JinxValue jinx_oracle_str_rot13_value(JinxValue value) {
 static inline JinxValue jinx_oracle_addslashes_value(JinxValue value) {
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
     uint32_t len = jinx_oracle_string_len(value);
-    uint32_t out_len = 0u;
+    uint64_t needed = 0u;
 
     for (uint32_t i = 0u; i < len; i++) {
         unsigned char c = bytes[i];
-        out_len += (c == (unsigned char)'\'' || c == (unsigned char)'"' || c == (unsigned char)'\\' || c == 0u) ? 2u : 1u;
-        if (out_len >= 4095u) {
-            out_len = 4095u;
-            break;
-        }
+        needed += (c == (unsigned char)'\'' || c == (unsigned char)'"' || c == (unsigned char)'\\' || c == 0u) ? 2u : 1u;
     }
 
+    if (needed > UINT32_MAX) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    uint32_t out_len = (uint32_t)needed;
     char *out = jinx_oracle_scratch_string(out_len);
     uint32_t pos = 0u;
 
@@ -520,8 +535,8 @@ static inline JinxValue jinx_oracle_str_repeat_value(JinxValue value, JinxValue 
         return jinx_oracle_string_value_len("", 0u);
     }
 
-    if ((uint64_t)len * (uint64_t)count >= 4096u) {
-        count = (int64_t)(4095u / len);
+    if ((uint64_t)len * (uint64_t)count > UINT32_MAX) {
+        return jinx_oracle_string_value_len("", 0u);
     }
 
     out_len = len * (uint32_t)count;

@@ -84,6 +84,7 @@ $cases = [
     ['strripos', ['s:aBcxxABCxxabC', 's:abc']],
     ['strripos', ['s:aBcxxABCxxabC', 's:abc', 'i:-4']],
     ['str_repeat', ['s:ab', 'i:3']],
+    ['str_repeat', ['s:ab', 'i:3000']],
     ['bin2hex', ['s:Hello!']],
     ['hex2bin', ['s:48656c6c6f21']],
     ['str_rot13', ['s:PHP 4.3.0']],
