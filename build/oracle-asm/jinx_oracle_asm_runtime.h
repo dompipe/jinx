@@ -3834,6 +3834,173 @@ static inline int jinx_oracle_write_ref_arg(
     return 1;
 }
 
+
+static inline int jinx_oracle_ascii_tag_char(unsigned char c) {
+    return (c >= (unsigned char)'A' && c <= (unsigned char)'Z') ||
+        (c >= (unsigned char)'a' && c <= (unsigned char)'z') ||
+        (c >= (unsigned char)'0' && c <= (unsigned char)'9');
+}
+
+static inline int jinx_oracle_strip_tags_allowed_name(
+    JinxValue allowed_value,
+    const unsigned char *name,
+    uint32_t name_len
+) {
+    if (allowed_value.type == 0u || name_len == 0u) return 0;
+    if (allowed_value.type != 3u) return -1;
+
+    const unsigned char *allowed = jinx_oracle_string_bytes(allowed_value);
+    uint32_t allowed_len = jinx_oracle_string_len(allowed_value);
+
+    for (uint32_t i = 0u; i < allowed_len;) {
+        if (allowed[i] != (unsigned char)'<') {
+            i++;
+            continue;
+        }
+
+        uint32_t p = i + 1u;
+        if (p < allowed_len && allowed[p] == (unsigned char)'/') p++;
+        while (p < allowed_len && jinx_oracle_ascii_numeric_space(allowed[p])) p++;
+
+        uint32_t start = p;
+        while (p < allowed_len && jinx_oracle_ascii_tag_char(allowed[p])) p++;
+        uint32_t candidate_len = p - start;
+
+        if (candidate_len == name_len) {
+            int match = 1;
+            for (uint32_t j = 0u; j < name_len; j++) {
+                if (jinx_oracle_ascii_lower_byte(allowed[start + j]) !=
+                    jinx_oracle_ascii_lower_byte(name[j])) {
+                    match = 0;
+                    break;
+                }
+            }
+            if (match) return 1;
+        }
+
+        while (p < allowed_len && allowed[p] != (unsigned char)'>') p++;
+        i = p < allowed_len ? p + 1u : allowed_len;
+    }
+
+    return 0;
+}
+
+static inline JinxValue jinx_oracle_strip_tags_value(
+    JinxValue input_value,
+    JinxValue allowed_value,
+    uint32_t argc,
+    int *ok
+) {
+    const unsigned char *input = jinx_oracle_string_bytes(input_value);
+    uint32_t len = jinx_oracle_string_len(input_value);
+    char *out = jinx_oracle_scratch_string(len);
+    uint32_t pos = 0u;
+
+    *ok = 0;
+
+    if (argc >= 2u && allowed_value.type != 0u && allowed_value.type != 3u) {
+        return jinx_oracle_zero_value();
+    }
+
+    for (uint32_t i = 0u; i < len;) {
+        if (input[i] == 0u) {
+            i++;
+            continue;
+        }
+
+        if (input[i] != (unsigned char)'<') {
+            out[pos++] = (char)input[i++];
+            continue;
+        }
+
+        if (i + 3u < len &&
+            input[i + 1u] == (unsigned char)'!' &&
+            input[i + 2u] == (unsigned char)'-' &&
+            input[i + 3u] == (unsigned char)'-') {
+            uint32_t p = i + 4u;
+            int closed = 0;
+            while (p + 2u < len) {
+                if (input[p] == (unsigned char)'-' &&
+                    input[p + 1u] == (unsigned char)'-' &&
+                    input[p + 2u] == (unsigned char)'>') {
+                    i = p + 3u;
+                    closed = 1;
+                    break;
+                }
+                p++;
+            }
+            if (!closed) i = len;
+            continue;
+        }
+
+        if (i + 1u < len && input[i + 1u] == (unsigned char)'?') {
+            uint32_t p = i + 2u;
+            int closed = 0;
+            while (p + 1u < len) {
+                if (input[p] == (unsigned char)'?' && input[p + 1u] == (unsigned char)'>') {
+                    i = p + 2u;
+                    closed = 1;
+                    break;
+                }
+                p++;
+            }
+            if (!closed) i = len;
+            continue;
+        }
+
+        uint32_t end = i + 1u;
+        unsigned char quote = 0u;
+        int closed = 0;
+
+        while (end < len) {
+            unsigned char ch = input[end];
+
+            if (quote != 0u) {
+                if (ch == quote) quote = 0u;
+            } else if (ch == (unsigned char)'\'' || ch == (unsigned char)'"') {
+                quote = ch;
+            } else if (ch == (unsigned char)'>') {
+                closed = 1;
+                break;
+            }
+            end++;
+        }
+
+        if (!closed) {
+            i = len;
+            continue;
+        }
+
+        uint32_t p = i + 1u;
+        if (p < end && input[p] == (unsigned char)'/') p++;
+        while (p < end && jinx_oracle_ascii_numeric_space(input[p])) p++;
+
+        uint32_t name_start = p;
+        while (p < end && jinx_oracle_ascii_tag_char(input[p])) p++;
+        uint32_t name_len = p - name_start;
+        int allowed = name_len <= 1023u
+            ? jinx_oracle_strip_tags_allowed_name(
+                argc >= 2u ? allowed_value : jinx_oracle_zero_value(),
+                input + name_start,
+                name_len
+            )
+            : 0;
+
+        if (allowed < 0) return jinx_oracle_zero_value();
+
+        if (allowed > 0) {
+            for (uint32_t j = i; j <= end; j++) {
+                if (input[j] != 0u) out[pos++] = (char)input[j];
+            }
+        }
+
+        i = end + 1u;
+    }
+
+    *ok = 1;
+    return jinx_oracle_string_value_len(out, pos);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -3850,6 +4017,17 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_is(name, "strip_tags")) {
+        int strip_ok = 0;
+        ret = jinx_oracle_strip_tags_value(arg0, arg1, argc, &strip_ok);
+        if (!strip_ok) {
+            ctx->fault = "strip_tags array allowed-tags overload is not native yet";
+            return jinx_oracle_zero_value();
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (jinx_oracle_name_is(name, "chr")) {
         ret = jinx_oracle_chr_value(arg0);
