@@ -2334,7 +2334,7 @@ static inline JinxValue jinx_oracle_str_repeat_value(JinxValue value, JinxValue 
     uint32_t out_len;
     char *out;
 
-    if (count <= 0 || len == 0u) {
+    if (count == 0 || len == 0u) {
         return jinx_oracle_string_value_len("", 0u);
     }
 
@@ -2421,13 +2421,19 @@ static inline JinxValue jinx_oracle_substr_count_value(JinxValue haystack_value,
     start = (uint32_t)raw_offset;
     end = haystack_len;
 
-    if (length_value.type == 1u) {
+    if (argc >= 4u && length_value.type != 0u) {
         int64_t requested = jinx_oracle_intish(length_value);
+        int64_t remaining = (int64_t)haystack_len - (int64_t)start;
+
         if (requested < 0) {
-            end = start;
-        } else if ((uint64_t)requested < (uint64_t)(end - start)) {
-            end = start + (uint32_t)requested;
+            requested += remaining;
         }
+
+        if (requested < 0) {
+            return jinx_oracle_int_value(0);
+        }
+
+        end = start + (uint32_t)requested;
     }
 
     if (needle_len > end - start) {
@@ -2997,6 +3003,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "str_repeat")) {
+        if (jinx_oracle_intish(arg1) < 0) {
+            ctx->fault = "str_repeat times must be greater than or equal to 0";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_str_repeat_value(arg0, arg1);
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -3045,6 +3055,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "chunk_split")) {
+        if (argc >= 2u && jinx_oracle_intish(arg1) <= 0) {
+            ctx->fault = "chunk_split length must be greater than 0";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_chunk_split_value(
             arg0,
             arg1,
@@ -3263,6 +3277,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in4(name, "strcmp", "strcasecmp", "strncmp", "strncasecmp")) {
+        if ((jinx_oracle_name_is(name, "strncmp") || jinx_oracle_name_is(name, "strncasecmp")) &&
+            jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)) < 0) {
+            ctx->fault = "string comparison length must be greater than or equal to 0";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_int_value((int64_t)jinx_oracle_string_compare_value(
             arg0,
             arg1,
@@ -3275,6 +3294,29 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "substr_count")) {
+        uint32_t haystack_len = jinx_oracle_string_len(arg0);
+        uint32_t needle_len = jinx_oracle_string_len(arg1);
+        int64_t offset = argc >= 3u ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)) : 0;
+        int64_t normalized = offset < 0 ? (int64_t)haystack_len + offset : offset;
+
+        if (needle_len == 0u) {
+            ctx->fault = "substr_count needle must not be empty";
+            return jinx_oracle_zero_value();
+        }
+        if (normalized < 0 || normalized > (int64_t)haystack_len) {
+            ctx->fault = "substr_count offset must be contained in haystack";
+            return jinx_oracle_zero_value();
+        }
+        if (argc >= 4u && jinx_oracle_call_arg(ctx, 3u).type != 0u) {
+            int64_t remaining = (int64_t)haystack_len - normalized;
+            int64_t length = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 3u));
+            int64_t effective = length < 0 ? remaining + length : length;
+            if (effective < 0 || effective > remaining) {
+                ctx->fault = "substr_count length must be contained in haystack";
+                return jinx_oracle_zero_value();
+            }
+        }
+
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -3392,8 +3434,17 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         if (jinx_oracle_name_is(name, "fmod")) {
             ret = jinx_oracle_float_value(fmod(x, y));
         } else if (jinx_oracle_name_is(name, "intdiv")) {
+            int64_t dividend = jinx_oracle_intish(arg0);
             int64_t divisor = jinx_oracle_intish(arg1);
-            ret = jinx_oracle_int_value(divisor == 0 ? 0 : jinx_oracle_intish(arg0) / divisor);
+            if (divisor == 0) {
+                ctx->fault = "intdiv division by zero";
+                return jinx_oracle_zero_value();
+            }
+            if (dividend == INT64_MIN && divisor == -1) {
+                ctx->fault = "intdiv integer overflow";
+                return jinx_oracle_zero_value();
+            }
+            ret = jinx_oracle_int_value(dividend / divisor);
         } else if (jinx_oracle_name_is(name, "deg2rad")) {
             ret = jinx_oracle_float_value(x * jinx_oracle_pi() / 180.0);
         } else if (jinx_oracle_name_is(name, "rad2deg")) {
