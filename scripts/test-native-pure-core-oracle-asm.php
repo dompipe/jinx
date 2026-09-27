@@ -86,6 +86,11 @@ $cases = [
     ['wordwrap', ['s:A very long woooooooooooord.', 'i:8', 's:|', 'b:true']],
     ['wordwrap', ["s:one two\nthree four", 'i:7']],
     ['convert_uuencode', ['s:JINX oracle']],
+    ['soundex', ['s:Euler']],
+    ['soundex', ['s:123']],
+    ['quoted_printable_encode', ['s:A=B']],
+    ['quoted_printable_decode', ['s:A=3DB']],
+    ['quoted_printable_decode', ["s:hello=\r\nworld"]],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
