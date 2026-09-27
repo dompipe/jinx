@@ -39,6 +39,14 @@ struct JinxValue {
 #define JINX_ORACLE_VALUE_ZEND_ARRAY 6u
 #define JINX_ORACLE_VALUE_ZEND_OBJECT 7u
 
+/* Prefix-compatible view of JinxZendObject for scalar introspection handlers. */
+typedef struct JinxOracleZendObjectView {
+    uint32_t refcount;
+    uint32_t flags;
+    const char *class_name;
+    void *properties;
+} JinxOracleZendObjectView;
+
 enum JinxOracleRegister {
     JINX_ORA_ACC = 0,
     JINX_ORA_RET = 1,
@@ -7878,6 +7886,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             case 4u:
             case JINX_ORACLE_VALUE_ZEND_ARRAY: type_name = "array"; break;
             case 5u: type_name = "double"; break;
+            case JINX_ORACLE_VALUE_ZEND_OBJECT: type_name = "object"; break;
             default: break;
         }
         ret = jinx_oracle_string_value(type_name);
@@ -7895,6 +7904,14 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             case 4u:
             case JINX_ORACLE_VALUE_ZEND_ARRAY: type_name = "array"; break;
             case 5u: type_name = "float"; break;
+            case JINX_ORACLE_VALUE_ZEND_OBJECT: {
+                const JinxOracleZendObjectView *object =
+                    (const JinxOracleZendObjectView *)arg0.as.ptr;
+                type_name = object != NULL && object->class_name != NULL
+                    ? object->class_name
+                    : "object";
+                break;
+            }
             default: break;
         }
         ret = jinx_oracle_string_value(type_name);
@@ -7910,7 +7927,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (jinx_oracle_name_in2(name, "is_object", "is_resource")) {
+    if (jinx_oracle_name_is(name, "is_object")) {
+        ret = jinx_oracle_bool_value(arg0.type == JINX_ORACLE_VALUE_ZEND_OBJECT);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "is_resource")) {
         ret = jinx_oracle_bool_value(0);
         jinx_oracle_return(ctx, ret);
         return ret;
