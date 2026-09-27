@@ -1462,6 +1462,103 @@ fail:
     return jinx_oracle_zero_value();
 }
 
+
+static inline unsigned char jinx_oracle_uu_enc(unsigned int value) {
+    value &= 077u;
+    return value == 0u ? (unsigned char)'\`' : (unsigned char)(value + (unsigned int)' ');
+}
+
+static inline unsigned int jinx_oracle_uu_dec(unsigned char value) {
+    return ((unsigned int)value - (unsigned int)' ') & 077u;
+}
+
+static inline JinxValue jinx_oracle_uuencode_value(JinxValue value) {
+    const unsigned char *src = jinx_oracle_string_bytes(value);
+    uint32_t src_len = jinx_oracle_string_len(value);
+    uint64_t lines = ((uint64_t)src_len + 44u) / 45u;
+    uint64_t needed = lines * 62u + 2u;
+
+    if (needed > UINT32_MAX) return jinx_oracle_bool_value(0);
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+    uint32_t offset = 0u;
+
+    while (offset < src_len) {
+        uint32_t line_len = src_len - offset;
+        if (line_len > 45u) line_len = 45u;
+
+        out[pos++] = (char)jinx_oracle_uu_enc(line_len);
+
+        for (uint32_t i = 0u; i < line_len; i += 3u) {
+            unsigned int a = src[offset + i];
+            unsigned int b = i + 1u < line_len ? src[offset + i + 1u] : 0u;
+            unsigned int d = i + 2u < line_len ? src[offset + i + 2u] : 0u;
+
+            out[pos++] = (char)jinx_oracle_uu_enc(a >> 2u);
+            out[pos++] = (char)jinx_oracle_uu_enc(((a << 4u) & 060u) | ((b >> 4u) & 017u));
+            out[pos++] = (char)jinx_oracle_uu_enc(((b << 2u) & 074u) | ((d >> 6u) & 03u));
+            out[pos++] = (char)jinx_oracle_uu_enc(d & 077u);
+        }
+
+        out[pos++] = '\n';
+        offset += line_len;
+    }
+
+    out[pos++] = (char)jinx_oracle_uu_enc(0u);
+    out[pos++] = '\n';
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_uudecode_value(JinxValue value) {
+    const unsigned char *src = jinx_oracle_string_bytes(value);
+    uint32_t src_len = jinx_oracle_string_len(value);
+    char *out;
+    uint32_t pos = 0u;
+    uint32_t offset = 0u;
+
+    if (src_len == 0u) return jinx_oracle_bool_value(0);
+
+    out = jinx_oracle_scratch_string(src_len);
+
+    while (offset < src_len) {
+        uint32_t line_len = jinx_oracle_uu_dec(src[offset++]);
+        if (line_len == 0u) {
+            return jinx_oracle_string_value_len(out, pos);
+        }
+        if (line_len > 45u) return jinx_oracle_bool_value(0);
+
+        uint32_t encoded_len = ((line_len + 2u) / 3u) * 4u;
+        if (encoded_len > src_len - offset) return jinx_oracle_bool_value(0);
+
+        uint32_t written = 0u;
+        for (uint32_t i = 0u; i < encoded_len; i += 4u) {
+            unsigned int a = jinx_oracle_uu_dec(src[offset + i]);
+            unsigned int b = jinx_oracle_uu_dec(src[offset + i + 1u]);
+            unsigned int d = jinx_oracle_uu_dec(src[offset + i + 2u]);
+            unsigned int e = jinx_oracle_uu_dec(src[offset + i + 3u]);
+
+            unsigned char one = (unsigned char)((a << 2u) | (b >> 4u));
+            unsigned char two = (unsigned char)((b << 4u) | (d >> 2u));
+            unsigned char three = (unsigned char)((d << 6u) | e);
+
+            if (written < line_len) { out[pos++] = (char)one; written++; }
+            if (written < line_len) { out[pos++] = (char)two; written++; }
+            if (written < line_len) { out[pos++] = (char)three; written++; }
+        }
+
+        offset += encoded_len;
+        if (offset < src_len && src[offset] == '\r') offset++;
+        if (offset < src_len && src[offset] == '\n') offset++;
+
+        if (line_len < 45u) {
+            return jinx_oracle_string_value_len(out, pos);
+        }
+    }
+
+    return jinx_oracle_bool_value(0);
+}
+
 static inline uint32_t jinx_oracle_crc32_bytes(const unsigned char *bytes, uint32_t len) {
     uint32_t crc = 0xffffffffu;
 
@@ -2787,6 +2884,18 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ctx->fault = "wordwrap argument error";
             return jinx_oracle_zero_value();
         }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "convert_uuencode")) {
+        ret = jinx_oracle_uuencode_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "convert_uudecode")) {
+        ret = jinx_oracle_uudecode_value(arg0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
