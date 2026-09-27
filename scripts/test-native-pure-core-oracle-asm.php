@@ -172,6 +172,17 @@ $cases = [
     ['long2ip', ['i:2130706433']],
     ['long2ip', ['i:4294967295']],
     ['long2ip', ['i:-110000']],
+    ['gregoriantojd', ['i:1', 'i:1', 'i:2024']],
+    ['gregoriantojd', ['i:10', 'i:15', 'i:1582']],
+    ['gregoriantojd', ['i:11', 'i:25', 'i:-4714']],
+    ['gregoriantojd', ['i:11', 'i:24', 'i:-4714']],
+    ['jdtogregorian', ['i:2460311']],
+    ['jdtogregorian', ['i:0']],
+    ['juliantojd', ['i:1', 'i:1', 'i:2024']],
+    ['juliantojd', ['i:1', 'i:2', 'i:-4713']],
+    ['juliantojd', ['i:1', 'i:1', 'i:-4713']],
+    ['jdtojulian', ['i:2460311']],
+    ['jdtojulian', ['i:0']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
