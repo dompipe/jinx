@@ -40,6 +40,15 @@ static int expect_string_index(JinxZendArray *array, size_t index, const char *e
         slot->value.str->len == len && memcmp(slot->value.str->bytes, expected, len) == 0;
 }
 
+static int expect_string_key(JinxZendArray *array, const char *key, const char *expected) {
+    size_t key_len = strlen(key);
+    size_t expected_len = strlen(expected);
+    JinxZendValue *slot = jinx_zend_array_find(array, key, key_len);
+    return slot != 0 && slot->type == JINX_ZEND_STRING && slot->value.str != 0 &&
+        slot->value.str->len == expected_len &&
+        memcmp(slot->value.str->bytes, expected, expected_len) == 0;
+}
+
 static int fail(const char *message) {
     fprintf(stderr, "FAIL: %s\n", message);
     return 1;
