@@ -10,10 +10,7 @@ static char *jinx_native_read_file(const char *path) {
     size_t read_size;
     char *buffer;
 
-    if (file == NULL) {
-        return NULL;
-    }
-
+    if (file == NULL) return NULL;
     if (fseek(file, 0, SEEK_END) != 0) {
         fclose(file);
         return NULL;
@@ -52,9 +49,7 @@ static int jinx_native_line_of(const char *source, const char *at) {
     int line = 1;
 
     for (const char *p = source; p != NULL && p < at && *p != '\0'; p++) {
-        if (*p == '\n') {
-            line++;
-        }
+        if (*p == '\n') line++;
     }
 
     return line;
@@ -63,14 +58,10 @@ static int jinx_native_line_of(const char *source, const char *at) {
 static void jinx_native_parse_identifier(const char *start, char *out, size_t out_size) {
     size_t len = 0u;
 
-    if (out_size == 0u) {
-        return;
-    }
+    if (out_size == 0u) return;
 
     while (*start != '\0' && (isalnum((unsigned char) *start) || *start == '_')) {
-        if (len + 1u < out_size) {
-            out[len++] = *start;
-        }
+        if (len + 1u < out_size) out[len++] = *start;
         start++;
     }
 
@@ -82,28 +73,19 @@ static int jinx_native_find_body_local(const char *source, char *out, size_t out
     const char *scan;
     const char *dollar = NULL;
 
-    if (json == NULL) {
-        return 0;
-    }
+    if (json == NULL) return 0;
 
     for (scan = json; scan >= source; scan--) {
         if (*scan == '$') {
             dollar = scan;
             break;
         }
-        if (*scan == '\n' || *scan == ';') {
-            break;
-        }
+        if (*scan == '\n' || *scan == ';') break;
     }
 
-    if (dollar == NULL) {
-        return 0;
-    }
-
+    if (dollar == NULL) return 0;
     jinx_native_parse_identifier(dollar + 1, out, out_size);
-    if (out[0] == '\0') {
-        return 0;
-    }
+    if (out[0] == '\0') return 0;
 
     *line = jinx_native_line_of(source, dollar);
     return 1;
@@ -116,29 +98,19 @@ static int jinx_native_find_missing_key(const char *source, char *out, size_t ou
     const char *p;
     size_t len = 0u;
 
-    if (isset_pos == NULL) {
-        return 0;
-    }
-
+    if (isset_pos == NULL) return 0;
     bracket = strchr(isset_pos, '[');
-    if (bracket == NULL || (bracket[1] != '\'' && bracket[1] != '"')) {
-        return 0;
-    }
+    if (bracket == NULL || (bracket[1] != '\'' && bracket[1] != '"')) return 0;
 
     quote = bracket[1];
     p = bracket + 2;
     while (*p != '\0' && *p != quote) {
-        if (len + 1u < out_size) {
-            out[len++] = *p;
-        }
+        if (len + 1u < out_size) out[len++] = *p;
         p++;
     }
     out[len] = '\0';
 
-    if (out[0] == '\0') {
-        return 0;
-    }
-
+    if (out[0] == '\0') return 0;
     *line = jinx_native_line_of(source, isset_pos);
     return 1;
 }
@@ -147,14 +119,9 @@ static int jinx_native_find_http_status(const char *source, int *status, int *li
     const char *status_pos = strstr(source, "http_response_code");
     const char *open;
 
-    if (status_pos == NULL) {
-        return 0;
-    }
-
+    if (status_pos == NULL) return 0;
     open = strchr(status_pos, '(');
-    if (open == NULL) {
-        return 0;
-    }
+    if (open == NULL) return 0;
 
     *status = atoi(open + 1);
     *line = jinx_native_line_of(source, status_pos);
@@ -168,31 +135,19 @@ static int jinx_native_find_error_message(const char *source, char *out, size_t 
     char quote_ch;
     size_t len = 0u;
 
-    if (error_pos == NULL) {
-        error_pos = strstr(source, "\"error\"");
-    }
-    if (error_pos == NULL) {
-        return 0;
-    }
+    if (error_pos == NULL) error_pos = strstr(source, "\"error\"");
+    if (error_pos == NULL) return 0;
 
     arrow = strstr(error_pos, "=>");
-    if (arrow == NULL) {
-        return 0;
-    }
+    if (arrow == NULL) return 0;
 
     quote = arrow + 2;
-    while (*quote != '\0' && isspace((unsigned char) *quote)) {
-        quote++;
-    }
-    if (*quote != '\'' && *quote != '"') {
-        return 0;
-    }
+    while (*quote != '\0' && isspace((unsigned char) *quote)) quote++;
+    if (*quote != '\'' && *quote != '"') return 0;
 
     quote_ch = *quote++;
     while (*quote != '\0' && *quote != quote_ch) {
-        if (len + 1u < out_size) {
-            out[len++] = *quote;
-        }
+        if (len + 1u < out_size) out[len++] = *quote;
         quote++;
     }
     out[len] = '\0';
@@ -213,35 +168,25 @@ static int jinx_native_find_array_get_local(const char *source, const char *arra
         snprintf(pattern, sizeof(pattern), "$%s[\"%s\"]", array_local, key);
         array_get = strstr(source, pattern);
     }
-    if (array_get == NULL) {
-        return 0;
-    }
+    if (array_get == NULL || array_get == source) return 0;
 
-    for (scan = array_get; scan >= source; scan--) {
+    for (scan = array_get - 1; scan >= source; scan--) {
         if (*scan == '$') {
             dollar = scan;
             break;
         }
-        if (*scan == '\n' || *scan == ';') {
-            break;
-        }
+        if (*scan == '\n' || *scan == ';') break;
     }
 
-    if (dollar == NULL || dollar == array_get) {
-        return 0;
-    }
-
+    if (dollar == NULL) return 0;
     jinx_native_parse_identifier(dollar + 1, out, out_size);
-    if (out[0] == '\0') {
-        return 0;
-    }
+    if (out[0] == '\0') return 0;
 
     *line = jinx_native_line_of(source, dollar);
     return 1;
 }
 
-static void jinx_native_print_json_string(const char *text) {
-    fputc('"', stdout);
+static void jinx_native_print_json_escaped(const char *text) {
     for (const unsigned char *p = (const unsigned char *) text; *p != '\0'; p++) {
         switch (*p) {
             case '"': fputs("\\\"", stdout); break;
@@ -250,14 +195,16 @@ static void jinx_native_print_json_string(const char *text) {
             case '\r': fputs("\\r", stdout); break;
             case '\t': fputs("\\t", stdout); break;
             default:
-                if (*p < 32u) {
-                    printf("\\u%04x", (unsigned) *p);
-                } else {
-                    fputc((int) *p, stdout);
-                }
+                if (*p < 32u) printf("\\u%04x", (unsigned) *p);
+                else fputc((int) *p, stdout);
                 break;
         }
     }
+}
+
+static void jinx_native_print_json_string(const char *text) {
+    fputc('"', stdout);
+    jinx_native_print_json_escaped(text);
     fputc('"', stdout);
 }
 
@@ -275,9 +222,7 @@ static int command_web_plan_native(int argc, char **argv) {
     int get_line = 0;
     int status = 0;
 
-    if (argc < 3) {
-        return fail("web-plan requires an input PHP file");
-    }
+    if (argc < 3) return fail("web-plan requires an input PHP file");
 
     path = argv[2];
     source = jinx_native_read_file(path);
@@ -291,7 +236,7 @@ static int command_web_plan_native(int argc, char **argv) {
         !jinx_native_find_http_status(source, &status, &status_line) ||
         !jinx_native_find_error_message(source, error_message, sizeof(error_message), &error_line) ||
         !jinx_native_find_array_get_local(source, body_local, missing_key, value_local, sizeof(value_local), &get_line) ||
-        strstr(source, "file_get_contents('php://input')") == NULL ||
+        strstr(source, "php://input") == NULL ||
         strstr(source, "json_encode") == NULL) {
         free(source);
         fprintf(stderr, "Unsupported Web API source shape: %s\n", path);
@@ -338,7 +283,7 @@ static int command_web_plan_native(int argc, char **argv) {
     printf("                    ],\n");
     printf("                    \"line\": %d,\n", error_line);
     printf("                    \"source\": \"echo json_encode(['ok' => false, 'error' => '");
-    jinx_native_print_json_string(error_message);
+    jinx_native_print_json_escaped(error_message);
     printf("'])\"\n");
     printf("                },\n");
     printf("                {\n");
