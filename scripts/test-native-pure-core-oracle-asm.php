@@ -245,9 +245,21 @@ $cases[] = ['hebrev', ['s:' . $wrappedHebrewBytes, 'i:5']];
 
 foreach ($cases as [$function, $args]) {
     $phpArgs = array_map('decodeArg', $args);
-    $expected = encodeValue($function(...$phpArgs));
+    $phpValue = $function(...$phpArgs);
+    $stringResult = is_string($phpValue);
+    $expected = $stringResult
+        ? 'hex:' . bin2hex($phpValue)
+        : encodeValue($phpValue);
 
-    $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($function);
+    /*
+     * String results use the CLI's hex transport so parity is byte-exact.
+     * PHP exec() splits stdout into lines and can otherwise erase a CR from
+     * CRLF results such as nl2br("one\\r\\ntwo", false), making identical
+     * native/PHP strings look unequal after the test harness reconstructs
+     * stdout with PHP_EOL.
+     */
+    $commandName = $stringResult ? 'oracle-call-hex' : 'oracle-call';
+    $command = escapeshellarg($jinx) . ' ' . $commandName . ' ' . escapeshellarg($function);
     foreach ($args as $arg) $command .= ' ' . escapeshellarg($arg);
 
     $output = [];
@@ -255,8 +267,8 @@ foreach ($cases as [$function, $args]) {
     exec($command . ' 2>&1', $output, $code);
     $actual = rtrim(implode(PHP_EOL, $output), "\r\n");
 
-    if ($code !== 0) fail("oracle-call {$function} failed: {$actual}");
-    if ($actual !== $expected) fail("oracle-call {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
+    if ($code !== 0) fail("{$commandName} {$function} failed: {$actual}");
+    if ($actual !== $expected) fail("{$commandName} {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
 }
 
 
