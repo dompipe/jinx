@@ -1612,6 +1612,83 @@ static inline JinxValue jinx_oracle_uudecode_value(JinxValue value) {
 }
 
 
+static inline void jinx_oracle_similar_str(
+    const unsigned char *txt1,
+    uint32_t len1,
+    const unsigned char *txt2,
+    uint32_t len2,
+    uint32_t *pos1,
+    uint32_t *pos2,
+    uint32_t *max,
+    uint32_t *count
+) {
+    *max = 0u;
+    *count = 0u;
+
+    for (uint32_t p = 0u; p < len1; p++) {
+        for (uint32_t q = 0u; q < len2; q++) {
+            uint32_t l = 0u;
+            while (p + l < len1 && q + l < len2 && txt1[p + l] == txt2[q + l]) l++;
+
+            if (l > *max) {
+                *max = l;
+                (*count)++;
+                *pos1 = p;
+                *pos2 = q;
+            }
+        }
+    }
+}
+
+static inline uint64_t jinx_oracle_similar_char(
+    const unsigned char *txt1,
+    uint32_t len1,
+    const unsigned char *txt2,
+    uint32_t len2
+) {
+    uint64_t sum;
+    uint32_t pos1 = 0u;
+    uint32_t pos2 = 0u;
+    uint32_t max = 0u;
+    uint32_t count = 0u;
+
+    jinx_oracle_similar_str(txt1, len1, txt2, len2, &pos1, &pos2, &max, &count);
+    sum = max;
+
+    if (sum != 0u) {
+        if (pos1 != 0u && pos2 != 0u && count > 1u) {
+            sum += jinx_oracle_similar_char(txt1, pos1, txt2, pos2);
+        }
+
+        if (pos1 + max < len1 && pos2 + max < len2) {
+            sum += jinx_oracle_similar_char(
+                txt1 + pos1 + max,
+                len1 - pos1 - max,
+                txt2 + pos2 + max,
+                len2 - pos2 - max
+            );
+        }
+    }
+
+    return sum;
+}
+
+static inline JinxValue jinx_oracle_similar_text_value(JinxValue a, JinxValue b) {
+    uint32_t a_len = jinx_oracle_string_len(a);
+    uint32_t b_len = jinx_oracle_string_len(b);
+
+    if ((uint64_t)a_len + (uint64_t)b_len == 0u) {
+        return jinx_oracle_int_value(0);
+    }
+
+    return jinx_oracle_int_value((int64_t)jinx_oracle_similar_char(
+        jinx_oracle_string_bytes(a),
+        a_len,
+        jinx_oracle_string_bytes(b),
+        b_len
+    ));
+}
+
 static inline JinxValue jinx_oracle_soundex_value(JinxValue value) {
     static const unsigned char soundex_table[26] = {
         0, '1', '2', '3', 0, '1', '2', 0, 0, '2', '2', '4', '5',
@@ -3368,6 +3445,16 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     if (jinx_oracle_name_in3(name, "decbin", "dechex", "decoct")) {
         int base = jinx_oracle_name_is(name, "decbin") ? 2 : (jinx_oracle_name_is(name, "dechex") ? 16 : 8);
         ret = jinx_oracle_uint_to_base((uint64_t)jinx_oracle_intish(arg0), base);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "similar_text")) {
+        if (argc != 2u) {
+            ctx->fault = "similar_text percentage reference output is not native yet";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_similar_text_value(arg0, arg1);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
