@@ -8095,8 +8095,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ret = jinx_oracle_bool_value(isfinite(x));
         } else if (jinx_oracle_name_is(name, "is_infinite")) {
             ret = jinx_oracle_bool_value(isinf(x));
-        } else {
+        } else if (jinx_oracle_name_is(name, "is_nan")) {
             ret = jinx_oracle_bool_value(isnan(x));
+        } else {
+            ctx->fault = "Unhandled native scalar math builtin";
+            return jinx_oracle_zero_value();
         }
 
         jinx_oracle_return(ctx, ret);
@@ -8113,8 +8116,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ret = jinx_oracle_bool_value(jinx_oracle_mem_contains(haystack, haystack_len, needle, needle_len));
         } else if (jinx_oracle_name_is(name, "str_starts_with")) {
             ret = jinx_oracle_bool_value(needle_len <= haystack_len && memcmp(haystack, needle, needle_len) == 0);
-        } else {
+        } else if (jinx_oracle_name_is(name, "str_ends_with")) {
             ret = jinx_oracle_bool_value(needle_len <= haystack_len && memcmp(haystack + haystack_len - needle_len, needle, needle_len) == 0);
+        } else {
+            ctx->fault = "Unhandled native string predicate builtin";
+            return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -8195,10 +8201,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ret = jinx_oracle_float_value(log10(x));
         } else if (jinx_oracle_name_is(name, "log1p")) {
             ret = jinx_oracle_float_value(log1p(x));
+        } else if (jinx_oracle_name_is(name, "cos")) {
+            ret = jinx_oracle_float_value(cos(x));
         } else if (jinx_oracle_name_is(name, "cosh")) {
             ret = jinx_oracle_float_value(cosh(x));
         } else {
-            ret = jinx_oracle_float_value(cos(x));
+            ctx->fault = "Unhandled native transcendental math builtin";
+            return jinx_oracle_zero_value();
         }
 
         jinx_oracle_return(ctx, ret);
