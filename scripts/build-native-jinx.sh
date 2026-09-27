@@ -43,11 +43,24 @@ php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
 
 cp "$OUT" "$COPY_OUT"
 
+STRLOWER_SMOKE=$("$OUT" oracle-call strtolower s:JiNx)
+if [ "$STRLOWER_SMOKE" != "string:jinx" ]; then
+    echo "FAIL: post-build oracle-call strtolower smoke expected string:jinx, got: $STRLOWER_SMOKE" >&2
+    exit 1
+fi
+
+STRTOUPPER_SMOKE=$("$OUT" oracle-call strtoupper s:JiNx)
+if [ "$STRTOUPPER_SMOKE" != "string:JINX" ]; then
+    echo "FAIL: post-build oracle-call strtoupper smoke expected string:JINX, got: $STRTOUPPER_SMOKE" >&2
+    exit 1
+fi
+
 echo "Built native JINX CLI: $OUT"
 echo "Copied native JINX CLI: $COPY_OUT"
 echo "Built native Zend smoke: $ZEND_SMOKE_OUT"
 echo "Manual manifest compiled: runtime/jinx_php_manual_manifest.h"
 echo "Zend skeleton compiled: runtime/jinx_zend_engine.c"
 echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
+echo "Native oracle-call smoke: strtolower/strtoupper PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
