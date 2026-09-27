@@ -132,6 +132,29 @@ $arrayMin = min([2, 3.5, 3]);
 $arrayMax = max([2, 3.5, 3]);
 $arrayTie = max([4, 4.0]);
 
+$sortValues = [3, 1, 2];
+sort($sortValues);
+
+$rsortNumeric = ['10', '2', '1'];
+rsort($rsortNumeric, SORT_NUMERIC);
+
+$asortValues = ['b' => 2, 'a' => 1, 'c' => 1];
+asort($asortValues);
+
+$arsortValues = ['a' => 1, 'b' => 3, 'c' => 2];
+arsort($arsortValues);
+
+$ksortValues = ['b' => 2, 'a' => 1, 'c' => 3];
+ksort($ksortValues);
+$ksortSnapshot = $ksortValues;
+krsort($ksortValues);
+
+$naturalValues = ['img12.png', 'img10.png', 'img2.png', 'img1.png'];
+natsort($naturalValues);
+
+$natcaseValues = ['IMG12', 'img2', 'Img1'];
+natcasesort($natcaseValues);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -231,7 +254,15 @@ $expectedParity = 'PARITY:'
     . ';path_flags=' . implode('|', $pathFlags)
     . ';array_min=' . $arrayMin
     . ';array_max=' . $arrayMax
-    . ';array_tie_type=' . gettype($arrayTie);
+    . ';array_tie_type=' . gettype($arrayTie)
+    . ';sort=' . implode(',', $sortValues)
+    . ';rsort_num=' . implode(',', $rsortNumeric)
+    . ';asort=' . $pairs($asortValues)
+    . ';arsort=' . $pairs($arsortValues)
+    . ';ksort=' . $pairs($ksortSnapshot)
+    . ';krsort=' . $pairs($ksortValues)
+    . ';natsort=' . $pairs($naturalValues)
+    . ';natcase=' . $pairs($natcaseValues);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
