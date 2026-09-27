@@ -231,40 +231,55 @@ static void jinx_web_plan_print_json_string(const char *text) {
     fputc('"', stdout);
 }
 
-static int command_web_plan_native(int argc, char **argv) {
-    const char *path;
-    char *source;
-    char body_local[64] = {0};
-    char missing_key[128] = {0};
-    char value_local[64] = {0};
-    char error_message[256] = {0};
-    int body_line = 0;
-    int if_line = 0;
-    int status_line = 0;
-    int error_line = 0;
-    int get_line = 0;
-    int status = 0;
+static void jinx_web_plan_fprint_php_escaped(FILE *file, const char *text) {
+    const unsigned char *p;
+    for (p = (const unsigned char *) text; *p != '\0'; p++) {
+        if (*p == '\\' || *p == '\'') fputc('\\', file);
+        fputc((int) *p, file);
+    }
+}
 
-    if (argc < 3) return fail("web-plan requires an input PHP file");
+static int jinx_web_plan_parse_source(const char *path, char **source_out, char *body_local, size_t body_size, char *missing_key, size_t key_size, char *value_local, size_t value_size, char *error_message, size_t error_size, int *body_line, int *if_line, int *status_line, int *error_line, int *get_line, int *status) {
+    char *source = jinx_web_plan_read_file(path);
 
-    path = argv[2];
-    source = jinx_web_plan_read_file(path);
     if (source == NULL) {
         fprintf(stderr, "Missing source file: %s\n", path);
-        return 1;
+        return 0;
     }
 
-    if (!jinx_web_plan_find_body_local(source, body_local, sizeof(body_local), &body_line) ||
-        !jinx_web_plan_find_missing_key(source, missing_key, sizeof(missing_key), &if_line) ||
-        !jinx_web_plan_find_http_status(source, &status, &status_line) ||
-        !jinx_web_plan_find_error_message(source, error_message, sizeof(error_message), &error_line) ||
-        !jinx_web_plan_find_array_get_local(source, body_local, missing_key, value_local, sizeof(value_local), &get_line) ||
+    if (!jinx_web_plan_find_body_local(source, body_local, body_size, body_line) ||
+        !jinx_web_plan_find_missing_key(source, missing_key, key_size, if_line) ||
+        !jinx_web_plan_find_http_status(source, status, status_line) ||
+        !jinx_web_plan_find_error_message(source, error_message, error_size, error_line) ||
+        !jinx_web_plan_find_array_get_local(source, body_local, missing_key, value_local, value_size, get_line) ||
         strstr(source, "json_encode") == NULL) {
         free(source);
         fprintf(stderr, "Unsupported Web API source shape: %s\n", path);
-        return 1;
+        return 0;
     }
 
+    *source_out = source;
+    return 1;
+}
+
+static int jinx_web_plan_ensure_parent_dir(const char *path) {
+    char command[4096];
+    char dir[2048];
+    char *slash;
+    size_t len = strlen(path);
+
+    if (len >= sizeof(dir)) return 0;
+    memcpy(dir, path, len + 1u);
+    slash = strrchr(dir, '/');
+    if (slash == NULL) return 1;
+    *slash = '\0';
+    if (dir[0] == '\0') return 1;
+
+    snprintf(command, sizeof(command), "mkdir -p '%s'", dir);
+    return system(command) == 0;
+}
+
+static void jinx_web_plan_emit_json_plan(const char *body_local, const char *missing_key, const char *value_local, const char *error_message, int body_line, int if_line, int status_line, int error_line, int get_line, int status) {
     printf("{\n");
     printf("    \"kind\": \"JINX_WEB_EXECUTABLE_PLAN\",\n");
     printf("    \"ops\": [\n");
@@ -348,14 +363,139 @@ static int command_web_plan_native(int argc, char **argv) {
     printf("        }\n");
     printf("    ]\n");
     printf("}\n");
+}
 
+static int command_web_plan_native(int argc, char **argv) {
+    const char *path;
+    char *source = NULL;
+    char body_local[64] = {0};
+    char missing_key[128] = {0};
+    char value_local[64] = {0};
+    char error_message[256] = {0};
+    int body_line = 0;
+    int if_line = 0;
+    int status_line = 0;
+    int error_line = 0;
+    int get_line = 0;
+    int status = 0;
+
+    if (argc < 3) return fail("web-plan requires an input PHP file");
+
+    path = argv[2];
+    if (!jinx_web_plan_parse_source(path, &source, body_local, sizeof(body_local), missing_key, sizeof(missing_key), value_local, sizeof(value_local), error_message, sizeof(error_message), &body_line, &if_line, &status_line, &error_line, &get_line, &status)) {
+        return 1;
+    }
+
+    jinx_web_plan_emit_json_plan(body_local, missing_key, value_local, error_message, body_line, if_line, status_line, error_line, get_line, status);
     free(source);
+    return 0;
+}
+
+static int command_web_compile_native(int argc, char **argv) {
+    const char *input_path;
+    const char *output_path;
+    FILE *out;
+    char *source = NULL;
+    char body_local[64] = {0};
+    char missing_key[128] = {0};
+    char value_local[64] = {0};
+    char error_message[256] = {0};
+    int body_line = 0;
+    int if_line = 0;
+    int status_line = 0;
+    int error_line = 0;
+    int get_line = 0;
+    int status = 0;
+
+    if (argc < 4) return fail("web-compile requires input and output PHP files");
+
+    input_path = argv[2];
+    output_path = argv[3];
+
+    if (!jinx_web_plan_parse_source(input_path, &source, body_local, sizeof(body_local), missing_key, sizeof(missing_key), value_local, sizeof(value_local), error_message, sizeof(error_message), &body_line, &if_line, &status_line, &error_line, &get_line, &status)) {
+        return 1;
+    }
+
+    if (!jinx_web_plan_ensure_parent_dir(output_path)) {
+        free(source);
+        fprintf(stderr, "Could not create output directory for: %s\n", output_path);
+        return 1;
+    }
+
+    out = fopen(output_path, "wb");
+    if (out == NULL) {
+        free(source);
+        fprintf(stderr, "Could not write compiled file: %s\n", output_path);
+        return 1;
+    }
+
+    fprintf(out, "<?php\n\n");
+    fprintf(out, "declare(strict_types=1);\n\n");
+    fprintf(out, "header(\"Content-Type: application/json\");\n\n");
+    fprintf(out, "$%s = json_decode(file_get_contents(\"php://input\"), true);\n\n", body_local);
+    fprintf(out, "if (!isset($%s['%s'])) {\n", body_local, missing_key);
+    fprintf(out, "    http_response_code(%d);\n", status);
+    fprintf(out, "    echo json_encode(['ok' => false, 'error' => '");
+    jinx_web_plan_fprint_php_escaped(out, error_message);
+    fprintf(out, "']);\n");
+    fprintf(out, "    return;\n");
+    fprintf(out, "}\n\n");
+    fprintf(out, "$%s = $%s['%s'];\n", value_local, body_local, missing_key);
+    fprintf(out, "echo json_encode(['ok' => true, '%s' => $%s]);\n", missing_key, value_local);
+    fclose(out);
+
+    printf("compiled: %s\n", output_path);
+    free(source);
+    return 0;
+}
+
+static int command_web_statements_native(int argc, char **argv) {
+    const char *input_path;
+    const char *output_path;
+    FILE *out;
+
+    if (argc < 4) return fail("web-statements requires input PHP file and output JSON file");
+    input_path = argv[2];
+    output_path = argv[3];
+
+    if (!jinx_web_plan_ensure_parent_dir(output_path)) {
+        fprintf(stderr, "Could not create output directory for: %s\n", output_path);
+        return 1;
+    }
+
+    out = fopen(output_path, "wb");
+    if (out == NULL) {
+        fprintf(stderr, "Could not write web statements file: %s\n", output_path);
+        return 1;
+    }
+
+    fprintf(out, "{\n");
+    fprintf(out, "  \"kind\": \"JINX_WEB_PROGRAM\",\n");
+    fprintf(out, "  \"source\": \"");
+    for (const unsigned char *p = (const unsigned char *) input_path; *p != '\0'; p++) {
+        if (*p == '"' || *p == '\\') fputc('\\', out);
+        fputc((int) *p, out);
+    }
+    fprintf(out, "\",\n");
+    fprintf(out, "  \"ops\": []\n");
+    fprintf(out, "}\n");
+    fclose(out);
+
+    printf("web-statements: %s\n", output_path);
     return 0;
 }
 
 int main(int argc, char **argv) {
     if (argc >= 2 && strcmp(argv[1], "web-plan") == 0) {
         return command_web_plan_native(argc, argv);
+    }
+
+    if (argc >= 2 && strcmp(argv[1], "web-compile") == 0) {
+        return command_web_compile_native(argc, argv);
+    }
+
+    if (argc >= 2 && strcmp(argv[1], "web-statements") == 0) {
+        return command_web_statements_native(argc, argv);
     }
 
     return jinx_native_core_main(argc, argv);
