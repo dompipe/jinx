@@ -99,6 +99,10 @@ $cases = [
     ['quoted_printable_encode', ['s:A=B']],
     ['quoted_printable_decode', ['s:A=3DB']],
     ['quoted_printable_decode', ["s:hello=\r\nworld"]],
+    ['utf8_encode', ['s:plain ASCII']],
+    ['utf8_encode', ['s:café']],
+    ['utf8_decode', ['s:plain ASCII']],
+    ['utf8_decode', ['s:café']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
