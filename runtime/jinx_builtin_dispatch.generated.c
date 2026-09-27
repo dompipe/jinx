@@ -32,6 +32,7 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
 static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
     return name != NULL && (
         strcmp(name, "count_chars") == 0 ||
+        strcmp(name, "vsprintf") == 0 ||
         strcmp(name, "implode") == 0 ||
         strcmp(name, "join") == 0 ||
         strcmp(name, "range") == 0 ||
