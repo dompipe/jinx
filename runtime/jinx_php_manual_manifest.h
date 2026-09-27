@@ -143,7 +143,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "string-byte-compare",
         "https://www.php.net/manual/en/ref.strings.php",
-        "strcmp/strcasecmp/strncmp/strncasecmp/substr_count",
+        "strcmp/strcasecmp/strncmp/strncasecmp/strnatcmp/strnatcasecmp/substr_count",
         "int",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -348,6 +348,7 @@ static inline int jinx_php_manual_name_is_zend_array_native_core(const char *nam
 static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {
     return strcmp(name, "strcmp") == 0 || strcmp(name, "strcasecmp") == 0 ||
         strcmp(name, "strncmp") == 0 || strcmp(name, "strncasecmp") == 0 ||
+        strcmp(name, "strnatcmp") == 0 || strcmp(name, "strnatcasecmp") == 0 ||
         strcmp(name, "substr_count") == 0;
 }
 
