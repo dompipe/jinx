@@ -3611,7 +3611,7 @@ JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {
 
 JinxValue jinx_call_builtin_through_oracle(
     const char *name,
-    const JinxValue *args,
+    JinxValue *args,
     size_t argc
 ) {
     if (args != NULL && argc >= 1 && jinx_oracle_name_is_zend_container_builtin(name)) {
@@ -3630,7 +3630,7 @@ JinxValue jinx_call_builtin_through_oracle(
     }
 
     JinxOracleAsmContext ctx;
-    jinx_ora_context_init(&ctx, (JinxValue *) args, (uint32_t) argc);
+    jinx_ora_context_init(&ctx, args, (uint32_t) argc);
 
     JinxValue result = wrapper(&ctx);
 
