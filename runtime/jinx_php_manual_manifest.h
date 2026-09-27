@@ -197,11 +197,20 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-array-native-core",
         "https://www.php.net/manual/en/ref.array.php",
-        "count/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_replace/array_flip/array_change_key_case",
+        "count/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_replace/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values",
         "array|bool|int|string|float",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, and case conversion."
+        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting."
+    },
+    {
+        "zend-container-value-core",
+        "https://www.php.net/manual/en/refs.basic.text.php",
+        "count_chars/implode/join/range(integer)/array_fill",
+        "string|array|bool",
+        "jinx_oracle_zend_array_dispatch_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Native container-producing or container-consuming value helpers using the JinxZendArray carrier. Range is exact for the integer form implemented here; non-integer range forms remain outside this exact subset."
     }
 };
 
@@ -308,6 +317,12 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "htmlspecialchars") == 0 || strcmp(name, "htmlspecialchars_decode") == 0;
 }
 
+static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
+    return strcmp(name, "count_chars") == 0 || strcmp(name, "implode") == 0 ||
+        strcmp(name, "join") == 0 || strcmp(name, "range") == 0 ||
+        strcmp(name, "array_fill") == 0;
+}
+
 static inline int jinx_php_manual_name_is_zend_array_native_core(const char *name) {
     return strcmp(name, "count") == 0 || strcmp(name, "array_key_exists") == 0 ||
         strcmp(name, "array_is_list") == 0 || strcmp(name, "array_values") == 0 ||
@@ -316,7 +331,8 @@ static inline int jinx_php_manual_name_is_zend_array_native_core(const char *nam
         strcmp(name, "array_product") == 0 || strcmp(name, "array_reverse") == 0 ||
         strcmp(name, "array_slice") == 0 || strcmp(name, "array_merge") == 0 ||
         strcmp(name, "array_replace") == 0 || strcmp(name, "array_flip") == 0 ||
-        strcmp(name, "array_change_key_case") == 0;
+        strcmp(name, "array_change_key_case") == 0 || strcmp(name, "array_fill_keys") == 0 ||
+        strcmp(name, "array_combine") == 0 || strcmp(name, "array_count_values") == 0;
 }
 
 static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {
@@ -341,6 +357,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_scalar_core(name)) {
         return &jinx_php_manual_handler_specs[8];
+    }
+
+    if (jinx_php_manual_name_is_zend_container_value_core(name)) {
+        return &jinx_php_manual_handler_specs[18];
     }
 
     if (jinx_php_manual_name_is_crypto(name)) {
