@@ -3831,46 +3831,6 @@ static inline JinxValue jinx_oracle_zend_array_multisort_special(
 ) {
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
-    if (strcmp(name, "array_rand") == 0) {
-        return jinx_oracle_zend_array_rand_special(args, argc);
-    }
-
-    if (strcmp(name, "array_walk") == 0 ||
-        strcmp(name, "array_walk_recursive") == 0) {
-        return jinx_oracle_zend_array_walk_named(name, args, argc);
-    }
-
-    if (strcmp(name, "array_diff_uassoc") == 0 ||
-        strcmp(name, "array_diff_ukey") == 0 ||
-        strcmp(name, "array_udiff") == 0 ||
-        strcmp(name, "array_udiff_assoc") == 0 ||
-        strcmp(name, "array_udiff_uassoc") == 0 ||
-        strcmp(name, "array_intersect_uassoc") == 0 ||
-        strcmp(name, "array_intersect_ukey") == 0 ||
-        strcmp(name, "array_uintersect") == 0 ||
-        strcmp(name, "array_uintersect_assoc") == 0 ||
-        strcmp(name, "array_uintersect_uassoc") == 0) {
-        return jinx_oracle_zend_user_diff_intersect_special(name, args, argc);
-    }
-
-    if (strcmp(name, "array_map") == 0) {
-        return jinx_oracle_zend_array_map_named(args, argc);
-    }
-    if (strcmp(name, "array_reduce") == 0) {
-        return jinx_oracle_zend_array_reduce_named(args, argc);
-    }
-    if (strcmp(name, "array_filter") == 0) {
-        return jinx_oracle_zend_array_filter_named(args, argc);
-    }
-    if (strcmp(name, "array_find") == 0 || strcmp(name, "array_find_key") == 0 ||
-        strcmp(name, "array_any") == 0 || strcmp(name, "array_all") == 0) {
-        return jinx_oracle_zend_array_predicate_named(name, args, argc);
-    }
-
-    if (strcmp(name, "array_multisort") == 0) {
-        return jinx_oracle_zend_array_multisort_special(args, argc);
-    }
-
     JinxOracleMultiSortColumn columns[32];
     size_t column_count = 0u;
     size_t row_count = SIZE_MAX;
@@ -4904,6 +4864,46 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     }
 
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "array_rand") == 0) {
+        return jinx_oracle_zend_array_rand_special(args, argc);
+    }
+
+    if (strcmp(name, "array_walk") == 0 ||
+        strcmp(name, "array_walk_recursive") == 0) {
+        return jinx_oracle_zend_array_walk_named(name, args, argc);
+    }
+
+    if (strcmp(name, "array_diff_uassoc") == 0 ||
+        strcmp(name, "array_diff_ukey") == 0 ||
+        strcmp(name, "array_udiff") == 0 ||
+        strcmp(name, "array_udiff_assoc") == 0 ||
+        strcmp(name, "array_udiff_uassoc") == 0 ||
+        strcmp(name, "array_intersect_uassoc") == 0 ||
+        strcmp(name, "array_intersect_ukey") == 0 ||
+        strcmp(name, "array_uintersect") == 0 ||
+        strcmp(name, "array_uintersect_assoc") == 0 ||
+        strcmp(name, "array_uintersect_uassoc") == 0) {
+        return jinx_oracle_zend_user_diff_intersect_special(name, args, argc);
+    }
+
+    if (strcmp(name, "array_map") == 0) {
+        return jinx_oracle_zend_array_map_named(args, argc);
+    }
+    if (strcmp(name, "array_reduce") == 0) {
+        return jinx_oracle_zend_array_reduce_named(args, argc);
+    }
+    if (strcmp(name, "array_filter") == 0) {
+        return jinx_oracle_zend_array_filter_named(args, argc);
+    }
+    if (strcmp(name, "array_find") == 0 || strcmp(name, "array_find_key") == 0 ||
+        strcmp(name, "array_any") == 0 || strcmp(name, "array_all") == 0) {
+        return jinx_oracle_zend_array_predicate_named(name, args, argc);
+    }
+
+    if (strcmp(name, "array_multisort") == 0) {
+        return jinx_oracle_zend_array_multisort_special(args, argc);
+    }
 
     if (strcmp(name, "sort") == 0 || strcmp(name, "rsort") == 0 ||
         strcmp(name, "asort") == 0 || strcmp(name, "arsort") == 0 ||
