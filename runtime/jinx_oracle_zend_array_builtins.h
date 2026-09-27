@@ -1687,6 +1687,178 @@ fail:
     return jinx_oracle_zero_value();
 }
 
+
+static inline JinxZendArray *jinx_oracle_zend_clone_live_array(JinxZendArray *array) {
+    if (array == 0) return 0;
+
+    size_t live = jinx_zend_array_live_count(array);
+    JinxZendArray *copy = jinx_zend_array_new_packed(live == 0u ? 1u : live);
+    if (copy == 0) return 0;
+
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (!jinx_oracle_zend_add_bucket(copy, bucket, 1)) {
+            jinx_zend_array_release(copy);
+            return 0;
+        }
+    }
+
+    return copy;
+}
+
+static inline JinxZendValue *jinx_oracle_zend_array_value_for_bucket_key(
+    JinxZendArray *array,
+    const JinxZendBucket *bucket
+) {
+    if (array == 0 || bucket == 0) return 0;
+    return bucket->key != 0
+        ? jinx_zend_array_find(array, bucket->key->bytes, bucket->key->len)
+        : jinx_zend_array_index(array, (size_t)bucket->h);
+}
+
+static inline int jinx_oracle_zend_array_store_bucket_key(
+    JinxZendArray *array,
+    const JinxZendBucket *bucket,
+    JinxZendValue value
+) {
+    if (array == 0 || bucket == 0) return 0;
+    return bucket->key != 0
+        ? jinx_zend_array_add_assoc(array, bucket->key->bytes, bucket->key->len, value)
+        : jinx_zend_array_add_index(array, (size_t)bucket->h, value);
+}
+
+static inline int jinx_oracle_zend_merge_recursive_into(
+    JinxZendArray *target,
+    JinxZendArray *source,
+    size_t depth
+) {
+    if (target == 0 || source == 0 || depth >= 128u) return 0;
+
+    size_t live = jinx_zend_array_live_count(source);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(source, i);
+        if (bucket == 0) return 0;
+
+        if (bucket->key == 0) {
+            if (!jinx_zend_array_append(target, bucket->value)) return 0;
+            continue;
+        }
+
+        JinxZendValue *existing = jinx_zend_array_find(target, bucket->key->bytes, bucket->key->len);
+        if (existing == 0) {
+            if (!jinx_zend_array_add_assoc(target, bucket->key->bytes, bucket->key->len, bucket->value)) return 0;
+            continue;
+        }
+
+        JinxZendArray *merged;
+        if (existing->type == JINX_ZEND_ARRAY && existing->value.array != 0) {
+            merged = jinx_oracle_zend_clone_live_array(existing->value.array);
+        } else {
+            merged = jinx_zend_array_new_packed(2u);
+            if (merged != 0 && !jinx_zend_array_append(merged, *existing)) {
+                jinx_zend_array_release(merged);
+                merged = 0;
+            }
+        }
+
+        if (merged == 0) return 0;
+
+        if (bucket->value.type == JINX_ZEND_ARRAY && bucket->value.value.array != 0) {
+            if (!jinx_oracle_zend_merge_recursive_into(merged, bucket->value.value.array, depth + 1u)) {
+                jinx_zend_array_release(merged);
+                return 0;
+            }
+        } else if (!jinx_zend_array_append(merged, bucket->value)) {
+            jinx_zend_array_release(merged);
+            return 0;
+        }
+
+        JinxZendValue merged_value = jinx_zend_array_value(merged);
+        int ok = jinx_zend_array_add_assoc(target, bucket->key->bytes, bucket->key->len, merged_value);
+        jinx_zend_array_release(merged);
+        if (!ok) return 0;
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_zend_array_merge_recursive_special(const JinxValue *args, size_t argc) {
+    if (argc < 1u) return jinx_oracle_zero_value();
+
+    JinxZendArray *first = jinx_oracle_zend_array_ptr(args[0]);
+    if (first == 0) return jinx_oracle_zero_value();
+
+    JinxZendArray *result = jinx_oracle_zend_clone_live_array(first);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 1u; i < argc; i++) {
+        JinxZendArray *next = jinx_oracle_zend_array_ptr(args[i]);
+        if (next == 0 || !jinx_oracle_zend_merge_recursive_into(result, next, 0u)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
+static inline int jinx_oracle_zend_replace_recursive_into(
+    JinxZendArray *target,
+    JinxZendArray *source,
+    size_t depth
+) {
+    if (target == 0 || source == 0 || depth >= 128u) return 0;
+
+    size_t live = jinx_zend_array_live_count(source);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(source, i);
+        if (bucket == 0) return 0;
+
+        JinxZendValue *existing = jinx_oracle_zend_array_value_for_bucket_key(target, bucket);
+
+        if (existing != 0 &&
+            existing->type == JINX_ZEND_ARRAY && existing->value.array != 0 &&
+            bucket->value.type == JINX_ZEND_ARRAY && bucket->value.value.array != 0) {
+            JinxZendArray *nested = jinx_oracle_zend_clone_live_array(existing->value.array);
+            if (nested == 0 ||
+                !jinx_oracle_zend_replace_recursive_into(nested, bucket->value.value.array, depth + 1u)) {
+                jinx_zend_array_release(nested);
+                return 0;
+            }
+
+            JinxZendValue nested_value = jinx_zend_array_value(nested);
+            int ok = jinx_oracle_zend_array_store_bucket_key(target, bucket, nested_value);
+            jinx_zend_array_release(nested);
+            if (!ok) return 0;
+            continue;
+        }
+
+        if (!jinx_oracle_zend_array_store_bucket_key(target, bucket, bucket->value)) return 0;
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_zend_array_replace_recursive_special(const JinxValue *args, size_t argc) {
+    if (argc < 1u) return jinx_oracle_zero_value();
+
+    JinxZendArray *first = jinx_oracle_zend_array_ptr(args[0]);
+    if (first == 0) return jinx_oracle_zero_value();
+
+    JinxZendArray *result = jinx_oracle_zend_clone_live_array(first);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 1u; i < argc; i++) {
+        JinxZendArray *next = jinx_oracle_zend_array_ptr(args[i]);
+        if (next == 0 || !jinx_oracle_zend_replace_recursive_into(result, next, 0u)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
@@ -1763,8 +1935,14 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     if (strcmp(name, "array_merge") == 0) {
         return jinx_oracle_zend_array_value_owned(jinx_oracle_zend_array_merge_core(args, argc, 0));
     }
+    if (strcmp(name, "array_merge_recursive") == 0) {
+        return jinx_oracle_zend_array_merge_recursive_special(args, argc);
+    }
     if (strcmp(name, "array_replace") == 0) {
         return jinx_oracle_zend_array_value_owned(jinx_oracle_zend_array_merge_core(args, argc, 1));
+    }
+    if (strcmp(name, "array_replace_recursive") == 0) {
+        return jinx_oracle_zend_array_replace_recursive_special(args, argc);
     }
     if (strcmp(name, "array_flip") == 0) {
         return jinx_oracle_zend_array_value_owned(jinx_oracle_zend_array_flip_core(array));
