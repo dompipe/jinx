@@ -197,11 +197,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-array-native-core",
         "https://www.php.net/manual/en/ref.array.php",
-        "count/in_array(scalar)/array_search(scalar)/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_merge_recursive/array_replace/array_replace_recursive/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_filter(null callback)/array_push/array_pop/array_shift/array_unshift/array_splice/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key",
+        "min/max(numeric scalar variadic or numeric carried array)/count/in_array(scalar)/array_search(scalar)/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_merge_recursive/array_replace/array_replace_recursive/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_filter(null callback)/array_push/array_pop/array_shift/array_unshift/array_splice/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key",
         "array|bool|int|string|float",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting."
+        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting. min/max are exact here for PHP-parity-tested native int/float scalar variadics and single carried arrays, preserving the first winning value/type on ties; PHP mixed-type/object comparison rules remain outside this subset."
     },
     {
         "zend-container-value-core",
@@ -355,7 +355,8 @@ static inline int jinx_php_manual_name_is_zend_container_value_core(const char *
 }
 
 static inline int jinx_php_manual_name_is_zend_array_native_core(const char *name) {
-    return strcmp(name, "count") == 0 || strcmp(name, "array_key_exists") == 0 ||
+    return strcmp(name, "min") == 0 || strcmp(name, "max") == 0 ||
+        strcmp(name, "count") == 0 || strcmp(name, "array_key_exists") == 0 ||
         strcmp(name, "array_is_list") == 0 || strcmp(name, "array_values") == 0 ||
         strcmp(name, "array_keys") == 0 || strcmp(name, "array_key_first") == 0 ||
         strcmp(name, "array_key_last") == 0 || strcmp(name, "array_sum") == 0 ||
