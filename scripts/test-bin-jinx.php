@@ -43,6 +43,7 @@ $tests = [
     'scripts/test-oracle-loop-execution.php' => 'PASS: Oracle executes loop PHP subset',
     'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
     'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
+    'scripts/test-native-no-fabricated-builtins.php' => 'PASS: unsupported native builtins fault instead of returning fabricated values',
     'scripts/test-native-math-core-oracle-asm.php' => 'PASS: native Oracle ASM math-core and cosine handlers match PHP',
     'scripts/test-native-pure-core-oracle-asm.php' => 'PASS: native Oracle ASM pure scalar/string core matches PHP',
     'scripts/test-native-zend-array-core-oracle-asm.php' => 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics',
