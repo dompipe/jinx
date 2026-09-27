@@ -1080,6 +1080,58 @@ int main(void) {
     }
     jinx_zend_array_release(query_data);
 
+    args[0] = jinx_oracle_string_value("/www/htdocs/inc/lib.inc.php");
+    result = jinx_call_builtin_through_oracle("pathinfo", args, 1);
+    if (!expect_array_count(result, 4)) return fail("pathinfo full count");
+    JinxZendArray *path_parts = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *pi_dir = jinx_zend_array_find(path_parts, "dirname", 7);
+    JinxZendValue *pi_base = jinx_zend_array_find(path_parts, "basename", 8);
+    JinxZendValue *pi_ext = jinx_zend_array_find(path_parts, "extension", 9);
+    JinxZendValue *pi_file = jinx_zend_array_find(path_parts, "filename", 8);
+    if (pi_dir == 0 || pi_dir->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(pi_dir->value.str, "/www/htdocs/inc", 15) ||
+        pi_base == 0 || pi_base->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(pi_base->value.str, "lib.inc.php", 11) ||
+        pi_ext == 0 || pi_ext->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(pi_ext->value.str, "php", 3) ||
+        pi_file == 0 || pi_file->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(pi_file->value.str, "lib.inc", 7)) {
+        return fail("pathinfo full values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("/some/path/.test");
+    result = jinx_call_builtin_through_oracle("pathinfo", args, 1);
+    if (!expect_array_count(result, 4)) return fail("pathinfo dotfile count");
+    path_parts = jinx_oracle_zend_array_ptr(result);
+    pi_ext = jinx_zend_array_find(path_parts, "extension", 9);
+    pi_file = jinx_zend_array_find(path_parts, "filename", 8);
+    if (pi_ext == 0 || pi_ext->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(pi_ext->value.str, "test", 4) ||
+        pi_file == 0 || pi_file->type != JINX_ZEND_STRING || pi_file->value.str->len != 0u) {
+        return fail("pathinfo dotfile values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("/path/noextension");
+    result = jinx_call_builtin_through_oracle("pathinfo", args, 1);
+    if (!expect_array_count(result, 3)) return fail("pathinfo no-extension count");
+    path_parts = jinx_oracle_zend_array_ptr(result);
+    if (jinx_zend_array_find(path_parts, "extension", 9) != 0) {
+        return fail("pathinfo no-extension key");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("/www/htdocs/inc/lib.inc.php");
+    args[1] = jinx_oracle_int_value(1);
+    if (!expect_string(jinx_call_builtin_through_oracle("pathinfo", args, 2), "/www/htdocs/inc")) return fail("pathinfo dirname flag");
+    args[1] = jinx_oracle_int_value(2);
+    if (!expect_string(jinx_call_builtin_through_oracle("pathinfo", args, 2), "lib.inc.php")) return fail("pathinfo basename flag");
+    args[1] = jinx_oracle_int_value(4);
+    if (!expect_string(jinx_call_builtin_through_oracle("pathinfo", args, 2), "php")) return fail("pathinfo extension flag");
+    args[1] = jinx_oracle_int_value(8);
+    if (!expect_string(jinx_call_builtin_through_oracle("pathinfo", args, 2), "lib.inc")) return fail("pathinfo filename flag");
+
     args[0] = jinx_oracle_string_value("first=value&arr[]=foo+bar&arr[]=baz&My+Value=Something&nested[x][0]=yes");
     args[1] = jinx_oracle_zero_value();
     result = jinx_call_builtin_through_oracle("parse_str", args, 2);
@@ -1187,7 +1239,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
