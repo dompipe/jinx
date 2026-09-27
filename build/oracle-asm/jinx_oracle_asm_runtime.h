@@ -527,6 +527,10 @@ static inline double jinx_oracle_floatish(JinxValue value) {
     return (double)jinx_oracle_intish(value);
 }
 
+static inline double jinx_oracle_pi(void) {
+    return acos(-1.0);
+}
+
 static inline void jinx_oracle_return(JinxOracleAsmContext *ctx, JinxValue value) {
     if (ctx != NULL) {
         ctx->fault = NULL;
@@ -721,6 +725,36 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             int64_t value = jinx_oracle_intish(arg0);
             ret = jinx_oracle_int_value(value < 0 ? -value : value);
         }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in8(name, "fmod", "intdiv", "deg2rad", "rad2deg", "pi", "hypot", "is_finite", "is_infinite") ||
+        jinx_oracle_name_is(name, "is_nan")) {
+        double x = jinx_oracle_floatish(arg0);
+        double y = argc > 1u ? jinx_oracle_floatish(arg1) : 0.0;
+
+        if (jinx_oracle_name_is(name, "fmod")) {
+            ret = jinx_oracle_float_value(fmod(x, y));
+        } else if (jinx_oracle_name_is(name, "intdiv")) {
+            int64_t divisor = jinx_oracle_intish(arg1);
+            ret = jinx_oracle_int_value(divisor == 0 ? 0 : jinx_oracle_intish(arg0) / divisor);
+        } else if (jinx_oracle_name_is(name, "deg2rad")) {
+            ret = jinx_oracle_float_value(x * jinx_oracle_pi() / 180.0);
+        } else if (jinx_oracle_name_is(name, "rad2deg")) {
+            ret = jinx_oracle_float_value(x * 180.0 / jinx_oracle_pi());
+        } else if (jinx_oracle_name_is(name, "pi")) {
+            ret = jinx_oracle_float_value(jinx_oracle_pi());
+        } else if (jinx_oracle_name_is(name, "hypot")) {
+            ret = jinx_oracle_float_value(hypot(x, y));
+        } else if (jinx_oracle_name_is(name, "is_finite")) {
+            ret = jinx_oracle_bool_value(isfinite(x));
+        } else if (jinx_oracle_name_is(name, "is_infinite")) {
+            ret = jinx_oracle_bool_value(isinf(x));
+        } else {
+            ret = jinx_oracle_bool_value(isnan(x));
+        }
+
         jinx_oracle_return(ctx, ret);
         return ret;
     }

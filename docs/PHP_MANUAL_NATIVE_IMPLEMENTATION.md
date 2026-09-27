@@ -89,6 +89,7 @@ This is not native ASM completion. The manifest state is `php-fallback` until ex
 | `count` | `count(Countable|array $value, int $mode = COUNT_NORMAL): int` | exact | Exact for native array-count model; real PHP arrays use fallback until native storage exists. |
 | `abs` | `abs(int|float $num): int|float` | exact | Preserves int versus float return family for native values. |
 | math trig/log | PHP math reference | exact | Uses C libm for scalar native values. |
+| math core | `fmod`/`intdiv`/`deg2rad`/`rad2deg`/`pi`/`hypot`/`is_finite`/`is_infinite`/`is_nan` | exact | Uses C arithmetic and libm for native scalar `JinxValue` inputs. |
 | `str_contains` | `str_contains(string $haystack, string $needle): bool` | exact | Binary-safe byte substring including empty needle. |
 | `str_starts_with` | `str_starts_with(string $haystack, string $needle): bool` | exact | Binary-safe byte prefix including empty needle. |
 | `str_ends_with` | `str_ends_with(string $haystack, string $needle): bool` | exact | Binary-safe byte suffix including empty needle. |

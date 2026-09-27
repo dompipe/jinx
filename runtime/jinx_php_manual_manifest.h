@@ -69,6 +69,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "Backed by C libm for native scalar JinxValue inputs. PHP warning surface is outside the current scalar native value model."
     },
     {
+        "math-core",
+        "https://www.php.net/manual/en/ref.math.php",
+        "fmod/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan",
+        "int|float|bool",
+        "jinx_oracle_asm_call_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Backed by C arithmetic and libm for native scalar JinxValue inputs; exceptional warning/error paths stay outside the current scalar native value model."
+    },
+    {
         "str_contains",
         "https://www.php.net/manual/en/function.str-contains.php",
         "str_contains(string $haystack, string $needle): bool",
