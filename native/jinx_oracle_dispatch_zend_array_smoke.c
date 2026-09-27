@@ -213,6 +213,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
+    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
