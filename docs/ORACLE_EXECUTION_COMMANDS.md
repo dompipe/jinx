@@ -34,10 +34,12 @@ Current native coverage:
 
 - `json_validate()`: strict JSON parser with PHP-compatible whitespace, literals, number grammar, strings/escapes, UTF-8 checks, UTF-16 surrogate pairing, arrays/objects, depth, and `JSON_INVALID_UTF8_IGNORE`.
 - `json_decode()`: associative-object slice only. Native routing is enabled for explicit `$associative = true`, or `$associative = null` with `JSON_OBJECT_AS_ARRAY`. The decoder covers nested arrays/associative objects, scalar values, Unicode escapes, depth, and `JSON_BIGINT_AS_STRING`.
-- `json_last_error()` and `json_last_error_msg()`: shared native error state for the promoted validate/decode paths. The Zend-array smoke proves syntax-error state and successful reset against PHP in the same process.
-- `json_encode()`: PHP-level Oracle execution remains covered by `json-encode-builtins`; native ASM encode is not promoted yet.
+- `json_encode()`: native options-zero encoding for scalar values and carried Zend arrays, including PHP list-vs-object array shape, default string/control/slash escaping, Unicode `\\u` escapes and surrogate pairs, depth/recursion checks, invalid-UTF-8 failure, and shared error state. The earlier PHP-level Oracle `json-encode-builtins` fixture remains as a separate execution-layer check.
+- `json_last_error()` and `json_last_error_msg()`: shared native error state for the promoted validate/decode/encode paths. The Zend-array smoke proves decode syntax state, encode UTF-8 state, and successful resets against PHP in the same process.
 
 Not yet claimed for native `json_decode()`: explicit `$associative = false` / `stdClass` construction, `JSON_INVALID_UTF8_IGNORE`, `JSON_INVALID_UTF8_SUBSTITUTE`, `JSON_THROW_ON_ERROR`, or broader object semantics. Explicit false overrides `JSON_OBJECT_AS_ARRAY`, matching PHP's compatibility rule, so that case is deliberately kept off the associative carrier.
+
+Not yet claimed for native `json_encode()`: flag-bearing modes such as pretty/unescaped/hex/force-object/partial-output/throw behavior, general PHP objects or `JsonSerializable`, and full-domain floating-point byte parity.
 
 ## Native benchmarks
 
