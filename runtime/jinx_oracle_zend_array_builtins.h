@@ -3,6 +3,7 @@
 
 #include "jinx_oracle_zend_array_carrier.h"
 #include "jinx_zend_array_delete.h"
+#include "jinx_builtin_dispatch.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -3955,6 +3956,146 @@ static inline JinxValue jinx_oracle_zend_array_multisort_special(
     }
 
     return jinx_oracle_bool_value(1);
+}
+
+
+static inline int jinx_oracle_zend_to_jinx_borrowed(
+    JinxZendValue value,
+    JinxValue *out
+) {
+    if (out == 0) return 0;
+
+    if (value.type == JINX_ZEND_NULL) {
+        *out = jinx_oracle_zero_value();
+        return 1;
+    }
+    if (value.type == JINX_ZEND_FALSE) {
+        *out = jinx_oracle_bool_value(0);
+        return 1;
+    }
+    if (value.type == JINX_ZEND_TRUE) {
+        *out = jinx_oracle_bool_value(1);
+        return 1;
+    }
+    if (value.type == JINX_ZEND_LONG) {
+        *out = jinx_oracle_int_value(value.value.lval);
+        return 1;
+    }
+    if (value.type == JINX_ZEND_DOUBLE) {
+        *out = jinx_oracle_float_value(value.value.dval);
+        return 1;
+    }
+    if (value.type == JINX_ZEND_STRING && value.value.str != 0) {
+        if (value.value.str->len > UINT32_MAX) return 0;
+        *out = jinx_oracle_string_value_len(
+            value.value.str->bytes,
+            (uint32_t)value.value.str->len
+        );
+        return 1;
+    }
+    if (value.type == JINX_ZEND_ARRAY && value.value.array != 0) {
+        *out = jinx_oracle_zend_array_value_borrowed(value.value.array);
+        return 1;
+    }
+
+    return 0;
+}
+
+static inline int jinx_oracle_callback_truthy(JinxValue value) {
+    if (jinx_oracle_value_is_zend_array(value)) {
+        JinxZendArray *array = jinx_oracle_zend_array_ptr(value);
+        return array != 0 && jinx_zend_array_live_count(array) != 0u;
+    }
+    return jinx_oracle_boolish(value);
+}
+
+static inline int jinx_oracle_invoke_named_callback(
+    JinxValue callback,
+    JinxValue *args,
+    size_t argc,
+    JinxValue *result
+) {
+    if (result == 0 || callback.type != 3u || callback.as.ptr == 0) return 0;
+
+    const unsigned char *bytes = jinx_oracle_string_bytes(callback);
+    uint32_t len = jinx_oracle_string_len(callback);
+    if (len == 0u) return 0;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (bytes[i] == 0u) return 0;
+    }
+
+    char *name = (char *)malloc((size_t)len + 1u);
+    if (name == 0) return 0;
+    memcpy(name, bytes, len);
+    name[len] = '\0';
+
+    int ok = 0;
+    *result = jinx_call_builtin_through_oracle_checked(name, args, argc, &ok);
+    free(name);
+    return ok;
+}
+
+static inline int jinx_oracle_zend_owned_from_jinx(
+    JinxValue value,
+    JinxZendValue *out
+) {
+    if (out == 0) return 0;
+
+    JinxZendValue temporary;
+    JinxZendString *owned_string = 0;
+    if (!jinx_oracle_jinx_value_to_zend(value, &temporary, &owned_string)) {
+        return 0;
+    }
+
+    *out = jinx_zend_value_copy(temporary);
+    jinx_zend_string_release(owned_string);
+    return 1;
+}
+
+static inline int jinx_oracle_store_callback_result(
+    JinxZendArray *target,
+    const JinxZendBucket *source_bucket,
+    int preserve_key,
+    JinxValue callback_result
+) {
+    if (target == 0) {
+        jinx_oracle_zend_array_value_release(callback_result);
+        return 0;
+    }
+
+    JinxZendValue zend_result;
+    JinxZendString *owned_string = 0;
+    if (!jinx_oracle_jinx_value_to_zend(
+        callback_result,
+        &zend_result,
+        &owned_string
+    )) {
+        jinx_oracle_zend_array_value_release(callback_result);
+        return 0;
+    }
+
+    int ok;
+    if (preserve_key && source_bucket != 0) {
+        ok = source_bucket->key != 0
+            ? jinx_zend_array_add_assoc(
+                target,
+                source_bucket->key->bytes,
+                source_bucket->key->len,
+                zend_result
+            )
+            : jinx_zend_array_add_index(
+                target,
+                (size_t)source_bucket->h,
+                zend_result
+            );
+    } else {
+        ok = jinx_zend_array_append(target, zend_result);
+    }
+
+    jinx_zend_string_release(owned_string);
+    jinx_oracle_zend_array_value_release(callback_result);
+    return ok;
 }
 
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
