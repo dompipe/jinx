@@ -5355,12 +5355,14 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in8(name, "fmod", "intdiv", "deg2rad", "rad2deg", "pi", "hypot", "is_finite", "is_infinite") ||
-        jinx_oracle_name_is(name, "is_nan")) {
+        jinx_oracle_name_in2(name, "is_nan", "fdiv")) {
         double x = jinx_oracle_floatish(arg0);
         double y = argc > 1u ? jinx_oracle_floatish(arg1) : 0.0;
 
         if (jinx_oracle_name_is(name, "fmod")) {
             ret = jinx_oracle_float_value(fmod(x, y));
+        } else if (jinx_oracle_name_is(name, "fdiv")) {
+            ret = jinx_oracle_float_value(x / y);
         } else if (jinx_oracle_name_is(name, "intdiv")) {
             int64_t dividend = jinx_oracle_intish(arg0);
             int64_t divisor = jinx_oracle_intish(arg1);
@@ -5442,7 +5444,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_in8(name, "acos", "acosh", "asin", "asinh", "atan", "atanh", "cos", "cosh") ||
         jinx_oracle_name_in8(name, "atan2", "ceil", "floor", "sqrt", "sin", "sinh", "tan", "tanh") ||
-        jinx_oracle_name_in4(name, "exp", "expm1", "log", "log10")) {
+        jinx_oracle_name_in4(name, "exp", "expm1", "log", "log10") ||
+        jinx_oracle_name_is(name, "log1p")) {
         double x = jinx_oracle_floatish(arg0);
         double y = argc > 1 ? jinx_oracle_floatish(arg1) : 0.0;
 
@@ -5482,6 +5485,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ret = jinx_oracle_float_value(log(x));
         } else if (jinx_oracle_name_is(name, "log10")) {
             ret = jinx_oracle_float_value(log10(x));
+        } else if (jinx_oracle_name_is(name, "log1p")) {
+            ret = jinx_oracle_float_value(log1p(x));
         } else {
             ret = jinx_oracle_float_value(cos(x));
         }
