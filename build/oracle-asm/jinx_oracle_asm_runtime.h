@@ -2505,6 +2505,87 @@ static inline int jinx_oracle_string_compare_value(JinxValue left_value, JinxVal
     return left_len < right_len ? -1 : 1;
 }
 
+static inline JinxValue jinx_oracle_strcoll_value(JinxValue left_value, JinxValue right_value) {
+    uint32_t left_len = jinx_oracle_string_len(left_value);
+    uint32_t right_len = jinx_oracle_string_len(right_value);
+    const unsigned char *left_bytes = jinx_oracle_string_bytes(left_value);
+    const unsigned char *right_bytes = jinx_oracle_string_bytes(right_value);
+    char *left = (char *)malloc((size_t)left_len + 1u);
+    char *right = (char *)malloc((size_t)right_len + 1u);
+
+    if (left == NULL || right == NULL) {
+        free(left);
+        free(right);
+        return jinx_oracle_zero_value();
+    }
+
+    if (left_len != 0u) memcpy(left, left_bytes, left_len);
+    if (right_len != 0u) memcpy(right, right_bytes, right_len);
+    left[left_len] = '\0';
+    right[right_len] = '\0';
+
+    int result = strcoll(left, right);
+    free(left);
+    free(right);
+    return jinx_oracle_int_value((int64_t)result);
+}
+
+static inline JinxValue jinx_oracle_substr_replace_scalar_value(
+    JinxValue string_value,
+    JinxValue replacement_value,
+    JinxValue start_value,
+    JinxValue length_value,
+    uint32_t argc
+) {
+    const unsigned char *string = jinx_oracle_string_bytes(string_value);
+    const unsigned char *replacement = jinx_oracle_string_bytes(replacement_value);
+    uint32_t string_len = jinx_oracle_string_len(string_value);
+    uint32_t replacement_len = jinx_oracle_string_len(replacement_value);
+    int64_t start = jinx_oracle_intish(start_value);
+    int64_t length = argc >= 4u && length_value.type != 0u
+        ? jinx_oracle_intish(length_value)
+        : (int64_t)string_len;
+
+    if (start < 0) {
+        start = (int64_t)string_len + start;
+        if (start < 0) start = 0;
+    } else if (start > (int64_t)string_len) {
+        start = (int64_t)string_len;
+    }
+
+    if (length < 0) {
+        length = ((int64_t)string_len - start) + length;
+        if (length < 0) length = 0;
+    }
+
+    if (length > (int64_t)string_len) length = (int64_t)string_len;
+    if (start + length > (int64_t)string_len) length = (int64_t)string_len - start;
+
+    uint64_t needed = (uint64_t)string_len - (uint64_t)length + (uint64_t)replacement_len;
+    if (needed > UINT32_MAX) return jinx_oracle_zero_value();
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+
+    if (start > 0) {
+        memcpy(out, string, (size_t)start);
+        pos = (uint32_t)start;
+    }
+    if (replacement_len != 0u) {
+        memcpy(out + pos, replacement, replacement_len);
+        pos += replacement_len;
+    }
+
+    uint32_t tail_start = (uint32_t)(start + length);
+    uint32_t tail_len = string_len - tail_start;
+    if (tail_len != 0u) {
+        memcpy(out + pos, string + tail_start, tail_len);
+        pos += tail_len;
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
 static inline int jinx_oracle_binary_strncmp_bytes(
     const unsigned char *left,
     uint32_t left_len,
@@ -3751,6 +3832,36 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "convert_uudecode")) {
         ret = jinx_oracle_uudecode_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "strcoll")) {
+        ret = jinx_oracle_strcoll_value(arg0, arg1);
+        if (ret.type == 0u) {
+            ctx->fault = "strcoll native allocation failed";
+            return ret;
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "substr_replace")) {
+        if (arg0.type != 3u || arg1.type != 3u) {
+            ctx->fault = "substr_replace array overload is not native yet";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_substr_replace_scalar_value(
+            arg0,
+            arg1,
+            jinx_oracle_call_arg(ctx, 2u),
+            jinx_oracle_call_arg(ctx, 3u),
+            argc
+        );
+        if (ret.type == 0u) {
+            ctx->fault = "substr_replace native allocation failed";
+            return ret;
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
