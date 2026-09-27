@@ -1080,6 +1080,33 @@ int main(void) {
     }
     jinx_zend_array_release(query_data);
 
+    result = jinx_call_builtin_through_oracle("localeconv", args, 0);
+    if (!expect_array_count(result, 18)) return fail("localeconv field count");
+    JinxZendArray *locale_info = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *locale_decimal = jinx_zend_array_find(locale_info, "decimal_point", 13);
+    JinxZendValue *locale_thousands = jinx_zend_array_find(locale_info, "thousands_sep", 13);
+    JinxZendValue *locale_frac = jinx_zend_array_find(locale_info, "frac_digits", 11);
+    JinxZendValue *locale_grouping = jinx_zend_array_find(locale_info, "grouping", 8);
+    JinxZendValue *locale_mon_grouping = jinx_zend_array_find(locale_info, "mon_grouping", 12);
+    if (locale_decimal == 0 || locale_decimal->type != JINX_ZEND_STRING ||
+        locale_thousands == 0 || locale_thousands->type != JINX_ZEND_STRING ||
+        locale_frac == 0 || locale_frac->type != JINX_ZEND_LONG ||
+        locale_grouping == 0 || locale_grouping->type != JINX_ZEND_ARRAY ||
+        locale_mon_grouping == 0 || locale_mon_grouping->type != JINX_ZEND_ARRAY) {
+        return fail("localeconv field types");
+    }
+    printf(
+        "LOCALE:decimal=%.*s;thousands=%.*s;frac=%lld;grouping=%zu;mon_grouping=%zu\n",
+        (int)locale_decimal->value.str->len,
+        locale_decimal->value.str->bytes,
+        (int)locale_thousands->value.str->len,
+        locale_thousands->value.str->bytes,
+        (long long)locale_frac->value.lval,
+        jinx_zend_array_live_count(locale_grouping->value.array),
+        jinx_zend_array_live_count(locale_mon_grouping->value.array)
+    );
+    jinx_oracle_zend_array_value_release(result);
+
     args[0] = jinx_oracle_string_value("/www/htdocs/inc/lib.inc.php");
     result = jinx_call_builtin_through_oracle("pathinfo", args, 1);
     if (!expect_array_count(result, 4)) return fail("pathinfo full count");
