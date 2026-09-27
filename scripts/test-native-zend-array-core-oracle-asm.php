@@ -101,6 +101,11 @@ $queryData = [
 $query1738 = http_build_query($queryData, 'flags_', null, PHP_QUERY_RFC1738);
 $query3986 = http_build_query($queryData, 'flags_', null, PHP_QUERY_RFC3986);
 
+parse_str(
+    'first=value&arr[]=foo+bar&arr[]=baz&My+Value=Something&nested[x][0]=yes',
+    $parsedQuery
+);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -184,7 +189,12 @@ $expectedParity = 'PARITY:'
         . (array_key_exists('fragment', $parsedUrlEmpty) && $parsedUrlEmpty['fragment'] === '' ? '1' : '0')
     . ';url_component=' . $parsedUrlHost . '|' . $parsedUrlPort
     . ';query1738=' . $query1738
-    . ';query3986=' . $query3986;
+    . ';query3986=' . $query3986
+    . ';parse_str='
+        . $parsedQuery['first'] . '|'
+        . implode(',', $parsedQuery['arr']) . '|'
+        . $parsedQuery['My_Value'] . '|'
+        . $parsedQuery['nested']['x'][0];
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
