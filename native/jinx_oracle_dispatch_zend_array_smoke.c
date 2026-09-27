@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "../runtime/jinx_builtin_dispatch.h"
 #include "../runtime/jinx_oracle_zend_array_carrier.h"
@@ -216,6 +217,15 @@ int main(void) {
     result = jinx_call_builtin_through_oracle("vsprintf", args, 2);
     if (!expect_string(result, "There are 7 million bicycles in Amsterdam.")) return fail("vsprintf");
     jinx_zend_array_release(vs_values);
+
+    args[0] = jinx_oracle_string_value("bafoobar");
+    args[1] = jinx_oracle_string_value("barfoo");
+    args[2] = jinx_oracle_float_value(0.0);
+    result = jinx_call_builtin_through_oracle("similar_text", args, 3);
+    if (!expect_int(result, 5)) return fail("similar_text return");
+    if (args[2].type != 5u || fabs(args[2].as.f64 - 71.42857142857143) > 1e-12) {
+        return fail("similar_text by-reference percent");
+    }
 
     args[0] = jinx_oracle_int_value(1);
     args[1] = jinx_oracle_int_value(5);
