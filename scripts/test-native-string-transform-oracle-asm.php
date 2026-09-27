@@ -32,6 +32,16 @@ $cases = [
     ['strpos', ['s:oracle', 's:ac', 'i:0'], 'int:2'],
     ['strpos', ['s:oracle', 's:zz', 'i:0'], 'bool:false'],
     ['str_repeat', ['s:ab', 'i:3'], 'string:ababab'],
+    ['strcmp', ['s:abc', 's:abd'], 'int:-1'],
+    ['strcmp', ['s:a', 's:z'], 'int:-25'],
+    ['strcasecmp', ['s:AbC', 's:abc'], 'int:0'],
+    ['strcasecmp', ['s:B', 's:a'], 'int:1'],
+    ['strncmp', ['s:abcdef', 's:abcxyz', 'i:3'], 'int:0'],
+    ['strncasecmp', ['s:AbCd', 's:abcZ', 'i:3'], 'int:0'],
+    ['substr_count', ['s:banana', 's:na'], 'int:2'],
+    ['substr_count', ['s:aaaa', 's:aa'], 'int:2'],
+    ['substr_count', ['s:banana', 's:na', 'i:3'], 'int:1'],
+    ['substr_count', ['s:banana', 's:na', 'i:0', 'i:4'], 'int:1'],
 ];
 
 foreach ($cases as [$function, $args, $expected]) {

@@ -141,6 +141,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "Exact for ASCII byte transforms, default trim characters, and bounded byte primitives in the current native JinxValue string model."
     },
     {
+        "string-byte-compare",
+        "https://www.php.net/manual/en/ref.strings.php",
+        "strcmp/strcasecmp/strncmp/strncasecmp/substr_count",
+        "int",
+        "jinx_oracle_asm_call_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Exact byte comparisons and non-overlapping substring counts for the current native JinxValue string model; exceptional empty-needle paths remain outside the scalar CLI model."
+    },
+    {
         "string-transform",
         "https://www.php.net/manual/en/ref.strings.php",
         "basename/bin2hex/chr/dirname/strtolower/strtoupper/trim/etc.",
@@ -253,6 +262,12 @@ static inline int jinx_php_manual_name_is_string_byte_transform(const char *name
         strcmp(name, "strpos") == 0 || strcmp(name, "str_repeat") == 0;
 }
 
+static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {
+    return strcmp(name, "strcmp") == 0 || strcmp(name, "strcasecmp") == 0 ||
+        strcmp(name, "strncmp") == 0 || strcmp(name, "strncasecmp") == 0 ||
+        strcmp(name, "substr_count") == 0;
+}
+
 static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char *name) {
     unsigned long i;
 
@@ -279,6 +294,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         return &jinx_php_manual_handler_specs[10];
     }
 
+    if (jinx_php_manual_name_is_string_byte_compare(name)) {
+        return &jinx_php_manual_handler_specs[11];
+    }
+
     if (jinx_php_manual_name_is_math_trig_log(name)) {
         return &jinx_php_manual_handler_specs[3];
     }
@@ -288,12 +307,12 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
     }
 
     if (jinx_php_manual_name_starts(name, "array_")) {
-        return &jinx_php_manual_handler_specs[12];
+        return &jinx_php_manual_handler_specs[13];
     }
 
     if (jinx_php_manual_name_has(name, "class") || jinx_php_manual_name_has(name, "Class") ||
         jinx_php_manual_name_has(name, "Reflection") || jinx_php_manual_name_has(name, "::")) {
-        return &jinx_php_manual_handler_specs[13];
+        return &jinx_php_manual_handler_specs[14];
     }
 
     if (jinx_php_manual_name_has(name, "file") || jinx_php_manual_name_has(name, "stream") ||
@@ -301,10 +320,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         jinx_php_manual_name_has(name, "exec") || jinx_php_manual_name_has(name, "proc") ||
         jinx_php_manual_name_has(name, "curl") || jinx_php_manual_name_has(name, "pdo") ||
         jinx_php_manual_name_has(name, "mysqli") || jinx_php_manual_name_has(name, "mysql")) {
-        return &jinx_php_manual_handler_specs[14];
+        return &jinx_php_manual_handler_specs[15];
     }
 
-    return &jinx_php_manual_handler_specs[11];
+    return &jinx_php_manual_handler_specs[12];
 }
 
 static inline int jinx_php_manual_is_exact(const char *name) {

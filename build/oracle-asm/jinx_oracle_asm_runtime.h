@@ -330,6 +330,100 @@ static inline JinxValue jinx_oracle_str_repeat_value(JinxValue value, JinxValue 
     return jinx_oracle_string_value_len(out, out_len);
 }
 
+static inline int jinx_oracle_string_compare_value(JinxValue left_value, JinxValue right_value, JinxValue length_value, uint32_t argc, int fold_case) {
+    const unsigned char *left = jinx_oracle_string_bytes(left_value);
+    const unsigned char *right = jinx_oracle_string_bytes(right_value);
+    uint32_t left_len = jinx_oracle_string_len(left_value);
+    uint32_t right_len = jinx_oracle_string_len(right_value);
+    uint32_t limit = left_len > right_len ? right_len : left_len;
+
+    if (argc >= 3u) {
+        int64_t requested = jinx_oracle_intish(length_value);
+        if (requested < 0) {
+            requested = 0;
+        }
+        if ((uint64_t)requested < (uint64_t)limit) {
+            limit = (uint32_t)requested;
+        }
+    }
+
+    for (uint32_t i = 0; i < limit; i++) {
+        unsigned char a = left[i];
+        unsigned char b = right[i];
+
+        if (fold_case) {
+            a = (unsigned char)tolower((int)a);
+            b = (unsigned char)tolower((int)b);
+        }
+
+        if (a != b) {
+            return (int)a - (int)b;
+        }
+    }
+
+    if (argc >= 3u) {
+        return 0;
+    }
+
+    if (left_len == right_len) {
+        return 0;
+    }
+
+    return left_len < right_len ? -1 : 1;
+}
+
+static inline JinxValue jinx_oracle_substr_count_value(JinxValue haystack_value, JinxValue needle_value, JinxValue offset_value, JinxValue length_value, uint32_t argc) {
+    const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
+    const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
+    uint32_t haystack_len = jinx_oracle_string_len(haystack_value);
+    uint32_t needle_len = jinx_oracle_string_len(needle_value);
+    int64_t raw_offset = offset_value.type == 1u ? jinx_oracle_intish(offset_value) : 0;
+    uint32_t start;
+    uint32_t end;
+    uint32_t count = 0u;
+
+    (void)argc;
+
+    if (needle_len == 0u) {
+        return jinx_oracle_int_value(0);
+    }
+
+    if (raw_offset < 0) {
+        raw_offset = (int64_t)haystack_len + raw_offset;
+    }
+
+    if (raw_offset < 0 || raw_offset > (int64_t)haystack_len) {
+        return jinx_oracle_int_value(0);
+    }
+
+    start = (uint32_t)raw_offset;
+    end = haystack_len;
+
+    if (length_value.type == 1u) {
+        int64_t requested = jinx_oracle_intish(length_value);
+        if (requested < 0) {
+            end = start;
+        } else if ((uint64_t)requested < (uint64_t)(end - start)) {
+            end = start + (uint32_t)requested;
+        }
+    }
+
+    if (needle_len > end - start) {
+        return jinx_oracle_int_value(0);
+    }
+
+    for (uint32_t i = start; i <= end - needle_len;) {
+        if (memcmp(haystack + i, needle, needle_len) == 0) {
+            count++;
+            i += needle_len;
+        } else {
+            i++;
+        }
+    }
+
+    return jinx_oracle_int_value((int64_t)count);
+}
+
 static inline int jinx_oracle_boolish(JinxValue value) {
     if (value.type == 0u) {
         return 0;
@@ -626,6 +720,24 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "str_repeat")) {
         ret = jinx_oracle_str_repeat_value(arg0, arg1);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in4(name, "strcmp", "strcasecmp", "strncmp", "strncasecmp")) {
+        ret = jinx_oracle_int_value((int64_t)jinx_oracle_string_compare_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            jinx_oracle_name_starts(name, "strn") ? 3u : 2u,
+            jinx_oracle_name_is(name, "strcasecmp") || jinx_oracle_name_is(name, "strncasecmp")
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "substr_count")) {
+        ret = jinx_oracle_substr_count_value(arg0, arg1, ctx->registers[JINX_ORA_R2], ctx->registers[JINX_ORA_R3], argc);
         jinx_oracle_return(ctx, ret);
         return ret;
     }

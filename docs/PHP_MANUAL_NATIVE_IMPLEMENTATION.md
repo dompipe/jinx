@@ -96,6 +96,7 @@ This is not native ASM completion. The manifest state is `php-fallback` until ex
 | `ctype_*` | PHP ctype reference | exact | Native ASCII byte-class checks for string `JinxValue`; empty strings return false. |
 | scalar core | PHP variable/type reference | exact | Native `JinxValue` checks and conversions for `is_*`, `boolval`, `intval`, `floatval`, and `strval`. |
 | string byte transforms/primitives | `strtolower`/`strtoupper`/`lcfirst`/`ucfirst`/`strrev`/default `trim` family/`chr`/`ord`/`substr`/`strpos`/`str_repeat` | exact | Native Oracle ASM byte handlers for the current `JinxValue` string model. |
+| string byte compare/count | `strcmp`/`strcasecmp`/`strncmp`/`strncasecmp`/`substr_count` | exact | Native byte comparisons and non-overlapping substring counts for current `JinxValue` strings. |
 | crypto/hash/password/random | PHP crypto/hash/password/random references | php-fallback | Original PHP fallback preserves correctness until exact native crypto exists. |
 | complex string transform family | PHP string reference | php-fallback | Original PHP fallback preserves exact behavior until each transform gets a native handler. |
 | array family | PHP array reference | php-fallback | Original PHP fallback preserves exact behavior until native array storage exists. |
