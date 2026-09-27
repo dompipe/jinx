@@ -3674,7 +3674,7 @@ JinxValue jinx_call_builtin_through_oracle_checked(
 
     if (name != NULL && strcmp(name, "json_decode") == 0 && args != NULL && argc >= 1 &&
         (argc < 4 || ((args[3].type == 1u || args[3].type == 2u) &&
-         (args[3].as.i64 & ~3LL) == 0))) {
+         (args[3].as.i64 & ~(JINX_JSON_OBJECT_AS_ARRAY | JINX_JSON_BIGINT_AS_STRING | JINX_JSON_INVALID_UTF8_IGNORE | JINX_JSON_INVALID_UTF8_SUBSTITUTE)) == 0))) {
         JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
         if (ok != NULL) *ok = 1;
         return result;
