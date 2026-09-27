@@ -64,7 +64,10 @@ $expectedParity = 'PARITY:'
     . ';fill=' . $pairs(array_fill(2, 3, 9))
     . ';fill_zero=' . count(array_fill(2, 0, 9))
     . ';combine=' . $pairs(array_combine([2, 'x'], [70, 80]))
+    . ';fill_keys_num=' . $pairs(array_fill_keys(['2', '02', '+2', '-2'], 9))
+    . ';combine_num=' . $pairs(array_combine(['2', '02'], [70, 80]))
     . ';count_values=' . $pairs(array_count_values([2, 2, 'x', 'x', 'x']))
+    . ';count_values_num=' . $pairs(array_count_values([2, '2', '02']))
     . ';chunk0=' . implode(',', array_chunk($base, 2)[0])
     . ';pad=' . implode(',', array_pad($base, 6, 0))
     . ';unique=' . $pairs(array_unique([4, '4', '3', 4, 3, '3']))
@@ -75,6 +78,10 @@ $expectedParity = 'PARITY:'
     . ';column=' . $pairs(array_column([
         ['id' => 1, 'name' => 'Ada'],
         ['id' => 2, 'name' => 'Grace'],
+    ], 'name', 'id'))
+    . ';column_num=' . $pairs(array_column([
+        ['id' => '1', 'name' => 'Ada'],
+        ['id' => '02', 'name' => 'Grace'],
     ], 'name', 'id'));
 
 if (!str_contains($text, $expectedParity)) {
