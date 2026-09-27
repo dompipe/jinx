@@ -77,6 +77,7 @@ $expectedParity = 'PARITY:'
     . ';unique=' . $pairs(array_unique([4, '4', '3', 4, 3, '3']))
     . ';diff=' . $pairs(array_diff($base, [20, 40]))
     . ';intersect=' . $pairs(array_intersect($base, [20, 40]))
+    . ';intersect3=' . $pairs(array_intersect($base, [20, 40], [40, 50]))
     . ';explode=' . implode(',', explode(',', 'a,b,c'))
     . ';split=' . implode(',', str_split('abcdef', 2))
     . ';column=' . $pairs(array_column([
