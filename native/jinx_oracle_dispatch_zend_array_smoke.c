@@ -2233,8 +2233,46 @@ int main(void) {
         return fail("array_rand many keys");
     }
 
+    JinxZendArray *shuffle_source = jinx_zend_array_new_packed(5);
+    if (shuffle_source == 0 ||
+        !jinx_zend_array_add_assoc(shuffle_source, "x", 1, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(shuffle_source, "y", 1, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(shuffle_source, "z", 1, jinx_zend_long(3)) ||
+        !jinx_zend_array_add_assoc(shuffle_source, "w", 1, jinx_zend_long(4)) ||
+        !jinx_zend_array_add_assoc(shuffle_source, "v", 1, jinx_zend_long(5))) {
+        return fail("shuffle source");
+    }
+
+    JinxValue shuffle_result;
+    args[0] = jinx_oracle_int_value(2468);
+    shuffle_result = jinx_call_builtin_through_oracle_checked("mt_srand", args, 1, &rng_ok);
+    if (!rng_ok || shuffle_result.type != 0u) return fail("shuffle MT seed");
+
+    shuffle_result = jinx_call_builtin_through_oracle("mt_rand", args, 0);
+    if (shuffle_result.type != 1u) return fail("shuffle pre-draw");
+    long long shuffle_before = (long long)shuffle_result.as.i64;
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(shuffle_source);
+    shuffle_result = jinx_call_builtin_through_oracle("shuffle", args, 1);
+    if (!expect_bool(shuffle_result, 1) ||
+        !jinx_zend_array_live_is_list(shuffle_source) ||
+        shuffle_source->internal_pointer != 0u) {
+        return fail("shuffle reindex/cursor");
+    }
+
+    for (size_t i = 0u; i < 5u; i++) {
+        JinxZendValue *slot = jinx_zend_array_index(shuffle_source, i);
+        if (slot == 0 || slot->type != JINX_ZEND_LONG) {
+            return fail("shuffle packed values");
+        }
+    }
+
+    shuffle_result = jinx_call_builtin_through_oracle("mt_rand", args, 0);
+    if (shuffle_result.type != 1u) return fail("shuffle post-draw");
+    long long shuffle_after = (long long)shuffle_result.as.i64;
+
     printf(
-        "RNG_PARITY:mt=%lld;range=%lld;reverse=%lld;max=%lld;one=%.*s;many=%.*s,%.*s,%.*s\n",
+        "RNG_PARITY:mt=%lld;range=%lld;reverse=%lld;max=%lld;one=%.*s;many=%.*s,%.*s,%.*s;shuffle_before=%lld;shuffle=%lld,%lld,%lld,%lld,%lld;shuffle_after=%lld\n",
         rng_mt,
         rng_range,
         rng_reverse,
@@ -2246,11 +2284,19 @@ int main(void) {
         (int)rand_many_1->value.str->len,
         rand_many_1->value.str->bytes,
         (int)rand_many_2->value.str->len,
-        rand_many_2->value.str->bytes
+        rand_many_2->value.str->bytes,
+        shuffle_before,
+        (long long)jinx_zend_array_index(shuffle_source, 0)->value.lval,
+        (long long)jinx_zend_array_index(shuffle_source, 1)->value.lval,
+        (long long)jinx_zend_array_index(shuffle_source, 2)->value.lval,
+        (long long)jinx_zend_array_index(shuffle_source, 3)->value.lval,
+        (long long)jinx_zend_array_index(shuffle_source, 4)->value.lval,
+        shuffle_after
     );
 
     jinx_oracle_zend_array_value_release(result);
     jinx_zend_array_release(rand_source);
+    jinx_zend_array_release(shuffle_source);
 
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
