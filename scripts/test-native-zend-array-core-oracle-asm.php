@@ -132,6 +132,34 @@ $arrayMin = min([2, 3.5, 3]);
 $arrayMax = max([2, 3.5, 3]);
 $arrayTie = max([4, 4.0]);
 
+$pointerValues = [10, 20, 'name' => 30, 'keep' => 40];
+$pointerTrace = [];
+$pointerTrace[] = current($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = next($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = next($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = next($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = next($pointerValues);
+$pointerTrace[] = current($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = prev($pointerValues);
+$pointerTrace[] = end($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = prev($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = reset($pointerValues);
+$pointerTrace[] = key($pointerValues);
+$pointerTrace[] = pos($pointerValues);
+$pointerEncode = static function (mixed $value): string {
+    if ($value === false) return 'false';
+    if ($value === null) return 'null';
+    return (string) $value;
+};
+$pointerSignature = implode('|', array_map($pointerEncode, $pointerTrace));
+
 $sortValues = [3, 1, 2];
 sort($sortValues);
 
@@ -295,6 +323,7 @@ $expectedParity = 'PARITY:'
         . '|'
         . (key_exists('keep', $base) ? '1' : '0')
     . ';sizeof=' . sizeof($base)
+    . ';pointer=' . $pointerSignature
     . ';words=' . str_word_count('Hello, world!')
     . ';words1=' . implode(',', str_word_count('Hello, world!', 1))
     . ';words2=' . $pairs(str_word_count('Hello, world!', 2))
