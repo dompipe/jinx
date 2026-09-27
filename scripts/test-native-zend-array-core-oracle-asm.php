@@ -106,6 +106,16 @@ parse_str(
     $parsedQuery
 );
 
+$pathInfo = pathinfo('/www/htdocs/inc/lib.inc.php');
+$pathDot = pathinfo('/some/path/.test');
+$pathNoExt = pathinfo('/path/noextension');
+$pathFlags = [
+    pathinfo('/www/htdocs/inc/lib.inc.php', PATHINFO_DIRNAME),
+    pathinfo('/www/htdocs/inc/lib.inc.php', PATHINFO_BASENAME),
+    pathinfo('/www/htdocs/inc/lib.inc.php', PATHINFO_EXTENSION),
+    pathinfo('/www/htdocs/inc/lib.inc.php', PATHINFO_FILENAME),
+];
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -194,7 +204,15 @@ $expectedParity = 'PARITY:'
         . $parsedQuery['first'] . '|'
         . implode(',', $parsedQuery['arr']) . '|'
         . $parsedQuery['My_Value'] . '|'
-        . $parsedQuery['nested']['x'][0];
+        . $parsedQuery['nested']['x'][0]
+    . ';pathinfo='
+        . $pathInfo['dirname'] . '|'
+        . $pathInfo['basename'] . '|'
+        . $pathInfo['extension'] . '|'
+        . $pathInfo['filename']
+    . ';path_dot=' . $pathDot['extension'] . '|' . $pathDot['filename']
+    . ';path_noext=' . (array_key_exists('extension', $pathNoExt) ? '1' : '0')
+    . ';path_flags=' . implode('|', $pathFlags);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
