@@ -516,7 +516,7 @@ static inline JinxValue jinx_oracle_quotemeta_value(JinxValue value) {
     uint64_t needed = len;
 
     if (len == 0u) {
-        return jinx_oracle_bool_value(0);
+        return jinx_oracle_string_value_len("", 0u);
     }
 
     for (uint32_t i = 0u; i < len; i++) {
@@ -3065,6 +3065,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "strpbrk")) {
+        if (jinx_oracle_string_len(arg1) == 0u) {
+            ctx->fault = "strpbrk character list must be non-empty";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_strpbrk_value(arg0, arg1);
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -3098,6 +3102,21 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "str_pad")) {
+        int64_t target = jinx_oracle_intish(arg1);
+        if (target > (int64_t)jinx_oracle_string_len(arg0)) {
+            JinxValue pad = jinx_oracle_call_arg(ctx, 2u);
+            int64_t type = argc >= 4u ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 3u)) : 1;
+
+            if (argc >= 3u && jinx_oracle_string_len(pad) == 0u) {
+                ctx->fault = "str_pad pad string must not be empty";
+                return jinx_oracle_zero_value();
+            }
+            if (type < 0 || type > 2) {
+                ctx->fault = "str_pad type must be STR_PAD_LEFT, STR_PAD_RIGHT, or STR_PAD_BOTH";
+                return jinx_oracle_zero_value();
+            }
+        }
+
         ret = jinx_oracle_str_pad_value(
             arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc
         );
