@@ -336,6 +336,11 @@ $jsonDecoded = json_decode(
     512,
     0
 );
+$jsonTopNull = json_decode('null', false, 512, 0);
+if ($jsonTopNull !== null || json_last_error() !== JSON_ERROR_NONE) {
+    fail('PHP top-level JSON null setup did not decode cleanly');
+}
+
 $jsonObjectDecoded = json_decode(
     '{"name":"Ada","1":"one","nested":{"n":1}}',
     false,
@@ -389,6 +394,7 @@ $expectedJsonParity = 'JSON_PARITY:'
     . ';ok=' . ($jsonDecoded['ok'] ? '1' : '0')
     . ';none=' . ($jsonDecoded['none'] === null ? 'null' : 'not-null')
     . ';emoji=' . bin2hex($jsonDecoded['emoji'])
+    . ';topnull=' . ($jsonTopNull === null ? 'null' : 'not-null')
     . ';object='
         . get_class($jsonObjectDecoded) . '|'
         . $jsonObjectDecoded->name . '|'
