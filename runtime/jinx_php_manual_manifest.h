@@ -220,6 +220,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "jinx_oracle_mt_builtin",
         JINX_PHP_MANUAL_EXACT,
         "Shared native MT19937 state. PHP 8.4 parity is covered for an explicit seed, unbounded mt_rand, bounded mt_rand, rand with reversed bounds, and both max helpers. Automatic seeding is supported; nondeterministic seed-value equality is intentionally not a parity assertion."
+    },
+    {
+        "calendar-core",
+        "https://www.php.net/manual/en/ref.calendar.php",
+        "gregoriantojd/juliantojd/jdtogregorian/jdtojulian/frenchtojd/jdtofrench/jewishtojd/cal_to_jd/cal_days_in_month",
+        "int|string",
+        "jinx_oracle_asm_call_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Native PHP-calendar arithmetic for Gregorian, Julian, French Republican, and Jewish forward conversions plus Gregorian/Julian/French reverse date strings. PHP-derived parity covers representative boundary/leap cases and all four calendar IDs for cal_to_jd/cal_days_in_month. cal_from_jd, cal_info, jdtojewish, jddayofweek, and jdmonthname remain outside this family until separately implemented."
     }
 };
 
@@ -362,6 +371,14 @@ static inline int jinx_php_manual_name_is_mt19937_core(const char *name) {
         strcmp(name, "mt_getrandmax") == 0 || strcmp(name, "getrandmax") == 0;
 }
 
+static inline int jinx_php_manual_name_is_calendar_core(const char *name) {
+    return strcmp(name, "gregoriantojd") == 0 || strcmp(name, "juliantojd") == 0 ||
+        strcmp(name, "jdtogregorian") == 0 || strcmp(name, "jdtojulian") == 0 ||
+        strcmp(name, "frenchtojd") == 0 || strcmp(name, "jdtofrench") == 0 ||
+        strcmp(name, "jewishtojd") == 0 || strcmp(name, "cal_to_jd") == 0 ||
+        strcmp(name, "cal_days_in_month") == 0;
+}
+
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
     return strcmp(name, "count_chars") == 0 || strcmp(name, "str_word_count") == 0 ||
         strcmp(name, "implode") == 0 || strcmp(name, "join") == 0 ||
@@ -477,6 +494,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_mt19937_core(name)) {
         return jinx_php_manual_spec_by_pattern("mt19937-core");
+    }
+
+    if (jinx_php_manual_name_is_calendar_core(name)) {
+        return jinx_php_manual_spec_by_pattern("calendar-core");
     }
 
     if (jinx_php_manual_name_is_pure_value_core(name)) {
