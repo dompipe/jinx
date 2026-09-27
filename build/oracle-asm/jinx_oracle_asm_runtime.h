@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <locale.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2450,8 +2451,12 @@ static inline int jinx_oracle_boolish(JinxValue value) {
         return 0;
     }
 
-    if (value.type == 1u || value.type == 2u || value.type == 4u) {
-        return value.as.i64 != 0 || value.flags != 0u;
+    if (value.type == 1u || value.type == 2u) {
+        return value.as.i64 != 0;
+    }
+
+    if (value.type == 4u) {
+        return value.flags != 0u;
     }
 
     if (value.type == 5u) {
@@ -2459,7 +2464,9 @@ static inline int jinx_oracle_boolish(JinxValue value) {
     }
 
     if (value.type == 3u) {
-        return value.flags != 0u;
+        const unsigned char *bytes = jinx_oracle_string_bytes(value);
+        return value.flags != 0u &&
+            !(value.flags == 1u && bytes[0] == (unsigned char)'0');
     }
 
     return 1;
@@ -2494,48 +2501,179 @@ static inline JinxValue jinx_oracle_strval_value(JinxValue value) {
         return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
     }
 
+    if (value.type == 4u) {
+        memcpy(out, "Array", 5u);
+        return jinx_oracle_string_value_len(out, 5u);
+    }
+
     {
         int len = snprintf(out, 64u, "%lld", (long long)jinx_oracle_intish(value));
         return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
     }
 }
 
+static inline int jinx_oracle_ascii_numeric_space(unsigned char c) {
+    return c == (unsigned char)' ' || c == (unsigned char)'\t' ||
+        c == (unsigned char)'\n' || c == (unsigned char)'\r' ||
+        c == (unsigned char)'\f' || c == (unsigned char)'\v';
+}
+
+static inline int jinx_oracle_decimal_prefix(
+    const unsigned char *bytes,
+    uint32_t len,
+    uint32_t *start_out,
+    uint32_t *end_out,
+    int *floating_out
+) {
+    uint32_t i = 0u;
+    uint32_t mantissa_digits = 0u;
+    int floating = 0;
+
+    while (i < len && jinx_oracle_ascii_numeric_space(bytes[i])) i++;
+
+    uint32_t start = i;
+    if (i < len && (bytes[i] == (unsigned char)'+' || bytes[i] == (unsigned char)'-')) i++;
+
+    while (i < len && bytes[i] >= (unsigned char)'0' && bytes[i] <= (unsigned char)'9') {
+        mantissa_digits++;
+        i++;
+    }
+
+    if (i < len && bytes[i] == (unsigned char)'.') {
+        floating = 1;
+        i++;
+        while (i < len && bytes[i] >= (unsigned char)'0' && bytes[i] <= (unsigned char)'9') {
+            mantissa_digits++;
+            i++;
+        }
+    }
+
+    if (mantissa_digits == 0u) return 0;
+
+    if (i < len && (bytes[i] == (unsigned char)'e' || bytes[i] == (unsigned char)'E')) {
+        uint32_t exponent_start = i;
+        uint32_t j = i + 1u;
+        uint32_t exponent_digits = 0u;
+
+        if (j < len && (bytes[j] == (unsigned char)'+' || bytes[j] == (unsigned char)'-')) j++;
+        while (j < len && bytes[j] >= (unsigned char)'0' && bytes[j] <= (unsigned char)'9') {
+            exponent_digits++;
+            j++;
+        }
+
+        if (exponent_digits != 0u) {
+            floating = 1;
+            i = j;
+        } else {
+            i = exponent_start;
+        }
+    }
+
+    if (start_out != NULL) *start_out = start;
+    if (end_out != NULL) *end_out = i;
+    if (floating_out != NULL) *floating_out = floating;
+    return 1;
+}
+
+static inline double jinx_oracle_decimal_prefix_double(
+    const unsigned char *bytes,
+    uint32_t start,
+    uint32_t end
+) {
+    uint32_t len = end > start ? end - start : 0u;
+    char *buffer = (char *)malloc((size_t)len + 1u);
+    double result;
+
+    if (buffer == NULL) return 0.0;
+    if (len != 0u) memcpy(buffer, bytes + start, len);
+    buffer[len] = '\0';
+    result = strtod(buffer, NULL);
+    free(buffer);
+    return result;
+}
+
 static inline int jinx_oracle_string_is_numeric(JinxValue value) {
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
     uint32_t len = jinx_oracle_string_len(value);
+    uint32_t start = 0u;
+    uint32_t end = 0u;
+    int floating = 0;
+
+    if (!jinx_oracle_decimal_prefix(bytes, len, &start, &end, &floating)) return 0;
+    (void)start;
+    (void)floating;
+
+    while (end < len && jinx_oracle_ascii_numeric_space(bytes[end])) end++;
+    return end == len;
+}
+
+static inline int jinx_oracle_base_digit_value(unsigned char c) {
+    if (c >= (unsigned char)'0' && c <= (unsigned char)'9') return (int)(c - (unsigned char)'0');
+    if (c >= (unsigned char)'a' && c <= (unsigned char)'z') return 10 + (int)(c - (unsigned char)'a');
+    if (c >= (unsigned char)'A' && c <= (unsigned char)'Z') return 10 + (int)(c - (unsigned char)'A');
+    return -1;
+}
+
+static inline int64_t jinx_oracle_parse_int_base(JinxValue value, int base) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
     uint32_t i = 0u;
+    int negative = 0;
+    uint64_t number = 0u;
+    uint64_t limit;
     int saw_digit = 0;
-    int saw_dot = 0;
 
-    while (i < len && isspace((int)bytes[i])) {
+    while (i < len && jinx_oracle_ascii_numeric_space(bytes[i])) i++;
+    if (i < len && (bytes[i] == (unsigned char)'+' || bytes[i] == (unsigned char)'-')) {
+        negative = bytes[i] == (unsigned char)'-';
         i++;
     }
 
-    if (i < len && (bytes[i] == '+' || bytes[i] == '-')) {
-        i++;
+    if (base == 0) {
+        if (i + 1u < len && bytes[i] == (unsigned char)'0' &&
+            (bytes[i + 1u] == (unsigned char)'x' || bytes[i + 1u] == (unsigned char)'X')) {
+            base = 16;
+            i += 2u;
+        } else if (i + 1u < len && bytes[i] == (unsigned char)'0' &&
+            (bytes[i + 1u] == (unsigned char)'b' || bytes[i + 1u] == (unsigned char)'B')) {
+            base = 2;
+            i += 2u;
+        } else if (i < len && bytes[i] == (unsigned char)'0') {
+            base = 8;
+        } else {
+            base = 10;
+        }
+    } else if (base == 2 && i + 1u < len && bytes[i] == (unsigned char)'0' &&
+        (bytes[i + 1u] == (unsigned char)'b' || bytes[i + 1u] == (unsigned char)'B')) {
+        i += 2u;
+    } else if (base == 16 && i + 1u < len && bytes[i] == (unsigned char)'0' &&
+        (bytes[i + 1u] == (unsigned char)'x' || bytes[i + 1u] == (unsigned char)'X')) {
+        i += 2u;
     }
+
+    if (base < 2 || base > 36) return 0;
+
+    limit = negative ? ((uint64_t)INT64_MAX + 1u) : (uint64_t)INT64_MAX;
 
     while (i < len) {
-        if (isdigit((int)bytes[i])) {
-            saw_digit = 1;
-            i++;
-            continue;
+        int digit = jinx_oracle_base_digit_value(bytes[i]);
+        if (digit < 0 || digit >= base) break;
+        saw_digit = 1;
+
+        if (number > (limit - (uint64_t)digit) / (uint64_t)base) {
+            return negative ? INT64_MIN : INT64_MAX;
         }
 
-        if (bytes[i] == '.' && !saw_dot) {
-            saw_dot = 1;
-            i++;
-            continue;
-        }
-
-        break;
-    }
-
-    while (i < len && isspace((int)bytes[i])) {
+        number = number * (uint64_t)base + (uint64_t)digit;
         i++;
     }
 
-    return saw_digit && i == len;
+    if (!saw_digit) return 0;
+    if (negative) {
+        if (number == (uint64_t)INT64_MAX + 1u) return INT64_MIN;
+        return -(int64_t)number;
+    }
+    return (int64_t)number;
 }
 
 static inline int jinx_oracle_mem_contains(const unsigned char *haystack, uint32_t haystack_len, const unsigned char *needle, uint32_t needle_len) {
@@ -2607,36 +2745,50 @@ static inline int jinx_oracle_name_in8(
 }
 
 static inline int64_t jinx_oracle_intish(JinxValue value) {
-    if (value.type == 1u || value.type == 2u || value.type == 4u) {
-        return value.as.i64 != 0 ? value.as.i64 : (int64_t)value.flags;
-    }
+    if (value.type == 1u) return value.as.i64;
+    if (value.type == 2u) return value.as.i64 != 0 ? 1 : 0;
+    if (value.type == 4u) return value.flags != 0u ? 1 : 0;
 
     if (value.type == 5u) {
+        if (value.as.f64 >= (double)INT64_MAX) return INT64_MAX;
+        if (value.as.f64 <= (double)INT64_MIN) return INT64_MIN;
         return (int64_t)value.as.f64;
     }
 
     if (value.type == 3u) {
-        char buffer[128];
-        uint32_t len = value.flags < 127u ? value.flags : 127u;
-        memcpy(buffer, jinx_oracle_string_bytes(value), len);
-        buffer[len] = '\0';
-        return (int64_t)strtoll(buffer, NULL, 10);
+        const unsigned char *bytes = jinx_oracle_string_bytes(value);
+        uint32_t start = 0u;
+        uint32_t end = 0u;
+        int floating = 0;
+
+        if (!jinx_oracle_decimal_prefix(bytes, value.flags, &start, &end, &floating)) return 0;
+
+        if (!floating) {
+            return jinx_oracle_parse_int_base(value, 10);
+        }
+
+        double parsed = jinx_oracle_decimal_prefix_double(bytes, start, end);
+        if (parsed >= (double)INT64_MAX) return INT64_MAX;
+        if (parsed <= (double)INT64_MIN) return INT64_MIN;
+        return (int64_t)parsed;
     }
 
     return 0;
 }
 
 static inline double jinx_oracle_floatish(JinxValue value) {
-    if (value.type == 5u) {
-        return value.as.f64;
-    }
+    if (value.type == 5u) return value.as.f64;
+    if (value.type == 4u) return value.flags != 0u ? 1.0 : 0.0;
 
     if (value.type == 3u) {
-        char buffer[128];
-        uint32_t len = value.flags < 127u ? value.flags : 127u;
-        memcpy(buffer, jinx_oracle_string_bytes(value), len);
-        buffer[len] = '\0';
-        return strtod(buffer, NULL);
+        const unsigned char *bytes = jinx_oracle_string_bytes(value);
+        uint32_t start = 0u;
+        uint32_t end = 0u;
+        int floating = 0;
+
+        if (!jinx_oracle_decimal_prefix(bytes, value.flags, &start, &end, &floating)) return 0.0;
+        (void)floating;
+        return jinx_oracle_decimal_prefix_double(bytes, start, end);
     }
 
     return (double)jinx_oracle_intish(value);
@@ -3159,7 +3311,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "is_array")) {
-        ret = jinx_oracle_bool_value(arg0.type == 4u);
+        ret = jinx_oracle_bool_value(arg0.type == 4u || arg0.type == 6u);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -3187,7 +3339,12 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "intval")) {
-        ret = jinx_oracle_int_value(jinx_oracle_intish(arg0));
+        int base = argc >= 2u ? (int)jinx_oracle_intish(arg1) : 10;
+        ret = jinx_oracle_int_value(
+            arg0.type == 3u && base != 10
+                ? jinx_oracle_parse_int_base(arg0, base)
+                : jinx_oracle_intish(arg0)
+        );
         jinx_oracle_return(ctx, ret);
         return ret;
     }
