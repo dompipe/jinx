@@ -5423,6 +5423,12 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
+    if (jinx_oracle_name_in2(name, "getrandmax", "mt_getrandmax")) {
+        ret = jinx_oracle_int_value(INT64_C(2147483647));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
     if (jinx_oracle_name_is(name, "gettype")) {
         const char *type_name = "unknown type";
         switch (arg0.type) {
