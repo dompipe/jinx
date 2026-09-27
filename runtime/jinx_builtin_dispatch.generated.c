@@ -11,6 +11,13 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "min") == 0 || strcmp(name, "max") == 0 ||
         strcmp(name, "count") == 0 ||
         strcmp(name, "sizeof") == 0 ||
+        strcmp(name, "current") == 0 ||
+        strcmp(name, "pos") == 0 ||
+        strcmp(name, "key") == 0 ||
+        strcmp(name, "next") == 0 ||
+        strcmp(name, "prev") == 0 ||
+        strcmp(name, "reset") == 0 ||
+        strcmp(name, "end") == 0 ||
         strcmp(name, "array_is_list") == 0 ||
         strcmp(name, "array_values") == 0 ||
         strcmp(name, "array_keys") == 0 ||
