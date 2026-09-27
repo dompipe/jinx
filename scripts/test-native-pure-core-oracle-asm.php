@@ -136,4 +136,26 @@ foreach ($cases as [$function, $args]) {
     if ($actual !== $expected) fail("oracle-call {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
 }
 
+$printfArgs = ['printf:%u:%s', 7, 'Amsterdam'];
+ob_start();
+$printfReturn = printf(...$printfArgs);
+$printfText = (string)ob_get_clean();
+$printfExpected = $printfText . 'int:' . $printfReturn;
+
+$printfCommand = escapeshellarg($jinx)
+    . ' oracle-call printf '
+    . escapeshellarg('s:' . $printfArgs[0])
+    . ' ' . escapeshellarg('i:' . (string)$printfArgs[1])
+    . ' ' . escapeshellarg('s:' . $printfArgs[2]);
+
+$printfOutput = [];
+$printfCode = 0;
+exec($printfCommand . ' 2>&1', $printfOutput, $printfCode);
+$printfActual = rtrim(implode(PHP_EOL, $printfOutput), "\r\n");
+
+if ($printfCode !== 0) fail("oracle-call printf failed: {$printfActual}");
+if ($printfActual !== $printfExpected) {
+    fail("oracle-call printf parity mismatch: PHP={$printfExpected}, JINX={$printfActual}");
+}
+
 echo 'PASS: native Oracle ASM pure scalar/string core matches PHP for covered values' . PHP_EOL;
