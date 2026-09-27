@@ -197,7 +197,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-array-native-core",
         "https://www.php.net/manual/en/ref.array.php",
-        "count/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_replace/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_chunk/array_pad/array_unique(default SORT_STRING)/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key",
+        "count/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_replace/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key",
         "array|bool|int|string|float",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -206,7 +206,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-container-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "count_chars/implode/join/vsprintf/range(integer)/array_fill",
+        "count_chars/implode/join/vsprintf/explode/str_split/range(integer)/array_fill",
         "string|array|bool",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -322,6 +322,7 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
     return strcmp(name, "count_chars") == 0 || strcmp(name, "implode") == 0 ||
         strcmp(name, "join") == 0 || strcmp(name, "vsprintf") == 0 ||
+        strcmp(name, "explode") == 0 || strcmp(name, "str_split") == 0 ||
         strcmp(name, "range") == 0 || strcmp(name, "array_fill") == 0;
 }
 
@@ -334,7 +335,7 @@ static inline int jinx_php_manual_name_is_zend_array_native_core(const char *nam
         strcmp(name, "array_slice") == 0 || strcmp(name, "array_merge") == 0 ||
         strcmp(name, "array_replace") == 0 || strcmp(name, "array_flip") == 0 ||
         strcmp(name, "array_change_key_case") == 0 || strcmp(name, "array_fill_keys") == 0 ||
-        strcmp(name, "array_combine") == 0 || strcmp(name, "array_count_values") == 0 ||
+        strcmp(name, "array_combine") == 0 || strcmp(name, "array_count_values") == 0 || strcmp(name, "array_column") == 0 ||
         strcmp(name, "array_chunk") == 0 || strcmp(name, "array_pad") == 0 ||
         strcmp(name, "array_unique") == 0 || strcmp(name, "array_diff") == 0 ||
         strcmp(name, "array_diff_assoc") == 0 || strcmp(name, "array_diff_key") == 0 ||
