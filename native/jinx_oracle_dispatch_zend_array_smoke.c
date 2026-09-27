@@ -1114,7 +1114,7 @@ int main(void) {
         url_path == 0 || url_path->type != JINX_ZEND_STRING ||
         !jinx_zend_string_equals_bytes(url_path->value.str, "/path", 5) ||
         url_query == 0 || url_query->type != JINX_ZEND_STRING ||
-        !jinx_zend_string_equals_bytes(url_query->value.str, "googleguy=googley", 18)) {
+        !jinx_zend_string_equals_bytes(url_query->value.str, "googleguy=googley", 17)) {
         return fail("parse_url schemeless components");
     }
     jinx_oracle_zend_array_value_release(result);
