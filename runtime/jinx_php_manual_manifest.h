@@ -197,11 +197,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-array-native-core",
         "https://www.php.net/manual/en/ref.array.php",
-        "min/max(numeric scalar variadic or numeric carried array)/count/in_array(scalar)/array_search(scalar)/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_merge_recursive/array_replace/array_replace_recursive/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_filter(null callback)/array_push/array_pop/array_shift/array_unshift/array_splice/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key",
+        "min/max(numeric scalar variadic or numeric carried array)/count/in_array(scalar)/array_search(scalar)/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_merge_recursive/array_replace/array_replace_recursive/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_filter(null callback)/array_push/array_pop/array_shift/array_unshift/array_splice/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key/sort/rsort/asort/arsort/ksort/krsort(scalar values; SORT_REGULAR|SORT_NUMERIC|SORT_STRING|SORT_NATURAL plus SORT_FLAG_CASE; excludes SORT_LOCALE_STRING)/natsort/natcasesort",
         "array|bool|int|string|float",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting. min/max are exact here for PHP-parity-tested native int/float scalar variadics and single carried arrays, preserving the first winning value/type on ties; PHP mixed-type/object comparison rules remain outside this subset."
+        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting. min/max are exact here for PHP-parity-tested native int/float scalar variadics and single carried arrays, preserving the first winning value/type on ties; PHP mixed-type/object comparison rules remain outside this subset. Native sorting covers scalar carried values/keys with stable PHP-style reindex-or-preserve behavior and SORT_REGULAR, SORT_NUMERIC, SORT_STRING, SORT_NATURAL, and SORT_FLAG_CASE; SORT_LOCALE_STRING and callback sorts remain outside this subset."
     },
     {
         "zend-container-value-core",
@@ -379,7 +379,11 @@ static inline int jinx_php_manual_name_is_zend_array_native_core(const char *nam
         strcmp(name, "array_splice") == 0 || strcmp(name, "in_array") == 0 || strcmp(name, "array_search") == 0 ||
         strcmp(name, "array_diff") == 0 || strcmp(name, "array_diff_assoc") == 0 ||
         strcmp(name, "array_diff_key") == 0 || strcmp(name, "array_intersect") == 0 ||
-        strcmp(name, "array_intersect_assoc") == 0 || strcmp(name, "array_intersect_key") == 0;
+        strcmp(name, "array_intersect_assoc") == 0 || strcmp(name, "array_intersect_key") == 0 ||
+        strcmp(name, "sort") == 0 || strcmp(name, "rsort") == 0 ||
+        strcmp(name, "asort") == 0 || strcmp(name, "arsort") == 0 ||
+        strcmp(name, "ksort") == 0 || strcmp(name, "krsort") == 0 ||
+        strcmp(name, "natsort") == 0 || strcmp(name, "natcasesort") == 0;
 }
 
 static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {
