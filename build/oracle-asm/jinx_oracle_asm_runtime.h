@@ -35,6 +35,10 @@ struct JinxValue {
     } as;
 };
 
+/* Stable JinxValue tags shared with the Zend container carrier layer. */
+#define JINX_ORACLE_VALUE_ZEND_ARRAY 6u
+#define JINX_ORACLE_VALUE_ZEND_OBJECT 7u
+
 enum JinxOracleRegister {
     JINX_ORA_ACC = 0,
     JINX_ORA_RET = 1,
@@ -148,6 +152,13 @@ static inline uint32_t jinx_oracle_string_len(JinxValue value) {
 
 static inline int64_t jinx_oracle_intish(JinxValue value);
 static inline double jinx_oracle_floatish(JinxValue value);
+static inline int jinx_oracle_boolish(JinxValue value);
+static inline JinxValue jinx_oracle_strval_value(JinxValue value);
+static inline int jinx_oracle_write_ref_arg(
+    JinxOracleAsmContext *ctx,
+    uint32_t call_index,
+    JinxValue value
+);
 
 static inline char *jinx_oracle_scratch_string(uint32_t len) {
     enum { JINX_ORACLE_SCRATCH_SLOTS = 8 };
@@ -1710,7 +1721,7 @@ fail:
 
 static inline unsigned char jinx_oracle_uu_enc(unsigned int value) {
     value &= 077u;
-    return value == 0u ? (unsigned char)'\`' : (unsigned char)(value + (unsigned int)' ');
+    return value == 0u ? (unsigned char)'`' : (unsigned char)(value + (unsigned int)' ');
 }
 
 static inline unsigned int jinx_oracle_uu_dec(unsigned char value) {
