@@ -2443,6 +2443,47 @@ int main(void) {
         return fail("json_decode JSON_BIGINT_AS_STRING");
     }
 
+    static const char json_invalid_utf8_text[] = {
+        '{', '"', 's', '"', ':', '"', (char)0xFF, 'x', '"', '}'
+    };
+    json_args[0] = jinx_oracle_string_value_len(json_invalid_utf8_text, 10u);
+    json_args[3] = jinx_oracle_int_value(JINX_JSON_INVALID_UTF8_IGNORE);
+    JinxValue json_ignore_result = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
+    if (!expect_array_count(json_ignore_result, 1)) return fail("json_decode invalid UTF-8 ignore count");
+    JinxZendValue *json_ignore_value = jinx_zend_array_find(
+        jinx_oracle_zend_array_ptr(json_ignore_result),
+        "s",
+        1u
+    );
+    if (json_ignore_value == 0 || json_ignore_value->type != JINX_ZEND_STRING ||
+        json_ignore_value->value.str == 0 || json_ignore_value->value.str->len != 1u ||
+        memcmp(json_ignore_value->value.str->bytes, "x", 1u) != 0) {
+        return fail("json_decode JSON_INVALID_UTF8_IGNORE");
+    }
+
+    json_args[3] = jinx_oracle_int_value(JINX_JSON_INVALID_UTF8_SUBSTITUTE);
+    JinxValue json_substitute_result = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
+    if (!expect_array_count(json_substitute_result, 1)) {
+        return fail("json_decode invalid UTF-8 substitute count");
+    }
+    JinxZendValue *json_substitute_value = jinx_zend_array_find(
+        jinx_oracle_zend_array_ptr(json_substitute_result),
+        "s",
+        1u
+    );
+    static const unsigned char expected_json_substitute[] = {0xEFu, 0xBFu, 0xBDu, 'x'};
+    if (json_substitute_value == 0 ||
+        json_substitute_value->type != JINX_ZEND_STRING ||
+        json_substitute_value->value.str == 0 ||
+        json_substitute_value->value.str->len != sizeof(expected_json_substitute) ||
+        memcmp(
+            json_substitute_value->value.str->bytes,
+            expected_json_substitute,
+            sizeof(expected_json_substitute)
+        ) != 0) {
+        return fail("json_decode JSON_INVALID_UTF8_SUBSTITUTE");
+    }
+
     json_args[0] = jinx_oracle_string_value("{\"a\":1,}");
     json_args[3] = jinx_oracle_int_value(0);
     JinxValue json_invalid = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
@@ -2539,7 +2580,8 @@ int main(void) {
     printf(
         "JSON_PARITY:name=%.*s;nums=%lld,%lld;ok=1;none=null;"
         "emoji=%02x%02x%02x%02x;object=%s|%.*s|%.*s|%s|%lld;"
-        "object_encode=%.*s;false_override=%s;bigint=%.*s;syntax=%lld|%.*s;valid=%lld|%.*s;"
+        "object_encode=%.*s;false_override=%s;bigint=%.*s;decode_ignore=%02x;"
+        "decode_sub=%02x%02x%02x%02x;syntax=%lld|%.*s;valid=%lld|%.*s;"
         "encode=%.*s;escape=%.*s;encode_utf8=%lld|%.*s;encode_reset=%lld|%.*s\\n",
         (int)json_name->value.str->len,
         json_name->value.str->bytes,
@@ -2561,6 +2603,11 @@ int main(void) {
         jinx_oracle_zend_object_ptr(json_false_override)->class_name,
         (int)json_big->value.str->len,
         json_big->value.str->bytes,
+        (unsigned int)(unsigned char)json_ignore_value->value.str->bytes[0],
+        (unsigned int)(unsigned char)json_substitute_value->value.str->bytes[0],
+        (unsigned int)(unsigned char)json_substitute_value->value.str->bytes[1],
+        (unsigned int)(unsigned char)json_substitute_value->value.str->bytes[2],
+        (unsigned int)(unsigned char)json_substitute_value->value.str->bytes[3],
         (long long)json_syntax_code.as.i64,
         (int)json_syntax_msg.flags,
         (const char *)json_syntax_msg.as.ptr,
@@ -2583,6 +2630,8 @@ int main(void) {
     jinx_oracle_zend_object_value_release(json_default);
     jinx_oracle_zend_object_value_release(json_false_override);
     jinx_oracle_zend_array_value_release(json_big_result);
+    jinx_oracle_zend_array_value_release(json_ignore_result);
+    jinx_oracle_zend_array_value_release(json_substitute_result);
     jinx_zend_array_release(json_encode_source);
 
     jinx_zend_array_release(count_source);
