@@ -182,6 +182,7 @@ $code[] = '        strcmp(name, "natcasesort") == 0 ||';
 $code[] = '        strcmp(name, "usort") == 0 ||';
 $code[] = '        strcmp(name, "uasort") == 0 ||';
 $code[] = '        strcmp(name, "uksort") == 0 ||';
+$code[] = '        strcmp(name, "shuffle") == 0 ||';
 $code[] = '        strcmp(name, "array_multisort") == 0 ||';
 $code[] = '        strcmp(name, "array_map") == 0 ||';
 $code[] = '        strcmp(name, "array_reduce") == 0 ||';
