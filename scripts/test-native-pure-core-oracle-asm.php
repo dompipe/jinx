@@ -65,6 +65,16 @@ $cases = [
     ['nl2br', ["s:one\r\ntwo", 'b:false']],
     ['number_format', ['f:1234567.891', 'i:2']],
     ['number_format', ['f:-1234.5', 'i:1', 's:,', 's:_']],
+    ['addcslashes', ['s:foo.bar', 's:.']],
+    ['stripcslashes', ['s:foo\\nbar']],
+    ['str_pad', ['s:Alien', 'i:10', 's:-=', 'i:2']],
+    ['str_replace', ['s:world', 's:JINX', 's:hello world world']],
+    ['str_ireplace', ['s:WORLD', 's:JINX', 's:hello World world']],
+    ['strtr', ['s:baab', 's:ab', 's:01']],
+    ['levenshtein', ['s:kitten', 's:sitting']],
+    ['htmlspecialchars', ["s:<a href='x'>&\""]],
+    ['htmlspecialchars', ['s:&amp;<', 'i:11', 'null', 'b:false']],
+    ['htmlspecialchars_decode', ['s:&lt;b&gt;&quot;x&quot;&#039;y&#039;&lt;/b&gt;']],
 ];
 
 foreach ($cases as [$function, $args]) {
