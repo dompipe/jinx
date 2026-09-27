@@ -125,7 +125,8 @@ $code[] = '        strcmp(name, "array_filter") == 0 ||';
 $code[] = '        strcmp(name, "array_push") == 0 ||';
 $code[] = '        strcmp(name, "array_pop") == 0 ||';
 $code[] = '        strcmp(name, "array_shift") == 0 ||';
-$code[] = '        strcmp(name, "array_unshift") == 0 ||';
+$code[] = '        strcmp(name, "array_unshift") == 0 ||
+        strcmp(name, "array_splice") == 0 ||';
 $code[] = '        strcmp(name, "array_diff") == 0 ||';
 $code[] = '        strcmp(name, "array_diff_assoc") == 0 ||';
 $code[] = '        strcmp(name, "array_diff_key") == 0 ||';
