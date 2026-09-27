@@ -6987,10 +6987,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
                 encoding = argc >= 3u
                     ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
                     : JINX_PHP_ZLIB_ENCODING_GZIP;
-            } else {
+            } else if (jinx_oracle_name_is(name, "gzcompress")) {
                 encoding = argc >= 3u
                     ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
                     : JINX_PHP_ZLIB_ENCODING_DEFLATE;
+            } else {
+                ctx->fault = "Unhandled native zlib encode builtin";
+                return jinx_oracle_zero_value();
             }
         }
 
@@ -7021,6 +7024,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             encoding = JINX_PHP_ZLIB_ENCODING_RAW;
         } else if (jinx_oracle_name_is(name, "gzdecode")) {
             encoding = JINX_PHP_ZLIB_ENCODING_GZIP;
+        } else if (jinx_oracle_name_is(name, "zlib_decode")) {
+            encoding = JINX_PHP_ZLIB_ENCODING_ANY;
+        } else {
+            ctx->fault = "Unhandled native zlib decode builtin";
+            return jinx_oracle_zero_value();
         }
 
         ret = jinx_oracle_zlib_decode_value(arg0, encoding, max_length, &zlib_ok);
