@@ -3831,6 +3831,11 @@ static inline JinxValue jinx_oracle_zend_array_multisort_special(
 ) {
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
+    if (strcmp(name, "array_walk") == 0 ||
+        strcmp(name, "array_walk_recursive") == 0) {
+        return jinx_oracle_zend_array_walk_named(name, args, argc);
+    }
+
     if (strcmp(name, "array_diff_uassoc") == 0 ||
         strcmp(name, "array_diff_ukey") == 0 ||
         strcmp(name, "array_udiff") == 0 ||
@@ -4657,6 +4662,120 @@ static inline JinxValue jinx_oracle_zend_user_diff_intersect_special(
     }
 
     return jinx_oracle_zend_array_value_owned(result);
+}
+
+
+static inline int jinx_oracle_walk_seen(
+    JinxZendArray **stack,
+    size_t depth,
+    JinxZendArray *array
+) {
+    for (size_t i = 0u; i < depth; i++) {
+        if (stack[i] == array) return 1;
+    }
+    return 0;
+}
+
+static inline int jinx_oracle_zend_walk_array(
+    JinxZendArray *array,
+    JinxValue callback,
+    JinxValue userdata,
+    int has_userdata,
+    int recursive,
+    JinxZendArray **stack,
+    size_t depth
+) {
+    if (array == 0 || callback.type != 3u || depth >= 64u) return 0;
+    if (jinx_oracle_walk_seen(stack, depth, array)) return 0;
+
+    stack[depth] = array;
+    size_t live = jinx_zend_array_live_count(array);
+
+    for (size_t i = 0u; i < live; i++) {
+        JinxZendBucket *bucket = (JinxZendBucket *)jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0) return 0;
+
+        if (recursive &&
+            bucket->value.type == JINX_ZEND_ARRAY &&
+            bucket->value.value.array != 0) {
+            JinxZendArray *child = jinx_zend_array_separate(&bucket->value.value.array);
+            if (child == 0 ||
+                !jinx_oracle_zend_walk_array(
+                    child,
+                    callback,
+                    userdata,
+                    has_userdata,
+                    1,
+                    stack,
+                    depth + 1u
+                )) {
+                return 0;
+            }
+            continue;
+        }
+
+        JinxValue cb_args[3];
+        if (!jinx_oracle_zend_to_jinx_borrowed(bucket->value, &cb_args[0])) {
+            return 0;
+        }
+        cb_args[1] = jinx_oracle_zend_bucket_key_value(bucket);
+        size_t cb_argc = 2u;
+
+        if (has_userdata) {
+            cb_args[2] = userdata;
+            cb_argc = 3u;
+        }
+
+        JinxValue cb_result;
+        if (!jinx_oracle_invoke_named_callback(
+            callback,
+            cb_args,
+            cb_argc,
+            &cb_result
+        )) {
+            return 0;
+        }
+        jinx_oracle_zend_array_value_release(cb_result);
+
+        JinxZendValue replacement;
+        if (!jinx_oracle_zend_owned_from_jinx(cb_args[0], &replacement)) {
+            jinx_oracle_zend_array_value_release(cb_args[0]);
+            return 0;
+        }
+
+        jinx_oracle_zend_array_value_release(cb_args[0]);
+        jinx_zend_value_release(bucket->value);
+        bucket->value = replacement;
+    }
+
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_zend_array_walk_named(
+    const char *name,
+    JinxValue *args,
+    size_t argc
+) {
+    if (name == 0 || args == 0 || argc < 2u || args[1].type != 3u) {
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
+    if (array == 0) return jinx_oracle_zero_value();
+
+    JinxZendArray *stack[64] = {0};
+    int recursive = strcmp(name, "array_walk_recursive") == 0;
+    int ok = jinx_oracle_zend_walk_array(
+        array,
+        args[1],
+        argc >= 3u ? args[2] : jinx_oracle_zero_value(),
+        argc >= 3u,
+        recursive,
+        stack,
+        0u
+    );
+
+    return ok ? jinx_oracle_bool_value(1) : jinx_oracle_zero_value();
 }
 
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
