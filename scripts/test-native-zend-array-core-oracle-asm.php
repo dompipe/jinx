@@ -355,6 +355,10 @@ $jsonObjectDecoded = json_decode(
     0
 );
 $jsonObjectEncoded = json_encode($jsonObjectDecoded, 0, 512);
+$jsonObjectType = gettype($jsonObjectDecoded);
+$jsonObjectDebugType = get_debug_type($jsonObjectDecoded);
+$jsonObjectIsObject = is_object($jsonObjectDecoded);
+$jsonObjectIsResource = is_resource($jsonObjectDecoded);
 $jsonFalseOverride = json_decode('{"a":1}', false, 512, JSON_OBJECT_AS_ARRAY);
 $jsonBigDecoded = json_decode('{"n":9223372036854775808}', true, 512, JSON_BIGINT_AS_STRING);
 $jsonInvalidUtf8 = "{\"s\":\"\xFFx\"}";
@@ -413,6 +417,11 @@ $expectedJsonParity = 'JSON_PARITY:'
         . $jsonObjectDecoded->{'1'} . '|'
         . get_class($jsonObjectDecoded->nested) . '|'
         . $jsonObjectDecoded->nested->n
+    . ';object_type='
+        . $jsonObjectType . '|'
+        . $jsonObjectDebugType . '|'
+        . ($jsonObjectIsObject ? '1' : '0') . '|'
+        . ($jsonObjectIsResource ? '1' : '0')
     . ';object_encode=' . $jsonObjectEncoded
     . ';false_override=' . get_class($jsonFalseOverride)
     . ';bigint=' . $jsonBigDecoded['n']
