@@ -656,13 +656,65 @@ int main(void) {
     jinx_oracle_zend_array_value_release(result);
     jinx_zend_array_release(filter_source);
 
+    JinxZendArray *mutation = jinx_zend_array_new_packed(4);
+    if (mutation == 0 ||
+        !jinx_zend_array_append(mutation, jinx_zend_long(10)) ||
+        !jinx_zend_array_add_assoc(mutation, "x", 1, jinx_zend_long(20)) ||
+        !jinx_zend_array_add_index(mutation, 2, jinx_zend_long(30))) {
+        return fail("array mutation source");
+    }
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(mutation);
+    args[1] = jinx_oracle_int_value(40);
+    result = jinx_call_builtin_through_oracle("array_push", args, 2);
+    if (!expect_int(result, 4) || !expect_long_index(mutation, 3, 40)) {
+        return fail("array_push mutation");
+    }
+
+    result = jinx_call_builtin_through_oracle("array_pop", args, 1);
+    if (!expect_int(result, 40) || jinx_zend_array_live_count(mutation) != 3u) {
+        return fail("array_pop mutation");
+    }
+
+    args[1] = jinx_oracle_int_value(50);
+    result = jinx_call_builtin_through_oracle("array_push", args, 2);
+    if (!expect_int(result, 4) || !expect_long_index(mutation, 3, 50)) {
+        return fail("array_push after pop next index");
+    }
+
+    result = jinx_call_builtin_through_oracle("array_shift", args, 1);
+    if (!expect_int(result, 10) || jinx_zend_array_live_count(mutation) != 3u) {
+        return fail("array_shift mutation");
+    }
+    JinxZendValue *mutation_x = jinx_zend_array_find(mutation, "x", 1);
+    if (mutation_x == 0 || mutation_x->type != JINX_ZEND_LONG || mutation_x->value.lval != 20 ||
+        !expect_long_index(mutation, 0, 30) || !expect_long_index(mutation, 1, 50)) {
+        return fail("array_shift reindex");
+    }
+
+    args[1] = jinx_oracle_int_value(5);
+    args[2] = jinx_oracle_int_value(6);
+    result = jinx_call_builtin_through_oracle("array_unshift", args, 3);
+    if (!expect_int(result, 5) ||
+        !expect_long_index(mutation, 0, 5) ||
+        !expect_long_index(mutation, 1, 6) ||
+        !expect_long_index(mutation, 2, 30) ||
+        !expect_long_index(mutation, 3, 50)) {
+        return fail("array_unshift reindex");
+    }
+    mutation_x = jinx_zend_array_find(mutation, "x", 1);
+    if (mutation_x == 0 || mutation_x->type != JINX_ZEND_LONG || mutation_x->value.lval != 20) {
+        return fail("array_unshift string key preservation");
+    }
+    jinx_zend_array_release(mutation);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
