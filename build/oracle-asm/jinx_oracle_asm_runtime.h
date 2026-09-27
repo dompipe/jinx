@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /*
  * Low-level native Oracle/PASM runtime carrier for generated wrappers.
@@ -5530,6 +5531,256 @@ static inline JinxValue jinx_oracle_settype_value(
     return jinx_oracle_bool_value(1);
 }
 
+
+typedef struct JinxOracleMt19937State {
+    uint32_t count;
+    int mode;
+    uint32_t state[624];
+    int seeded;
+} JinxOracleMt19937State;
+
+static JinxOracleMt19937State jinx_oracle_mt19937_state = {0};
+
+static inline uint32_t jinx_oracle_mt_mix_bits(uint32_t u, uint32_t v) {
+    return (u & 0x80000000u) | (v & 0x7fffffffu);
+}
+
+static inline uint32_t jinx_oracle_mt_twist_standard(uint32_t m, uint32_t u, uint32_t v) {
+    return m ^ (jinx_oracle_mt_mix_bits(u, v) >> 1u) ^
+        ((uint32_t)(-(int32_t)(v & 1u)) & 0x9908b0dfu);
+}
+
+static inline uint32_t jinx_oracle_mt_twist_legacy(uint32_t m, uint32_t u, uint32_t v) {
+    return m ^ (jinx_oracle_mt_mix_bits(u, v) >> 1u) ^
+        ((uint32_t)(-(int32_t)(u & 1u)) & 0x9908b0dfu);
+}
+
+static inline void jinx_oracle_mt_reload(JinxOracleMt19937State *state) {
+    uint32_t *p = state->state;
+
+    if (state->mode == 0) {
+        for (uint32_t i = 624u - 397u; i--; ++p) {
+            *p = jinx_oracle_mt_twist_standard(p[397], p[0], p[1]);
+        }
+        for (uint32_t i = 397u; --i; ++p) {
+            *p = jinx_oracle_mt_twist_standard(p[397 - 624], p[0], p[1]);
+        }
+        *p = jinx_oracle_mt_twist_standard(
+            p[397 - 624],
+            p[0],
+            state->state[0]
+        );
+    } else {
+        for (uint32_t i = 624u - 397u; i--; ++p) {
+            *p = jinx_oracle_mt_twist_legacy(p[397], p[0], p[1]);
+        }
+        for (uint32_t i = 397u; --i; ++p) {
+            *p = jinx_oracle_mt_twist_legacy(p[397 - 624], p[0], p[1]);
+        }
+        *p = jinx_oracle_mt_twist_legacy(
+            p[397 - 624],
+            p[0],
+            state->state[0]
+        );
+    }
+
+    state->count = 0u;
+}
+
+static inline void jinx_oracle_mt_seed32(uint32_t seed, int mode) {
+    JinxOracleMt19937State *state = &jinx_oracle_mt19937_state;
+    state->mode = mode;
+    state->state[0] = seed;
+
+    for (uint32_t i = 1u; i < 624u; i++) {
+        uint32_t previous = state->state[i - 1u];
+        state->state[i] =
+            1812433253u * (previous ^ (previous >> 30u)) + i;
+    }
+
+    state->count = 624u;
+    state->seeded = 1;
+    jinx_oracle_mt_reload(state);
+}
+
+static inline uint32_t jinx_oracle_mt_default_seed(void) {
+    uint64_t mixed = (uint64_t)(uintptr_t)&jinx_oracle_mt19937_state;
+    mixed ^= (uint64_t)(unsigned long)time(NULL) * UINT64_C(0x9e3779b97f4a7c15);
+    mixed ^= (uint64_t)(unsigned long)clock() * UINT64_C(0xbf58476d1ce4e5b9);
+    mixed ^= mixed >> 30u;
+    mixed *= UINT64_C(0xbf58476d1ce4e5b9);
+    mixed ^= mixed >> 27u;
+    mixed *= UINT64_C(0x94d049bb133111eb);
+    mixed ^= mixed >> 31u;
+    return (uint32_t)(mixed ^ (mixed >> 32u));
+}
+
+static inline void jinx_oracle_mt_ensure_seeded(void) {
+    if (!jinx_oracle_mt19937_state.seeded) {
+        jinx_oracle_mt_seed32(jinx_oracle_mt_default_seed(), 0);
+    }
+}
+
+static inline uint32_t jinx_oracle_mt_generate(void) {
+    JinxOracleMt19937State *state = &jinx_oracle_mt19937_state;
+    jinx_oracle_mt_ensure_seeded();
+
+    if (state->count >= 624u) {
+        jinx_oracle_mt_reload(state);
+    }
+
+    uint32_t value = state->state[state->count++];
+    value ^= value >> 11u;
+    value ^= (value << 7u) & 0x9d2c5680u;
+    value ^= (value << 15u) & 0xefc60000u;
+    return value ^ (value >> 18u);
+}
+
+static inline uint32_t jinx_oracle_mt_range32(uint32_t umax, int *ok) {
+    uint32_t result = jinx_oracle_mt_generate();
+    *ok = 1;
+
+    if (umax == UINT32_MAX) {
+        return result;
+    }
+
+    umax++;
+
+    if ((umax & (umax - 1u)) == 0u) {
+        return result & (umax - 1u);
+    }
+
+    uint32_t limit = UINT32_MAX - (UINT32_MAX % umax) - 1u;
+    uint32_t attempts = 0u;
+
+    while (result > limit) {
+        if (++attempts > 50u) {
+            *ok = 0;
+            return 0u;
+        }
+        result = jinx_oracle_mt_generate();
+    }
+
+    return result % umax;
+}
+
+static inline uint64_t jinx_oracle_mt_range64(uint64_t umax, int *ok) {
+    uint64_t result =
+        (uint64_t)jinx_oracle_mt_generate() |
+        ((uint64_t)jinx_oracle_mt_generate() << 32u);
+    *ok = 1;
+
+    if (umax == UINT64_MAX) {
+        return result;
+    }
+
+    umax++;
+
+    if ((umax & (umax - 1u)) == 0u) {
+        return result & (umax - 1u);
+    }
+
+    uint64_t limit = UINT64_MAX - (UINT64_MAX % umax) - 1u;
+    uint32_t attempts = 0u;
+
+    while (result > limit) {
+        if (++attempts > 50u) {
+            *ok = 0;
+            return 0u;
+        }
+        result =
+            (uint64_t)jinx_oracle_mt_generate() |
+            ((uint64_t)jinx_oracle_mt_generate() << 32u);
+    }
+
+    return result % umax;
+}
+
+static inline int64_t jinx_oracle_mt_range_i64(int64_t min, int64_t max, int *ok) {
+    uint64_t umax = (uint64_t)max - (uint64_t)min;
+    uint64_t offset = umax > UINT32_MAX
+        ? jinx_oracle_mt_range64(umax, ok)
+        : (uint64_t)jinx_oracle_mt_range32((uint32_t)umax, ok);
+
+    if (!*ok) return 0;
+    return (int64_t)(offset + (uint64_t)min);
+}
+
+static inline JinxValue jinx_oracle_mt_builtin(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    uint32_t argc
+) {
+    JinxValue arg0 = jinx_oracle_call_arg(ctx, 0u);
+    JinxValue arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_is(name, "mt_srand") ||
+        jinx_oracle_name_is(name, "srand")) {
+        int mode = argc >= 2u ? (int)jinx_oracle_intish(arg1) : 0;
+        if (mode != 0 && mode != 1) {
+            ctx->fault = "mt_srand mode must be MT_RAND_MT19937 or MT_RAND_PHP";
+            return jinx_oracle_zero_value();
+        }
+
+        uint32_t seed = argc >= 1u && arg0.type != 0u
+            ? (uint32_t)jinx_oracle_intish(arg0)
+            : jinx_oracle_mt_default_seed();
+
+        jinx_oracle_mt_seed32(seed, mode);
+        return jinx_oracle_zero_value();
+    }
+
+    if (jinx_oracle_name_is(name, "mt_getrandmax") ||
+        jinx_oracle_name_is(name, "getrandmax")) {
+        return jinx_oracle_int_value(INT64_C(2147483647));
+    }
+
+    if (jinx_oracle_name_is(name, "mt_rand") ||
+        jinx_oracle_name_is(name, "rand")) {
+        jinx_oracle_mt_ensure_seeded();
+
+        if (argc == 0u) {
+            return jinx_oracle_int_value((int64_t)(jinx_oracle_mt_generate() >> 1u));
+        }
+
+        if (argc != 2u) {
+            ctx->fault = "rand/mt_rand requires zero or two arguments";
+            return jinx_oracle_zero_value();
+        }
+
+        int64_t min = jinx_oracle_intish(arg0);
+        int64_t max = jinx_oracle_intish(arg1);
+
+        if (max < min) {
+            if (jinx_oracle_name_is(name, "mt_rand")) {
+                ctx->fault = "mt_rand max must be greater than or equal to min";
+                return jinx_oracle_zero_value();
+            }
+            int64_t temp = min;
+            min = max;
+            max = temp;
+        }
+
+        if (jinx_oracle_mt19937_state.mode == 0) {
+            int ok = 0;
+            int64_t value = jinx_oracle_mt_range_i64(min, max, &ok);
+            if (!ok) {
+                ctx->fault = "MT19937 range rejection limit exceeded";
+                return jinx_oracle_zero_value();
+            }
+            return jinx_oracle_int_value(value);
+        }
+
+        uint64_t raw = (uint64_t)(jinx_oracle_mt_generate() >> 1u);
+        double span = (double)max - (double)min + 1.0;
+        uint64_t offset = (uint64_t)(span * ((double)raw / 2147483648.0));
+        return jinx_oracle_int_value((int64_t)((uint64_t)min + offset));
+    }
+
+    ctx->fault = "unknown MT19937 builtin";
+    return jinx_oracle_zero_value();
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -5546,6 +5797,14 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_in4(name, "mt_srand", "srand", "mt_rand", "rand") ||
+        jinx_oracle_name_in2(name, "mt_getrandmax", "getrandmax")) {
+        ret = jinx_oracle_mt_builtin(ctx, name, argc);
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (jinx_oracle_name_is(name, "strip_tags")) {
         int strip_ok = 0;
