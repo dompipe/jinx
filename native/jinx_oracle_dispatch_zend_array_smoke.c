@@ -1257,6 +1257,160 @@ int main(void) {
     jinx_zend_array_release(query_data);
 
 
+
+    JinxZendArray *sort_values = jinx_zend_array_new_packed(4);
+    if (sort_values == 0 ||
+        !jinx_zend_array_append(sort_values, jinx_zend_long(3)) ||
+        !jinx_zend_array_append(sort_values, jinx_zend_long(1)) ||
+        !jinx_zend_array_append(sort_values, jinx_zend_long(2))) {
+        return fail("sort source");
+    }
+    args[0] = jinx_oracle_zend_array_value_borrowed(sort_values);
+    result = jinx_call_builtin_through_oracle("sort", args, 1);
+    if (!expect_bool(result, 1) ||
+        !expect_long_index(sort_values, 0, 1) ||
+        !expect_long_index(sort_values, 1, 2) ||
+        !expect_long_index(sort_values, 2, 3)) {
+        return fail("sort reindex");
+    }
+
+    JinxZendArray *rsort_values = jinx_zend_array_new_packed(4);
+    JinxZendString *s10 = jinx_zend_string_new("10", 2);
+    JinxZendString *s2 = jinx_zend_string_new("2", 1);
+    JinxZendString *s1 = jinx_zend_string_new("1", 1);
+    if (rsort_values == 0 || s10 == 0 || s2 == 0 || s1 == 0 ||
+        !jinx_zend_array_append(rsort_values, jinx_zend_string_value(s10)) ||
+        !jinx_zend_array_append(rsort_values, jinx_zend_string_value(s2)) ||
+        !jinx_zend_array_append(rsort_values, jinx_zend_string_value(s1))) {
+        return fail("rsort source");
+    }
+    jinx_zend_string_release(s10);
+    jinx_zend_string_release(s2);
+    jinx_zend_string_release(s1);
+    args[0] = jinx_oracle_zend_array_value_borrowed(rsort_values);
+    args[1] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("rsort", args, 2);
+    if (!expect_bool(result, 1) ||
+        !expect_string_index(rsort_values, 0, "10") ||
+        !expect_string_index(rsort_values, 1, "2") ||
+        !expect_string_index(rsort_values, 2, "1")) {
+        return fail("rsort numeric");
+    }
+
+    JinxZendArray *asort_values = jinx_zend_array_new_packed(4);
+    if (asort_values == 0 ||
+        !jinx_zend_array_add_assoc(asort_values, "b", 1, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(asort_values, "a", 1, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(asort_values, "c", 1, jinx_zend_long(1))) {
+        return fail("asort source");
+    }
+    args[0] = jinx_oracle_zend_array_value_borrowed(asort_values);
+    result = jinx_call_builtin_through_oracle("asort", args, 1);
+    if (!expect_bool(result, 1) ||
+        jinx_zend_array_live_iter_at(asort_values, 0)->key == 0 ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(asort_values, 0)->key, "a", 1) ||
+        jinx_zend_array_live_iter_at(asort_values, 1)->key == 0 ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(asort_values, 1)->key, "c", 1) ||
+        jinx_zend_array_live_iter_at(asort_values, 2)->key == 0 ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(asort_values, 2)->key, "b", 1)) {
+        return fail("asort stable preserve keys");
+    }
+
+    JinxZendArray *arsort_values = jinx_zend_array_new_packed(4);
+    if (arsort_values == 0 ||
+        !jinx_zend_array_add_assoc(arsort_values, "a", 1, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(arsort_values, "b", 1, jinx_zend_long(3)) ||
+        !jinx_zend_array_add_assoc(arsort_values, "c", 1, jinx_zend_long(2))) {
+        return fail("arsort source");
+    }
+    args[0] = jinx_oracle_zend_array_value_borrowed(arsort_values);
+    result = jinx_call_builtin_through_oracle("arsort", args, 1);
+    if (!expect_bool(result, 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(arsort_values, 0)->key, "b", 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(arsort_values, 1)->key, "c", 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(arsort_values, 2)->key, "a", 1)) {
+        return fail("arsort preserve keys");
+    }
+
+    JinxZendArray *ksort_values = jinx_zend_array_new_packed(4);
+    if (ksort_values == 0 ||
+        !jinx_zend_array_add_assoc(ksort_values, "b", 1, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(ksort_values, "a", 1, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(ksort_values, "c", 1, jinx_zend_long(3))) {
+        return fail("ksort source");
+    }
+    args[0] = jinx_oracle_zend_array_value_borrowed(ksort_values);
+    result = jinx_call_builtin_through_oracle("ksort", args, 1);
+    if (!expect_bool(result, 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(ksort_values, 0)->key, "a", 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(ksort_values, 1)->key, "b", 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(ksort_values, 2)->key, "c", 1)) {
+        return fail("ksort keys");
+    }
+    result = jinx_call_builtin_through_oracle("krsort", args, 1);
+    if (!expect_bool(result, 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(ksort_values, 0)->key, "c", 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(ksort_values, 1)->key, "b", 1) ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(ksort_values, 2)->key, "a", 1)) {
+        return fail("krsort keys");
+    }
+
+    JinxZendArray *natural_values = jinx_zend_array_new_packed(4);
+    JinxZendString *img12 = jinx_zend_string_new("img12.png", 9);
+    JinxZendString *img10 = jinx_zend_string_new("img10.png", 9);
+    JinxZendString *img2 = jinx_zend_string_new("img2.png", 8);
+    JinxZendString *img1 = jinx_zend_string_new("img1.png", 8);
+    if (natural_values == 0 || img12 == 0 || img10 == 0 || img2 == 0 || img1 == 0 ||
+        !jinx_zend_array_append(natural_values, jinx_zend_string_value(img12)) ||
+        !jinx_zend_array_append(natural_values, jinx_zend_string_value(img10)) ||
+        !jinx_zend_array_append(natural_values, jinx_zend_string_value(img2)) ||
+        !jinx_zend_array_append(natural_values, jinx_zend_string_value(img1))) {
+        return fail("natsort source");
+    }
+    jinx_zend_string_release(img12);
+    jinx_zend_string_release(img10);
+    jinx_zend_string_release(img2);
+    jinx_zend_string_release(img1);
+    args[0] = jinx_oracle_zend_array_value_borrowed(natural_values);
+    result = jinx_call_builtin_through_oracle("natsort", args, 1);
+    if (!expect_bool(result, 1) ||
+        !expect_string_index(natural_values, 3, "img1.png") ||
+        !expect_string_index(natural_values, 2, "img2.png") ||
+        !expect_string_index(natural_values, 1, "img10.png") ||
+        !expect_string_index(natural_values, 0, "img12.png")) {
+        return fail("natsort preserve keys");
+    }
+
+    JinxZendArray *natcase_values = jinx_zend_array_new_packed(3);
+    JinxZendString *nc12 = jinx_zend_string_new("IMG12", 5);
+    JinxZendString *nc2 = jinx_zend_string_new("img2", 4);
+    JinxZendString *nc1 = jinx_zend_string_new("Img1", 4);
+    if (natcase_values == 0 || nc12 == 0 || nc2 == 0 || nc1 == 0 ||
+        !jinx_zend_array_append(natcase_values, jinx_zend_string_value(nc12)) ||
+        !jinx_zend_array_append(natcase_values, jinx_zend_string_value(nc2)) ||
+        !jinx_zend_array_append(natcase_values, jinx_zend_string_value(nc1))) {
+        return fail("natcasesort source");
+    }
+    jinx_zend_string_release(nc12);
+    jinx_zend_string_release(nc2);
+    jinx_zend_string_release(nc1);
+    args[0] = jinx_oracle_zend_array_value_borrowed(natcase_values);
+    result = jinx_call_builtin_through_oracle("natcasesort", args, 1);
+    if (!expect_bool(result, 1) ||
+        !expect_string_index(natcase_values, 2, "Img1") ||
+        !expect_string_index(natcase_values, 1, "img2") ||
+        !expect_string_index(natcase_values, 0, "IMG12")) {
+        return fail("natcasesort preserve keys");
+    }
+
+    jinx_zend_array_release(sort_values);
+    jinx_zend_array_release(rsort_values);
+    jinx_zend_array_release(asort_values);
+    jinx_zend_array_release(arsort_values);
+    jinx_zend_array_release(ksort_values);
+    jinx_zend_array_release(natural_values);
+    jinx_zend_array_release(natcase_values);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
