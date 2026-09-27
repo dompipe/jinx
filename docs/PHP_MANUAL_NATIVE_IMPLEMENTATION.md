@@ -93,8 +93,9 @@ This is not native ASM completion. The manifest state is `php-fallback` until ex
 | `str_starts_with` | `str_starts_with(string $haystack, string $needle): bool` | exact | Binary-safe byte prefix including empty needle. |
 | `str_ends_with` | `str_ends_with(string $haystack, string $needle): bool` | exact | Binary-safe byte suffix including empty needle. |
 | `ctype_*` | PHP ctype reference | exact | Native ASCII byte-class checks for string `JinxValue`; empty strings return false. |
+| string byte transforms | `strtolower`/`strtoupper`/`lcfirst`/`ucfirst`/`strrev`/default `trim` family | exact | Native Oracle ASM byte handlers for the current `JinxValue` string model. |
 | crypto/hash/password/random | PHP crypto/hash/password/random references | php-fallback | Original PHP fallback preserves correctness until exact native crypto exists. |
-| string transform family | PHP string reference | php-fallback | Original PHP fallback preserves exact behavior until each transform gets a native handler. |
+| complex string transform family | PHP string reference | php-fallback | Original PHP fallback preserves exact behavior until each transform gets a native handler. |
 | array family | PHP array reference | php-fallback | Original PHP fallback preserves exact behavior until native array storage exists. |
 | class/object/reflection | PHP class/object reference | php-fallback | Original PHP fallback preserves exact behavior until native class/object tables exist. |
 | filesystem/stream/process/network/session/db | PHP side-effect references | sandbox-blocked | No blind native host calls; needs explicit sandbox policy before enabling. |

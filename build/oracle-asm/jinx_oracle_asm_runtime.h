@@ -102,6 +102,14 @@ static inline JinxValue jinx_oracle_string_value(const char *value) {
     return v;
 }
 
+static inline JinxValue jinx_oracle_string_value_len(const char *value, uint32_t len) {
+    JinxValue v = jinx_oracle_zero_value();
+    v.type = 3u;
+    v.as.ptr = (void *)value;
+    v.flags = value == NULL ? 0u : len;
+    return v;
+}
+
 static inline JinxValue jinx_oracle_array_count_value(uint32_t count) {
     JinxValue v = jinx_oracle_zero_value();
     v.type = 4u;
@@ -123,6 +131,90 @@ static inline const unsigned char *jinx_oracle_string_bytes(JinxValue value) {
 
 static inline uint32_t jinx_oracle_string_len(JinxValue value) {
     return value.type == 3u ? value.flags : 0u;
+}
+
+static inline char *jinx_oracle_scratch_string(uint32_t len) {
+    enum { JINX_ORACLE_SCRATCH_SLOTS = 8, JINX_ORACLE_SCRATCH_BYTES = 4096 };
+    static char buffers[JINX_ORACLE_SCRATCH_SLOTS][JINX_ORACLE_SCRATCH_BYTES];
+    static uint32_t slot = 0u;
+    char *buffer;
+
+    if (len >= JINX_ORACLE_SCRATCH_BYTES) {
+        len = JINX_ORACLE_SCRATCH_BYTES - 1u;
+    }
+
+    slot = (slot + 1u) % JINX_ORACLE_SCRATCH_SLOTS;
+    buffer = buffers[slot];
+    buffer[len] = '\0';
+    return buffer;
+}
+
+static inline JinxValue jinx_oracle_string_transform_case(JinxValue value, int upper) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(len);
+
+    for (uint32_t i = 0; i < len; i++) {
+        out[i] = (char)(upper ? toupper((int)bytes[i]) : tolower((int)bytes[i]));
+    }
+
+    return jinx_oracle_string_value_len(out, len);
+}
+
+static inline JinxValue jinx_oracle_string_transform_first(JinxValue value, int upper) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(len);
+
+    if (len != 0u) {
+        memcpy(out, bytes, len);
+        out[0] = (char)(upper ? toupper((int)(unsigned char)out[0]) : tolower((int)(unsigned char)out[0]));
+    }
+
+    return jinx_oracle_string_value_len(out, len);
+}
+
+static inline JinxValue jinx_oracle_string_reverse(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(len);
+
+    for (uint32_t i = 0; i < len; i++) {
+        out[i] = (char)bytes[len - 1u - i];
+    }
+
+    return jinx_oracle_string_value_len(out, len);
+}
+
+static inline int jinx_oracle_default_trim_byte(unsigned char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\0' || c == '\v';
+}
+
+static inline JinxValue jinx_oracle_string_trim_default(JinxValue value, int left, int right) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint32_t start = 0u;
+    uint32_t end = len;
+    char *out;
+
+    if (left) {
+        while (start < end && jinx_oracle_default_trim_byte(bytes[start])) {
+            start++;
+        }
+    }
+
+    if (right) {
+        while (end > start && jinx_oracle_default_trim_byte(bytes[end - 1u])) {
+            end--;
+        }
+    }
+
+    out = jinx_oracle_scratch_string(end - start);
+    if (end > start) {
+        memcpy(out, bytes + start, end - start);
+    }
+
+    return jinx_oracle_string_value_len(out, end - start);
 }
 
 static inline int jinx_oracle_mem_contains(const unsigned char *haystack, uint32_t haystack_len, const unsigned char *needle, uint32_t needle_len) {
@@ -409,9 +501,26 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     if (jinx_oracle_name_in8(name, "addcslashes", "addslashes", "base64_decode", "base64_encode", "base_convert", "basename", "bin2hex", "chop") ||
         jinx_oracle_name_in8(name, "chr", "chunk_split", "constant", "convert_uudecode", "convert_uuencode", "count_chars", "crypt", "_") ||
         jinx_oracle_name_in8(name, "dirname", "htmlentities", "htmlspecialchars", "implode", "join", "lcfirst", "ltrim", "md5") ||
-        jinx_oracle_name_in8(name, "nl2br", "number_format", "rtrim", "sha1", "strtolower", "strtoupper", "trim", "ucfirst") ||
-        jinx_oracle_name_in4(name, "ucwords", "sprintf", "vsprintf", "wordwrap")) {
-        if (jinx_oracle_name_is(name, "basename")) {
+        jinx_oracle_name_in8(name, "nl2br", "number_format", "rtrim", "sha1", "strrev", "strtolower", "strtoupper", "trim") ||
+        jinx_oracle_name_in4(name, "ucfirst", "ucwords", "sprintf", "vsprintf") ||
+        jinx_oracle_name_is(name, "wordwrap")) {
+        if (jinx_oracle_name_is(name, "strtolower")) {
+            ret = jinx_oracle_string_transform_case(arg0, 0);
+        } else if (jinx_oracle_name_is(name, "strtoupper")) {
+            ret = jinx_oracle_string_transform_case(arg0, 1);
+        } else if (jinx_oracle_name_is(name, "lcfirst")) {
+            ret = jinx_oracle_string_transform_first(arg0, 0);
+        } else if (jinx_oracle_name_is(name, "ucfirst")) {
+            ret = jinx_oracle_string_transform_first(arg0, 1);
+        } else if (jinx_oracle_name_is(name, "strrev")) {
+            ret = jinx_oracle_string_reverse(arg0);
+        } else if (jinx_oracle_name_is(name, "trim")) {
+            ret = jinx_oracle_string_trim_default(arg0, 1, 1);
+        } else if (jinx_oracle_name_is(name, "ltrim")) {
+            ret = jinx_oracle_string_trim_default(arg0, 1, 0);
+        } else if (jinx_oracle_name_is(name, "rtrim") || jinx_oracle_name_is(name, "chop")) {
+            ret = jinx_oracle_string_trim_default(arg0, 0, 1);
+        } else if (jinx_oracle_name_is(name, "basename")) {
             ret = jinx_oracle_string_value("dompipe.txt");
         } else if (jinx_oracle_name_is(name, "dirname")) {
             ret = jinx_oracle_string_value("/tmp");

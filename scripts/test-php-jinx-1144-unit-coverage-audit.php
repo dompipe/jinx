@@ -55,7 +55,7 @@ foreach ($expectedScripts as $relativePath => $expectedCaseCount) {
         fail('unit case script does not run native JINX candidate: ' . $relativePath);
     }
 
-    if (!str_contains($source, "$checked !== {$expectedCaseCount}")) {
+    if (!str_contains($source, '$checked !== ' . $expectedCaseCount)) {
         fail('unit case script missing exact checked-count guard for ' . $expectedCaseCount . ': ' . $relativePath);
     }
 
@@ -63,11 +63,11 @@ foreach ($expectedScripts as $relativePath => $expectedCaseCount) {
         fail('unit case script missing exact case-count guard for ' . $expectedCaseCount . ': ' . $relativePath);
     }
 
-    if (!str_contains($source, "$jinxResult['exit'] !== $phpResult['exit']")) {
+    if (!str_contains($source, '$jinxResult[\'exit\'] !== $phpResult[\'exit\']')) {
         fail('unit case script missing exit-code parity assertion: ' . $relativePath);
     }
 
-    if (!str_contains($source, "$jinxResult['stdout'] !== $phpResult['stdout']")) {
+    if (!str_contains($source, '$jinxResult[\'stdout\'] !== $phpResult[\'stdout\']')) {
         fail('unit case script missing stdout parity assertion: ' . $relativePath);
     }
 
