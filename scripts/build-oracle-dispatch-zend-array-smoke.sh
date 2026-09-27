@@ -24,6 +24,7 @@ php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     -lm \
+    -lz \
     -o "$OUT"
 
 chmod +x "$OUT"
