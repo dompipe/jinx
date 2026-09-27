@@ -385,6 +385,59 @@ static void print_value_hex_line(JinxValue value) {
     printf("\n");
 }
 
+static void print_php_g_double(double value) {
+    char buffer[128];
+
+    if (isnan(value)) {
+        fputs("NAN", stdout);
+        return;
+    }
+    if (isinf(value)) {
+        fputs(signbit(value) ? "-INF" : "INF", stdout);
+        return;
+    }
+
+    /*
+     * PHP sprintf("%g") uses zend_gcvt() with FLOAT_PRECISION (6).
+     * libc %g is numerically compatible for the mantissa/threshold here,
+     * but its exponential spelling differs: it may omit the decimal
+     * fraction and pads the exponent to two digits (1e-07). PHP emits
+     * 1.0e-7. Normalize only that spelling so CLI parity remains exact.
+     */
+    snprintf(buffer, sizeof(buffer), "%.6g", value);
+
+    char *exponent = strchr(buffer, 'e');
+    if (exponent == NULL) exponent = strchr(buffer, 'E');
+    if (exponent == NULL) {
+        fputs(buffer, stdout);
+        return;
+    }
+
+    char mantissa[96];
+    size_t mantissa_len = (size_t)(exponent - buffer);
+    if (mantissa_len >= sizeof(mantissa) - 3u) {
+        fputs(buffer, stdout);
+        return;
+    }
+
+    memcpy(mantissa, buffer, mantissa_len);
+    mantissa[mantissa_len] = '\0';
+    if (strchr(mantissa, '.') == NULL) {
+        mantissa[mantissa_len++] = '.';
+        mantissa[mantissa_len++] = '0';
+        mantissa[mantissa_len] = '\0';
+    }
+
+    const char *p = exponent + 1;
+    char sign = '+';
+    if (*p == '+' || *p == '-') {
+        sign = *p++;
+    }
+    while (*p == '0' && p[1] != '\0') p++;
+
+    printf("%s%c%c%s", mantissa, *exponent, sign, p);
+}
+
 static void print_value(JinxValue value) {
     switch (value.type) {
         case 1u:
@@ -400,7 +453,8 @@ static void print_value(JinxValue value) {
             printf("array-count:%u", value.flags);
             break;
         case 5u:
-            printf("float:%g", value.as.f64);
+            fputs("float:", stdout);
+            print_php_g_double(value.as.f64);
             break;
         case JINX_ORACLE_VALUE_ZEND_ARRAY:
             printf("zend-array:%zu", jinx_zend_array_live_count(jinx_oracle_zend_array_ptr(value)));
