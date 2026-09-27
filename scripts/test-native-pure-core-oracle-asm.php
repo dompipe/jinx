@@ -17,6 +17,9 @@ function decodeArg(string $arg): mixed
     if (strlen($arg) < 2 || $arg[1] !== ':') fail("invalid typed argument {$arg}");
     return match ($arg[0]) {
         's' => substr($arg, 2),
+        'h' => (($decoded = hex2bin(substr($arg, 2))) !== false
+            ? $decoded
+            : fail("invalid hexadecimal typed argument {$arg}")),
         'i' => (int)substr($arg, 2),
         'f' => (float)substr($arg, 2),
         'b' => substr($arg, 2) === 'true' || substr($arg, 2) === '1',
@@ -230,18 +233,16 @@ $cases = [
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
 
-$hebrewBytes = hex2bin('e0e1e2');
-$mixedHebrewBytes = hex2bin('e0e1e220414243');
-$punctuatedHebrewBytes = hex2bin('28e0e129');
-$wrappedHebrewBytes = hex2bin('e0e1e220e3e4e520414243');
-if ($hebrewBytes === false || $mixedHebrewBytes === false ||
-    $punctuatedHebrewBytes === false || $wrappedHebrewBytes === false) {
-    fail('could not construct hebrev parity fixtures');
-}
-$cases[] = ['hebrev', ['s:' . $hebrewBytes]];
-$cases[] = ['hebrev', ['s:' . $mixedHebrewBytes]];
-$cases[] = ['hebrev', ['s:' . $punctuatedHebrewBytes]];
-$cases[] = ['hebrev', ['s:' . $wrappedHebrewBytes, 'i:5']];
+/*
+ * hebrev() operates on legacy single-byte Hebrew data. Transport those
+ * fixtures as hex instead of embedding non-UTF-8 bytes in a shell command;
+ * escapeshellarg()/the shell may otherwise drop bytes under a non-UTF-8
+ * LC_CTYPE before ./jinx ever receives them.
+ */
+$cases[] = ['hebrev', ['h:e0e1e2']];
+$cases[] = ['hebrev', ['h:e0e1e220414243']];
+$cases[] = ['hebrev', ['h:28e0e129']];
+$cases[] = ['hebrev', ['h:e0e1e220e3e4e520414243', 'i:5']];
 
 foreach ($cases as [$function, $args]) {
     $phpArgs = array_map('decodeArg', $args);
