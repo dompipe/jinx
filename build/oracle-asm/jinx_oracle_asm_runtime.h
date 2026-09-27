@@ -461,6 +461,141 @@ static inline JinxValue jinx_oracle_strstr_value(
     return jinx_oracle_string_slice_copy(haystack, position, haystack_len - position);
 }
 
+static inline JinxValue jinx_oracle_stripslashes_value(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(len);
+    uint32_t pos = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char c = bytes[i];
+
+        if (c == (unsigned char)'\\') {
+            i++;
+            if (i >= len) {
+                break;
+            }
+            c = bytes[i] == (unsigned char)'0' ? 0u : bytes[i];
+        }
+
+        out[pos++] = (char)c;
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline int jinx_oracle_is_quotemeta_byte(unsigned char c) {
+    return c == (unsigned char)'.' || c == (unsigned char)'\\' ||
+        c == (unsigned char)'+' || c == (unsigned char)'*' ||
+        c == (unsigned char)'?' || c == (unsigned char)'[' ||
+        c == (unsigned char)'^' || c == (unsigned char)']' ||
+        c == (unsigned char)'(' || c == (unsigned char)'$' ||
+        c == (unsigned char)')';
+}
+
+static inline JinxValue jinx_oracle_quotemeta_value(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint64_t needed = len;
+
+    if (len == 0u) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (jinx_oracle_is_quotemeta_byte(bytes[i])) {
+            needed++;
+        }
+    }
+
+    if (needed > UINT32_MAX) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t pos = 0u;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (jinx_oracle_is_quotemeta_byte(bytes[i])) {
+            out[pos++] = '\\';
+        }
+        out[pos++] = (char)bytes[i];
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
+static inline JinxValue jinx_oracle_strpbrk_value(JinxValue value, JinxValue characters_value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    const unsigned char *characters = jinx_oracle_string_bytes(characters_value);
+    uint32_t len = jinx_oracle_string_len(value);
+    uint32_t characters_len = jinx_oracle_string_len(characters_value);
+
+    for (uint32_t i = 0u; i < len; i++) {
+        for (uint32_t j = 0u; j < characters_len; j++) {
+            if (bytes[i] == characters[j]) {
+                return jinx_oracle_string_slice_copy(bytes, i, len - i);
+            }
+        }
+    }
+
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_chunk_split_value(
+    JinxValue value,
+    JinxValue length_value,
+    JinxValue separator_value,
+    uint32_t argc
+) {
+    static const unsigned char default_separator[] = "\r\n";
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int64_t raw_length = argc >= 2u ? jinx_oracle_intish(length_value) : 76;
+    const unsigned char *separator = argc >= 3u
+        ? jinx_oracle_string_bytes(separator_value)
+        : default_separator;
+    uint32_t separator_len = argc >= 3u
+        ? jinx_oracle_string_len(separator_value)
+        : 2u;
+
+    if (len == 0u) {
+        return jinx_oracle_string_value_len("", 0u);
+    }
+
+    if (raw_length <= 0) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    uint64_t chunk_length = (uint64_t)raw_length;
+    uint64_t chunks = ((uint64_t)len + chunk_length - 1u) / chunk_length;
+    uint64_t needed = (uint64_t)len + chunks * (uint64_t)separator_len;
+
+    if (needed > UINT32_MAX) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)needed);
+    uint32_t source = 0u;
+    uint32_t pos = 0u;
+
+    while (source < len) {
+        uint32_t remaining = len - source;
+        uint32_t take = remaining < (uint64_t)raw_length ? remaining : (uint32_t)raw_length;
+
+        memcpy(out + pos, bytes + source, take);
+        pos += take;
+        source += take;
+
+        if (separator_len != 0u) {
+            memcpy(out + pos, separator, separator_len);
+            pos += separator_len;
+        }
+    }
+
+    return jinx_oracle_string_value_len(out, pos);
+}
+
 static inline JinxValue jinx_oracle_bin2hex_value(JinxValue value) {
     static const char hex[] = "0123456789abcdef";
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
@@ -1043,6 +1178,35 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "addslashes")) {
         ret = jinx_oracle_addslashes_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "stripslashes")) {
+        ret = jinx_oracle_stripslashes_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "quotemeta")) {
+        ret = jinx_oracle_quotemeta_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "strpbrk")) {
+        ret = jinx_oracle_strpbrk_value(arg0, arg1);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "chunk_split")) {
+        ret = jinx_oracle_chunk_split_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            argc
+        );
         jinx_oracle_return(ctx, ret);
         return ret;
     }
