@@ -149,6 +149,7 @@ $code[] = '        strcmp(name, "str_word_count") == 0 ||';
 $code[] = '        strcmp(name, "explode") == 0 ||';
 $code[] = '        strcmp(name, "str_split") == 0 ||';
 $code[] = '        strcmp(name, "vsprintf") == 0 ||';
+$code[] = '        strcmp(name, "vprintf") == 0 ||';
 $code[] = '        strcmp(name, "implode") == 0 ||';
 $code[] = '        strcmp(name, "join") == 0 ||';
 $code[] = '        strcmp(name, "range") == 0 ||';
