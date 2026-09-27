@@ -3640,6 +3640,162 @@ static inline int jinx_oracle_stable_sort_entries(
     return 1;
 }
 
+
+static inline int jinx_oracle_user_sort_entry_compare(
+    const JinxOracleSortEntry *a,
+    const JinxOracleSortEntry *b,
+    int by_key,
+    JinxValue callback,
+    int *ok
+) {
+    JinxValue av;
+    JinxValue bv;
+
+    if (by_key) {
+        JinxZendValue ak = jinx_oracle_sort_bucket_key(a->bucket);
+        JinxZendValue bk = jinx_oracle_sort_bucket_key(b->bucket);
+
+        if (!jinx_oracle_zend_to_jinx_borrowed(ak, &av) ||
+            !jinx_oracle_zend_to_jinx_borrowed(bk, &bv)) {
+            *ok = 0;
+            return 0;
+        }
+    } else {
+        if (!jinx_oracle_zend_to_jinx_borrowed(a->bucket->value, &av) ||
+            !jinx_oracle_zend_to_jinx_borrowed(b->bucket->value, &bv)) {
+            *ok = 0;
+            return 0;
+        }
+    }
+
+    return jinx_oracle_named_comparator_result(
+        callback,
+        av,
+        bv,
+        ok
+    );
+}
+
+static inline int jinx_oracle_stable_user_sort_entries(
+    JinxOracleSortEntry *entries,
+    size_t count,
+    int by_key,
+    JinxValue callback
+) {
+    if (count < 2u) return 1;
+
+    JinxOracleSortEntry *tmp = (JinxOracleSortEntry *)malloc(count * sizeof(*tmp));
+    if (tmp == 0) return 0;
+
+    for (size_t width = 1u; width < count; width *= 2u) {
+        for (size_t left = 0u; left < count; left += width * 2u) {
+            size_t mid = left + width;
+            size_t right = left + width * 2u;
+            if (mid > count) mid = count;
+            if (right > count) right = count;
+
+            size_t i = left;
+            size_t j = mid;
+            size_t k = left;
+
+            while (i < mid && j < right) {
+                int ok = 0;
+                int cmp = jinx_oracle_user_sort_entry_compare(
+                    &entries[i],
+                    &entries[j],
+                    by_key,
+                    callback,
+                    &ok
+                );
+                if (!ok) {
+                    free(tmp);
+                    return 0;
+                }
+
+                tmp[k++] = cmp <= 0 ? entries[i++] : entries[j++];
+            }
+
+            while (i < mid) tmp[k++] = entries[i++];
+            while (j < right) tmp[k++] = entries[j++];
+
+            for (k = left; k < right; k++) {
+                entries[k] = tmp[k];
+            }
+        }
+
+        if (width > count / 2u) break;
+    }
+
+    free(tmp);
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_zend_user_sort_special(
+    const char *name,
+    JinxValue *args,
+    size_t argc
+) {
+    if (name == 0 || args == 0 || argc < 2u || args[1].type != 3u) {
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
+    if (array == 0) return jinx_oracle_zero_value();
+
+    int by_key = strcmp(name, "uksort") == 0;
+    int renumber = strcmp(name, "usort") == 0;
+    size_t live = jinx_zend_array_live_count(array);
+
+    JinxOracleSortEntry *entries = live == 0u
+        ? 0
+        : (JinxOracleSortEntry *)malloc(live * sizeof(*entries));
+
+    if (live != 0u && entries == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 0u; i < live; i++) {
+        entries[i].bucket = jinx_zend_array_live_iter_at(array, i);
+        entries[i].ordinal = i;
+    }
+
+    if (!jinx_oracle_stable_user_sort_entries(
+        entries,
+        live,
+        by_key,
+        args[1]
+    )) {
+        free(entries);
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed(
+        live == 0u ? 1u : live
+    );
+    if (result == 0) {
+        free(entries);
+        return jinx_oracle_zero_value();
+    }
+
+    for (size_t i = 0u; i < live; i++) {
+        int added = renumber
+            ? jinx_zend_array_append(result, entries[i].bucket->value)
+            : jinx_oracle_zend_add_bucket(result, entries[i].bucket, 1);
+
+        if (!added) {
+            free(entries);
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    free(entries);
+
+    if (!jinx_oracle_replace_array_contents(array, result)) {
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_bool_value(1);
+}
+
 static inline int jinx_oracle_replace_array_contents(
     JinxZendArray *target,
     JinxZendArray *replacement
@@ -4407,7 +4563,7 @@ static inline JinxValue jinx_oracle_zend_array_predicate_named(
 }
 
 
-static inline int jinx_oracle_named_comparator_equal(
+static inline int jinx_oracle_named_comparator_result(
     JinxValue callback,
     JinxValue left,
     JinxValue right,
@@ -4429,10 +4585,25 @@ static inline int jinx_oracle_named_comparator_equal(
         return 0;
     }
 
-    int equal = jinx_oracle_intish(cb_result) == 0;
+    int64_t raw = jinx_oracle_intish(cb_result);
     jinx_oracle_zend_array_value_release(cb_result);
     *ok = 1;
-    return equal;
+    return raw < 0 ? -1 : (raw > 0 ? 1 : 0);
+}
+
+static inline int jinx_oracle_named_comparator_equal(
+    JinxValue callback,
+    JinxValue left,
+    JinxValue right,
+    int *ok
+) {
+    int cmp = jinx_oracle_named_comparator_result(
+        callback,
+        left,
+        right,
+        ok
+    );
+    return *ok && cmp == 0;
 }
 
 static inline int jinx_oracle_user_compare_bucket_match(
@@ -5372,6 +5543,11 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     if (strcmp(name, "array_multisort") == 0) {
         return jinx_oracle_zend_array_multisort_special(args, argc);
+    }
+
+    if (strcmp(name, "usort") == 0 || strcmp(name, "uasort") == 0 ||
+        strcmp(name, "uksort") == 0) {
+        return jinx_oracle_zend_user_sort_special(name, args, argc);
     }
 
     if (strcmp(name, "sort") == 0 || strcmp(name, "rsort") == 0 ||
