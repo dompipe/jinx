@@ -46,7 +46,13 @@ $expectedParity = 'PARITY:'
     . ';pad=' . implode(',', array_pad($base, 6, 0))
     . ';unique=' . $pairs(array_unique([4, '4', '3', 4, 3, '3']))
     . ';diff=' . $pairs(array_diff($base, [20, 40]))
-    . ';intersect=' . $pairs(array_intersect($base, [20, 40]));
+    . ';intersect=' . $pairs(array_intersect($base, [20, 40]))
+    . ';explode=' . implode(',', explode(',', 'a,b,c'))
+    . ';split=' . implode(',', str_split('abcdef', 2))
+    . ';column=' . $pairs(array_column([
+        ['id' => 1, 'name' => 'Ada'],
+        ['id' => 2, 'name' => 'Grace'],
+    ], 'name', 'id'));
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
