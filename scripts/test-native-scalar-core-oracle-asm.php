@@ -101,6 +101,9 @@ $cases = [
     ['floatval', ['s:' . $longNumeric]],
     ['floatval', ['a:0']],
     ['floatval', ['a:3']],
+    ['doubleval', ['s:4.25']],
+    ['doubleval', ['s:1.25e2']],
+    ['doubleval', ['a:3']],
 
     ['strval', ['i:42']],
     ['strval', ['b:true']],
