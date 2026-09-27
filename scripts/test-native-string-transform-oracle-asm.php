@@ -25,6 +25,13 @@ $cases = [
     ['ltrim', ["s:\t jinx  x"], 'string:jinx  x'],
     ['rtrim', ["s:x  jinx \t"], 'string:x  jinx'],
     ['chop', ["s:x  jinx \t"], 'string:x  jinx'],
+    ['chr', ['i:65'], 'string:A'],
+    ['ord', ['s:A'], 'int:65'],
+    ['substr', ['s:oracle', 'i:1', 'i:3'], 'string:rac'],
+    ['substr', ['s:oracle', 'i:-3', 'i:2'], 'string:cl'],
+    ['strpos', ['s:oracle', 's:ac', 'i:0'], 'int:2'],
+    ['strpos', ['s:oracle', 's:zz', 'i:0'], 'bool:false'],
+    ['str_repeat', ['s:ab', 'i:3'], 'string:ababab'],
 ];
 
 foreach ($cases as [$function, $args, $expected]) {
@@ -47,4 +54,4 @@ foreach ($cases as [$function, $args, $expected]) {
     }
 }
 
-echo 'PASS: native Oracle ASM string byte transforms execute exact strlen-era string handlers' . PHP_EOL;
+echo 'PASS: native Oracle ASM string byte transforms and primitives execute exact strlen-era string handlers' . PHP_EOL;

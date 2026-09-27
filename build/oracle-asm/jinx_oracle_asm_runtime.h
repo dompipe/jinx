@@ -133,6 +133,8 @@ static inline uint32_t jinx_oracle_string_len(JinxValue value) {
     return value.type == 3u ? value.flags : 0u;
 }
 
+static inline int64_t jinx_oracle_intish(JinxValue value);
+
 static inline char *jinx_oracle_scratch_string(uint32_t len) {
     enum { JINX_ORACLE_SCRATCH_SLOTS = 8, JINX_ORACLE_SCRATCH_BYTES = 4096 };
     static char buffers[JINX_ORACLE_SCRATCH_SLOTS][JINX_ORACLE_SCRATCH_BYTES];
@@ -215,6 +217,114 @@ static inline JinxValue jinx_oracle_string_trim_default(JinxValue value, int lef
     }
 
     return jinx_oracle_string_value_len(out, end - start);
+}
+
+static inline JinxValue jinx_oracle_chr_value(JinxValue value) {
+    char *out = jinx_oracle_scratch_string(1u);
+    out[0] = (char)((unsigned int)jinx_oracle_intish(value) & 0xffu);
+    return jinx_oracle_string_value_len(out, 1u);
+}
+
+static inline JinxValue jinx_oracle_ord_value(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    return jinx_oracle_int_value(len == 0u ? 0 : (int64_t)bytes[0]);
+}
+
+static inline JinxValue jinx_oracle_substr_value(JinxValue value, JinxValue offset_value, JinxValue length_value, uint32_t argc) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int64_t offset = jinx_oracle_intish(offset_value);
+    int64_t requested = argc >= 3u ? jinx_oracle_intish(length_value) : (int64_t)len;
+    int64_t start = offset < 0 ? (int64_t)len + offset : offset;
+    int64_t available;
+    uint32_t out_len;
+    char *out;
+
+    if (start < 0) {
+        start = 0;
+    }
+
+    if (start > (int64_t)len) {
+        start = (int64_t)len;
+    }
+
+    available = (int64_t)len - start;
+    if (requested < 0) {
+        requested = available + requested;
+    }
+
+    if (requested < 0) {
+        requested = 0;
+    }
+
+    if (requested > available) {
+        requested = available;
+    }
+
+    out_len = (uint32_t)requested;
+    out = jinx_oracle_scratch_string(out_len);
+    if (out_len != 0u) {
+        memcpy(out, bytes + start, out_len);
+    }
+
+    return jinx_oracle_string_value_len(out, out_len);
+}
+
+static inline JinxValue jinx_oracle_strpos_value(JinxValue haystack_value, JinxValue needle_value, JinxValue offset_value, uint32_t argc) {
+    const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
+    const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
+    uint32_t haystack_len = jinx_oracle_string_len(haystack_value);
+    uint32_t needle_len = jinx_oracle_string_len(needle_value);
+    int64_t raw_offset = argc >= 3u ? jinx_oracle_intish(offset_value) : 0;
+    uint32_t offset;
+
+    if (raw_offset < 0 || raw_offset > (int64_t)haystack_len) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    offset = (uint32_t)raw_offset;
+
+    if (needle_len == 0u) {
+        return jinx_oracle_int_value((int64_t)offset);
+    }
+
+    if (needle_len > haystack_len || offset > haystack_len - needle_len) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    for (uint32_t i = offset; i <= haystack_len - needle_len; i++) {
+        if (memcmp(haystack + i, needle, needle_len) == 0) {
+            return jinx_oracle_int_value((int64_t)i);
+        }
+    }
+
+    return jinx_oracle_bool_value(0);
+}
+
+static inline JinxValue jinx_oracle_str_repeat_value(JinxValue value, JinxValue count_value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int64_t count = jinx_oracle_intish(count_value);
+    uint32_t out_len;
+    char *out;
+
+    if (count <= 0 || len == 0u) {
+        return jinx_oracle_string_value_len("", 0u);
+    }
+
+    if ((uint64_t)len * (uint64_t)count >= 4096u) {
+        count = (int64_t)(4095u / len);
+    }
+
+    out_len = len * (uint32_t)count;
+    out = jinx_oracle_scratch_string(out_len);
+
+    for (int64_t i = 0; i < count; i++) {
+        memcpy(out + ((uint32_t)i * len), bytes, len);
+    }
+
+    return jinx_oracle_string_value_len(out, out_len);
 }
 
 static inline int jinx_oracle_mem_contains(const unsigned char *haystack, uint32_t haystack_len, const unsigned char *needle, uint32_t needle_len) {
@@ -377,6 +487,36 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     arg0 = ctx->registers[JINX_ORA_R0];
     arg1 = ctx->registers[JINX_ORA_R1];
+
+    if (jinx_oracle_name_is(name, "chr")) {
+        ret = jinx_oracle_chr_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "ord")) {
+        ret = jinx_oracle_ord_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "substr")) {
+        ret = jinx_oracle_substr_value(arg0, arg1, ctx->registers[JINX_ORA_R2], argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "strpos")) {
+        ret = jinx_oracle_strpos_value(arg0, arg1, ctx->registers[JINX_ORA_R2], argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "str_repeat")) {
+        ret = jinx_oracle_str_repeat_value(arg0, arg1);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (argc >= 1 && jinx_oracle_name_is(name, "strlen")) {
         ret = jinx_oracle_int_value((int64_t)jinx_oracle_string_len(arg0));
