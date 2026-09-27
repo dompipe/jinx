@@ -48,7 +48,7 @@ static int fail(const char *message) {
 int main(void) {
     JinxZendArray *array = jinx_zend_array_new_packed(4);
     JinxZendArray *other = jinx_zend_array_new_packed(2);
-    JinxValue args[4];
+    JinxValue args[8];
     JinxValue result;
 
     if (array == 0 || other == 0) return fail("allocation");
@@ -1410,6 +1410,84 @@ int main(void) {
         return fail("natcasesort preserve keys/order");
     }
 
+    JinxZendArray *multi_primary = jinx_zend_array_new_packed(4);
+    JinxZendArray *multi_secondary = jinx_zend_array_new_packed(4);
+    JinxZendString *ma = jinx_zend_string_new("a", 1);
+    JinxZendString *mb = jinx_zend_string_new("b", 1);
+    JinxZendString *mc = jinx_zend_string_new("c", 1);
+    JinxZendString *md = jinx_zend_string_new("d", 1);
+    if (multi_primary == 0 || multi_secondary == 0 || ma == 0 || mb == 0 || mc == 0 || md == 0 ||
+        !jinx_zend_array_append(multi_primary, jinx_zend_long(10)) ||
+        !jinx_zend_array_append(multi_primary, jinx_zend_long(10)) ||
+        !jinx_zend_array_append(multi_primary, jinx_zend_long(20)) ||
+        !jinx_zend_array_append(multi_primary, jinx_zend_long(20)) ||
+        !jinx_zend_array_append(multi_secondary, jinx_zend_string_value(ma)) ||
+        !jinx_zend_array_append(multi_secondary, jinx_zend_string_value(mb)) ||
+        !jinx_zend_array_append(multi_secondary, jinx_zend_string_value(mc)) ||
+        !jinx_zend_array_append(multi_secondary, jinx_zend_string_value(md))) {
+        return fail("array_multisort source");
+    }
+    jinx_zend_string_release(ma);
+    jinx_zend_string_release(mb);
+    jinx_zend_string_release(mc);
+    jinx_zend_string_release(md);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(multi_primary);
+    args[1] = jinx_oracle_int_value(4);
+    args[2] = jinx_oracle_zend_array_value_borrowed(multi_secondary);
+    args[3] = jinx_oracle_int_value(3);
+    args[4] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("array_multisort", args, 5);
+    if (!expect_bool(result, 1) ||
+        !expect_long_index(multi_primary, 0, 10) ||
+        !expect_long_index(multi_primary, 1, 10) ||
+        !expect_long_index(multi_primary, 2, 20) ||
+        !expect_long_index(multi_primary, 3, 20) ||
+        !expect_string_index(multi_secondary, 0, "b") ||
+        !expect_string_index(multi_secondary, 1, "a") ||
+        !expect_string_index(multi_secondary, 2, "d") ||
+        !expect_string_index(multi_secondary, 3, "c")) {
+        return fail("array_multisort tie-break");
+    }
+
+    JinxZendArray *multi_key_primary = jinx_zend_array_new_packed(2);
+    JinxZendArray *multi_key_payload = jinx_zend_array_new_packed(2);
+    JinxZendString *mx = jinx_zend_string_new("X", 1);
+    JinxZendString *my = jinx_zend_string_new("Y", 1);
+    if (multi_key_primary == 0 || multi_key_payload == 0 || mx == 0 || my == 0 ||
+        !jinx_zend_array_append(multi_key_primary, jinx_zend_long(2)) ||
+        !jinx_zend_array_append(multi_key_primary, jinx_zend_long(1)) ||
+        !jinx_zend_array_add_assoc(multi_key_payload, "x", 1, jinx_zend_string_value(mx)) ||
+        !jinx_zend_array_add_index(multi_key_payload, 7, jinx_zend_string_value(my))) {
+        return fail("array_multisort key source");
+    }
+    jinx_zend_string_release(mx);
+    jinx_zend_string_release(my);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(multi_key_primary);
+    args[1] = jinx_oracle_zend_array_value_borrowed(multi_key_payload);
+    result = jinx_call_builtin_through_oracle("array_multisort", args, 2);
+    if (!expect_bool(result, 1) ||
+        !expect_long_index(multi_key_primary, 0, 1) ||
+        !expect_long_index(multi_key_primary, 1, 2) ||
+        jinx_zend_array_live_iter_at(multi_key_payload, 0)->key != 0 ||
+        jinx_zend_array_live_iter_at(multi_key_payload, 0)->h != 0u ||
+        !expect_string_index(multi_key_payload, 0, "Y") ||
+        jinx_zend_array_live_iter_at(multi_key_payload, 1)->key == 0 ||
+        !jinx_zend_string_equals_bytes(jinx_zend_array_live_iter_at(multi_key_payload, 1)->key, "x", 1)) {
+        return fail("array_multisort key preservation");
+    }
+    JinxZendValue *multi_x = jinx_zend_array_find(multi_key_payload, "x", 1);
+    if (multi_x == 0 || multi_x->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(multi_x->value.str, "X", 1)) {
+        return fail("array_multisort string key value");
+    }
+
+    jinx_zend_array_release(multi_primary);
+    jinx_zend_array_release(multi_secondary);
+    jinx_zend_array_release(multi_key_primary);
+    jinx_zend_array_release(multi_key_payload);
+
     jinx_zend_array_release(sort_values);
     jinx_zend_array_release(rsort_values);
     jinx_zend_array_release(asort_values);
@@ -1424,7 +1502,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc;array_min=2;array_max=3.5;array_tie_type=integer;sort=1,2,3;rsort_num=10,2,1;asort=a:1,c:1,b:2;arsort=b:3,c:2,a:1;ksort=a:1,b:2,c:3;krsort=c:3,b:2,a:1;natsort=3:img1.png,2:img2.png,1:img10.png,0:img12.png;natcase=2:Img1,1:img2,0:IMG12\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes;pathinfo=/www/htdocs/inc|lib.inc.php|php|lib.inc;path_dot=test|;path_noext=0;path_flags=/www/htdocs/inc|lib.inc.php|php|lib.inc;array_min=2;array_max=3.5;array_tie_type=integer;sort=1,2,3;rsort_num=10,2,1;asort=a:1,c:1,b:2;arsort=b:3,c:2,a:1;ksort=a:1,b:2,c:3;krsort=c:3,b:2,a:1;natsort=3:img1.png,2:img2.png,1:img10.png,0:img12.png;natcase=2:Img1,1:img2,0:IMG12;multisort=10,10,20,20|b,a,d,c;multikeys=0:Y,x:X\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
