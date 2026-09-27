@@ -5476,6 +5476,60 @@ static inline JinxValue jinx_oracle_french_date_string(int64_t sdn) {
     return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
 }
 
+
+static inline int jinx_oracle_string_equals_ci_literal(
+    JinxValue value,
+    const char *literal
+) {
+    if (value.type != 3u || literal == NULL) return 0;
+
+    uint32_t len = jinx_oracle_string_len(value);
+    size_t literal_len = strlen(literal);
+    if ((size_t)len != literal_len) return 0;
+
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    for (uint32_t i = 0u; i < len; i++) {
+        if (jinx_oracle_ascii_lower_byte(bytes[i]) !=
+            jinx_oracle_ascii_lower_byte((unsigned char)literal[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_settype_value(
+    JinxOracleAsmContext *ctx,
+    JinxValue value,
+    JinxValue type
+) {
+    JinxValue converted;
+
+    if (jinx_oracle_string_equals_ci_literal(type, "integer") ||
+        jinx_oracle_string_equals_ci_literal(type, "int")) {
+        converted = jinx_oracle_int_value(jinx_oracle_intish(value));
+    } else if (jinx_oracle_string_equals_ci_literal(type, "float") ||
+               jinx_oracle_string_equals_ci_literal(type, "double")) {
+        converted = jinx_oracle_float_value(jinx_oracle_floatish(value));
+    } else if (jinx_oracle_string_equals_ci_literal(type, "string")) {
+        converted = jinx_oracle_strval_value(value);
+    } else if (jinx_oracle_string_equals_ci_literal(type, "bool") ||
+               jinx_oracle_string_equals_ci_literal(type, "boolean")) {
+        converted = jinx_oracle_bool_value(jinx_oracle_boolish(value));
+    } else if (jinx_oracle_string_equals_ci_literal(type, "null")) {
+        converted = jinx_oracle_zero_value();
+    } else {
+        ctx->fault = "settype target type is outside native scalar subset";
+        return jinx_oracle_zero_value();
+    }
+
+    if (!jinx_oracle_write_ref_arg(ctx, 0u, converted)) {
+        ctx->fault = "settype first argument is not writable by reference";
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_bool_value(1);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -5537,6 +5591,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ctx->fault = "round mode must be a PHP 8.4 integer rounding mode";
             return jinx_oracle_zero_value();
         }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "settype")) {
+        ret = jinx_oracle_settype_value(ctx, arg0, arg1);
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
         jinx_oracle_return(ctx, ret);
         return ret;
     }
