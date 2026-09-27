@@ -5469,6 +5469,63 @@ static inline JinxValue jinx_oracle_zend_array_pointer_special(
     return jinx_oracle_zero_value();
 }
 
+
+static inline JinxValue jinx_oracle_zend_shuffle_special(
+    JinxValue *args,
+    size_t argc
+) {
+    if (args == 0 || argc < 1u) return jinx_oracle_zero_value();
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
+    if (array == 0) return jinx_oracle_zero_value();
+
+    size_t live = jinx_zend_array_live_count(array);
+    if (live < 1u) {
+        array->internal_pointer = 0u;
+        return jinx_oracle_bool_value(1);
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed(live);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0 || !jinx_zend_array_append(result, bucket->value)) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    size_t n_left = live;
+    while (--n_left) {
+        int ok = 0;
+        int64_t random_index = jinx_oracle_mt_range_i64(
+            0,
+            (int64_t)n_left,
+            &ok
+        );
+        if (!ok || random_index < 0 || (uint64_t)random_index > n_left) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+
+        size_t rnd = (size_t)random_index;
+        if (rnd != n_left) {
+            JinxZendValue temp = result->buckets[n_left].value;
+            result->buckets[n_left].value = result->buckets[rnd].value;
+            result->buckets[rnd].value = temp;
+        }
+    }
+
+    result->internal_pointer = 0u;
+
+    if (!jinx_oracle_replace_array_contents(array, result)) {
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_bool_value(1);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     JinxValue *args,
@@ -5548,6 +5605,10 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     if (strcmp(name, "array_multisort") == 0) {
         return jinx_oracle_zend_array_multisort_special(args, argc);
+    }
+
+    if (strcmp(name, "shuffle") == 0) {
+        return jinx_oracle_zend_shuffle_special(args, argc);
     }
 
     if (strcmp(name, "usort") == 0 || strcmp(name, "uasort") == 0 ||
