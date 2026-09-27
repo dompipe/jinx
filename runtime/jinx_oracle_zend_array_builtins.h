@@ -1542,11 +1542,14 @@ static inline void jinx_oracle_zend_array_adopt_contents(
     target->count = source->count;
     target->capacity = source->capacity;
     target->next_index = source->next_index;
+    target->internal_pointer = source->internal_pointer;
     target->buckets = source->buckets;
 
     source->buckets = 0;
     source->count = 0u;
     source->capacity = 0u;
+    source->next_index = 0u;
+    source->internal_pointer = 0u;
     free(source);
 }
 
@@ -3658,6 +3661,7 @@ static inline int jinx_oracle_replace_array_contents(
     target->count = replacement->count;
     target->capacity = replacement->capacity;
     target->next_index = replacement->next_index;
+    target->internal_pointer = replacement->internal_pointer;
     target->buckets = replacement->buckets;
     target->refcount = refcount;
 
@@ -3665,6 +3669,7 @@ static inline int jinx_oracle_replace_array_contents(
     replacement->count = 0u;
     replacement->capacity = 0u;
     replacement->next_index = 0u;
+    replacement->internal_pointer = 0u;
     jinx_zend_array_release(replacement);
     return 1;
 }
