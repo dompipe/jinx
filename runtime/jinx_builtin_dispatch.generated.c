@@ -12,7 +12,17 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "array_key_exists") == 0 ||
         strcmp(name, "array_is_list") == 0 ||
         strcmp(name, "array_values") == 0 ||
-        strcmp(name, "array_keys") == 0
+        strcmp(name, "array_keys") == 0 ||
+        strcmp(name, "array_key_first") == 0 ||
+        strcmp(name, "array_key_last") == 0 ||
+        strcmp(name, "array_sum") == 0 ||
+        strcmp(name, "array_product") == 0 ||
+        strcmp(name, "array_reverse") == 0 ||
+        strcmp(name, "array_slice") == 0 ||
+        strcmp(name, "array_merge") == 0 ||
+        strcmp(name, "array_replace") == 0 ||
+        strcmp(name, "array_flip") == 0 ||
+        strcmp(name, "array_change_key_case") == 0
     );
 }
 
@@ -3564,8 +3574,7 @@ JinxValue jinx_call_builtin_through_oracle(
 ) {
     if (argc >= 1 && args != NULL && jinx_oracle_name_is_zend_array_builtin(name) &&
         jinx_oracle_value_is_zend_array(args[0])) {
-        JinxValue key = argc >= 2 ? args[1] : jinx_oracle_zero_value();
-        return jinx_oracle_zend_array_dispatch_builtin(name, args[0], key);
+        return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
     }
 
     JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
