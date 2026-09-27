@@ -404,6 +404,20 @@ static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) 
         strcmp(name, "substr_compare") == 0 || strcmp(name, "substr_count") == 0;
 }
 
+static inline const JinxPhpManualHandlerSpec *jinx_php_manual_spec_by_pattern(const char *pattern) {
+    unsigned long i;
+
+    if (pattern == 0) return 0;
+
+    for (i = 0; i < jinx_php_manual_handler_spec_count(); i++) {
+        if (strcmp(jinx_php_manual_handler_specs[i].pattern, pattern) == 0) {
+            return &jinx_php_manual_handler_specs[i];
+        }
+    }
+
+    return 0;
+}
+
 static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char *name) {
     unsigned long i;
 
@@ -419,52 +433,52 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
     }
 
     if (jinx_php_manual_name_is_scalar_core(name)) {
-        return &jinx_php_manual_handler_specs[8];
+        return jinx_php_manual_spec_by_pattern("scalar-core");
     }
 
     if (jinx_php_manual_name_is_zend_container_value_core(name)) {
-        return &jinx_php_manual_handler_specs[18];
+        return jinx_php_manual_spec_by_pattern("zend-container-value-core");
     }
 
     if (jinx_php_manual_name_is_crypto(name)) {
-        return &jinx_php_manual_handler_specs[9];
+        return jinx_php_manual_spec_by_pattern("crypto-php-fallback");
     }
 
     if (jinx_php_manual_name_is_string_byte_transform(name)) {
-        return &jinx_php_manual_handler_specs[10];
+        return jinx_php_manual_spec_by_pattern("string-byte-transform");
     }
 
     if (jinx_php_manual_name_is_string_byte_compare(name)) {
-        return &jinx_php_manual_handler_specs[11];
+        return jinx_php_manual_spec_by_pattern("string-byte-compare");
     }
 
     if (jinx_php_manual_name_is_math_trig_log(name)) {
-        return &jinx_php_manual_handler_specs[3];
+        return jinx_php_manual_spec_by_pattern("math-trig-log");
     }
 
     if (jinx_php_manual_name_is_math_core(name)) {
-        return &jinx_php_manual_handler_specs[4];
+        return jinx_php_manual_spec_by_pattern("math-core");
     }
 
     if (jinx_php_manual_name_is_pure_value_core(name)) {
-        return &jinx_php_manual_handler_specs[16];
+        return jinx_php_manual_spec_by_pattern("pure-value-core");
     }
 
     if (jinx_php_manual_name_starts(name, "ctype_")) {
-        return &jinx_php_manual_handler_specs[7];
+        return jinx_php_manual_spec_by_pattern("ctype_");
     }
 
     if (jinx_php_manual_name_is_zend_array_native_core(name)) {
-        return &jinx_php_manual_handler_specs[17];
+        return jinx_php_manual_spec_by_pattern("zend-array-native-core");
     }
 
     if (jinx_php_manual_name_starts(name, "array_")) {
-        return &jinx_php_manual_handler_specs[13];
+        return jinx_php_manual_spec_by_pattern("array_");
     }
 
     if (jinx_php_manual_name_has(name, "class") || jinx_php_manual_name_has(name, "Class") ||
         jinx_php_manual_name_has(name, "Reflection") || jinx_php_manual_name_has(name, "::")) {
-        return &jinx_php_manual_handler_specs[14];
+        return jinx_php_manual_spec_by_pattern("class-object-reflection");
     }
 
     if (jinx_php_manual_name_has(name, "file") || jinx_php_manual_name_has(name, "stream") ||
@@ -472,10 +486,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         jinx_php_manual_name_has(name, "exec") || jinx_php_manual_name_has(name, "proc") ||
         jinx_php_manual_name_has(name, "curl") || jinx_php_manual_name_has(name, "pdo") ||
         jinx_php_manual_name_has(name, "mysqli") || jinx_php_manual_name_has(name, "mysql")) {
-        return &jinx_php_manual_handler_specs[15];
+        return jinx_php_manual_spec_by_pattern("filesystem-stream-process-network-session-db");
     }
 
-    return &jinx_php_manual_handler_specs[12];
+    return jinx_php_manual_spec_by_pattern("string-transform");
 }
 
 static inline int jinx_php_manual_is_exact(const char *name) {
