@@ -110,8 +110,10 @@ $code[] = '        strcmp(name, "array_sum") == 0 ||';
 $code[] = '        strcmp(name, "array_product") == 0 ||';
 $code[] = '        strcmp(name, "array_reverse") == 0 ||';
 $code[] = '        strcmp(name, "array_slice") == 0 ||';
-$code[] = '        strcmp(name, "array_merge") == 0 ||';
-$code[] = '        strcmp(name, "array_replace") == 0 ||';
+$code[] = '        strcmp(name, "array_merge") == 0 ||
+        strcmp(name, "array_merge_recursive") == 0 ||';
+$code[] = '        strcmp(name, "array_replace") == 0 ||
+        strcmp(name, "array_replace_recursive") == 0 ||';
 $code[] = '        strcmp(name, "array_flip") == 0 ||';
 $code[] = '        strcmp(name, "array_change_key_case") == 0 ||';
 $code[] = '        strcmp(name, "array_fill_keys") == 0 ||';
