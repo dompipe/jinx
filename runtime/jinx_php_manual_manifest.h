@@ -188,7 +188,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "pure-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode",
+        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/wordwrap/convert_uuencode/convert_uudecode",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -206,7 +206,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-container-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "count_chars/implode/join/range(integer)/array_fill",
+        "count_chars/implode/join/vsprintf/range(integer)/array_fill",
         "string|array|bool",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -314,13 +314,15 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "stripcslashes") == 0 || strcmp(name, "str_pad") == 0 ||
         strcmp(name, "str_replace") == 0 || strcmp(name, "str_ireplace") == 0 ||
         strcmp(name, "strtr") == 0 || strcmp(name, "levenshtein") == 0 ||
-        strcmp(name, "htmlspecialchars") == 0 || strcmp(name, "htmlspecialchars_decode") == 0;
+        strcmp(name, "htmlspecialchars") == 0 || strcmp(name, "htmlspecialchars_decode") == 0 ||
+        strcmp(name, "sprintf") == 0 || strcmp(name, "wordwrap") == 0 ||
+        strcmp(name, "convert_uuencode") == 0 || strcmp(name, "convert_uudecode") == 0;
 }
 
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
     return strcmp(name, "count_chars") == 0 || strcmp(name, "implode") == 0 ||
-        strcmp(name, "join") == 0 || strcmp(name, "range") == 0 ||
-        strcmp(name, "array_fill") == 0;
+        strcmp(name, "join") == 0 || strcmp(name, "vsprintf") == 0 ||
+        strcmp(name, "range") == 0 || strcmp(name, "array_fill") == 0;
 }
 
 static inline int jinx_php_manual_name_is_zend_array_native_core(const char *name) {
