@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <ctype.h>
 #include <math.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1246,6 +1247,11 @@ static inline JinxValue jinx_oracle_sprintf_values(
         if ((uint32_t)arg_index >= value_count) goto fail;
         JinxValue value = values[arg_index];
 
+        if (spec == '%') {
+            if (!jinx_oracle_format_append_char(&out, '%')) goto fail;
+            continue;
+        }
+
         if (spec == 'c') {
             if (!jinx_oracle_format_append_char(&out, (char)jinx_oracle_intish(value))) goto fail;
             continue;
@@ -1301,21 +1307,66 @@ static inline JinxValue jinx_oracle_sprintf_values(
         if (spec == 'e' || spec == 'E' || spec == 'f' || spec == 'F' ||
             spec == 'g' || spec == 'G' || spec == 'h' || spec == 'H') {
             double number = jinx_oracle_floatish(value);
+
+            if (has_precision && precision == -1 &&
+                spec != 'g' && spec != 'G' && spec != 'h' && spec != 'H') {
+                goto fail;
+            }
+
             int effective_precision = has_precision ? precision : 6;
-            if (effective_precision < 0) effective_precision = 6;
+            if (effective_precision == -1) effective_precision = 17;
+            if (effective_precision == 0 && (spec == 'g' || spec == 'G' || spec == 'h' || spec == 'H')) {
+                effective_precision = 1;
+            }
             if (effective_precision > 53) effective_precision = 53;
-            char c_spec = spec == 'h' ? 'g' : (spec == 'H' ? 'G' : spec);
-            char conversion[16];
-            snprintf(conversion, sizeof(conversion), "%%%s.%d%c", always_sign ? "+" : "", effective_precision, c_spec);
 
-            int needed = snprintf(NULL, 0, conversion, number);
-            if (needed < 0) goto fail;
-            char *piece = (char *)malloc((size_t)needed + 1u);
-            if (piece == NULL) goto fail;
-            snprintf(piece, (size_t)needed + 1u, conversion, number);
+            char special[8];
+            const char *piece_view = NULL;
+            size_t piece_len = 0u;
+            char *piece = NULL;
 
-            int appended = jinx_oracle_format_append_padded(&out, piece, (size_t)needed, (size_t)width, padding, left);
+            if (isnan(number)) {
+                piece_view = "NaN";
+                piece_len = 3u;
+            } else if (isinf(number)) {
+                if (number < 0.0) {
+                    piece_view = "-INF";
+                    piece_len = 4u;
+                } else {
+                    piece_view = "INF";
+                    piece_len = 3u;
+                }
+            } else {
+                char c_spec = spec == 'h' ? 'g' : (spec == 'H' ? 'G' : spec);
+                char conversion[16];
+                snprintf(conversion, sizeof(conversion), "%%%s.%d%c", always_sign ? "+" : "", effective_precision, c_spec);
+
+                int needed = snprintf(NULL, 0, conversion, number);
+                if (needed < 0) goto fail;
+                piece = (char *)malloc((size_t)needed + 1u);
+                if (piece == NULL) goto fail;
+                snprintf(piece, (size_t)needed + 1u, conversion, number);
+
+                if (spec == 'e' || spec == 'E' || spec == 'F' || spec == 'h' || spec == 'H') {
+                    struct lconv *locale = localeconv();
+                    const char *decimal = locale != NULL ? locale->decimal_point : ".";
+                    if (decimal != NULL && decimal[0] != '\0' && strcmp(decimal, ".") != 0) {
+                        char *found = strstr(piece, decimal);
+                        if (found != NULL && strlen(decimal) == 1u) {
+                            *found = '.';
+                        }
+                    }
+                }
+
+                piece_view = piece;
+                piece_len = (size_t)needed;
+            }
+
+            int appended = jinx_oracle_format_append_padded(
+                &out, piece_view, piece_len, (size_t)width, padding, left
+            );
             free(piece);
+            (void)special;
             if (!appended) goto fail;
             continue;
         }
