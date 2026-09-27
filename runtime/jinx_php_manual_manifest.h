@@ -188,7 +188,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "pure-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/printf/wordwrap/convert_uuencode/convert_uudecode/soundex/quoted_printable_encode/quoted_printable_decode/similar_text(with optional percent by-ref)/metaphone/strcoll/substr_replace(scalar)/utf8_encode/utf8_decode(valid UTF-8)/hebrev(legacy bytes)/image_type_to_mime_type/image_type_to_extension(PHP 8.4 fixed types)/version_compare(PHP 8.4 ordering and operators)/getrandmax/mt_getrandmax/ip2long/long2ip/inet_pton/inet_ntop",
+        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/printf/wordwrap/convert_uuencode/convert_uudecode/soundex/quoted_printable_encode/quoted_printable_decode/similar_text(with optional percent by-ref)/metaphone/strcoll/substr_replace(scalar)/utf8_encode/utf8_decode(valid UTF-8)/hebrev(legacy bytes)/image_type_to_mime_type/image_type_to_extension(PHP 8.4 fixed types)/version_compare(PHP 8.4 ordering and operators)/ip2long/long2ip/inet_pton/inet_ntop",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -197,11 +197,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-array-native-core",
         "https://www.php.net/manual/en/ref.array.php",
-        "min/max(numeric scalar variadic or numeric carried array)/count/in_array(scalar)/array_search(scalar)/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_merge_recursive/array_replace/array_replace_recursive/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_filter(null or named Oracle string callback; modes 0/1/2)/array_map(null or named Oracle string callback)/array_reduce(named Oracle string callback)/array_find/array_find_key/array_any/array_all(named Oracle string callback)/array_walk/array_walk_recursive(named Oracle callback with first-argument writeback; recursive arrays; optional userdata)/array_push/array_pop/array_shift/array_unshift/array_splice/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key/array_diff_uassoc/array_diff_ukey/array_udiff/array_udiff_assoc/array_udiff_uassoc/array_intersect_uassoc/array_intersect_ukey/array_uintersect/array_uintersect_assoc/array_uintersect_uassoc(named pure Oracle comparator callbacks; scalar comparator-compatible values/keys)/sort/rsort/asort/arsort/ksort/krsort(scalar values; SORT_REGULAR|SORT_NUMERIC|SORT_STRING|SORT_NATURAL plus SORT_FLAG_CASE; excludes SORT_LOCALE_STRING)/natsort/natcasesort/array_multisort(equal-length carried arrays; per-column SORT_ASC|SORT_DESC and non-locale scalar sort modes)",
+        "min/max(numeric scalar variadic or numeric carried array)/count/in_array(scalar)/array_search(scalar)/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_merge_recursive/array_replace/array_replace_recursive/array_flip/array_change_key_case/array_fill_keys/array_combine/array_count_values/array_column/array_chunk/array_pad/array_unique(default SORT_STRING)/array_filter(null or named Oracle string callback; modes 0/1/2)/array_map(null or named Oracle string callback)/array_reduce(named Oracle string callback)/array_find/array_find_key/array_any/array_all(named Oracle string callback)/array_walk/array_walk_recursive(named Oracle callback with first-argument writeback; recursive arrays; optional userdata)/array_rand(shared MT19937 state; carried non-empty arrays; one or N valid keys)/array_push/array_pop/array_shift/array_unshift/array_splice/array_diff/array_diff_assoc/array_diff_key/array_intersect/array_intersect_assoc/array_intersect_key/array_diff_uassoc/array_diff_ukey/array_udiff/array_udiff_assoc/array_udiff_uassoc/array_intersect_uassoc/array_intersect_ukey/array_uintersect/array_uintersect_assoc/array_uintersect_uassoc(named pure Oracle comparator callbacks; scalar comparator-compatible values/keys)/sort/rsort/asort/arsort/ksort/krsort(scalar values; SORT_REGULAR|SORT_NUMERIC|SORT_STRING|SORT_NATURAL plus SORT_FLAG_CASE; excludes SORT_LOCALE_STRING)/natsort/natcasesort/array_multisort(equal-length carried arrays; per-column SORT_ASC|SORT_DESC and non-locale scalar sort modes)",
         "array|bool|int|string|float",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting. min/max are exact here for PHP-parity-tested native int/float scalar variadics and single carried arrays, preserving the first winning value/type on ties; PHP mixed-type/object comparison rules remain outside this subset. Native sorting covers scalar carried values/keys with stable PHP-style reindex-or-preserve behavior and SORT_REGULAR, SORT_NUMERIC, SORT_STRING, SORT_NATURAL, and SORT_FLAG_CASE; SORT_LOCALE_STRING and callback sorts remain outside this subset. array_multisort is native for equal-length carried arrays with scalar values, stable lexicographic column tie-breaking, per-column SORT_ASC/SORT_DESC, and the same non-locale sort modes; numeric keys are reindexed and string keys preserved. Named-callback array helpers route string callable names back through checked Oracle dispatch: array_map supports null or named callbacks (one-array key preservation and multi-array max-length/null padding), array_reduce supports named callbacks with a persistent accumulator, array_filter supports null or named callbacks for modes 0/1/2, and PHP 8.4 array_find/array_find_key/array_any/array_all pass (value,key). Closures and object/array callables remain outside this subset. array_walk and array_walk_recursive support named Oracle callbacks with writable first-argument callback argv, copy the callback-updated value back into each bucket, pass optional userdata, and recurse through carried nested arrays with cycle detection; structural mutation during iteration is outside this subset. The ten user-comparator diff/intersect variants are native for pure named Oracle comparator callbacks on scalar comparator-compatible values/keys; the implementation preserves first-array keys and enforces diff-any versus intersect-all matching across multiple arrays, while comparator call ordering/side effects are not claimed."
+        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, case conversion, key filling, combining, and value counting. min/max are exact here for PHP-parity-tested native int/float scalar variadics and single carried arrays, preserving the first winning value/type on ties; PHP mixed-type/object comparison rules remain outside this subset. Native sorting covers scalar carried values/keys with stable PHP-style reindex-or-preserve behavior and SORT_REGULAR, SORT_NUMERIC, SORT_STRING, SORT_NATURAL, and SORT_FLAG_CASE; SORT_LOCALE_STRING and callback sorts remain outside this subset. array_multisort is native for equal-length carried arrays with scalar values, stable lexicographic column tie-breaking, per-column SORT_ASC/SORT_DESC, and the same non-locale sort modes; numeric keys are reindexed and string keys preserved. Named-callback array helpers route string callable names back through checked Oracle dispatch: array_map supports null or named callbacks (one-array key preservation and multi-array max-length/null padding), array_reduce supports named callbacks with a persistent accumulator, array_filter supports null or named callbacks for modes 0/1/2, and PHP 8.4 array_find/array_find_key/array_any/array_all pass (value,key). Closures and object/array callables remain outside this subset. array_walk and array_walk_recursive support named Oracle callbacks with writable first-argument callback argv, copy the callback-updated value back into each bucket, pass optional userdata, and recurse through carried nested arrays with cycle detection; structural mutation during iteration is outside this subset. array_rand uses the shared native MT19937 state and is PHP-parity-tested for explicitly seeded one-key and multi-key selection on carried arrays; invalid count/empty-array exception transport remains outside the scalar carrier. The ten user-comparator diff/intersect variants are native for pure named Oracle comparator callbacks on scalar comparator-compatible values/keys; the implementation preserves first-array keys and enforces diff-any versus intersect-all matching across multiple arrays, while comparator call ordering/side effects are not claimed."
     },
     {
         "zend-container-value-core",
@@ -211,6 +211,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
         "Native container-producing or container-consuming value helpers using the JinxZendArray carrier. Range is exact for the integer form implemented here. parse_url exactness here covers the PHP-parity-tested common legacy forms and components 0..7; malformed legacy URL oddities and invalid-component exception parity remain outside this exact subset. http_build_query exactness here covers carried arrays/nested arrays with the tested scalar conversions, top-level numeric prefixing, '&' or explicit separators, and RFC1738/RFC3986 encoding; object properties and INI-driven separator variations remain outside this subset. parse_str exactness here covers the PHP-parity-tested '&' separator, URL decoding, top-level space/dot name mangling, and nested bracket-array forms; max_input_vars, alternate arg_separator.input settings, and malformed bracket edge cases remain outside this subset. pathinfo exactness here covers the PHP-parity-tested naive path forms, last-extension behavior, dot-files, no-extension omission, and component flags; locale-dependent multibyte parsing and platform-specific Windows separator behavior remain platform-bound. localeconv mirrors libc's current process locale and returns the documented 18-field structure including grouping arrays; values are intentionally host/locale dependent just as in PHP."
+    },
+    {
+        "mt19937-core",
+        "https://www.php.net/manual/en/ref.random.php",
+        "mt_srand/srand/mt_rand/rand/mt_getrandmax/getrandmax",
+        "void|int",
+        "jinx_oracle_mt_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Shared native MT19937 state. PHP 8.4 parity is covered for an explicit seed, unbounded mt_rand, bounded mt_rand, rand with reversed bounds, and both max helpers. Automatic seeding is supported; nondeterministic seed-value equality is intentionally not a parity assertion."
     }
 };
 
@@ -343,9 +352,14 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "image_type_to_mime_type") == 0 ||
         strcmp(name, "image_type_to_extension") == 0 ||
         strcmp(name, "version_compare") == 0 ||
-        strcmp(name, "getrandmax") == 0 || strcmp(name, "mt_getrandmax") == 0 ||
         strcmp(name, "ip2long") == 0 || strcmp(name, "long2ip") == 0 ||
         strcmp(name, "inet_pton") == 0 || strcmp(name, "inet_ntop") == 0;
+}
+
+static inline int jinx_php_manual_name_is_mt19937_core(const char *name) {
+    return strcmp(name, "mt_srand") == 0 || strcmp(name, "srand") == 0 ||
+        strcmp(name, "mt_rand") == 0 || strcmp(name, "rand") == 0 ||
+        strcmp(name, "mt_getrandmax") == 0 || strcmp(name, "getrandmax") == 0;
 }
 
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
@@ -390,6 +404,7 @@ static inline int jinx_php_manual_name_is_zend_array_native_core(const char *nam
         strcmp(name, "array_find") == 0 || strcmp(name, "array_find_key") == 0 ||
         strcmp(name, "array_any") == 0 || strcmp(name, "array_all") == 0 ||
         strcmp(name, "array_walk") == 0 || strcmp(name, "array_walk_recursive") == 0 ||
+        strcmp(name, "array_rand") == 0 ||
         strcmp(name, "array_diff_uassoc") == 0 || strcmp(name, "array_diff_ukey") == 0 ||
         strcmp(name, "array_udiff") == 0 || strcmp(name, "array_udiff_assoc") == 0 ||
         strcmp(name, "array_udiff_uassoc") == 0 || strcmp(name, "array_intersect_uassoc") == 0 ||
@@ -458,6 +473,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_math_core(name)) {
         return jinx_php_manual_spec_by_pattern("math-core");
+    }
+
+    if (jinx_php_manual_name_is_mt19937_core(name)) {
+        return jinx_php_manual_spec_by_pattern("mt19937-core");
     }
 
     if (jinx_php_manual_name_is_pure_value_core(name)) {
