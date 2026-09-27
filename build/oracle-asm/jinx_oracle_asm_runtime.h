@@ -75,6 +75,7 @@ struct JinxOracleAsmContext {
     uint8_t register_valid[64];
     uint8_t register_arg_index[64];
     uint8_t call_arg_kinds[64];
+    uint8_t call_arg_source_index[64];
     JinxValue *argv;
     uint32_t argc;
     uint32_t call_argc;
@@ -3720,7 +3721,12 @@ static inline JinxValue jinx_oracle_asm_load_arg(JinxOracleAsmContext *ctx, uint
     return value;
 }
 
-static inline void jinx_oracle_asm_frame_push(JinxOracleAsmContext *ctx, JinxValue value, uint8_t kind) {
+static inline void jinx_oracle_asm_frame_push(
+    JinxOracleAsmContext *ctx,
+    JinxValue value,
+    uint8_t kind,
+    uint8_t source_index
+) {
     if (ctx == NULL) {
         return;
     }
@@ -3732,18 +3738,29 @@ static inline void jinx_oracle_asm_frame_push(JinxOracleAsmContext *ctx, JinxVal
 
     ctx->call_args[ctx->call_argc] = value;
     ctx->call_arg_kinds[ctx->call_argc] = kind;
+    ctx->call_arg_source_index[ctx->call_argc] = source_index;
     ctx->call_argc++;
 }
 
 static inline void jinx_oracle_asm_push_arg(JinxOracleAsmContext *ctx, uint32_t reg) {
     if (ctx != NULL && reg < 64u && ctx->register_valid[reg]) {
-        jinx_oracle_asm_frame_push(ctx, ctx->registers[reg], 0u);
+        jinx_oracle_asm_frame_push(
+            ctx,
+            ctx->registers[reg],
+            0u,
+            ctx->register_arg_index[reg]
+        );
     }
 }
 
 static inline void jinx_oracle_asm_push_arg_ref(JinxOracleAsmContext *ctx, uint32_t reg) {
     if (ctx != NULL && reg < 64u && ctx->register_valid[reg]) {
-        jinx_oracle_asm_frame_push(ctx, ctx->registers[reg], 1u);
+        jinx_oracle_asm_frame_push(
+            ctx,
+            ctx->registers[reg],
+            1u,
+            ctx->register_arg_index[reg]
+        );
     }
 }
 
@@ -3760,7 +3777,12 @@ static inline void jinx_oracle_asm_push_arg_variadic(JinxOracleAsmContext *ctx, 
     }
 
     for (uint32_t i = start; i < ctx->argc; i++) {
-        jinx_oracle_asm_frame_push(ctx, ctx->argv[i], 2u);
+        jinx_oracle_asm_frame_push(
+            ctx,
+            ctx->argv[i],
+            2u,
+            i < 255u ? (uint8_t)i : 255u
+        );
         if (ctx->fault != NULL) {
             return;
         }
@@ -3772,6 +3794,172 @@ static inline JinxValue jinx_oracle_call_arg(JinxOracleAsmContext *ctx, uint32_t
         return ctx->call_args[index];
     }
     return jinx_oracle_zero_value();
+}
+
+static inline int jinx_oracle_write_ref_arg(
+    JinxOracleAsmContext *ctx,
+    uint32_t call_index,
+    JinxValue value
+) {
+    uint8_t source_index;
+
+    if (ctx == NULL || call_index >= ctx->call_argc || ctx->argv == NULL) {
+        return 0;
+    }
+
+    if (ctx->call_arg_kinds[call_index] != 1u) {
+        return 0;
+    }
+
+    source_index = ctx->call_arg_source_index[call_index];
+    if (source_index == 255u || source_index >= ctx->argc) {
+        return 0;
+    }
+
+    ctx->call_args[call_index] = value;
+    ctx->argv[source_index] = value;
+    return 1;
+}
+
+static inline int jinx_oracle_soundex_code(unsigned char c) {
+    c = jinx_oracle_ascii_upper_byte(c);
+    if (c == 'B' || c == 'F' || c == 'P' || c == 'V') return 1;
+    if (c == 'C' || c == 'G' || c == 'J' || c == 'K' || c == 'Q' || c == 'S' || c == 'X' || c == 'Z') return 2;
+    if (c == 'D' || c == 'T') return 3;
+    if (c == 'L') return 4;
+    if (c == 'M' || c == 'N') return 5;
+    if (c == 'R') return 6;
+    return 0;
+}
+
+static inline int jinx_oracle_ascii_letter(unsigned char c) {
+    return (c >= (unsigned char)'A' && c <= (unsigned char)'Z') ||
+        (c >= (unsigned char)'a' && c <= (unsigned char)'z');
+}
+
+static inline JinxValue jinx_oracle_soundex_value(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    char *out = jinx_oracle_scratch_string(4u);
+    uint32_t first = len;
+    uint32_t pos = 1u;
+    int previous;
+
+    memcpy(out, "0000", 4u);
+
+    for (uint32_t i = 0u; i < len; i++) {
+        if (jinx_oracle_ascii_letter(bytes[i])) {
+            first = i;
+            break;
+        }
+    }
+
+    if (first == len) {
+        return jinx_oracle_string_value_len(out, 4u);
+    }
+
+    out[0] = (char)jinx_oracle_ascii_upper_byte(bytes[first]);
+    previous = jinx_oracle_soundex_code(bytes[first]);
+
+    for (uint32_t i = first + 1u; i < len && pos < 4u; i++) {
+        unsigned char c = jinx_oracle_ascii_upper_byte(bytes[i]);
+        int code;
+
+        if (!jinx_oracle_ascii_letter(c)) {
+            previous = 0;
+            continue;
+        }
+
+        code = jinx_oracle_soundex_code(c);
+        if (code == 0) {
+            if (c != 'H' && c != 'W') {
+                previous = 0;
+            }
+            continue;
+        }
+
+        if (code != previous) {
+            out[pos++] = (char)('0' + code);
+        }
+        previous = code;
+    }
+
+    while (pos < 4u) out[pos++] = '0';
+    return jinx_oracle_string_value_len(out, 4u);
+}
+
+static inline int64_t jinx_oracle_similar_chars(
+    const unsigned char *a,
+    uint32_t a_len,
+    const unsigned char *b,
+    uint32_t b_len
+) {
+    uint32_t best_a = 0u;
+    uint32_t best_b = 0u;
+    uint32_t best = 0u;
+
+    for (uint32_t i = 0u; i < a_len; i++) {
+        for (uint32_t j = 0u; j < b_len; j++) {
+            uint32_t run = 0u;
+            while (i + run < a_len && j + run < b_len && a[i + run] == b[j + run]) {
+                run++;
+            }
+            if (run > best) {
+                best = run;
+                best_a = i;
+                best_b = j;
+            }
+        }
+    }
+
+    if (best == 0u) {
+        return 0;
+    }
+
+    int64_t total = (int64_t)best;
+
+    if (best_a != 0u && best_b != 0u) {
+        total += jinx_oracle_similar_chars(a, best_a, b, best_b);
+    }
+
+    if (best_a + best < a_len && best_b + best < b_len) {
+        total += jinx_oracle_similar_chars(
+            a + best_a + best,
+            a_len - best_a - best,
+            b + best_b + best,
+            b_len - best_b - best
+        );
+    }
+
+    return total;
+}
+
+static inline JinxValue jinx_oracle_similar_text_value(
+    JinxOracleAsmContext *ctx,
+    JinxValue first,
+    JinxValue second,
+    uint32_t argc
+) {
+    uint32_t first_len = jinx_oracle_string_len(first);
+    uint32_t second_len = jinx_oracle_string_len(second);
+    int64_t similar = jinx_oracle_similar_chars(
+        jinx_oracle_string_bytes(first),
+        first_len,
+        jinx_oracle_string_bytes(second),
+        second_len
+    );
+
+    if (argc >= 3u) {
+        double percent = (first_len + second_len) == 0u
+            ? 0.0
+            : ((double)similar * 200.0) / (double)(first_len + second_len);
+        if (!jinx_oracle_write_ref_arg(ctx, 2u, jinx_oracle_float_value(percent))) {
+            ctx->fault = "similar_text percent argument is not writable by reference";
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    return jinx_oracle_int_value(similar);
 }
 
 static inline JinxValue jinx_oracle_asm_call_builtin(
@@ -3790,6 +3978,21 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_is(name, "soundex")) {
+        ret = jinx_oracle_soundex_value(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "similar_text")) {
+        ret = jinx_oracle_similar_text_value(ctx, arg0, arg1, argc);
+        if (ctx->fault != NULL) {
+            return jinx_oracle_zero_value();
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (jinx_oracle_name_is(name, "chr")) {
         ret = jinx_oracle_chr_value(arg0);
