@@ -3831,6 +3831,10 @@ static inline JinxValue jinx_oracle_zend_array_multisort_special(
 ) {
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
+    if (strcmp(name, "array_rand") == 0) {
+        return jinx_oracle_zend_array_rand_special(args, argc);
+    }
+
     if (strcmp(name, "array_walk") == 0 ||
         strcmp(name, "array_walk_recursive") == 0) {
         return jinx_oracle_zend_array_walk_named(name, args, argc);
@@ -4776,6 +4780,116 @@ static inline JinxValue jinx_oracle_zend_array_walk_named(
     );
 
     return ok ? jinx_oracle_bool_value(1) : jinx_oracle_zero_value();
+}
+
+
+static inline JinxValue jinx_oracle_zend_array_rand_special(
+    JinxValue *args,
+    size_t argc
+) {
+    if (args == 0 || argc < 1u) return jinx_oracle_zero_value();
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
+    if (array == 0) return jinx_oracle_zero_value();
+
+    size_t live = jinx_zend_array_live_count(array);
+    if (live == 0u) return jinx_oracle_zero_value();
+
+    int64_t requested = argc >= 2u ? jinx_oracle_intish(args[1]) : 1;
+    if (requested <= 0 || (uint64_t)requested > (uint64_t)live) {
+        return jinx_oracle_zero_value();
+    }
+
+    if (requested == 1) {
+        const JinxZendBucket *bucket = 0;
+        int range_ok = 0;
+
+        if (live < array->count - (array->count >> 1u)) {
+            uint32_t position = jinx_oracle_mt_range32((uint32_t)(live - 1u), &range_ok);
+            if (!range_ok) return jinx_oracle_zero_value();
+            bucket = jinx_zend_array_live_iter_at(array, (size_t)position);
+        } else {
+            do {
+                uint32_t position = jinx_oracle_mt_range32((uint32_t)(array->count - 1u), &range_ok);
+                if (!range_ok) return jinx_oracle_zero_value();
+                if (position < array->count &&
+                    !jinx_zend_bucket_is_tombstone(&array->buckets[position])) {
+                    bucket = &array->buckets[position];
+                    break;
+                }
+            } while (bucket == 0);
+        }
+
+        return bucket != 0
+            ? jinx_oracle_zend_bucket_key_value(bucket)
+            : jinx_oracle_zero_value();
+    }
+
+    size_t select_count = (size_t)requested;
+    int complement = 0;
+
+    if (select_count > (live >> 1u)) {
+        complement = 1;
+        select_count = live - select_count;
+    }
+
+    unsigned char *selected = (unsigned char *)calloc(live, 1u);
+    if (selected == 0) return jinx_oracle_zero_value();
+
+    size_t remaining = select_count;
+    uint32_t failures = 0u;
+
+    while (remaining != 0u) {
+        int range_ok = 0;
+        uint32_t position = jinx_oracle_mt_range32((uint32_t)(live - 1u), &range_ok);
+        if (!range_ok) {
+            free(selected);
+            return jinx_oracle_zero_value();
+        }
+
+        if (selected[position]) {
+            if (++failures > 50u) {
+                free(selected);
+                return jinx_oracle_zero_value();
+            }
+            continue;
+        }
+
+        selected[position] = 1u;
+        remaining--;
+        failures = 0u;
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed((size_t)requested);
+    if (result == 0) {
+        free(selected);
+        return jinx_oracle_zero_value();
+    }
+
+    for (size_t i = 0u; i < live; i++) {
+        int include = (selected[i] != 0u) ^ complement;
+        if (!include) continue;
+
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0) {
+            free(selected);
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+
+        JinxZendValue key = bucket->key != 0
+            ? jinx_zend_string_value(bucket->key)
+            : jinx_zend_long((int64_t)bucket->h);
+
+        if (!jinx_zend_array_append(result, key)) {
+            free(selected);
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    free(selected);
+    return jinx_oracle_zend_array_value_owned(result);
 }
 
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
