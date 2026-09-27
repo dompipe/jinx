@@ -49,6 +49,7 @@ $tests = [
     'scripts/test-native-scalar-core-oracle-asm.php' => 'PASS: native Oracle ASM scalar-core builtins match PHP for covered JinxValue semantics',
     'scripts/test-native-pure-core-oracle-asm.php' => 'PASS: native Oracle ASM pure scalar/string core matches PHP',
     'scripts/test-native-zend-array-core-oracle-asm.php' => 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics',
+    'scripts/test-native-zlib-oracle-asm.php' => 'PASS: native Oracle zlib helpers match PHP for covered one-shot semantics',
     'scripts/test-native-string-transform-oracle-asm.php' => 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP',
     'scripts/test-oracle-execution-families.php' => 'PASS: Oracle execution families expose',
 ];
