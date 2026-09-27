@@ -34,7 +34,10 @@ $pairs = static function (array $value): string {
 
 $base = [10, 20, 'name' => 30, 'keep' => 40];
 $expectedParity = 'PARITY:'
-    . 'sum=' . array_sum($base)
+    . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
+    . ';keys_loose=' . implode(',', array_keys($base, '20', false))
+    . ';keys_strict=' . implode(',', array_keys($base, '20', true))
+    . ';sum=' . array_sum($base)
     . ';product=' . array_product($base)
     . ';implode=' . implode(',', $base)
     . ';vsprintf=' . vsprintf('There are %u million bicycles in %s.', [7, 'Amsterdam'])
