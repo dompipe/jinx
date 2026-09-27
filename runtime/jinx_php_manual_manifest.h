@@ -116,11 +116,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "scalar-core",
         "https://www.php.net/manual/en/ref.var.php",
-        "is_null/is_bool/is_int/is_float/is_string/is_array/is_scalar/is_numeric/boolval/intval/floatval/strval",
+        "is_null/is_bool/is_int/is_float/is_string/is_array/is_scalar/is_numeric/is_countable/is_iterable/is_object/is_resource/gettype/get_debug_type/boolval/intval/floatval/strval",
         "bool|int|float|string",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Exact for the current native JinxValue scalar and array-count model, including numeric string conversion."
+        "Exact for the current native JinxValue scalar and array carriers, including numeric string conversion and scalar/array type inspection. Positive object/resource/Traversable/Countable-object cases remain with the class/resource fallback until those carriers exist."
     },
     {
         "crypto-php-fallback",
@@ -287,6 +287,9 @@ static inline int jinx_php_manual_name_is_scalar_core(const char *name) {
         strcmp(name, "is_double") == 0 || strcmp(name, "is_real") == 0 ||
         strcmp(name, "is_string") == 0 || strcmp(name, "is_array") == 0 ||
         strcmp(name, "is_scalar") == 0 || strcmp(name, "is_numeric") == 0 ||
+        strcmp(name, "is_countable") == 0 || strcmp(name, "is_iterable") == 0 ||
+        strcmp(name, "is_object") == 0 || strcmp(name, "is_resource") == 0 ||
+        strcmp(name, "gettype") == 0 || strcmp(name, "get_debug_type") == 0 ||
         strcmp(name, "boolval") == 0 || strcmp(name, "intval") == 0 ||
         strcmp(name, "floatval") == 0 || strcmp(name, "strval") == 0;
 }
