@@ -3729,6 +3729,234 @@ static inline JinxValue jinx_oracle_zend_sort_special(
     return jinx_oracle_bool_value(1);
 }
 
+
+typedef struct JinxOracleMultiSortColumn {
+    JinxZendArray *array;
+    int sort_type;
+    int reverse;
+} JinxOracleMultiSortColumn;
+
+typedef struct JinxOracleMultiSortRow {
+    size_t index;
+} JinxOracleMultiSortRow;
+
+static inline int jinx_oracle_multisort_row_compare(
+    const JinxOracleMultiSortRow *a,
+    const JinxOracleMultiSortRow *b,
+    const JinxOracleMultiSortColumn *columns,
+    size_t column_count,
+    int *ok
+) {
+    *ok = 1;
+
+    for (size_t i = 0u; i < column_count; i++) {
+        const JinxZendBucket *ab = jinx_zend_array_live_iter_at(columns[i].array, a->index);
+        const JinxZendBucket *bb = jinx_zend_array_live_iter_at(columns[i].array, b->index);
+        if (ab == 0 || bb == 0) {
+            *ok = 0;
+            return 0;
+        }
+
+        int cmp = jinx_oracle_sort_value_compare(
+            ab->value,
+            bb->value,
+            columns[i].sort_type,
+            ok
+        );
+        if (!*ok) return 0;
+
+        if (cmp != 0) {
+            return columns[i].reverse ? -cmp : cmp;
+        }
+    }
+
+    return a->index == b->index ? 0 : (a->index < b->index ? -1 : 1);
+}
+
+static inline int jinx_oracle_stable_multisort_rows(
+    JinxOracleMultiSortRow *rows,
+    size_t count,
+    const JinxOracleMultiSortColumn *columns,
+    size_t column_count
+) {
+    if (count < 2u) return 1;
+
+    JinxOracleMultiSortRow *tmp = (JinxOracleMultiSortRow *)malloc(count * sizeof(*tmp));
+    if (tmp == 0) return 0;
+
+    for (size_t width = 1u; width < count; width *= 2u) {
+        for (size_t left = 0u; left < count; left += width * 2u) {
+            size_t mid = left + width;
+            size_t right = left + width * 2u;
+            if (mid > count) mid = count;
+            if (right > count) right = count;
+
+            size_t i = left;
+            size_t j = mid;
+            size_t k = left;
+
+            while (i < mid && j < right) {
+                int ok = 0;
+                int cmp = jinx_oracle_multisort_row_compare(
+                    &rows[i],
+                    &rows[j],
+                    columns,
+                    column_count,
+                    &ok
+                );
+                if (!ok) {
+                    free(tmp);
+                    return 0;
+                }
+
+                tmp[k++] = cmp <= 0 ? rows[i++] : rows[j++];
+            }
+
+            while (i < mid) tmp[k++] = rows[i++];
+            while (j < right) tmp[k++] = rows[j++];
+
+            for (k = left; k < right; k++) rows[k] = tmp[k];
+        }
+
+        if (width > count / 2u) break;
+    }
+
+    free(tmp);
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_zend_array_multisort_special(
+    JinxValue *args,
+    size_t argc
+) {
+    if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "array_multisort") == 0) {
+        return jinx_oracle_zend_array_multisort_special(args, argc);
+    }
+
+    JinxOracleMultiSortColumn columns[32];
+    size_t column_count = 0u;
+    size_t row_count = SIZE_MAX;
+    int current = -1;
+
+    for (size_t i = 0u; i < argc; i++) {
+        if (jinx_oracle_value_is_zend_array(args[i])) {
+            JinxZendArray *array = jinx_oracle_zend_array_ptr(args[i]);
+            if (array == 0 || column_count >= 32u) return jinx_oracle_zero_value();
+
+            for (size_t prior = 0u; prior < column_count; prior++) {
+                if (columns[prior].array == array) {
+                    return jinx_oracle_zero_value();
+                }
+            }
+
+            size_t live = jinx_zend_array_live_count(array);
+            if (row_count == SIZE_MAX) {
+                row_count = live;
+            } else if (row_count != live) {
+                return jinx_oracle_zero_value();
+            }
+
+            columns[column_count].array = array;
+            columns[column_count].sort_type = 0;
+            columns[column_count].reverse = 0;
+            current = (int)column_count;
+            column_count++;
+            continue;
+        }
+
+        if (args[i].type != 1u || current < 0) {
+            return jinx_oracle_zero_value();
+        }
+
+        int flag = (int)jinx_oracle_intish(args[i]);
+
+        if (flag == 3) {
+            columns[current].reverse = 1;
+            continue;
+        }
+        if (flag == 4) {
+            columns[current].reverse = 0;
+            continue;
+        }
+
+        int base_type = flag & ~8;
+        if (base_type == 5) {
+            return jinx_oracle_zero_value();
+        }
+        if (base_type != 0 && base_type != 1 && base_type != 2 && base_type != 6) {
+            return jinx_oracle_zero_value();
+        }
+
+        columns[current].sort_type = flag;
+    }
+
+    if (column_count == 0u || row_count == SIZE_MAX) return jinx_oracle_zero_value();
+
+    JinxOracleMultiSortRow *rows = row_count == 0u
+        ? 0
+        : (JinxOracleMultiSortRow *)malloc(row_count * sizeof(*rows));
+    if (row_count != 0u && rows == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 0u; i < row_count; i++) rows[i].index = i;
+
+    if (!jinx_oracle_stable_multisort_rows(rows, row_count, columns, column_count)) {
+        free(rows);
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *rebuilt[32] = {0};
+
+    for (size_t col = 0u; col < column_count; col++) {
+        rebuilt[col] = jinx_zend_array_new_packed(row_count == 0u ? 1u : row_count);
+        if (rebuilt[col] == 0) {
+            for (size_t n = 0u; n < col; n++) jinx_zend_array_release(rebuilt[n]);
+            free(rows);
+            return jinx_oracle_zero_value();
+        }
+
+        for (size_t row = 0u; row < row_count; row++) {
+            const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(
+                columns[col].array,
+                rows[row].index
+            );
+            if (bucket == 0) {
+                for (size_t n = 0u; n <= col; n++) jinx_zend_array_release(rebuilt[n]);
+                free(rows);
+                return jinx_oracle_zero_value();
+            }
+
+            int added = bucket->key != 0
+                ? jinx_zend_array_add_assoc(
+                    rebuilt[col],
+                    bucket->key->bytes,
+                    bucket->key->len,
+                    bucket->value
+                )
+                : jinx_zend_array_append(rebuilt[col], bucket->value);
+
+            if (!added) {
+                for (size_t n = 0u; n <= col; n++) jinx_zend_array_release(rebuilt[n]);
+                free(rows);
+                return jinx_oracle_zero_value();
+            }
+        }
+    }
+
+    free(rows);
+
+    for (size_t col = 0u; col < column_count; col++) {
+        if (!jinx_oracle_replace_array_contents(columns[col].array, rebuilt[col])) {
+            for (size_t n = col + 1u; n < column_count; n++) jinx_zend_array_release(rebuilt[n]);
+            return jinx_oracle_zero_value();
+        }
+        rebuilt[col] = 0;
+    }
+
+    return jinx_oracle_bool_value(1);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     JinxValue *args,
