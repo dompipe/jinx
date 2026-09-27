@@ -290,6 +290,11 @@ $expectedParity = 'PARITY:'
     . ';keys_strict=' . implode(',', array_keys($base, '20', true))
     . ';sum=' . array_sum($base)
     . ';product=' . array_product($base)
+    . ';keyexists='
+        . (array_key_exists('keep', $base) ? '1' : '0')
+        . '|'
+        . (key_exists('keep', $base) ? '1' : '0')
+    . ';sizeof=' . sizeof($base)
     . ';words=' . str_word_count('Hello, world!')
     . ';words1=' . implode(',', str_word_count('Hello, world!', 1))
     . ';words2=' . $pairs(str_word_count('Hello, world!', 2))
