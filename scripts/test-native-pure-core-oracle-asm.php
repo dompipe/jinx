@@ -200,6 +200,18 @@ $cases = [
     ['cal_days_in_month', ['i:2', 'i:6', 'i:5772']],
     ['cal_days_in_month', ['i:2', 'i:7', 'i:5772']],
     ['cal_days_in_month', ['i:3', 'i:13', 'i:14']],
+    ['jdtojewish', ['i:2460311']],
+    ['jddayofweek', ['i:2460311']],
+    ['jddayofweek', ['i:2460311', 'i:1']],
+    ['jddayofweek', ['i:2460311', 'i:2']],
+    ['jddayofweek', ['i:2460311', 'i:99']],
+    ['jdmonthname', ['i:2460311', 'i:0']],
+    ['jdmonthname', ['i:2460311', 'i:1']],
+    ['jdmonthname', ['i:2460311', 'i:2']],
+    ['jdmonthname', ['i:2460311', 'i:3']],
+    ['jdmonthname', ['i:2460311', 'i:4']],
+    ['jdmonthname', ['i:2375840', 'i:5']],
+    ['jdmonthname', ['i:2460311', 'i:99']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
