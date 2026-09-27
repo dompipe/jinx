@@ -3383,6 +3383,352 @@ static inline JinxValue jinx_oracle_zend_parse_url_special(const JinxValue *args
 }
 
 
+
+typedef struct JinxOracleSortEntry {
+    const JinxZendBucket *bucket;
+    size_t ordinal;
+} JinxOracleSortEntry;
+
+static inline int jinx_oracle_sort_text(
+    JinxZendValue value,
+    char **owned,
+    const unsigned char **bytes,
+    uint32_t *len
+) {
+    *owned = 0;
+    *bytes = (const unsigned char *)"";
+    *len = 0u;
+
+    if (value.type == JINX_ZEND_STRING && value.value.str != 0) {
+        *bytes = (const unsigned char *)value.value.str->bytes;
+        *len = (uint32_t)value.value.str->len;
+        return 1;
+    }
+
+    int text_len = jinx_oracle_zend_scalar_text_length(value);
+    if (text_len < 0) return 0;
+
+    char *buffer = (char *)malloc((size_t)text_len + 1u);
+    if (buffer == 0) return 0;
+
+    uint32_t written = jinx_oracle_zend_scalar_write(buffer, value);
+    buffer[written] = '\0';
+
+    *owned = buffer;
+    *bytes = (const unsigned char *)buffer;
+    *len = written;
+    return 1;
+}
+
+static inline int jinx_oracle_sort_binary_compare(
+    const unsigned char *a,
+    uint32_t a_len,
+    const unsigned char *b,
+    uint32_t b_len,
+    int fold_case
+) {
+    uint32_t limit = a_len < b_len ? a_len : b_len;
+
+    for (uint32_t i = 0u; i < limit; i++) {
+        unsigned char ac = a[i];
+        unsigned char bc = b[i];
+        if (fold_case) {
+            ac = jinx_oracle_ascii_lower_byte(ac);
+            bc = jinx_oracle_ascii_lower_byte(bc);
+        }
+        if (ac < bc) return -1;
+        if (ac > bc) return 1;
+    }
+
+    if (a_len == b_len) return 0;
+    return a_len < b_len ? -1 : 1;
+}
+
+static inline int jinx_oracle_sort_numeric_value(JinxZendValue value, double *out) {
+    if (value.type == JINX_ZEND_LONG) { *out = (double)value.value.lval; return 1; }
+    if (value.type == JINX_ZEND_DOUBLE) { *out = value.value.dval; return 1; }
+    if (value.type == JINX_ZEND_TRUE) { *out = 1.0; return 1; }
+    if (value.type == JINX_ZEND_FALSE || value.type == JINX_ZEND_NULL) { *out = 0.0; return 1; }
+    if (value.type == JINX_ZEND_STRING && value.value.str != 0) {
+        char *end = 0;
+        double parsed = strtod(value.value.str->bytes, &end);
+        *out = end == value.value.str->bytes ? 0.0 : parsed;
+        return 1;
+    }
+    return 0;
+}
+
+static inline int jinx_oracle_sort_regular_compare(JinxZendValue a, JinxZendValue b, int *ok) {
+    *ok = 1;
+
+    if (a.type == JINX_ZEND_NULL || a.type == JINX_ZEND_FALSE || a.type == JINX_ZEND_TRUE ||
+        b.type == JINX_ZEND_NULL || b.type == JINX_ZEND_FALSE || b.type == JINX_ZEND_TRUE) {
+        int av = jinx_oracle_zend_value_boolish(a);
+        int bv = jinx_oracle_zend_value_boolish(b);
+        return av == bv ? 0 : (av < bv ? -1 : 1);
+    }
+
+    int a_number = a.type == JINX_ZEND_LONG || a.type == JINX_ZEND_DOUBLE;
+    int b_number = b.type == JINX_ZEND_LONG || b.type == JINX_ZEND_DOUBLE;
+
+    if (a_number && b_number) {
+        double av = a.type == JINX_ZEND_DOUBLE ? a.value.dval : (double)a.value.lval;
+        double bv = b.type == JINX_ZEND_DOUBLE ? b.value.dval : (double)b.value.lval;
+        return av == bv ? 0 : (av < bv ? -1 : 1);
+    }
+
+    if (a.type == JINX_ZEND_STRING && b.type == JINX_ZEND_STRING &&
+        a.value.str != 0 && b.value.str != 0) {
+        double av = 0.0;
+        double bv = 0.0;
+        int an = jinx_oracle_zend_string_numeric(a.value.str, &av);
+        int bn = jinx_oracle_zend_string_numeric(b.value.str, &bv);
+
+        if (an && bn) return av == bv ? 0 : (av < bv ? -1 : 1);
+
+        return jinx_oracle_sort_binary_compare(
+            (const unsigned char *)a.value.str->bytes, (uint32_t)a.value.str->len,
+            (const unsigned char *)b.value.str->bytes, (uint32_t)b.value.str->len,
+            0
+        );
+    }
+
+    if (a_number && b.type == JINX_ZEND_STRING && b.value.str != 0) {
+        double bv = 0.0;
+        if (jinx_oracle_zend_string_numeric(b.value.str, &bv)) {
+            double av = a.type == JINX_ZEND_DOUBLE ? a.value.dval : (double)a.value.lval;
+            return av == bv ? 0 : (av < bv ? -1 : 1);
+        }
+    }
+    if (b_number && a.type == JINX_ZEND_STRING && a.value.str != 0) {
+        double av = 0.0;
+        if (jinx_oracle_zend_string_numeric(a.value.str, &av)) {
+            double bv = b.type == JINX_ZEND_DOUBLE ? b.value.dval : (double)b.value.lval;
+            return av == bv ? 0 : (av < bv ? -1 : 1);
+        }
+    }
+
+    char *a_owned = 0;
+    char *b_owned = 0;
+    const unsigned char *a_bytes = 0;
+    const unsigned char *b_bytes = 0;
+    uint32_t a_len = 0u;
+    uint32_t b_len = 0u;
+
+    if (!jinx_oracle_sort_text(a, &a_owned, &a_bytes, &a_len) ||
+        !jinx_oracle_sort_text(b, &b_owned, &b_bytes, &b_len)) {
+        free(a_owned);
+        free(b_owned);
+        *ok = 0;
+        return 0;
+    }
+
+    int result = jinx_oracle_sort_binary_compare(a_bytes, a_len, b_bytes, b_len, 0);
+    free(a_owned);
+    free(b_owned);
+    return result;
+}
+
+static inline int jinx_oracle_sort_value_compare(
+    JinxZendValue a,
+    JinxZendValue b,
+    int sort_type,
+    int *ok
+) {
+    int base_type = sort_type & ~8;
+    int fold_case = (sort_type & 8) != 0;
+    *ok = 1;
+
+    if (base_type == 0) return jinx_oracle_sort_regular_compare(a, b, ok);
+
+    if (base_type == 1) {
+        double av = 0.0, bv = 0.0;
+        if (!jinx_oracle_sort_numeric_value(a, &av) ||
+            !jinx_oracle_sort_numeric_value(b, &bv)) {
+            *ok = 0;
+            return 0;
+        }
+        return av == bv ? 0 : (av < bv ? -1 : 1);
+    }
+
+    if (base_type == 2 || base_type == 6) {
+        char *a_owned = 0;
+        char *b_owned = 0;
+        const unsigned char *a_bytes = 0;
+        const unsigned char *b_bytes = 0;
+        uint32_t a_len = 0u, b_len = 0u;
+
+        if (!jinx_oracle_sort_text(a, &a_owned, &a_bytes, &a_len) ||
+            !jinx_oracle_sort_text(b, &b_owned, &b_bytes, &b_len)) {
+            free(a_owned);
+            free(b_owned);
+            *ok = 0;
+            return 0;
+        }
+
+        int result = base_type == 6
+            ? jinx_oracle_strnatcmp_bytes(a_bytes, a_len, b_bytes, b_len, fold_case)
+            : jinx_oracle_sort_binary_compare(a_bytes, a_len, b_bytes, b_len, fold_case);
+        free(a_owned);
+        free(b_owned);
+        return result;
+    }
+
+    *ok = 0;
+    return 0;
+}
+
+static inline JinxZendValue jinx_oracle_sort_bucket_key(const JinxZendBucket *bucket) {
+    return bucket->key != 0
+        ? jinx_zend_string_value(bucket->key)
+        : jinx_zend_long((int64_t)bucket->h);
+}
+
+static inline int jinx_oracle_sort_entry_compare(
+    const JinxOracleSortEntry *a,
+    const JinxOracleSortEntry *b,
+    int sort_type,
+    int by_key,
+    int reverse,
+    int *ok
+) {
+    JinxZendValue av = by_key ? jinx_oracle_sort_bucket_key(a->bucket) : a->bucket->value;
+    JinxZendValue bv = by_key ? jinx_oracle_sort_bucket_key(b->bucket) : b->bucket->value;
+    int cmp = jinx_oracle_sort_value_compare(av, bv, sort_type, ok);
+    return *ok && reverse ? -cmp : cmp;
+}
+
+static inline int jinx_oracle_stable_sort_entries(
+    JinxOracleSortEntry *entries,
+    size_t count,
+    int sort_type,
+    int by_key,
+    int reverse
+) {
+    if (count < 2u) return 1;
+
+    JinxOracleSortEntry *tmp = (JinxOracleSortEntry *)malloc(count * sizeof(*tmp));
+    if (tmp == 0) return 0;
+
+    for (size_t width = 1u; width < count; width *= 2u) {
+        for (size_t left = 0u; left < count; left += width * 2u) {
+            size_t mid = left + width;
+            size_t right = left + width * 2u;
+            if (mid > count) mid = count;
+            if (right > count) right = count;
+
+            size_t i = left, j = mid, k = left;
+            while (i < mid && j < right) {
+                int ok = 0;
+                int cmp = jinx_oracle_sort_entry_compare(
+                    &entries[i], &entries[j], sort_type, by_key, reverse, &ok
+                );
+                if (!ok) { free(tmp); return 0; }
+                tmp[k++] = cmp <= 0 ? entries[i++] : entries[j++];
+            }
+            while (i < mid) tmp[k++] = entries[i++];
+            while (j < right) tmp[k++] = entries[j++];
+            for (k = left; k < right; k++) entries[k] = tmp[k];
+        }
+        if (width > count / 2u) break;
+    }
+
+    free(tmp);
+    return 1;
+}
+
+static inline int jinx_oracle_replace_array_contents(
+    JinxZendArray *target,
+    JinxZendArray *replacement
+) {
+    if (target == 0 || replacement == 0) return 0;
+
+    if (target->buckets != 0) {
+        for (size_t i = 0u; i < target->count; i++) {
+            if (!jinx_zend_bucket_is_tombstone(&target->buckets[i])) {
+                jinx_zend_string_release(target->buckets[i].key);
+                jinx_zend_value_release(target->buckets[i].value);
+            }
+        }
+        free(target->buckets);
+    }
+
+    uint32_t refcount = target->refcount;
+    target->flags = replacement->flags;
+    target->count = replacement->count;
+    target->capacity = replacement->capacity;
+    target->next_index = replacement->next_index;
+    target->buckets = replacement->buckets;
+    target->refcount = refcount;
+
+    replacement->buckets = 0;
+    replacement->count = 0u;
+    replacement->capacity = 0u;
+    replacement->next_index = 0u;
+    jinx_zend_array_release(replacement);
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_zend_sort_special(
+    const char *name,
+    JinxValue *args,
+    size_t argc
+) {
+    JinxZendArray *array = argc >= 1u ? jinx_oracle_zend_array_ptr(args[0]) : 0;
+    if (array == 0) return jinx_oracle_zero_value();
+
+    int sort_type = argc >= 2u ? (int)jinx_oracle_intish(args[1]) : 0;
+    int by_key = strcmp(name, "ksort") == 0 || strcmp(name, "krsort") == 0;
+    int reverse = strcmp(name, "rsort") == 0 || strcmp(name, "arsort") == 0 ||
+        strcmp(name, "krsort") == 0;
+    int renumber = strcmp(name, "sort") == 0 || strcmp(name, "rsort") == 0;
+
+    if (strcmp(name, "natsort") == 0 || strcmp(name, "natcasesort") == 0) {
+        sort_type = 6 | (strcmp(name, "natcasesort") == 0 ? 8 : 0);
+        by_key = 0;
+        reverse = 0;
+        renumber = 0;
+    }
+
+    int base_type = sort_type & ~8;
+    if (base_type == 5 || (base_type != 0 && base_type != 1 && base_type != 2 && base_type != 6)) {
+        return jinx_oracle_zero_value();
+    }
+
+    size_t live = jinx_zend_array_live_count(array);
+    JinxOracleSortEntry *entries = live == 0u ? 0 :
+        (JinxOracleSortEntry *)malloc(live * sizeof(*entries));
+    if (live != 0u && entries == 0) return jinx_oracle_zero_value();
+
+    for (size_t i = 0u; i < live; i++) {
+        entries[i].bucket = jinx_zend_array_live_iter_at(array, i);
+        entries[i].ordinal = i;
+    }
+
+    if (!jinx_oracle_stable_sort_entries(entries, live, sort_type, by_key, reverse)) {
+        free(entries);
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed(live == 0u ? 1u : live);
+    if (result == 0) { free(entries); return jinx_oracle_zero_value(); }
+
+    for (size_t i = 0u; i < live; i++) {
+        int ok = renumber
+            ? jinx_zend_array_append(result, entries[i].bucket->value)
+            : jinx_oracle_zend_add_bucket(result, entries[i].bucket, 1);
+        if (!ok) {
+            free(entries);
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    free(entries);
+    if (!jinx_oracle_replace_array_contents(array, result)) return jinx_oracle_zero_value();
+    return jinx_oracle_bool_value(1);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     JinxValue *args,
@@ -3395,6 +3741,13 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     }
 
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "sort") == 0 || strcmp(name, "rsort") == 0 ||
+        strcmp(name, "asort") == 0 || strcmp(name, "arsort") == 0 ||
+        strcmp(name, "ksort") == 0 || strcmp(name, "krsort") == 0 ||
+        strcmp(name, "natsort") == 0 || strcmp(name, "natcasesort") == 0) {
+        return jinx_oracle_zend_sort_special(name, args, argc);
+    }
 
     if (strcmp(name, "pathinfo") == 0) {
         return jinx_oracle_zend_pathinfo_special(args, argc);
