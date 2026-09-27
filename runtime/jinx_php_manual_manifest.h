@@ -188,7 +188,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "pure-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format",
+        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -301,7 +301,11 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "decbin") == 0 || strcmp(name, "dechex") == 0 ||
         strcmp(name, "decoct") == 0 || strcmp(name, "crc32") == 0 ||
         strcmp(name, "checkdate") == 0 || strcmp(name, "nl2br") == 0 ||
-        strcmp(name, "number_format") == 0;
+        strcmp(name, "number_format") == 0 || strcmp(name, "addcslashes") == 0 ||
+        strcmp(name, "stripcslashes") == 0 || strcmp(name, "str_pad") == 0 ||
+        strcmp(name, "str_replace") == 0 || strcmp(name, "str_ireplace") == 0 ||
+        strcmp(name, "strtr") == 0 || strcmp(name, "levenshtein") == 0 ||
+        strcmp(name, "htmlspecialchars") == 0 || strcmp(name, "htmlspecialchars_decode") == 0;
 }
 
 static inline int jinx_php_manual_name_is_zend_array_native_core(const char *name) {
