@@ -206,11 +206,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-container-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "count_chars/str_word_count(0/1/2)/implode/join/vsprintf/explode/str_split/str_getcsv(explicit valid controls)/strip_tags(string|array|null allow-list)/range(integer)/array_fill",
+        "count_chars/str_word_count(0/1/2)/implode/join/vsprintf/vprintf/explode/str_split/str_getcsv(explicit valid controls)/strip_tags(string|array|null allow-list)/parse_url(common legacy forms, default array and components 0..7)/range(integer)/array_fill",
         "string|array|bool",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native container-producing or container-consuming value helpers using the JinxZendArray carrier. Range is exact for the integer form implemented here; non-integer range forms remain outside this exact subset."
+        "Native container-producing or container-consuming value helpers using the JinxZendArray carrier. Range is exact for the integer form implemented here. parse_url exactness here covers the PHP-parity-tested common legacy forms and components 0..7; malformed legacy URL oddities and invalid-component exception parity remain outside this exact subset."
     }
 };
 
@@ -333,7 +333,8 @@ static inline int jinx_php_manual_name_is_zend_container_value_core(const char *
         strcmp(name, "vsprintf") == 0 || strcmp(name, "vprintf") == 0 ||
         strcmp(name, "explode") == 0 ||
         strcmp(name, "str_split") == 0 || strcmp(name, "str_getcsv") == 0 ||
-        strcmp(name, "strip_tags") == 0 || strcmp(name, "range") == 0 ||
+        strcmp(name, "strip_tags") == 0 || strcmp(name, "parse_url") == 0 ||
+        strcmp(name, "range") == 0 ||
         strcmp(name, "array_fill") == 0;
 }
 
