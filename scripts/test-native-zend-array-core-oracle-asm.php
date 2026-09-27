@@ -49,6 +49,7 @@ $mustReject(static fn () => range(1, 5, 9), 'range step larger than span');
 $mustReject(static fn () => range(1, 5, 0), 'range zero step');
 $mustReject(static fn () => array_fill(2, -1, 9), 'array_fill negative count');
 $mustReject(static fn () => array_combine([1, 2], [3]), 'array_combine mismatched counts');
+$mustReject(static fn () => str_getcsv('a,b', '::', '"', '\\'), 'str_getcsv multi-byte separator');
 
 $base = [10, 20, 'name' => 30, 'keep' => 40];
 $mutation = [10, 'x' => 20, 2 => 30];
@@ -70,6 +71,12 @@ $replaceRecursive = array_replace_recursive(
     ['citrus' => ['grapefruit']],
     ['citrus' => ['kumquat', 'citron'], 'pome' => ['loquat']]
 );
+
+$csv = str_getcsv('a,b,c', ',', '"', '\\');
+$csvQuoted = str_getcsv(' "a,b",c', ',', '"', '\\');
+$csvEscaped = str_getcsv('"a""b","c\\"d"', ',', '"', '\\');
+$csvTrailing = str_getcsv("a,\r\n", ',', '"', '\\');
+$csvEmpty = str_getcsv('', ',', '"', '\\');
 
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
@@ -127,7 +134,12 @@ $expectedParity = 'PARITY:'
         . $mergeRecursive[1]
     . ';replace_rec='
         . implode(',', $replaceRecursive['citrus']) . ','
-        . $replaceRecursive['pome'][0];
+        . $replaceRecursive['pome'][0]
+    . ';csv=' . implode('|', $csv)
+    . ';csvq=' . implode('|', $csvQuoted)
+    . ';csvesc=' . implode('|', $csvEscaped)
+    . ';csvtrail=' . implode('|', $csvTrailing)
+    . ';csvempty=' . (($csvEmpty[0] ?? 'not-null') === null ? 'null' : 'not-null');
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
