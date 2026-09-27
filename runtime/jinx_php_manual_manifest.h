@@ -206,11 +206,11 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-container-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "count_chars/str_word_count(0/1/2)/implode/join/vsprintf/vprintf/explode/str_split/str_getcsv(explicit valid controls)/strip_tags(string|array|null allow-list)/parse_url(common legacy forms, default array and components 0..7)/http_build_query(array, nested arrays, numeric prefix, explicit/default & separator, RFC1738/RFC3986)/parse_str(common &, URL-decoded names/values, name mangling, bracket arrays by-ref)/range(integer)/array_fill",
+        "count_chars/str_word_count(0/1/2)/implode/join/vsprintf/vprintf/explode/str_split/str_getcsv(explicit valid controls)/strip_tags(string|array|null allow-list)/parse_url(common legacy forms, default array and components 0..7)/http_build_query(array, nested arrays, numeric prefix, explicit/default & separator, RFC1738/RFC3986)/parse_str(common &, URL-decoded names/values, name mangling, bracket arrays by-ref)/pathinfo(naive path array and flags 1/2/4/8)/range(integer)/array_fill",
         "string|array|bool",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native container-producing or container-consuming value helpers using the JinxZendArray carrier. Range is exact for the integer form implemented here. parse_url exactness here covers the PHP-parity-tested common legacy forms and components 0..7; malformed legacy URL oddities and invalid-component exception parity remain outside this exact subset. http_build_query exactness here covers carried arrays/nested arrays with the tested scalar conversions, top-level numeric prefixing, '&' or explicit separators, and RFC1738/RFC3986 encoding; object properties and INI-driven separator variations remain outside this subset. parse_str exactness here covers the PHP-parity-tested '&' separator, URL decoding, top-level space/dot name mangling, and nested bracket-array forms; max_input_vars, alternate arg_separator.input settings, and malformed bracket edge cases remain outside this subset."
+        "Native container-producing or container-consuming value helpers using the JinxZendArray carrier. Range is exact for the integer form implemented here. parse_url exactness here covers the PHP-parity-tested common legacy forms and components 0..7; malformed legacy URL oddities and invalid-component exception parity remain outside this exact subset. http_build_query exactness here covers carried arrays/nested arrays with the tested scalar conversions, top-level numeric prefixing, '&' or explicit separators, and RFC1738/RFC3986 encoding; object properties and INI-driven separator variations remain outside this subset. parse_str exactness here covers the PHP-parity-tested '&' separator, URL decoding, top-level space/dot name mangling, and nested bracket-array forms; max_input_vars, alternate arg_separator.input settings, and malformed bracket edge cases remain outside this subset. pathinfo exactness here covers the PHP-parity-tested naive path forms, last-extension behavior, dot-files, no-extension omission, and component flags; locale-dependent multibyte parsing and platform-specific Windows separator behavior remain platform-bound."
     }
 };
 
@@ -335,7 +335,7 @@ static inline int jinx_php_manual_name_is_zend_container_value_core(const char *
         strcmp(name, "str_split") == 0 || strcmp(name, "str_getcsv") == 0 ||
         strcmp(name, "strip_tags") == 0 || strcmp(name, "parse_url") == 0 ||
         strcmp(name, "http_build_query") == 0 || strcmp(name, "parse_str") == 0 ||
-        strcmp(name, "range") == 0 ||
+        strcmp(name, "pathinfo") == 0 || strcmp(name, "range") == 0 ||
         strcmp(name, "array_fill") == 0;
 }
 
