@@ -2298,6 +2298,58 @@ int main(void) {
     jinx_zend_array_release(rand_source);
     jinx_zend_array_release(shuffle_source);
 
+    JinxValue json_validate_args[3];
+    json_validate_args[0] = jinx_oracle_string_value("{\"a\":1,}");
+    json_validate_args[1] = jinx_oracle_int_value(512);
+    json_validate_args[2] = jinx_oracle_int_value(0);
+
+    JinxValue json_validate_invalid = jinx_call_builtin_through_oracle(
+        "json_validate",
+        json_validate_args,
+        3
+    );
+    JinxValue json_validate_error_code = jinx_call_builtin_through_oracle(
+        "json_last_error",
+        json_validate_args,
+        0
+    );
+    JinxValue json_validate_error_msg = jinx_call_builtin_through_oracle(
+        "json_last_error_msg",
+        json_validate_args,
+        0
+    );
+    if (!expect_bool(json_validate_invalid, 0) ||
+        !expect_int(json_validate_error_code, 4) ||
+        json_validate_error_msg.type != 3u ||
+        json_validate_error_msg.flags != 12u ||
+        memcmp(json_validate_error_msg.as.ptr, "Syntax error", 12u) != 0) {
+        return fail("json_validate syntax error state");
+    }
+
+    json_validate_args[0] = jinx_oracle_string_value("{\"a\":1}");
+    JinxValue json_validate_valid = jinx_call_builtin_through_oracle(
+        "json_validate",
+        json_validate_args,
+        3
+    );
+    JinxValue json_validate_valid_code = jinx_call_builtin_through_oracle(
+        "json_last_error",
+        json_validate_args,
+        0
+    );
+    JinxValue json_validate_valid_msg = jinx_call_builtin_through_oracle(
+        "json_last_error_msg",
+        json_validate_args,
+        0
+    );
+    if (!expect_bool(json_validate_valid, 1) ||
+        !expect_int(json_validate_valid_code, 0) ||
+        json_validate_valid_msg.type != 3u ||
+        json_validate_valid_msg.flags != 8u ||
+        memcmp(json_validate_valid_msg.as.ptr, "No error", 8u) != 0) {
+        return fail("json_validate valid error reset");
+    }
+
     JinxValue json_args[4];
     json_args[0] = jinx_oracle_string_value("{\"name\":\"Ada\",\"nums\":[1,2],\"ok\":true,\"none\":null,\"emoji\":\"\\uD83D\\uDE00\"}");
     json_args[1] = jinx_oracle_bool_value(1);
@@ -2597,11 +2649,18 @@ int main(void) {
     }
 
     printf(
-        "JSON_PARITY:name=%.*s;nums=%lld,%lld;ok=1;none=null;"
+        "JSON_PARITY:validate=0|%lld|%.*s|1|%lld|%.*s;"
+        "name=%.*s;nums=%lld,%lld;ok=1;none=null;"
         "emoji=%02x%02x%02x%02x;topnull=null;object=%s|%.*s|%.*s|%s|%lld;"
         "object_encode=%.*s;false_override=%s;bigint=%.*s;decode_ignore=%02x;"
         "decode_sub=%02x%02x%02x%02x;syntax=%lld|%.*s;valid=%lld|%.*s;"
         "encode=%.*s;escape=%.*s;encode_utf8=%lld|%.*s;encode_reset=%lld|%.*s\\n",
+        (long long)json_validate_error_code.as.i64,
+        (int)json_validate_error_msg.flags,
+        (const char *)json_validate_error_msg.as.ptr,
+        (long long)json_validate_valid_code.as.i64,
+        (int)json_validate_valid_msg.flags,
+        (const char *)json_validate_valid_msg.as.ptr,
         (int)json_name->value.str->len,
         json_name->value.str->bytes,
         (long long)jinx_zend_array_index(json_nums->value.array, 0u)->value.lval,
