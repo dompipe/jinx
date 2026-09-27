@@ -183,6 +183,23 @@ $cases = [
     ['juliantojd', ['i:1', 'i:1', 'i:-4713']],
     ['jdtojulian', ['i:2460311']],
     ['jdtojulian', ['i:0']],
+    ['frenchtojd', ['i:1', 'i:1', 'i:1']],
+    ['jdtofrench', ['i:2375840']],
+    ['jewishtojd', ['i:1', 'i:1', 'i:5771']],
+    ['jewishtojd', ['i:7', 'i:1', 'i:5772']],
+    ['cal_to_jd', ['i:0', 'i:1', 'i:1', 'i:2024']],
+    ['cal_to_jd', ['i:1', 'i:1', 'i:1', 'i:2024']],
+    ['cal_to_jd', ['i:2', 'i:1', 'i:1', 'i:5771']],
+    ['cal_to_jd', ['i:3', 'i:1', 'i:1', 'i:1']],
+    ['cal_days_in_month', ['i:0', 'i:2', 'i:2003']],
+    ['cal_days_in_month', ['i:0', 'i:2', 'i:2004']],
+    ['cal_days_in_month', ['i:1', 'i:2', 'i:1900']],
+    ['cal_days_in_month', ['i:2', 'i:1', 'i:5771']],
+    ['cal_days_in_month', ['i:2', 'i:2', 'i:5771']],
+    ['cal_days_in_month', ['i:2', 'i:7', 'i:5771']],
+    ['cal_days_in_month', ['i:2', 'i:6', 'i:5772']],
+    ['cal_days_in_month', ['i:2', 'i:7', 'i:5772']],
+    ['cal_days_in_month', ['i:3', 'i:13', 'i:14']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
