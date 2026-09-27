@@ -4330,14 +4330,22 @@ static inline int jinx_oracle_compare_special_version_forms(const char *a, const
     return found_a == found_b ? 0 : (found_a > found_b ? 1 : -1);
 }
 
+static inline char *jinx_oracle_version_strdup(const char *src) {
+    size_t len = strlen(src);
+    char *copy = (char *)malloc(len + 1u);
+    if (copy == NULL) return NULL;
+    memcpy(copy, src, len + 1u);
+    return copy;
+}
+
 static inline int jinx_oracle_version_compare_cstr(const char *orig_a, const char *orig_b) {
     if (*orig_a == '\0' || *orig_b == '\0') {
         if (*orig_a == '\0' && *orig_b == '\0') return 0;
         return *orig_a != '\0' ? 1 : -1;
     }
 
-    char *a = orig_a[0] == '#' ? strdup(orig_a) : NULL;
-    char *b = orig_b[0] == '#' ? strdup(orig_b) : NULL;
+    char *a = orig_a[0] == '#' ? jinx_oracle_version_strdup(orig_a) : NULL;
+    char *b = orig_b[0] == '#' ? jinx_oracle_version_strdup(orig_b) : NULL;
 
     if (a == NULL && orig_a[0] == '#') return 0;
     if (b == NULL && orig_b[0] == '#') {
