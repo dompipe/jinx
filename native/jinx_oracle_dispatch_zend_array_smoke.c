@@ -1080,13 +1080,42 @@ int main(void) {
     }
     jinx_zend_array_release(query_data);
 
+    args[0] = jinx_oracle_string_value("first=value&arr[]=foo+bar&arr[]=baz&My+Value=Something&nested[x][0]=yes");
+    args[1] = jinx_oracle_zero_value();
+    result = jinx_call_builtin_through_oracle("parse_str", args, 2);
+    if (result.type != 0u || !jinx_oracle_value_is_zend_array(args[1])) {
+        return fail("parse_str return/by-ref carrier");
+    }
+    JinxZendArray *parsed_query = jinx_oracle_zend_array_ptr(args[1]);
+    JinxZendValue *first_value = jinx_zend_array_find(parsed_query, "first", 5);
+    JinxZendValue *mangled_value = jinx_zend_array_find(parsed_query, "My_Value", 8);
+    JinxZendValue *arr_value = jinx_zend_array_find(parsed_query, "arr", 3);
+    JinxZendValue *nested_value = jinx_zend_array_find(parsed_query, "nested", 6);
+    if (first_value == 0 || first_value->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(first_value->value.str, "value", 5) ||
+        mangled_value == 0 || mangled_value->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(mangled_value->value.str, "Something", 9) ||
+        arr_value == 0 || arr_value->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(arr_value->value.array, 0, "foo bar") ||
+        !expect_string_index(arr_value->value.array, 1, "baz") ||
+        nested_value == 0 || nested_value->type != JINX_ZEND_ARRAY) {
+        return fail("parse_str common fields");
+    }
+    JinxZendValue *nested_x = jinx_zend_array_find(nested_value->value.array, "x", 1);
+    if (nested_x == 0 || nested_x->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(nested_x->value.array, 0, "yes")) {
+        return fail("parse_str nested bracket fields");
+    }
+    jinx_oracle_zend_array_value_release(args[1]);
+    args[1] = jinx_oracle_zero_value();
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40;merge_rec=red,green,blue,5,10;replace_rec=kumquat,citron,loquat;csv=a|b|c;csvq=a,b|c;csvesc=a\"b|c\\\"d;csvtrail=a|;csvempty=null;csvunterminated=unterminated\\n;strip_array=<p>Test paragraph.</p> <a href=\"#fragment\">Other text</a>;url=http|hostname|9090|username|password|/path|arg=value|anchor;url2=www.example.com|/path|googleguy=googley;url_empty=1|1;url_component=example.com|8080;query1738=user%5Bname%5D=Bob+Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;query3986=user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47&flags_0=CEO&flag=0;parse_str=value|foo bar,baz|Something|yes\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
