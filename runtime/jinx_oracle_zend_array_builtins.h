@@ -4852,6 +4852,277 @@ static inline JinxValue jinx_oracle_zend_array_rand_special(
     return jinx_oracle_zend_array_value_owned(result);
 }
 
+
+static inline int jinx_oracle_zend_add_assoc_cstring(
+    JinxZendArray *array,
+    const char *key,
+    const char *value
+) {
+    if (array == 0 || key == 0 || value == 0) return 0;
+    JinxZendString *string = jinx_zend_string_new(value, strlen(value));
+    if (string == 0) return 0;
+    int ok = jinx_zend_array_add_assoc(
+        array,
+        key,
+        strlen(key),
+        jinx_zend_string_value(string)
+    );
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static inline int jinx_oracle_zend_add_index_cstring(
+    JinxZendArray *array,
+    size_t index,
+    const char *value
+) {
+    if (array == 0 || value == 0) return 0;
+    JinxZendString *string = jinx_zend_string_new(value, strlen(value));
+    if (string == 0) return 0;
+    int ok = jinx_zend_array_add_index(
+        array,
+        index,
+        jinx_zend_string_value(string)
+    );
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static inline void jinx_oracle_calendar_from_jd_fields(
+    int64_t jd,
+    int cal,
+    int *year,
+    int *month,
+    int *day
+) {
+    *year = 0;
+    *month = 0;
+    *day = 0;
+
+    if (cal == 0) {
+        jinx_oracle_sdn_to_gregorian(jd, year, month, day);
+    } else if (cal == 1) {
+        jinx_oracle_sdn_to_julian(jd, year, month, day);
+    } else if (cal == 2) {
+        jinx_oracle_sdn_to_jewish(jd, year, month, day);
+    } else if (cal == 3) {
+        jinx_oracle_sdn_to_french(jd, year, month, day);
+    }
+}
+
+static inline const char *jinx_oracle_calendar_month_short(
+    int cal,
+    int year,
+    int month
+) {
+    if (cal == 2) return jinx_oracle_jewish_month_name(year, month);
+    if (cal == 3) {
+        return month >= 0 && month <= 13
+            ? jinx_oracle_french_month_name[month]
+            : "";
+    }
+    return month >= 0 && month <= 12
+        ? jinx_oracle_month_name_short[month]
+        : "";
+}
+
+static inline const char *jinx_oracle_calendar_month_long(
+    int cal,
+    int year,
+    int month
+) {
+    if (cal == 2) return jinx_oracle_jewish_month_name(year, month);
+    if (cal == 3) {
+        return month >= 0 && month <= 13
+            ? jinx_oracle_french_month_name[month]
+            : "";
+    }
+    return month >= 0 && month <= 12
+        ? jinx_oracle_month_name_long[month]
+        : "";
+}
+
+static inline JinxValue jinx_oracle_zend_cal_from_jd_special(
+    JinxValue *args,
+    size_t argc
+) {
+    if (args == 0 || argc < 2u) return jinx_oracle_zero_value();
+
+    int64_t jd = jinx_oracle_intish(args[0]);
+    int64_t cal64 = jinx_oracle_intish(args[1]);
+    if (cal64 < 0 || cal64 > 3) return jinx_oracle_zero_value();
+    int cal = (int)cal64;
+
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    jinx_oracle_calendar_from_jd_fields(jd, cal, &year, &month, &day);
+
+    JinxZendArray *result = jinx_zend_array_new_packed(10u);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    char date[64];
+    snprintf(date, sizeof(date), "%d/%d/%d", month, day, year);
+
+    if (!jinx_oracle_zend_add_assoc_cstring(result, "date", date) ||
+        !jinx_zend_array_add_assoc(result, "month", 5u, jinx_zend_long(month)) ||
+        !jinx_zend_array_add_assoc(result, "day", 3u, jinx_zend_long(day)) ||
+        !jinx_zend_array_add_assoc(result, "year", 4u, jinx_zend_long(year))) {
+        jinx_zend_array_release(result);
+        return jinx_oracle_zero_value();
+    }
+
+    if (cal == 2 && year <= 0) {
+        if (!jinx_zend_array_add_assoc(result, "dow", 3u, jinx_zend_null()) ||
+            !jinx_oracle_zend_add_assoc_cstring(result, "abbrevdayname", "") ||
+            !jinx_oracle_zend_add_assoc_cstring(result, "dayname", "")) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    } else {
+        int dow = jinx_oracle_day_of_week(jd);
+        if (!jinx_zend_array_add_assoc(result, "dow", 3u, jinx_zend_long(dow)) ||
+            !jinx_oracle_zend_add_assoc_cstring(
+                result,
+                "abbrevdayname",
+                jinx_oracle_day_name_short[dow]
+            ) ||
+            !jinx_oracle_zend_add_assoc_cstring(
+                result,
+                "dayname",
+                jinx_oracle_day_name_long[dow]
+            )) {
+            jinx_zend_array_release(result);
+            return jinx_oracle_zero_value();
+        }
+    }
+
+    if (!jinx_oracle_zend_add_assoc_cstring(
+            result,
+            "abbrevmonth",
+            jinx_oracle_calendar_month_short(cal, year, month)
+        ) ||
+        !jinx_oracle_zend_add_assoc_cstring(
+            result,
+            "monthname",
+            jinx_oracle_calendar_month_long(cal, year, month)
+        )) {
+        jinx_zend_array_release(result);
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
+static inline JinxZendArray *jinx_oracle_zend_cal_info_one(int cal) {
+    static const char * const cal_names[4] = {
+        "Gregorian", "Julian", "Jewish", "French"
+    };
+    static const char * const cal_symbols[4] = {
+        "CAL_GREGORIAN", "CAL_JULIAN", "CAL_JEWISH", "CAL_FRENCH"
+    };
+    static const int month_counts[4] = {12, 12, 13, 13};
+    static const int max_days[4] = {31, 31, 30, 30};
+
+    if (cal < 0 || cal > 3) return 0;
+
+    JinxZendArray *result = jinx_zend_array_new_packed(6u);
+    JinxZendArray *months = jinx_zend_array_new_packed((size_t)month_counts[cal] + 1u);
+    JinxZendArray *short_months = jinx_zend_array_new_packed((size_t)month_counts[cal] + 1u);
+
+    if (result == 0 || months == 0 || short_months == 0) {
+        jinx_zend_array_release(result);
+        jinx_zend_array_release(months);
+        jinx_zend_array_release(short_months);
+        return 0;
+    }
+
+    for (int month = 1; month <= month_counts[cal]; month++) {
+        const char *long_name;
+        const char *short_name;
+
+        if (cal == 0 || cal == 1) {
+            long_name = jinx_oracle_month_name_long[month];
+            short_name = jinx_oracle_month_name_short[month];
+        } else if (cal == 2) {
+            long_name = jinx_oracle_jewish_month_name_leap[month];
+            short_name = jinx_oracle_jewish_month_name_leap[month];
+        } else {
+            long_name = jinx_oracle_french_month_name[month];
+            short_name = jinx_oracle_french_month_name[month];
+        }
+
+        if (!jinx_oracle_zend_add_index_cstring(months, (size_t)month, long_name) ||
+            !jinx_oracle_zend_add_index_cstring(short_months, (size_t)month, short_name)) {
+            jinx_zend_array_release(result);
+            jinx_zend_array_release(months);
+            jinx_zend_array_release(short_months);
+            return 0;
+        }
+    }
+
+    if (!jinx_zend_array_add_assoc(
+            result,
+            "months",
+            6u,
+            jinx_zend_array_value(months)
+        ) ||
+        !jinx_zend_array_add_assoc(
+            result,
+            "abbrevmonths",
+            12u,
+            jinx_zend_array_value(short_months)
+        ) ||
+        !jinx_zend_array_add_assoc(
+            result,
+            "maxdaysinmonth",
+            14u,
+            jinx_zend_long(max_days[cal])
+        ) ||
+        !jinx_oracle_zend_add_assoc_cstring(result, "calname", cal_names[cal]) ||
+        !jinx_oracle_zend_add_assoc_cstring(result, "calsymbol", cal_symbols[cal])) {
+        jinx_zend_array_release(result);
+        jinx_zend_array_release(months);
+        jinx_zend_array_release(short_months);
+        return 0;
+    }
+
+    jinx_zend_array_release(months);
+    jinx_zend_array_release(short_months);
+    return result;
+}
+
+static inline JinxValue jinx_oracle_zend_cal_info_special(
+    JinxValue *args,
+    size_t argc
+) {
+    int64_t cal64 = argc >= 1u ? jinx_oracle_intish(args[0]) : -1;
+
+    if (cal64 == -1) {
+        JinxZendArray *all = jinx_zend_array_new_packed(4u);
+        if (all == 0) return jinx_oracle_zero_value();
+
+        for (int cal = 0; cal < 4; cal++) {
+            JinxZendArray *info = jinx_oracle_zend_cal_info_one(cal);
+            if (info == 0 ||
+                !jinx_zend_array_add_index(all, (size_t)cal, jinx_zend_array_value(info))) {
+                jinx_zend_array_release(info);
+                jinx_zend_array_release(all);
+                return jinx_oracle_zero_value();
+            }
+            jinx_zend_array_release(info);
+        }
+
+        return jinx_oracle_zend_array_value_owned(all);
+    }
+
+    if (cal64 < 0 || cal64 > 3) return jinx_oracle_zero_value();
+
+    return jinx_oracle_zend_array_value_owned(
+        jinx_oracle_zend_cal_info_one((int)cal64)
+    );
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     JinxValue *args,
@@ -4863,7 +5134,15 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
         return jinx_oracle_zend_localeconv_special();
     }
 
+    if (strcmp(name, "cal_info") == 0) {
+        return jinx_oracle_zend_cal_info_special(args, argc);
+    }
+
     if (args == 0 || argc == 0u) return jinx_oracle_zero_value();
+
+    if (strcmp(name, "cal_from_jd") == 0) {
+        return jinx_oracle_zend_cal_from_jd_special(args, argc);
+    }
 
     if (strcmp(name, "array_rand") == 0) {
         return jinx_oracle_zend_array_rand_special(args, argc);
