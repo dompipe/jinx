@@ -141,6 +141,8 @@ JinxZendArray *jinx_zend_array_clone(const JinxZendArray *array);
 JinxZendArray *jinx_zend_array_separate(JinxZendArray **array);
 int jinx_zend_array_append(JinxZendArray *array, JinxZendValue value);
 int jinx_zend_array_append_separate(JinxZendArray **array, JinxZendValue value);
+int jinx_zend_array_add_index(JinxZendArray *array, size_t index, JinxZendValue value);
+int jinx_zend_array_add_index_separate(JinxZendArray **array, size_t index, JinxZendValue value);
 int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value);
 int jinx_zend_array_add_assoc_separate(JinxZendArray **array, const char *key, size_t key_len, JinxZendValue value);
 JinxZendValue *jinx_zend_array_index(JinxZendArray *array, size_t index);
