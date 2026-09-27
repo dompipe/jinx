@@ -86,6 +86,12 @@ $csvUnterminated = str_getcsv("\"unterminated\n", ',', '"', '\\');
 $stripText = '<p>Test paragraph.</p><!-- Comment --> <a href="#fragment">Other text</a>';
 $stripArray = strip_tags($stripText, ['p', 'a']);
 
+$parsedUrl = parse_url('http://username:password@hostname:9090/path?arg=value#anchor');
+$parsedUrl2 = parse_url('//www.example.com/path?googleguy=googley');
+$parsedUrlEmpty = parse_url('http://example.com/path?#');
+$parsedUrlHost = parse_url('http://example.com:8080/a', PHP_URL_HOST);
+$parsedUrlPort = parse_url('http://example.com:8080/a', PHP_URL_PORT);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -149,7 +155,25 @@ $expectedParity = 'PARITY:'
     . ';csvtrail=' . implode('|', $csvTrailing)
     . ';csvempty=' . (array_key_exists(0, $csvEmpty) && $csvEmpty[0] === null ? 'null' : 'not-null')
     . ';csvunterminated=' . str_replace("\n", '\\n', $csvUnterminated[0])
-    . ';strip_array=' . $stripArray;
+    . ';strip_array=' . $stripArray
+    . ';url='
+        . $parsedUrl['scheme'] . '|'
+        . $parsedUrl['host'] . '|'
+        . $parsedUrl['port'] . '|'
+        . $parsedUrl['user'] . '|'
+        . $parsedUrl['pass'] . '|'
+        . $parsedUrl['path'] . '|'
+        . $parsedUrl['query'] . '|'
+        . $parsedUrl['fragment']
+    . ';url2='
+        . $parsedUrl2['host'] . '|'
+        . $parsedUrl2['path'] . '|'
+        . $parsedUrl2['query']
+    . ';url_empty='
+        . (array_key_exists('query', $parsedUrlEmpty) && $parsedUrlEmpty['query'] === '' ? '1' : '0')
+        . '|'
+        . (array_key_exists('fragment', $parsedUrlEmpty) && $parsedUrlEmpty['fragment'] === '' ? '1' : '0')
+    . ';url_component=' . $parsedUrlHost . '|' . $parsedUrlPort;
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
