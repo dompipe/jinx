@@ -140,7 +140,8 @@ $code[] = '}';
 $code[] = '';
 $code[] = 'static int jinx_oracle_name_is_zend_container_builtin(const char *name) {';
 $code[] = '    return name != NULL && (';
-$code[] = '        strcmp(name, "parse_str") == 0 ||
+$code[] = '        strcmp(name, "pathinfo") == 0 ||
+        strcmp(name, "parse_str") == 0 ||
         strcmp(name, "http_build_query") == 0 ||
         strcmp(name, "parse_url") == 0 ||
         strcmp(name, "parse_str") == 0 ||
