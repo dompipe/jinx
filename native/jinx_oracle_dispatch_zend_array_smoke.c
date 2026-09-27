@@ -1732,7 +1732,7 @@ int main(void) {
     jinx_oracle_zend_array_value_release(result);
 
     JinxZendArray *predicate_source = jinx_zend_array_new_packed(3);
-    JinxZendString *predicate_apple = jinx_zend_string_new("predicate_apple", 5);
+    JinxZendString *predicate_apple = jinx_zend_string_new("apple", 5);
     JinxZendString *banana = jinx_zend_string_new("banana", 6);
     JinxZendString *carrot = jinx_zend_string_new("carrot", 6);
     if (predicate_source == 0 || predicate_apple == 0 || banana == 0 || carrot == 0 ||
