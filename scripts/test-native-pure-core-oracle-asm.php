@@ -162,6 +162,8 @@ $cases = [
     ['is_iterable', ['i:42']],
     ['is_object', ['s:oracle']],
     ['is_resource', ['a:3']],
+    ['getrandmax', []],
+    ['mt_getrandmax', []],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
