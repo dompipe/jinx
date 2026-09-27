@@ -1689,6 +1689,285 @@ static inline JinxValue jinx_oracle_similar_text_value(JinxValue a, JinxValue b)
     ));
 }
 
+static inline int jinx_oracle_metaphone_code(unsigned char c) {
+    static const unsigned char codes[26] = {
+        1, 16, 4, 16, 9, 2, 4, 16, 9, 2, 0, 2, 2,
+        2, 1, 4, 0, 2, 4, 4, 1, 0, 0, 0, 8, 0
+    };
+
+    return c >= (unsigned char)'A' && c <= (unsigned char)'Z'
+        ? codes[c - (unsigned char)'A']
+        : 0;
+}
+
+static inline int jinx_oracle_metaphone_is_vowel(unsigned char c) {
+    return (jinx_oracle_metaphone_code(c) & 1) != 0;
+}
+
+static inline int jinx_oracle_metaphone_affects_h(unsigned char c) {
+    return (jinx_oracle_metaphone_code(c) & 4) != 0;
+}
+
+static inline int jinx_oracle_metaphone_makes_soft(unsigned char c) {
+    return (jinx_oracle_metaphone_code(c) & 8) != 0;
+}
+
+static inline int jinx_oracle_metaphone_no_gh_to_f(unsigned char c) {
+    return (jinx_oracle_metaphone_code(c) & 16) != 0;
+}
+
+static inline unsigned char jinx_oracle_metaphone_at(
+    const unsigned char *word,
+    uint32_t len,
+    int64_t index
+) {
+    if (index < 0 || (uint64_t)index >= (uint64_t)len) return 0u;
+    return (unsigned char)toupper((int)word[index]);
+}
+
+static inline unsigned char jinx_oracle_metaphone_lookahead(
+    const unsigned char *word,
+    uint32_t len,
+    uint32_t start,
+    uint32_t distance
+) {
+    uint32_t pos = start;
+    uint32_t moved = 0u;
+
+    while (pos < len && word[pos] != 0u && moved < distance) {
+        pos++;
+        moved++;
+    }
+
+    return pos < len ? (unsigned char)toupper((int)word[pos]) : 0u;
+}
+
+static inline void jinx_oracle_metaphone_emit(
+    char *out,
+    uint32_t capacity,
+    uint32_t *pos,
+    unsigned char ch
+) {
+    if (*pos < capacity) out[(*pos)++] = (char)ch;
+}
+
+static inline JinxValue jinx_oracle_metaphone_value(JinxValue value, JinxValue max_value, uint32_t argc) {
+    const unsigned char *word = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int64_t max_phonemes = argc >= 2u ? jinx_oracle_intish(max_value) : 0;
+    uint64_t capacity64 = (uint64_t)len * 2u + 2u;
+    uint32_t capacity;
+    uint32_t w = 0u;
+    uint32_t p = 0u;
+
+    if (max_phonemes < 0) return jinx_oracle_zero_value();
+    if (capacity64 > UINT32_MAX) return jinx_oracle_zero_value();
+    capacity = (uint32_t)capacity64;
+
+    char *out = jinx_oracle_scratch_string(capacity);
+
+    while (w < len && !isalpha((int)word[w])) w++;
+    if (w >= len) return jinx_oracle_string_value_len(out, 0u);
+
+    unsigned char curr = (unsigned char)toupper((int)word[w]);
+    unsigned char next = jinx_oracle_metaphone_at(word, len, (int64_t)w + 1);
+
+    switch (curr) {
+        case 'A':
+            if (next == (unsigned char)'E') {
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'E');
+                w += 2u;
+            } else {
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'A');
+                w++;
+            }
+            break;
+        case 'G':
+        case 'K':
+        case 'P':
+            if (next == (unsigned char)'N') {
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'N');
+                w += 2u;
+            }
+            break;
+        case 'W':
+            if (next == (unsigned char)'R') {
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'R');
+                w += 2u;
+            } else if (next == (unsigned char)'H' || jinx_oracle_metaphone_is_vowel(next)) {
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'W');
+                w += 2u;
+            }
+            break;
+        case 'X':
+            jinx_oracle_metaphone_emit(out, capacity, &p, 'S');
+            w++;
+            break;
+        case 'E':
+        case 'I':
+        case 'O':
+        case 'U':
+            jinx_oracle_metaphone_emit(out, capacity, &p, curr);
+            w++;
+            break;
+        default:
+            break;
+    }
+
+    while (w < len && word[w] != 0u &&
+           (max_phonemes == 0 || p < (uint64_t)max_phonemes)) {
+        unsigned int skip = 0u;
+        unsigned char raw = word[w];
+
+        if (!isalpha((int)raw)) {
+            w++;
+            continue;
+        }
+
+        curr = (unsigned char)toupper((int)raw);
+        unsigned char prev = jinx_oracle_metaphone_at(word, len, (int64_t)w - 1);
+        next = jinx_oracle_metaphone_at(word, len, (int64_t)w + 1);
+        unsigned char after_next = next != 0u
+            ? jinx_oracle_metaphone_at(word, len, (int64_t)w + 2)
+            : 0u;
+
+        if (curr == prev && curr != (unsigned char)'C') {
+            w++;
+            continue;
+        }
+
+        switch (curr) {
+            case 'B':
+                if (prev != (unsigned char)'M') jinx_oracle_metaphone_emit(out, capacity, &p, 'B');
+                break;
+
+            case 'C':
+                if (jinx_oracle_metaphone_makes_soft(next)) {
+                    if (next == (unsigned char)'I' && after_next == (unsigned char)'A') {
+                        jinx_oracle_metaphone_emit(out, capacity, &p, 'X');
+                    } else if (prev != (unsigned char)'S') {
+                        jinx_oracle_metaphone_emit(out, capacity, &p, 'S');
+                    }
+                } else if (next == (unsigned char)'H') {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'X');
+                    skip++;
+                } else {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'K');
+                }
+                break;
+
+            case 'D':
+                if (next == (unsigned char)'G' && jinx_oracle_metaphone_makes_soft(after_next)) {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'J');
+                    skip++;
+                } else {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'T');
+                }
+                break;
+
+            case 'G':
+                if (next == (unsigned char)'H') {
+                    unsigned char back3 = jinx_oracle_metaphone_at(word, len, (int64_t)w - 3);
+                    unsigned char back4 = jinx_oracle_metaphone_at(word, len, (int64_t)w - 4);
+                    if (!jinx_oracle_metaphone_no_gh_to_f(back3) && back4 != (unsigned char)'H') {
+                        jinx_oracle_metaphone_emit(out, capacity, &p, 'F');
+                        skip++;
+                    }
+                } else if (next == (unsigned char)'N') {
+                    if (!(after_next == 0u ||
+                         (after_next == (unsigned char)'E' &&
+                          jinx_oracle_metaphone_lookahead(word, len, w, 3u) == (unsigned char)'D'))) {
+                        jinx_oracle_metaphone_emit(out, capacity, &p, 'K');
+                    }
+                } else if (jinx_oracle_metaphone_makes_soft(next) && prev != (unsigned char)'G') {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'J');
+                } else {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'K');
+                }
+                break;
+
+            case 'H':
+                if (jinx_oracle_metaphone_is_vowel(next) && !jinx_oracle_metaphone_affects_h(prev)) {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'H');
+                }
+                break;
+
+            case 'K':
+                if (prev != (unsigned char)'C') jinx_oracle_metaphone_emit(out, capacity, &p, 'K');
+                break;
+
+            case 'P':
+                jinx_oracle_metaphone_emit(out, capacity, &p, next == (unsigned char)'H' ? 'F' : 'P');
+                break;
+
+            case 'Q':
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'K');
+                break;
+
+            case 'S':
+                if (next == (unsigned char)'I' &&
+                    (after_next == (unsigned char)'O' || after_next == (unsigned char)'A')) {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'X');
+                } else if (next == (unsigned char)'H') {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'X');
+                    skip++;
+                } else {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'S');
+                }
+                break;
+
+            case 'T':
+                if (next == (unsigned char)'I' &&
+                    (after_next == (unsigned char)'O' || after_next == (unsigned char)'A')) {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'X');
+                } else if (next == (unsigned char)'H') {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, '0');
+                    skip++;
+                } else if (!(next == (unsigned char)'C' && after_next == (unsigned char)'H')) {
+                    jinx_oracle_metaphone_emit(out, capacity, &p, 'T');
+                }
+                break;
+
+            case 'V':
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'F');
+                break;
+
+            case 'W':
+                if (jinx_oracle_metaphone_is_vowel(next)) jinx_oracle_metaphone_emit(out, capacity, &p, 'W');
+                break;
+
+            case 'X':
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'K');
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'S');
+                break;
+
+            case 'Y':
+                if (jinx_oracle_metaphone_is_vowel(next)) jinx_oracle_metaphone_emit(out, capacity, &p, 'Y');
+                break;
+
+            case 'Z':
+                jinx_oracle_metaphone_emit(out, capacity, &p, 'S');
+                break;
+
+            case 'F':
+            case 'J':
+            case 'L':
+            case 'M':
+            case 'N':
+            case 'R':
+                jinx_oracle_metaphone_emit(out, capacity, &p, curr);
+                break;
+
+            default:
+                break;
+        }
+
+        w += 1u + skip;
+    }
+
+    return jinx_oracle_string_value_len(out, p);
+}
+
 static inline JinxValue jinx_oracle_soundex_value(JinxValue value) {
     static const unsigned char soundex_table[26] = {
         0, '1', '2', '3', 0, '1', '2', 0, 0, '2', '2', '4', '5',
@@ -3714,6 +3993,20 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     if (jinx_oracle_name_in3(name, "decbin", "dechex", "decoct")) {
         int base = jinx_oracle_name_is(name, "decbin") ? 2 : (jinx_oracle_name_is(name, "dechex") ? 16 : 8);
         ret = jinx_oracle_uint_to_base((uint64_t)jinx_oracle_intish(arg0), base);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "metaphone")) {
+        if (argc >= 2u && jinx_oracle_intish(arg1) < 0) {
+            ctx->fault = "metaphone max phonemes must be greater than or equal to 0";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_metaphone_value(arg0, arg1, argc);
+        if (ret.type == 0u) {
+            ctx->fault = "metaphone native conversion failed";
+            return ret;
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
