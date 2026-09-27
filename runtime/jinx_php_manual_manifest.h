@@ -188,7 +188,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "pure-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/wordwrap/convert_uuencode/convert_uudecode/soundex/quoted_printable_encode/quoted_printable_decode/similar_text(with optional percent by-ref)/metaphone/strcoll/substr_replace(scalar)/utf8_encode/utf8_decode(valid UTF-8)",
+        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/printf/wordwrap/convert_uuencode/convert_uudecode/soundex/quoted_printable_encode/quoted_printable_decode/similar_text(with optional percent by-ref)/metaphone/strcoll/substr_replace(scalar)/utf8_encode/utf8_decode(valid UTF-8)",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -316,7 +316,8 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "str_replace") == 0 || strcmp(name, "str_ireplace") == 0 ||
         strcmp(name, "strtr") == 0 || strcmp(name, "levenshtein") == 0 ||
         strcmp(name, "htmlspecialchars") == 0 || strcmp(name, "htmlspecialchars_decode") == 0 ||
-        strcmp(name, "sprintf") == 0 || strcmp(name, "wordwrap") == 0 ||
+        strcmp(name, "sprintf") == 0 || strcmp(name, "printf") == 0 ||
+        strcmp(name, "wordwrap") == 0 ||
         strcmp(name, "convert_uuencode") == 0 || strcmp(name, "convert_uudecode") == 0 ||
         strcmp(name, "soundex") == 0 || strcmp(name, "quoted_printable_encode") == 0 ||
         strcmp(name, "quoted_printable_decode") == 0 || strcmp(name, "similar_text") == 0 ||
@@ -328,7 +329,8 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
     return strcmp(name, "count_chars") == 0 || strcmp(name, "str_word_count") == 0 ||
         strcmp(name, "implode") == 0 || strcmp(name, "join") == 0 ||
-        strcmp(name, "vsprintf") == 0 || strcmp(name, "explode") == 0 ||
+        strcmp(name, "vsprintf") == 0 || strcmp(name, "vprintf") == 0 ||
+        strcmp(name, "explode") == 0 ||
         strcmp(name, "str_split") == 0 || strcmp(name, "str_getcsv") == 0 ||
         strcmp(name, "strip_tags") == 0 || strcmp(name, "range") == 0 ||
         strcmp(name, "array_fill") == 0;
