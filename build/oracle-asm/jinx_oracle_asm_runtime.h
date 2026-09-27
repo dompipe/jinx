@@ -411,6 +411,56 @@ static inline JinxValue jinx_oracle_strrpos_value(
     return jinx_oracle_bool_value(0);
 }
 
+static inline JinxValue jinx_oracle_string_slice_copy(
+    const unsigned char *bytes,
+    uint32_t start,
+    uint32_t len
+) {
+    char *out = jinx_oracle_scratch_string(len);
+    if (len != 0u) {
+        memcpy(out, bytes + start, len);
+    }
+    return jinx_oracle_string_value_len(out, len);
+}
+
+static inline JinxValue jinx_oracle_strstr_value(
+    JinxValue haystack_value,
+    JinxValue needle_value,
+    JinxValue before_value,
+    uint32_t argc,
+    int fold_case
+) {
+    const unsigned char *haystack = jinx_oracle_string_bytes(haystack_value);
+    const unsigned char *needle = jinx_oracle_string_bytes(needle_value);
+    uint32_t haystack_len = jinx_oracle_string_len(haystack_value);
+    uint32_t needle_len = jinx_oracle_string_len(needle_value);
+    uint32_t position = 0u;
+    int found = 0;
+    int before = argc >= 3u && jinx_oracle_intish(before_value) != 0;
+
+    if (needle_len == 0u) {
+        found = 1;
+    } else if (needle_len <= haystack_len) {
+        for (uint32_t i = 0u; i <= haystack_len - needle_len; i++) {
+            if (jinx_oracle_string_match_at(haystack, needle, needle_len, i, fold_case)) {
+                position = i;
+                found = 1;
+                break;
+            }
+        }
+    }
+
+    if (!found) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (before) {
+        return jinx_oracle_string_slice_copy(haystack, 0u, position);
+    }
+
+    return jinx_oracle_string_slice_copy(haystack, position, haystack_len - position);
+}
+
 static inline JinxValue jinx_oracle_bin2hex_value(JinxValue value) {
     static const char hex[] = "0123456789abcdef";
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
@@ -950,6 +1000,18 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             ctx->registers[JINX_ORA_R2],
             argc,
             jinx_oracle_name_is(name, "strripos")
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in3(name, "strstr", "strchr", "stristr")) {
+        ret = jinx_oracle_strstr_value(
+            arg0,
+            arg1,
+            ctx->registers[JINX_ORA_R2],
+            argc,
+            jinx_oracle_name_is(name, "stristr")
         );
         jinx_oracle_return(ctx, ret);
         return ret;
