@@ -86,7 +86,12 @@ $expectedParity = 'PARITY:'
     . ';column_num=' . $pairs(array_column([
         ['id' => '1', 'name' => 'Ada'],
         ['id' => '02', 'name' => 'Grace'],
-    ], 'name', 'id'));
+    ], 'name', 'id'))
+    . ';in_loose=' . (in_array('20', $base, false) ? '1' : '0')
+    . ';in_strict=' . (in_array('20', $base, true) ? '1' : '0')
+    . ';search_loose=' . (($search = array_search('30', $base, false)) === false ? 'false' : $search)
+    . ';search_strict=' . (array_search('30', $base, true) === false ? 'false' : 'unexpected')
+    . ';filter=' . $pairs(array_filter([0, 1, '0', 'x', false]));
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
