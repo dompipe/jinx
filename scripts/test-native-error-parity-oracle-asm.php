@@ -24,6 +24,11 @@ $cases = [
     ['substr_count', ['abc', 'a', 4], ['s:abc', 's:a', 'i:4']],
     ['substr_count', ['abc', 'a', 1, 5], ['s:abc', 's:a', 'i:1', 'i:5']],
     ['substr_count', ['abc', 'a', 0, -4], ['s:abc', 's:a', 'i:0', 'i:-4']],
+    ['strpos', ['abc', 'a', 4], ['s:abc', 's:a', 'i:4']],
+    ['strpos', ['abc', 'a', -4], ['s:abc', 's:a', 'i:-4']],
+    ['stripos', ['abc', 'A', 4], ['s:abc', 's:A', 'i:4']],
+    ['strrpos', ['abc', 'a', 4], ['s:abc', 's:a', 'i:4']],
+    ['strripos', ['abc', 'A', -4], ['s:abc', 's:A', 'i:-4']],
     ['intdiv', [1, 0], ['i:1', 'i:0']],
     ['intdiv', [PHP_INT_MIN, -1], ['i:' . PHP_INT_MIN, 'i:-1']],
 ];
