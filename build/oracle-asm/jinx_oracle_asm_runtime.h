@@ -4572,85 +4572,6 @@ static inline JinxValue jinx_oracle_numeric_extreme(
 }
 
 
-static inline double jinx_oracle_round_half_mode(double value, int mode) {
-    if (!isfinite(value)) return value;
-
-    double sign = value < 0.0 ? -1.0 : 1.0;
-    double magnitude = fabs(value);
-    double lower = floor(magnitude);
-    double fraction = magnitude - lower;
-    double tolerance = DBL_EPSILON * fmax(1.0, magnitude) * 4.0;
-    int is_half = fabs(fraction - 0.5) <= tolerance;
-    double rounded;
-
-    if (!is_half) {
-        rounded = fraction > 0.5 ? lower + 1.0 : lower;
-    } else if (mode == 1) {
-        rounded = lower + 1.0;
-    } else if (mode == 2) {
-        rounded = lower;
-    } else if (mode == 3) {
-        rounded = fmod(lower, 2.0) == 0.0 ? lower : lower + 1.0;
-    } else {
-        rounded = fmod(lower, 2.0) != 0.0 ? lower : lower + 1.0;
-    }
-
-    return sign * rounded;
-}
-
-static inline JinxValue jinx_oracle_round_value(
-    JinxValue number_value,
-    JinxValue precision_value,
-    JinxValue mode_value,
-    uint32_t argc,
-    int *ok
-) {
-    double number = jinx_oracle_floatish(number_value);
-    int64_t precision = argc >= 2u ? jinx_oracle_intish(precision_value) : 0;
-    int mode = argc >= 3u ? (int)jinx_oracle_intish(mode_value) : 1;
-
-    *ok = 0;
-    if (mode < 1 || mode > 4) {
-        return jinx_oracle_zero_value();
-    }
-
-    if (!isfinite(number)) {
-        *ok = 1;
-        return jinx_oracle_float_value(number);
-    }
-
-    if (precision > 308 || precision < -308) {
-        *ok = 1;
-        return jinx_oracle_float_value(number);
-    }
-
-    double factor;
-    double scaled;
-    double result;
-
-    if (precision >= 0) {
-        factor = pow(10.0, (double)precision);
-        if (!isfinite(factor) || factor == 0.0) {
-            *ok = 1;
-            return jinx_oracle_float_value(number);
-        }
-        scaled = number * factor;
-        result = jinx_oracle_round_half_mode(scaled, mode) / factor;
-    } else {
-        factor = pow(10.0, (double)(-precision));
-        if (!isfinite(factor) || factor == 0.0) {
-            *ok = 1;
-            return jinx_oracle_float_value(number);
-        }
-        scaled = number / factor;
-        result = jinx_oracle_round_half_mode(scaled, mode) * factor;
-    }
-
-    *ok = 1;
-    return jinx_oracle_float_value(result);
-}
-
-
 #define JINX_PHP_ROUND_HALF_UP 1
 #define JINX_PHP_ROUND_HALF_DOWN 2
 #define JINX_PHP_ROUND_HALF_EVEN 3
@@ -4882,23 +4803,6 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         );
         if (!compare_ok) {
             ctx->fault = "version_compare operator or allocation error";
-            return jinx_oracle_zero_value();
-        }
-        jinx_oracle_return(ctx, ret);
-        return ret;
-    }
-
-    if (jinx_oracle_name_is(name, "round")) {
-        int round_ok = 0;
-        ret = jinx_oracle_round_value(
-            arg0,
-            arg1,
-            jinx_oracle_call_arg(ctx, 2u),
-            argc,
-            &round_ok
-        );
-        if (!round_ok) {
-            ctx->fault = "round mode is not supported by scalar native handler";
             return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
