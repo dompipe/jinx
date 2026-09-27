@@ -206,6 +206,32 @@ array_walk_recursive($walkRecursiveValues, 'settype');
 $walkUserdataValues = [29 => 2];
 array_walk($walkUserdataValues, 'checkdate', 2024);
 
+mt_srand(1234);
+$rngMt = mt_rand();
+
+mt_srand(1234);
+$rngRange = mt_rand(10, 99);
+
+srand(1234);
+$rngReverse = rand(99, 10);
+$rngMax = mt_getrandmax();
+
+$rngSource = ['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5];
+
+mt_srand(1234);
+$rngOne = array_rand($rngSource);
+
+mt_srand(1234);
+$rngMany = array_rand($rngSource, 3);
+
+$expectedRngParity = 'RNG_PARITY:'
+    . 'mt=' . $rngMt
+    . ';range=' . $rngRange
+    . ';reverse=' . $rngReverse
+    . ';max=' . $rngMax
+    . ';one=' . $rngOne
+    . ';many=' . implode(',', $rngMany);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -352,6 +378,11 @@ $expectedParity = 'PARITY:'
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
+    exit(1);
+}
+
+if (!str_contains($text, $expectedRngParity)) {
+    fwrite(STDERR, "FAIL: PHP-vs-JINX MT19937/array_rand parity mismatch\nPHP: {$expectedRngParity}\nJINX:\n{$text}\n");
     exit(1);
 }
 
