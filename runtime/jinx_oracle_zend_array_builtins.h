@@ -321,6 +321,19 @@ static inline JinxValue jinx_oracle_zend_vsprintf_special(const JinxValue *args,
     return ok ? result : jinx_oracle_zero_value();
 }
 
+
+static inline JinxValue jinx_oracle_zend_vprintf_special(const JinxValue *args, size_t argc) {
+    JinxValue formatted = jinx_oracle_zend_vsprintf_special(args, argc);
+    if (formatted.type != 3u) return jinx_oracle_zero_value();
+
+    if (formatted.flags != 0u &&
+        fwrite(formatted.as.ptr, 1u, formatted.flags, stdout) != formatted.flags) {
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_int_value((int64_t)formatted.flags);
+}
+
 static inline JinxValue jinx_oracle_zend_implode_special(const JinxValue *args, size_t argc) {
     JinxZendArray *array = 0;
     const unsigned char *separator = (const unsigned char *)"";
@@ -2438,6 +2451,7 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     if (strcmp(name, "explode") == 0) return jinx_oracle_zend_explode_special(args, argc);
     if (strcmp(name, "str_split") == 0) return jinx_oracle_zend_str_split_special(args, argc);
     if (strcmp(name, "vsprintf") == 0) return jinx_oracle_zend_vsprintf_special(args, argc);
+    if (strcmp(name, "vprintf") == 0) return jinx_oracle_zend_vprintf_special(args, argc);
     if (strcmp(name, "implode") == 0 || strcmp(name, "join") == 0) return jinx_oracle_zend_implode_special(args, argc);
     if (strcmp(name, "range") == 0) return jinx_oracle_zend_range_special(args, argc);
     if (strcmp(name, "array_fill") == 0) return jinx_oracle_zend_array_fill_special(args, argc);
