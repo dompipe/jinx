@@ -586,8 +586,8 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
         return jinx_php_manual_spec_by_pattern("json-validate-core");
     }
 
-    if (jinx_php_manual_name_is_json_decode_associative_core(name)) {
-        return jinx_php_manual_spec_by_pattern("json-decode-associative-core");
+    if (jinx_php_manual_name_is_json_decode_core(name)) {
+        return jinx_php_manual_spec_by_pattern("json-decode-core");
     }
 
     if (jinx_php_manual_name_is_json_encode_core(name)) {
