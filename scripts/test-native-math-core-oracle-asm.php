@@ -11,23 +11,56 @@ function fail(string $message): never
     exit(1);
 }
 
+function decodeMathArg(string $arg): mixed
+{
+    if (strlen($arg) < 2 || $arg[1] !== ':') {
+        fail("invalid typed math argument {$arg}");
+    }
+
+    return match ($arg[0]) {
+        'i' => (int) substr($arg, 2),
+        'f' => (float) substr($arg, 2),
+        default => fail("unsupported typed math argument {$arg}"),
+    };
+}
+
+function encodeMathValue(mixed $value): string
+{
+    if (is_bool($value)) {
+        return 'bool:' . ($value ? 'true' : 'false');
+    }
+    if (is_int($value)) {
+        return 'int:' . $value;
+    }
+    if (is_float($value)) {
+        return 'float:' . sprintf('%g', $value);
+    }
+
+    fail('unsupported PHP math return type ' . get_debug_type($value));
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     fail('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
 }
 
 $cases = [
-    ['fmod', ['f:5.5', 'f:2'], 'float:1.5'],
-    ['intdiv', ['i:7', 'i:2'], 'int:3'],
-    ['deg2rad', ['f:180'], 'float:3.14159'],
-    ['rad2deg', ['f:3.141592653589793'], 'float:180'],
-    ['pi', [], 'float:3.14159'],
-    ['hypot', ['f:3', 'f:4'], 'float:5'],
-    ['is_finite', ['f:42'], 'bool:true'],
-    ['is_infinite', ['f:42'], 'bool:false'],
-    ['is_nan', ['f:42'], 'bool:false'],
+    ['fmod', ['f:5.5', 'f:2']],
+    ['intdiv', ['i:7', 'i:2']],
+    ['deg2rad', ['f:180']],
+    ['rad2deg', ['f:3.141592653589793']],
+    ['pi', []],
+    ['hypot', ['f:3', 'f:4']],
+    ['is_finite', ['f:42']],
+    ['is_infinite', ['f:42']],
+    ['is_nan', ['f:42']],
+    ['cos', ['f:1']],
+    ['cosh', ['f:1']],
 ];
 
-foreach ($cases as [$function, $args, $expected]) {
+foreach ($cases as [$function, $args]) {
+    $phpArgs = array_map('decodeMathArg', $args);
+    $expected = encodeMathValue($function(...$phpArgs));
+
     $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($function);
     foreach ($args as $arg) {
         $command .= ' ' . escapeshellarg($arg);
@@ -36,15 +69,15 @@ foreach ($cases as [$function, $args, $expected]) {
     $output = [];
     $code = 0;
     exec($command . ' 2>&1', $output, $code);
-    $text = rtrim(implode(PHP_EOL, $output), "\r\n");
+    $actual = rtrim(implode(PHP_EOL, $output), "\r\n");
 
     if ($code !== 0) {
-        fail("oracle-call {$function} failed: {$text}");
+        fail("oracle-call {$function} failed: {$actual}");
     }
 
-    if ($text !== $expected) {
-        fail("oracle-call {$function} expected {$expected}, got {$text}");
+    if ($actual !== $expected) {
+        fail("oracle-call {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
     }
 }
 
-echo 'PASS: native Oracle ASM math-core builtins execute exact JinxValue handlers' . PHP_EOL;
+echo 'PASS: native Oracle ASM math-core and cosine handlers match PHP for covered scalar cases' . PHP_EOL;

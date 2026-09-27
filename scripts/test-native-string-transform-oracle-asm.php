@@ -61,7 +61,9 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 
 $cases = [
     ['strtolower', ['s:JiNx']],
+    ['strtolower', ['s:ÄBC']],
     ['strtoupper', ['s:JiNx']],
+    ['strtoupper', ['s:äbc']],
     ['lcfirst', ['s:JINX']],
     ['ucfirst', ['s:jinx']],
     ['strrev', ['s:oracle']],

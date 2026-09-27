@@ -163,13 +163,27 @@ static inline char *jinx_oracle_scratch_string(uint32_t len) {
     return buffer;
 }
 
+static inline unsigned char jinx_oracle_ascii_lower_byte(unsigned char c) {
+    return c >= (unsigned char)'A' && c <= (unsigned char)'Z'
+        ? (unsigned char)(c + ((unsigned char)'a' - (unsigned char)'A'))
+        : c;
+}
+
+static inline unsigned char jinx_oracle_ascii_upper_byte(unsigned char c) {
+    return c >= (unsigned char)'a' && c <= (unsigned char)'z'
+        ? (unsigned char)(c - ((unsigned char)'a' - (unsigned char)'A'))
+        : c;
+}
+
 static inline JinxValue jinx_oracle_string_transform_case(JinxValue value, int upper) {
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
     uint32_t len = jinx_oracle_string_len(value);
     char *out = jinx_oracle_scratch_string(len);
 
     for (uint32_t i = 0; i < len; i++) {
-        out[i] = (char)(upper ? toupper((int)bytes[i]) : tolower((int)bytes[i]));
+        out[i] = (char)(upper
+            ? jinx_oracle_ascii_upper_byte(bytes[i])
+            : jinx_oracle_ascii_lower_byte(bytes[i]));
     }
 
     return jinx_oracle_string_value_len(out, len);
@@ -182,7 +196,9 @@ static inline JinxValue jinx_oracle_string_transform_first(JinxValue value, int 
 
     if (len != 0u) {
         memcpy(out, bytes, len);
-        out[0] = (char)(upper ? toupper((int)(unsigned char)out[0]) : tolower((int)(unsigned char)out[0]));
+        out[0] = (char)(upper
+            ? jinx_oracle_ascii_upper_byte((unsigned char)out[0])
+            : jinx_oracle_ascii_lower_byte((unsigned char)out[0]));
     }
 
     return jinx_oracle_string_value_len(out, len);
@@ -281,12 +297,6 @@ static inline JinxValue jinx_oracle_substr_value(JinxValue value, JinxValue offs
     }
 
     return jinx_oracle_string_value_len(out, out_len);
-}
-
-static inline unsigned char jinx_oracle_ascii_lower_byte(unsigned char c) {
-    return c >= (unsigned char)'A' && c <= (unsigned char)'Z'
-        ? (unsigned char)(c + ((unsigned char)'a' - (unsigned char)'A'))
-        : c;
 }
 
 static inline int jinx_oracle_string_match_at(

@@ -43,6 +43,7 @@ $tests = [
     'scripts/test-oracle-loop-execution.php' => 'PASS: Oracle executes loop PHP subset',
     'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
     'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
+    'scripts/test-native-math-core-oracle-asm.php' => 'PASS: native Oracle ASM math-core and cosine handlers match PHP',
     'scripts/test-native-string-transform-oracle-asm.php' => 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP',
     'scripts/test-oracle-execution-families.php' => 'PASS: Oracle execution families expose',
 ];

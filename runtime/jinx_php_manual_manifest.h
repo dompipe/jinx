@@ -62,7 +62,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "math-trig-log",
         "https://www.php.net/manual/en/ref.math.php",
-        "acos/acosh/asin/asinh/atan/atan2/atanh/ceil/floor/sqrt/sin/sinh/tan/tanh/exp/expm1/log/log10",
+        "acos/acosh/asin/asinh/atan/atan2/atanh/ceil/floor/sqrt/sin/sinh/cos/cosh/tan/tanh/exp/expm1/log/log10",
         "float",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -111,7 +111,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
-        "Native ASCII byte-class checks for string JinxValue inputs; empty strings return false."
+        "Native libc ctype byte-class checks for string JinxValue inputs using the process's current locale, matching PHP ctype's locale-sensitive contract; empty strings return false."
     },
     {
         "scalar-core",
@@ -225,6 +225,7 @@ static inline int jinx_php_manual_name_is_math_trig_log(const char *name) {
         strcmp(name, "atanh") == 0 || strcmp(name, "ceil") == 0 ||
         strcmp(name, "floor") == 0 || strcmp(name, "sqrt") == 0 ||
         strcmp(name, "sin") == 0 || strcmp(name, "sinh") == 0 ||
+        strcmp(name, "cos") == 0 || strcmp(name, "cosh") == 0 ||
         strcmp(name, "tan") == 0 || strcmp(name, "tanh") == 0 ||
         strcmp(name, "exp") == 0 || strcmp(name, "expm1") == 0 ||
         strcmp(name, "log") == 0 || strcmp(name, "log10") == 0;
