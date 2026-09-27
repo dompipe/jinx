@@ -1609,6 +1609,84 @@ static inline JinxValue jinx_oracle_zend_array_unshift_special(const JinxValue *
     return jinx_oracle_int_value((int64_t)jinx_zend_array_live_count(array));
 }
 
+
+static inline JinxValue jinx_oracle_zend_array_splice_special(const JinxValue *args, size_t argc) {
+    if (argc < 2u) return jinx_oracle_zero_value();
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
+    if (array == 0) return jinx_oracle_zero_value();
+
+    size_t live = jinx_zend_array_live_count(array);
+    int64_t offset = jinx_oracle_intish(args[1]);
+    int64_t start = offset < 0 ? (int64_t)live + offset : offset;
+    if (start < 0) start = 0;
+    if (start > (int64_t)live) start = (int64_t)live;
+
+    int64_t end;
+    if (argc < 3u || args[2].type == 0u) {
+        end = (int64_t)live;
+    } else {
+        int64_t length = jinx_oracle_intish(args[2]);
+        if (length >= 0) {
+            end = start + length;
+            if (end > (int64_t)live) end = (int64_t)live;
+        } else {
+            end = (int64_t)live + length;
+            if (end < start) end = start;
+        }
+    }
+
+    JinxZendArray *removed = jinx_zend_array_new_packed((size_t)(end - start) + 1u);
+    JinxZendArray *rebuilt = jinx_zend_array_new_packed(live + 4u);
+    if (removed == 0 || rebuilt == 0) {
+        jinx_zend_array_release(removed);
+        jinx_zend_array_release(rebuilt);
+        return jinx_oracle_zero_value();
+    }
+
+    for (int64_t i = 0; i < start; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, (size_t)i);
+        if (!jinx_oracle_zend_add_bucket(rebuilt, bucket, 0)) goto fail;
+    }
+
+    for (int64_t i = start; i < end; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, (size_t)i);
+        if (!jinx_oracle_zend_add_bucket(removed, bucket, 0)) goto fail;
+    }
+
+    if (argc >= 4u && args[3].type != 0u) {
+        if (jinx_oracle_value_is_zend_array(args[3])) {
+            JinxZendArray *replacement = jinx_oracle_zend_array_ptr(args[3]);
+            size_t replacement_live = jinx_zend_array_live_count(replacement);
+
+            for (size_t i = 0u; i < replacement_live; i++) {
+                const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(replacement, i);
+                if (bucket == 0 || !jinx_zend_array_append(rebuilt, bucket->value)) goto fail;
+            }
+        } else {
+            JinxZendValue replacement;
+            JinxZendString *owned_string = 0;
+            if (!jinx_oracle_jinx_value_to_zend(args[3], &replacement, &owned_string)) goto fail;
+            int ok = jinx_zend_array_append(rebuilt, replacement);
+            jinx_zend_string_release(owned_string);
+            if (!ok) goto fail;
+        }
+    }
+
+    for (int64_t i = end; i < (int64_t)live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, (size_t)i);
+        if (!jinx_oracle_zend_add_bucket(rebuilt, bucket, 0)) goto fail;
+    }
+
+    jinx_oracle_zend_array_adopt_contents(array, rebuilt);
+    return jinx_oracle_zend_array_value_owned(removed);
+
+fail:
+    jinx_zend_array_release(removed);
+    jinx_zend_array_release(rebuilt);
+    return jinx_oracle_zero_value();
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
@@ -1707,6 +1785,7 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     if (strcmp(name, "array_pop") == 0) return jinx_oracle_zend_array_pop_special(args, argc);
     if (strcmp(name, "array_shift") == 0) return jinx_oracle_zend_array_shift_special(args, argc);
     if (strcmp(name, "array_unshift") == 0) return jinx_oracle_zend_array_unshift_special(args, argc);
+    if (strcmp(name, "array_splice") == 0) return jinx_oracle_zend_array_splice_special(args, argc);
     if (strcmp(name, "array_diff") == 0 || strcmp(name, "array_diff_assoc") == 0 ||
         strcmp(name, "array_diff_key") == 0 || strcmp(name, "array_intersect") == 0 ||
         strcmp(name, "array_intersect_assoc") == 0 || strcmp(name, "array_intersect_key") == 0) {
