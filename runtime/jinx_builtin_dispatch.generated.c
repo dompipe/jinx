@@ -49,12 +49,11 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
 
 static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
     return name != NULL && (
+        strcmp(name, "localeconv") == 0 ||
         strcmp(name, "pathinfo") == 0 ||
         strcmp(name, "parse_str") == 0 ||
         strcmp(name, "http_build_query") == 0 ||
         strcmp(name, "parse_url") == 0 ||
-        strcmp(name, "parse_str") == 0 ||
-        strcmp(name, "http_build_query") == 0 ||
         strcmp(name, "count_chars") == 0 ||
         strcmp(name, "str_getcsv") == 0 ||
         strcmp(name, "strip_tags") == 0 ||
@@ -3618,7 +3617,7 @@ JinxValue jinx_call_builtin_through_oracle(
     JinxValue *args,
     size_t argc
 ) {
-    if (args != NULL && argc >= 1 && jinx_oracle_name_is_zend_container_builtin(name)) {
+    if (jinx_oracle_name_is_zend_container_builtin(name) && (args != NULL || argc == 0)) {
         return jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
     }
 
