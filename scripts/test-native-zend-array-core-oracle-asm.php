@@ -32,6 +32,24 @@ $pairs = static function (array $value): string {
     return implode(',', $out);
 };
 
+$mustReject = static function (callable $callable, string $label): void {
+    try {
+        $callable();
+    } catch (Throwable) {
+        return;
+    }
+
+    fwrite(STDERR, "FAIL: PHP did not reject {$label}\n");
+    exit(1);
+};
+
+$mustReject(static fn () => count_chars('abc', 5), 'count_chars invalid mode');
+$mustReject(static fn () => range(1, 5, -1), 'range negative increasing step');
+$mustReject(static fn () => range(1, 5, 9), 'range step larger than span');
+$mustReject(static fn () => range(1, 5, 0), 'range zero step');
+$mustReject(static fn () => array_fill(2, -1, 9), 'array_fill negative count');
+$mustReject(static fn () => array_combine([1, 2], [3]), 'array_combine mismatched counts');
+
 $base = [10, 20, 'name' => 30, 'keep' => 40];
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
@@ -42,7 +60,9 @@ $expectedParity = 'PARITY:'
     . ';implode=' . implode(',', $base)
     . ';vsprintf=' . vsprintf('There are %u million bicycles in %s.', [7, 'Amsterdam'])
     . ';range=' . implode(',', range(1, 5))
+    . ';range_neg=' . implode(',', range(5, 1, -2))
     . ';fill=' . $pairs(array_fill(2, 3, 9))
+    . ';fill_zero=' . count(array_fill(2, 0, 9))
     . ';combine=' . $pairs(array_combine([2, 'x'], [70, 80]))
     . ';count_values=' . $pairs(array_count_values([2, 2, 'x', 'x', 'x']))
     . ';chunk0=' . implode(',', array_chunk($base, 2)[0])
