@@ -25,7 +25,16 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "array_change_key_case") == 0 ||
         strcmp(name, "array_fill_keys") == 0 ||
         strcmp(name, "array_combine") == 0 ||
-        strcmp(name, "array_count_values") == 0
+        strcmp(name, "array_count_values") == 0 ||
+        strcmp(name, "array_chunk") == 0 ||
+        strcmp(name, "array_pad") == 0 ||
+        strcmp(name, "array_unique") == 0 ||
+        strcmp(name, "array_diff") == 0 ||
+        strcmp(name, "array_diff_assoc") == 0 ||
+        strcmp(name, "array_diff_key") == 0 ||
+        strcmp(name, "array_intersect") == 0 ||
+        strcmp(name, "array_intersect_assoc") == 0 ||
+        strcmp(name, "array_intersect_key") == 0
     );
 }
 
