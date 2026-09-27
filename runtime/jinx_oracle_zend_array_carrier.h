@@ -36,6 +36,14 @@ static inline JinxValue jinx_oracle_zend_array_value_retained(JinxZendArray *arr
     return value;
 }
 
+static inline JinxValue jinx_oracle_zend_array_value_owned(JinxZendArray *array) {
+    JinxValue value = jinx_oracle_zero_value();
+    value.type = JINX_ORACLE_VALUE_ZEND_ARRAY;
+    value.flags = JINX_ORACLE_ZEND_ARRAY_RETAINED;
+    value.as.ptr = array;
+    return value;
+}
+
 static inline int jinx_oracle_value_is_zend_array(JinxValue value) {
     return value.type == JINX_ORACLE_VALUE_ZEND_ARRAY && value.as.ptr != 0;
 }
