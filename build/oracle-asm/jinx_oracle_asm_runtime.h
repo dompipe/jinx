@@ -2937,6 +2937,14 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in2(name, "strpos", "stripos")) {
+        if (argc >= 3u) {
+            int64_t offset = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u));
+            int64_t len = (int64_t)jinx_oracle_string_len(arg0);
+            if (offset > len || offset < -len) {
+                ctx->fault = "string search offset must be contained in haystack";
+                return jinx_oracle_zero_value();
+            }
+        }
         ret = jinx_oracle_strpos_value(
             arg0,
             arg1,
@@ -2949,6 +2957,14 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in2(name, "strrpos", "strripos")) {
+        if (argc >= 3u) {
+            int64_t offset = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u));
+            int64_t len = (int64_t)jinx_oracle_string_len(arg0);
+            if (offset > len || offset < -len) {
+                ctx->fault = "reverse string search offset must be contained in haystack";
+                return jinx_oracle_zero_value();
+            }
+        }
         ret = jinx_oracle_strrpos_value(
             arg0,
             arg1,
