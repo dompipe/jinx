@@ -249,13 +249,13 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "Native strict JSON validation for flags 0 and JSON_INVALID_UTF8_IGNORE. The parser covers PHP-compatible JSON whitespace, literals, strict number grammar, strings/escapes, UTF-8 validity, UTF-16 surrogate pairing, arrays/objects, configured nesting depth, and the shared json_last_error/json_last_error_msg state."
     },
     {
-        "json-decode-associative-core",
+        "json-decode-core",
         "https://www.php.net/manual/en/function.json-decode.php",
         "json_decode(string $json, ?bool $associative = null, int $depth = 512, int $flags = 0): mixed",
         "mixed",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_PARTIAL,
-        "Native JSON decoding is enabled for associative object output: explicit associative=true, or associative=null with JSON_OBJECT_AS_ARRAY. Covered values include null/bool/int/float/string, nested arrays and associative objects, Unicode escapes and surrogate pairs, configured depth, JSON_BIGINT_AS_STRING, and shared JSON error state. Explicit associative=false/stdClass output, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_THROW_ON_ERROR, and other decode facets remain outside this native subset."
+        "Native JSON decoding covers PHP's default stdClass object output plus associative arrays from explicit associative=true or associative=null with JSON_OBJECT_AS_ARRAY. Covered values include null/bool/int/float/string, nested arrays/objects, object-property key preservation, Unicode escapes and surrogate pairs, configured depth, JSON_BIGINT_AS_STRING, explicit-false precedence over JSON_OBJECT_AS_ARRAY, and shared JSON error state. JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_THROW_ON_ERROR, and other decode flags remain outside this native subset."
     },
     {
         "json-encode-core",
@@ -264,7 +264,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "string|false",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_PARTIAL,
-        "Native options-zero JSON encoding covers null/bool/int/string values and carried Zend arrays, including list-vs-object array shape, string/control/slash escaping, Unicode-to-\\u escaping with surrogate pairs, configured depth, recursion detection, invalid UTF-8 failure, and shared JSON error state. JSON option flags, general PHP objects/JsonSerializable, exact full-domain floating-point formatting parity, and partial-output/throw behavior remain outside this promoted subset."
+        "Native options-zero JSON encoding covers null/bool/int/string values, carried Zend arrays, and carried Zend objects via their property table, including list-vs-object array shape, string/control/slash escaping, Unicode-to-\\u escaping with surrogate pairs, configured depth, recursion detection, invalid UTF-8 failure, and shared JSON error state. JSON option flags, JsonSerializable/custom object serialization hooks, exact full-domain floating-point formatting parity, and partial-output/throw behavior remain outside this promoted subset."
     },
     {
         "json-error-state-core",
@@ -438,7 +438,7 @@ static inline int jinx_php_manual_name_is_json_validate_core(const char *name) {
     return strcmp(name, "json_validate") == 0;
 }
 
-static inline int jinx_php_manual_name_is_json_decode_associative_core(const char *name) {
+static inline int jinx_php_manual_name_is_json_decode_core(const char *name) {
     return strcmp(name, "json_decode") == 0;
 }
 
