@@ -247,7 +247,7 @@ $code[] = '    }';
 $code[] = '';
 $code[] = '    if (name != NULL && strcmp(name, "json_decode") == 0 && args != NULL && argc >= 1 &&';
 $code[] = '        (argc < 4 || ((args[3].type == 1u || args[3].type == 2u) &&';
-$code[] = '         (args[3].as.i64 & ~3LL) == 0))) {';
+$code[] = '         (args[3].as.i64 & ~(JINX_JSON_OBJECT_AS_ARRAY | JINX_JSON_BIGINT_AS_STRING | JINX_JSON_INVALID_UTF8_IGNORE | JINX_JSON_INVALID_UTF8_SUBSTITUTE)) == 0))) {';
 $code[] = '        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
 $code[] = '        if (ok != NULL) *ok = 1;';
 $code[] = '        return result;';
