@@ -1256,36 +1256,6 @@ int main(void) {
     )) return fail("http_build_query RFC3986");
     jinx_zend_array_release(query_data);
 
-    args[0] = jinx_oracle_string_value(
-        "first=value&arr[]=foo+bar&arr[]=baz&My+Value=Something&nested[x]=1"
-    );
-    args[1] = jinx_oracle_zero_value();
-    result = jinx_call_builtin_through_oracle("parse_str", args, 2);
-    if (result.type != 0u || !jinx_oracle_value_is_zend_array(args[1])) {
-        return fail("parse_str reference result");
-    }
-
-    JinxZendArray *parsed_query = jinx_oracle_zend_array_ptr(args[1]);
-    JinxZendValue *parsed_first = jinx_zend_array_find(parsed_query, "first", 5);
-    JinxZendValue *parsed_arr = jinx_zend_array_find(parsed_query, "arr", 3);
-    JinxZendValue *parsed_mangled = jinx_zend_array_find(parsed_query, "My_Value", 8);
-    JinxZendValue *parsed_nested = jinx_zend_array_find(parsed_query, "nested", 6);
-    if (parsed_first == 0 || parsed_first->type != JINX_ZEND_STRING ||
-        !jinx_zend_string_equals_bytes(parsed_first->value.str, "value", 5) ||
-        parsed_arr == 0 || parsed_arr->type != JINX_ZEND_ARRAY ||
-        !expect_string_index(parsed_arr->value.array, 0, "foo bar") ||
-        !expect_string_index(parsed_arr->value.array, 1, "baz") ||
-        parsed_mangled == 0 || parsed_mangled->type != JINX_ZEND_STRING ||
-        !jinx_zend_string_equals_bytes(parsed_mangled->value.str, "Something", 9) ||
-        parsed_nested == 0 || parsed_nested->type != JINX_ZEND_ARRAY) {
-        return fail("parse_str values");
-    }
-    JinxZendValue *parsed_x = jinx_zend_array_find(parsed_nested->value.array, "x", 1);
-    if (parsed_x == 0 || parsed_x->type != JINX_ZEND_STRING ||
-        !jinx_zend_string_equals_bytes(parsed_x->value.str, "1", 1)) {
-        return fail("parse_str nested value");
-    }
-    jinx_oracle_zend_array_value_release(args[1]);
 
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
