@@ -4506,25 +4506,39 @@ static inline int jinx_oracle_int_pow_checked(
     int64_t exponent,
     int64_t *out
 ) {
-    if (base < 0 || exponent < 0 || out == 0) return 0;
+    if (exponent < 0 || out == 0) return 0;
 
+    int negative_result = base < 0 && (exponent & 1) != 0;
+    uint64_t limit = negative_result
+        ? (uint64_t)INT64_MAX + UINT64_C(1)
+        : (uint64_t)INT64_MAX;
     uint64_t result = 1u;
-    uint64_t factor = (uint64_t)base;
+    uint64_t factor = base < 0
+        ? (uint64_t)(-(base + 1)) + UINT64_C(1)
+        : (uint64_t)base;
     uint64_t power = (uint64_t)exponent;
 
     while (power != 0u) {
         if ((power & 1u) != 0u) {
-            if (factor != 0u && result > (uint64_t)INT64_MAX / factor) return 0;
+            if (factor != 0u && result > limit / factor) return 0;
             result *= factor;
         }
         power >>= 1u;
         if (power != 0u) {
-            if (factor != 0u && factor > (uint64_t)INT64_MAX / factor) return 0;
+            if (factor != 0u && factor > limit / factor) return 0;
             factor *= factor;
         }
     }
 
-    *out = (int64_t)result;
+    if (negative_result) {
+        if (result == (uint64_t)INT64_MAX + UINT64_C(1)) {
+            *out = INT64_MIN;
+        } else {
+            *out = -(int64_t)result;
+        }
+    } else {
+        *out = (int64_t)result;
+    }
     return 1;
 }
 
@@ -4536,7 +4550,6 @@ static inline JinxValue jinx_oracle_pow_value(
     if (!always_float &&
         base_value.type == 1u &&
         exponent_value.type == 1u &&
-        base_value.as.i64 >= 0 &&
         exponent_value.as.i64 >= 0) {
         int64_t exact;
         if (jinx_oracle_int_pow_checked(
