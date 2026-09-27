@@ -206,7 +206,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "zend-container-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "count_chars/implode/join/vsprintf/explode/str_split/range(integer)/array_fill",
+        "count_chars/str_word_count(0/1/2)/implode/join/vsprintf/explode/str_split/range(integer)/array_fill",
         "string|array|bool",
         "jinx_oracle_zend_array_dispatch_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -322,10 +322,11 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
 }
 
 static inline int jinx_php_manual_name_is_zend_container_value_core(const char *name) {
-    return strcmp(name, "count_chars") == 0 || strcmp(name, "implode") == 0 ||
-        strcmp(name, "join") == 0 || strcmp(name, "vsprintf") == 0 ||
-        strcmp(name, "explode") == 0 || strcmp(name, "str_split") == 0 ||
-        strcmp(name, "range") == 0 || strcmp(name, "array_fill") == 0;
+    return strcmp(name, "count_chars") == 0 || strcmp(name, "str_word_count") == 0 ||
+        strcmp(name, "implode") == 0 || strcmp(name, "join") == 0 ||
+        strcmp(name, "vsprintf") == 0 || strcmp(name, "explode") == 0 ||
+        strcmp(name, "str_split") == 0 || strcmp(name, "range") == 0 ||
+        strcmp(name, "array_fill") == 0;
 }
 
 static inline int jinx_php_manual_name_is_zend_array_native_core(const char *name) {
