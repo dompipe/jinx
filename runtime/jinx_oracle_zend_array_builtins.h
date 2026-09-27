@@ -879,22 +879,30 @@ static inline JinxValue jinx_oracle_zend_array_diff_intersect_special(
 
     for (size_t i = 0u; i < live; i++) {
         const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(first, i);
-        int matched = 0;
+        int matched_any = 0;
+        int matched_all = argc > 1u ? 1 : 0;
 
-        for (size_t a = 1u; a < argc && !matched; a++) {
+        for (size_t a = 1u; a < argc; a++) {
             JinxZendArray *other = jinx_oracle_zend_array_ptr(args[a]);
             if (other == 0) {
                 jinx_zend_array_release(result);
                 return jinx_oracle_zero_value();
             }
-            matched = key_only
+
+            int matched = key_only
                 ? jinx_oracle_zend_array_contains_key(other, bucket)
                 : (assoc
                     ? jinx_oracle_zend_array_contains_assoc(other, bucket)
                     : jinx_oracle_zend_array_contains_value_text(other, bucket->value));
+
+            if (matched) matched_any = 1;
+            else matched_all = 0;
+
+            if (!intersect && matched_any) break;
+            if (intersect && !matched_all) break;
         }
 
-        if ((intersect && matched) || (!intersect && !matched)) {
+        if ((intersect && matched_all) || (!intersect && !matched_any)) {
             if (!jinx_oracle_zend_add_bucket(result, bucket, 1)) {
                 jinx_zend_array_release(result);
                 return jinx_oracle_zero_value();
