@@ -32,6 +32,8 @@ $cases = [
     ['stripos', ['abc', 'A', 4], ['s:abc', 's:A', 'i:4']],
     ['strrpos', ['abc', 'a', 4], ['s:abc', 's:a', 'i:4']],
     ['strripos', ['abc', 'A', -4], ['s:abc', 's:A', 'i:-4']],
+    ['substr_compare', ['abc', 'a', 4], ['s:abc', 's:a', 'i:4']],
+    ['substr_compare', ['abc', 'a', 0, -1], ['s:abc', 's:a', 'i:0', 'i:-1']],
     ['intdiv', [1, 0], ['i:1', 'i:0']],
     ['intdiv', [PHP_INT_MIN, -1], ['i:' . PHP_INT_MIN, 'i:-1']],
 ];
