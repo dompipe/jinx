@@ -5,15 +5,15 @@
 #include "../build/oracle-asm/jinx_oracle_asm_runtime.h"
 
 /*
- * JinxValue carrier for native Zend-shaped arrays.
+ * JinxValue carriers for native Zend-shaped arrays and objects.
  *
  * The generated Oracle/PASM runtime already has a generic pointer slot on
- * JinxValue. This bridge assigns a stable JINX-owned type tag for carrying
- * JinxZendArray * through Oracle builtin dispatch without reducing arrays to
- * count-only stand-ins.
+ * JinxValue. This bridge assigns stable JINX-owned type tags for carrying
+ * JinxZendArray * and JinxZendObject * through Oracle builtin dispatch without
+ * reducing containers to scalar stand-ins.
  *
- * Ownership is explicit: the carrier is borrowed by default. Callers that need
- * retained lifetime should retain/release the JinxZendArray themselves.
+ * Ownership is explicit: carriers are borrowed by default. Callers that need
+ * retained lifetime should retain/release the corresponding Zend container.
  */
 
 #define JINX_ORACLE_VALUE_ZEND_ARRAY 6u
