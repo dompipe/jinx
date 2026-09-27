@@ -2463,6 +2463,35 @@ int main(void) {
         return fail("json_decode nested stdClass property");
     }
 
+    JinxValue json_object_introspection_args[1];
+    json_object_introspection_args[0] = json_default;
+    JinxValue json_object_gettype = jinx_call_builtin_through_oracle(
+        "gettype",
+        json_object_introspection_args,
+        1
+    );
+    JinxValue json_object_debug_type = jinx_call_builtin_through_oracle(
+        "get_debug_type",
+        json_object_introspection_args,
+        1
+    );
+    JinxValue json_object_is_object = jinx_call_builtin_through_oracle(
+        "is_object",
+        json_object_introspection_args,
+        1
+    );
+    JinxValue json_object_is_resource = jinx_call_builtin_through_oracle(
+        "is_resource",
+        json_object_introspection_args,
+        1
+    );
+    if (!expect_string(json_object_gettype, "object") ||
+        !expect_string(json_object_debug_type, "stdClass") ||
+        !expect_bool(json_object_is_object, 1) ||
+        !expect_bool(json_object_is_resource, 0)) {
+        return fail("stdClass scalar introspection");
+    }
+
     JinxValue json_object_encode_args[3];
     json_object_encode_args[0] = json_default;
     json_object_encode_args[1] = jinx_oracle_int_value(0);
@@ -2652,6 +2681,7 @@ int main(void) {
         "JSON_PARITY:validate=0|%lld|%.*s|1|%lld|%.*s;"
         "name=%.*s;nums=%lld,%lld;ok=1;none=null;"
         "emoji=%02x%02x%02x%02x;topnull=null;object=%s|%.*s|%.*s|%s|%lld;"
+        "object_type=%.*s|%.*s|%lld|%lld;"
         "object_encode=%.*s;false_override=%s;bigint=%.*s;decode_ignore=%02x;"
         "decode_sub=%02x%02x%02x%02x;syntax=%lld|%.*s;valid=%lld|%.*s;"
         "encode=%.*s;escape=%.*s;encode_utf8=%lld|%.*s;encode_reset=%lld|%.*s\\n",
@@ -2676,6 +2706,12 @@ int main(void) {
         json_object_numeric_name->value.str->bytes,
         json_object_nested->value.object->class_name,
         (long long)json_object_nested_n->value.lval,
+        (int)json_object_gettype.flags,
+        (const char *)json_object_gettype.as.ptr,
+        (int)json_object_debug_type.flags,
+        (const char *)json_object_debug_type.as.ptr,
+        (long long)json_object_is_object.as.i64,
+        (long long)json_object_is_resource.as.i64,
         (int)json_object_encoded.flags,
         (const char *)json_object_encoded.as.ptr,
         jinx_oracle_zend_object_ptr(json_false_override)->class_name,
