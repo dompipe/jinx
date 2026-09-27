@@ -405,6 +405,17 @@ static void print_value(JinxValue value) {
         case JINX_ORACLE_VALUE_ZEND_ARRAY:
             printf("zend-array:%zu", jinx_zend_array_live_count(jinx_oracle_zend_array_ptr(value)));
             break;
+        case JINX_ORACLE_VALUE_ZEND_OBJECT: {
+            JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
+            printf(
+                "zend-object:%s:%zu",
+                object != 0 && object->class_name != 0 ? object->class_name : "object",
+                object != 0 && object->properties != 0
+                    ? jinx_zend_array_live_count(object->properties)
+                    : 0u
+            );
+            break;
+        }
         default:
             printf("null");
             break;
@@ -412,7 +423,7 @@ static void print_value(JinxValue value) {
 }
 
 static void release_cli_value(JinxValue value) {
-    jinx_oracle_zend_array_value_release(value);
+    jinx_oracle_zend_container_value_release(value);
 }
 
 static void release_cli_values(JinxValue *values, size_t count) {
