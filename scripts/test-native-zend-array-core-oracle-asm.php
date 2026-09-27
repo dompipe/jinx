@@ -531,4 +531,4 @@ if (!str_contains($text, $expectedJsonParity)) {
     exit(1);
 }
 
-echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array and associative JSON semantics' . PHP_EOL;
+echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics and associative JSON semantics' . PHP_EOL;
