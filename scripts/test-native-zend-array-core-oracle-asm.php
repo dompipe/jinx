@@ -178,6 +178,22 @@ $allNamed = array_all($predicateSource, 'str_starts_with');
 $allTrueNamed = array_all(['a' => 'apple', 'b' => 'banana'], 'str_starts_with');
 $allEmptyNamed = array_all([], 'str_starts_with');
 
+$cmpA = ['a' => 'red', 'b' => 'green', 'c' => 'blue'];
+$cmpB = ['x' => 'green', 'b' => 'GREEN', 'c' => 'blue'];
+$cmpC = ['q' => 'green', 'c' => 'other'];
+
+$udiffNamed = array_udiff($cmpA, $cmpB, 'strcmp');
+$diffUassocNamed = array_diff_uassoc($cmpA, $cmpB, 'strcmp');
+$diffUkeyNamed = array_diff_ukey($cmpA, $cmpB, 'strcmp');
+$udiffAssocNamed = array_udiff_assoc($cmpA, $cmpB, 'strcmp');
+$udiffUassocNamed = array_udiff_uassoc($cmpA, $cmpB, 'strcmp', 'strcmp');
+$uintersectNamed = array_uintersect($cmpA, $cmpB, 'strcmp');
+$intersectUassocNamed = array_intersect_uassoc($cmpA, $cmpB, 'strcmp');
+$intersectUkeyNamed = array_intersect_ukey($cmpA, $cmpB, 'strcmp');
+$uintersectAssocNamed = array_uintersect_assoc($cmpA, $cmpB, 'strcmp');
+$uintersectUassocNamed = array_uintersect_uassoc($cmpA, $cmpB, 'strcmp', 'strcmp');
+$uintersectThreeNamed = array_uintersect($cmpA, $cmpB, $cmpC, 'strcmp');
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -300,7 +316,18 @@ $expectedParity = 'PARITY:'
         . ($anyNamed ? '1' : '0') . '|'
         . ($allNamed ? '1' : '0') . '|'
         . ($allTrueNamed ? '1' : '0') . '|'
-        . ($allEmptyNamed ? '1' : '0');
+        . ($allEmptyNamed ? '1' : '0')
+    . ';udiff=' . $pairs($udiffNamed)
+    . ';duassoc=' . $pairs($diffUassocNamed)
+    . ';dukey=' . $pairs($diffUkeyNamed)
+    . ';udassoc=' . $pairs($udiffAssocNamed)
+    . ';uduassoc=' . $pairs($udiffUassocNamed)
+    . ';uinter=' . $pairs($uintersectNamed)
+    . ';iuassoc=' . $pairs($intersectUassocNamed)
+    . ';iukey=' . $pairs($intersectUkeyNamed)
+    . ';uiassoc=' . $pairs($uintersectAssocNamed)
+    . ';uiuassoc=' . $pairs($uintersectUassocNamed)
+    . ';uinter3=' . $pairs($uintersectThreeNamed);
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
