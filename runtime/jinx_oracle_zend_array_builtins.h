@@ -2031,6 +2031,390 @@ static inline JinxValue jinx_oracle_zend_str_getcsv_special(const JinxValue *arg
     return jinx_oracle_zend_array_value_owned(result);
 }
 
+
+static inline unsigned char jinx_oracle_ascii_lower_tag_byte(unsigned char ch) {
+    return ch >= (unsigned char)'A' && ch <= (unsigned char)'Z'
+        ? (unsigned char)(ch + ((unsigned char)'a' - (unsigned char)'A'))
+        : ch;
+}
+
+static inline int jinx_oracle_zend_strip_tag_allowed(
+    const char *tag,
+    size_t len,
+    const char *allowed
+) {
+    if (tag == 0 || len == 0u || allowed == 0) return 0;
+
+    char *norm = (char *)malloc(len + 2u);
+    if (norm == 0) return 0;
+
+    size_t n = 0u;
+    int state = 0;
+
+    for (size_t i = 0u; i < len; i++) {
+        unsigned char ch = jinx_oracle_ascii_lower_tag_byte((unsigned char)tag[i]);
+
+        if (ch == (unsigned char)'<') {
+            norm[n++] = '<';
+            continue;
+        }
+        if (ch == (unsigned char)'>') break;
+
+        if (isspace(ch)) {
+            if (state == 1) break;
+            continue;
+        }
+
+        if (state == 0) state = 1;
+
+        if (ch == (unsigned char)'/' &&
+            ((i > 0u && tag[i - 1u] == '<') ||
+             (i + 1u < len && tag[i + 1u] == '>'))) {
+            continue;
+        }
+
+        norm[n++] = (char)ch;
+    }
+
+    norm[n++] = '>';
+    norm[n] = '\0';
+
+    int found = strstr(allowed, norm) != 0;
+    free(norm);
+    return found;
+}
+
+static inline char *jinx_oracle_zend_strip_tags_allowed_set(
+    JinxValue value,
+    size_t *out_len
+) {
+    *out_len = 0u;
+
+    if (value.type == 0u) return 0;
+
+    if (value.type == 3u) {
+        uint32_t len = jinx_oracle_string_len(value);
+        char *allowed = (char *)malloc((size_t)len + 1u);
+        if (allowed == 0) return 0;
+
+        const unsigned char *bytes = jinx_oracle_string_bytes(value);
+        for (uint32_t i = 0u; i < len; i++) {
+            allowed[i] = (char)jinx_oracle_ascii_lower_tag_byte(bytes[i]);
+        }
+        allowed[len] = '\0';
+        *out_len = len;
+        return allowed;
+    }
+
+    if (!jinx_oracle_value_is_zend_array(value)) return 0;
+
+    JinxZendArray *array = jinx_oracle_zend_array_ptr(value);
+    size_t live = jinx_zend_array_live_count(array);
+    uint64_t needed = 0u;
+
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0) continue;
+        int text_len = jinx_oracle_zend_scalar_text_length(bucket->value);
+        if (text_len < 0) return 0;
+        needed += (uint64_t)text_len + 2u;
+    }
+
+    if (needed > SIZE_MAX - 1u) return 0;
+
+    char *allowed = (char *)malloc((size_t)needed + 1u);
+    if (allowed == 0) return 0;
+
+    size_t pos = 0u;
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == 0) continue;
+
+        int text_len = jinx_oracle_zend_scalar_text_length(bucket->value);
+        char *tmp = text_len > 0 ? (char *)malloc((size_t)text_len) : 0;
+        if (text_len > 0 && tmp == 0) {
+            free(allowed);
+            return 0;
+        }
+
+        uint32_t written = text_len > 0
+            ? jinx_oracle_zend_scalar_write(tmp, bucket->value)
+            : 0u;
+
+        allowed[pos++] = '<';
+        for (uint32_t j = 0u; j < written; j++) {
+            allowed[pos++] = (char)jinx_oracle_ascii_lower_tag_byte((unsigned char)tmp[j]);
+        }
+        allowed[pos++] = '>';
+        free(tmp);
+    }
+
+    allowed[pos] = '\0';
+    *out_len = pos;
+    return allowed;
+}
+
+static inline JinxValue jinx_oracle_zend_strip_tags_special(const JinxValue *args, size_t argc) {
+    const unsigned char *source = jinx_oracle_string_bytes(args[0]);
+    uint32_t len = jinx_oracle_string_len(args[0]);
+
+    char *buf = (char *)malloc((size_t)len + 1u);
+    if (buf == 0) return jinx_oracle_zero_value();
+    if (len != 0u) memcpy(buf, source, len);
+    buf[len] = '\0';
+
+    size_t allowed_len = 0u;
+    char *allowed = argc >= 2u
+        ? jinx_oracle_zend_strip_tags_allowed_set(args[1], &allowed_len)
+        : 0;
+
+    if (argc >= 2u && args[1].type != 0u &&
+        args[1].type != 3u && !jinx_oracle_value_is_zend_array(args[1])) {
+        free(buf);
+        free(allowed);
+        return jinx_oracle_zero_value();
+    }
+
+    char *tag_buf = allowed != 0 ? (char *)malloc((size_t)len + 2u) : 0;
+    if (allowed != 0 && tag_buf == 0) {
+        free(buf);
+        free(allowed);
+        return jinx_oracle_zero_value();
+    }
+
+    char *out = jinx_oracle_scratch_string(len);
+    uint32_t out_len = 0u;
+    size_t tag_len = 0u;
+
+    const char *p = buf;
+    const char *end = buf + len;
+    int bracket_depth = 0;
+    int depth = 0;
+    int in_quote = 0;
+    unsigned char state = 0u;
+    char last = '\0';
+    int is_xml = 0;
+
+state_0:
+    if (p >= end) goto finish;
+    switch (*p) {
+        case '\0':
+            break;
+        case '<':
+            if (in_quote) break;
+            if (p + 1 < end && isspace((unsigned char)p[1])) {
+                out[out_len++] = *p;
+                break;
+            }
+            last = '<';
+            state = 1u;
+            tag_len = 0u;
+            if (allowed != 0) tag_buf[tag_len++] = '<';
+            p++;
+            goto state_1;
+        case '>':
+            if (depth) {
+                depth--;
+                break;
+            }
+            if (in_quote) break;
+            out[out_len++] = *p;
+            break;
+        default:
+            out[out_len++] = *p;
+            break;
+    }
+    p++;
+    goto state_0;
+
+state_1:
+    if (p >= end) goto finish;
+    switch (*p) {
+        case '\0':
+            break;
+        case '<':
+            if (in_quote) break;
+            if (p + 1 < end && isspace((unsigned char)p[1])) goto reg_char_1;
+            depth++;
+            break;
+        case '>':
+            if (depth) {
+                depth--;
+                break;
+            }
+            if (in_quote) break;
+
+            last = '>';
+            if (is_xml && p > buf && *(p - 1) == '-') break;
+
+            in_quote = 0;
+            state = 0u;
+            is_xml = 0;
+
+            if (allowed != 0) {
+                tag_buf[tag_len++] = '>';
+                tag_buf[tag_len] = '\0';
+                if (jinx_oracle_zend_strip_tag_allowed(tag_buf, tag_len, allowed)) {
+                    memcpy(out + out_len, tag_buf, tag_len);
+                    out_len += (uint32_t)tag_len;
+                }
+                tag_len = 0u;
+            }
+            p++;
+            goto state_0;
+        case '"':
+        case '\'':
+            if (p != buf && (!in_quote || *p == in_quote)) {
+                in_quote = in_quote ? 0 : *p;
+            }
+            goto reg_char_1;
+        case '!':
+            if (p > buf && *(p - 1) == '<') {
+                state = 3u;
+                last = *p;
+                p++;
+                goto state_3;
+            }
+            goto reg_char_1;
+        case '?':
+            if (p > buf && *(p - 1) == '<') {
+                bracket_depth = 0;
+                state = 2u;
+                p++;
+                goto state_2;
+            }
+            goto reg_char_1;
+        default:
+reg_char_1:
+            if (allowed != 0) tag_buf[tag_len++] = *p;
+            break;
+    }
+    p++;
+    goto state_1;
+
+state_2:
+    if (p >= end) goto finish;
+    switch (*p) {
+        case '(':
+            if (last != '"' && last != '\'') {
+                last = '(';
+                bracket_depth++;
+            }
+            break;
+        case ')':
+            if (last != '"' && last != '\'') {
+                last = ')';
+                bracket_depth--;
+            }
+            break;
+        case '>':
+            if (depth) {
+                depth--;
+                break;
+            }
+            if (in_quote) break;
+            if (!bracket_depth && p > buf && last != '"' && *(p - 1) == '?') {
+                in_quote = 0;
+                state = 0u;
+                tag_len = 0u;
+                p++;
+                goto state_0;
+            }
+            break;
+        case '"':
+        case '\'':
+            if (p > buf && *(p - 1) != '\\') {
+                if (last == *p) last = '\0';
+                else if (last != '\\') last = *p;
+
+                if (!in_quote || *p == in_quote) in_quote = in_quote ? 0 : *p;
+            }
+            break;
+        case 'l':
+        case 'L':
+            if (state == 2u && p > buf + 4 &&
+                (*(p - 1) == 'm' || *(p - 1) == 'M') &&
+                (*(p - 2) == 'x' || *(p - 2) == 'X') &&
+                *(p - 3) == '?' && *(p - 4) == '<') {
+                state = 1u;
+                is_xml = 1;
+                p++;
+                goto state_1;
+            }
+            break;
+        default:
+            break;
+    }
+    p++;
+    goto state_2;
+
+state_3:
+    if (p >= end) goto finish;
+    switch (*p) {
+        case '>':
+            if (depth) {
+                depth--;
+                break;
+            }
+            if (in_quote) break;
+            in_quote = 0;
+            state = 0u;
+            tag_len = 0u;
+            p++;
+            goto state_0;
+        case '"':
+        case '\'':
+            if (p > buf && *(p - 1) != '\\' && (!in_quote || *p == in_quote)) {
+                in_quote = in_quote ? 0 : *p;
+            }
+            break;
+        case '-':
+            if (p >= buf + 2 && *(p - 1) == '-' && *(p - 2) == '!') {
+                state = 4u;
+                p++;
+                goto state_4;
+            }
+            break;
+        case 'E':
+        case 'e':
+            if (p > buf + 6 &&
+                (*(p - 1) == 'p' || *(p - 1) == 'P') &&
+                (*(p - 2) == 'y' || *(p - 2) == 'Y') &&
+                (*(p - 3) == 't' || *(p - 3) == 'T') &&
+                (*(p - 4) == 'c' || *(p - 4) == 'C') &&
+                (*(p - 5) == 'o' || *(p - 5) == 'O') &&
+                (*(p - 6) == 'd' || *(p - 6) == 'D')) {
+                state = 1u;
+                p++;
+                goto state_1;
+            }
+            break;
+        default:
+            break;
+    }
+    p++;
+    goto state_3;
+
+state_4:
+    while (p < end) {
+        if (*p == '>' && !in_quote && p >= buf + 2 &&
+            *(p - 1) == '-' && *(p - 2) == '-') {
+            in_quote = 0;
+            state = 0u;
+            tag_len = 0u;
+            p++;
+            goto state_0;
+        }
+        p++;
+    }
+
+finish:
+    free(tag_buf);
+    free(allowed);
+    free(buf);
+    return jinx_oracle_string_value_len(out, out_len);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
@@ -2040,6 +2424,9 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     if (strcmp(name, "str_getcsv") == 0) {
         return jinx_oracle_zend_str_getcsv_special(args, argc);
+    }
+    if (strcmp(name, "strip_tags") == 0) {
+        return jinx_oracle_zend_strip_tags_special(args, argc);
     }
 
     if (strcmp(name, "in_array") == 0 || strcmp(name, "array_search") == 0) {
