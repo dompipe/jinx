@@ -219,6 +219,13 @@ $cases = [
     ['easter_days', ['i:1700', 'i:1']],
     ['easter_days', ['i:2024', 'i:3']],
     ['easter_date', ['i:2024']],
+    ['json_validate', ['s:{"a":[1,true,null,"x\\uD83D\\uDE00"],"b":-1.25e+3}']],
+    ['json_validate', ['s:["a",{"b":2}]']],
+    ['json_validate', ['s:{"a":1,}']],
+    ['json_validate', ['s:01']],
+    ['json_validate', ['s:"\\uD800"']],
+    ['json_validate', ['s:true']],
+    ['json_validate', ['s: null ']],
 ];
 
 $cases[] = ['convert_uudecode', ['s:' . convert_uuencode('JINX oracle')]];
