@@ -1238,6 +1238,134 @@ static inline JinxValue jinx_oracle_zend_array_keys_value(const JinxValue *args,
     return jinx_oracle_zend_array_value_owned(result);
 }
 
+static inline void jinx_oracle_zend_charmask(
+    const unsigned char *input,
+    uint32_t len,
+    unsigned char mask[256]
+) {
+    memset(mask, 0, 256u);
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char ch = input[i];
+
+        if (i + 3u < len &&
+            input[i + 1u] == (unsigned char)'.' &&
+            input[i + 2u] == (unsigned char)'.' &&
+            input[i + 3u] >= ch) {
+            memset(mask + ch, 1, (size_t)(input[i + 3u] - ch + 1u));
+            i += 3u;
+            continue;
+        }
+
+        /*
+         * PHP emits warnings for malformed ".." ranges and otherwise keeps
+         * processing the mask. Warning transport is not modeled here, so the
+         * byte-result path follows php_charmask's useful mask behavior.
+         */
+        if (i + 1u < len && input[i] == (unsigned char)'.' && input[i + 1u] == (unsigned char)'.') {
+            continue;
+        }
+
+        mask[ch] = 1u;
+    }
+}
+
+static inline int jinx_oracle_zend_word_char(
+    unsigned char ch,
+    const unsigned char *mask,
+    int has_mask
+) {
+    return isalpha((int)ch) ||
+        (has_mask && mask[ch]) ||
+        ch == (unsigned char)'\'' ||
+        ch == (unsigned char)'-';
+}
+
+static inline JinxValue jinx_oracle_zend_str_word_count_special(const JinxValue *args, size_t argc) {
+    if (argc < 1u) return jinx_oracle_zero_value();
+
+    const unsigned char *text = jinx_oracle_string_bytes(args[0]);
+    uint32_t len = jinx_oracle_string_len(args[0]);
+    int64_t mode = argc >= 2u ? jinx_oracle_intish(args[1]) : 0;
+    unsigned char mask[256];
+    int has_mask = argc >= 3u && args[2].type != 0u;
+    uint32_t word_count = 0u;
+
+    if (mode < 0 || mode > 2) return jinx_oracle_zero_value();
+
+    if (has_mask) {
+        jinx_oracle_zend_charmask(
+            jinx_oracle_string_bytes(args[2]),
+            jinx_oracle_string_len(args[2]),
+            mask
+        );
+    } else {
+        memset(mask, 0, sizeof(mask));
+    }
+
+    if (len == 0u) {
+        if (mode == 0) return jinx_oracle_int_value(0);
+        return jinx_oracle_zend_array_value_owned(jinx_zend_array_new_packed(1u));
+    }
+
+    uint32_t start_limit = 0u;
+    uint32_t end_limit = len;
+
+    if ((text[0] == (unsigned char)'\'' && (!has_mask || !mask[(unsigned char)'\''])) ||
+        (text[0] == (unsigned char)'-' && (!has_mask || !mask[(unsigned char)'-']))) {
+        start_limit = 1u;
+    }
+
+    if (end_limit > start_limit &&
+        text[end_limit - 1u] == (unsigned char)'-' &&
+        (!has_mask || !mask[(unsigned char)'-'])) {
+        end_limit--;
+    }
+
+    JinxZendArray *result = NULL;
+    if (mode != 0) {
+        result = jinx_zend_array_new_packed(8u);
+        if (result == 0) return jinx_oracle_zero_value();
+    }
+
+    uint32_t p = start_limit;
+    while (p < end_limit) {
+        uint32_t start = p;
+
+        while (p < end_limit && jinx_oracle_zend_word_char(text[p], mask, has_mask)) {
+            p++;
+        }
+
+        if (p > start) {
+            if (mode == 0) {
+                word_count++;
+            } else {
+                JinxZendString *word = jinx_zend_string_new((const char *)text + start, p - start);
+                if (word == 0) {
+                    jinx_zend_array_release(result);
+                    return jinx_oracle_zero_value();
+                }
+
+                int ok = mode == 1
+                    ? jinx_zend_array_append(result, jinx_zend_string_value(word))
+                    : jinx_zend_array_add_index(result, start, jinx_zend_string_value(word));
+                jinx_zend_string_release(word);
+
+                if (!ok) {
+                    jinx_zend_array_release(result);
+                    return jinx_oracle_zero_value();
+                }
+            }
+        }
+
+        p++;
+    }
+
+    return mode == 0
+        ? jinx_oracle_int_value((int64_t)word_count)
+        : jinx_oracle_zend_array_value_owned(result);
+}
+
 static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     const char *name,
     const JinxValue *args,
@@ -1246,6 +1374,7 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
     if (name == 0 || args == 0 || argc == 0u) return jinx_oracle_zero_value();
 
     if (strcmp(name, "count_chars") == 0) return jinx_oracle_zend_count_chars_special(args, argc);
+    if (strcmp(name, "str_word_count") == 0) return jinx_oracle_zend_str_word_count_special(args, argc);
     if (strcmp(name, "explode") == 0) return jinx_oracle_zend_explode_special(args, argc);
     if (strcmp(name, "str_split") == 0) return jinx_oracle_zend_str_split_special(args, argc);
     if (strcmp(name, "vsprintf") == 0) return jinx_oracle_zend_vsprintf_special(args, argc);
