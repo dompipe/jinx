@@ -20,7 +20,9 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
         strcmp(name, "array_reverse") == 0 ||
         strcmp(name, "array_slice") == 0 ||
         strcmp(name, "array_merge") == 0 ||
+        strcmp(name, "array_merge_recursive") == 0 ||
         strcmp(name, "array_replace") == 0 ||
+        strcmp(name, "array_replace_recursive") == 0 ||
         strcmp(name, "array_flip") == 0 ||
         strcmp(name, "array_change_key_case") == 0 ||
         strcmp(name, "array_fill_keys") == 0 ||
