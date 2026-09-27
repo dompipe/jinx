@@ -5744,7 +5744,6 @@ static inline int jinx_oracle_json_decode_number(
             free(text);
             if (string == 0) return 0;
             *out = jinx_zend_string_value(string);
-            jinx_zend_string_release(string);
             return 1;
         }
     }
@@ -5781,7 +5780,6 @@ static inline int jinx_oracle_json_decode_array(
     if (p->pos < p->len && p->bytes[p->pos] == ']') {
         p->pos++;
         *out = jinx_zend_array_value(array);
-        jinx_zend_array_release(array);
         return 1;
     }
 
@@ -5803,7 +5801,6 @@ static inline int jinx_oracle_json_decode_array(
         if (p->pos < p->len && p->bytes[p->pos] == ']') {
             p->pos++;
             *out = jinx_zend_array_value(array);
-            jinx_zend_array_release(array);
             return 1;
         }
         if (p->pos >= p->len || p->bytes[p->pos] != ',') {
@@ -5840,7 +5837,6 @@ static inline int jinx_oracle_json_decode_object(
     if (p->pos < p->len && p->bytes[p->pos] == '}') {
         p->pos++;
         *out = jinx_zend_array_value(array);
-        jinx_zend_array_release(array);
         return 1;
     }
 
@@ -5887,7 +5883,6 @@ static inline int jinx_oracle_json_decode_object(
         if (p->pos < p->len && p->bytes[p->pos] == '}') {
             p->pos++;
             *out = jinx_zend_array_value(array);
-            jinx_zend_array_release(array);
             return 1;
         }
         if (p->pos >= p->len || p->bytes[p->pos] != ',') {
@@ -5918,7 +5913,6 @@ static inline int jinx_oracle_json_decode_value(
         JinxZendString *string = jinx_oracle_json_decode_string(p);
         if (string == 0) return 0;
         *out = jinx_zend_string_value(string);
-        jinx_zend_string_release(string);
         return 1;
     }
     if (ch == '[') return jinx_oracle_json_decode_array(p, depth, out);
