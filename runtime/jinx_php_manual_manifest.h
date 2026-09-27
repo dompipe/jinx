@@ -188,7 +188,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "pure-value-core",
         "https://www.php.net/manual/en/refs.basic.text.php",
-        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/wordwrap/convert_uuencode/convert_uudecode/soundex/quoted_printable_encode/quoted_printable_decode/similar_text(2-arg)/utf8_encode/utf8_decode(valid UTF-8)",
+        "base64_encode/base64_decode/urlencode/urldecode/rawurlencode/rawurldecode/basename/dirname/base_convert/bindec/hexdec/octdec/decbin/dechex/decoct/crc32/checkdate/nl2br/number_format/addcslashes/stripcslashes/str_pad/str_replace/str_ireplace/strtr(3-arg)/levenshtein/htmlspecialchars/htmlspecialchars_decode/sprintf/wordwrap/convert_uuencode/convert_uudecode/soundex/quoted_printable_encode/quoted_printable_decode/similar_text(2-arg)/strcoll/substr_replace(scalar)/utf8_encode/utf8_decode(valid UTF-8)",
         "string|int|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -319,6 +319,7 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "convert_uuencode") == 0 || strcmp(name, "convert_uudecode") == 0 ||
         strcmp(name, "soundex") == 0 || strcmp(name, "quoted_printable_encode") == 0 ||
         strcmp(name, "quoted_printable_decode") == 0 || strcmp(name, "similar_text") == 0 ||
+        strcmp(name, "strcoll") == 0 || strcmp(name, "substr_replace") == 0 ||
         strcmp(name, "utf8_encode") == 0 || strcmp(name, "utf8_decode") == 0;
 }
 
