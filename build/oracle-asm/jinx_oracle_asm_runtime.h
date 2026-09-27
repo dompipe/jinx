@@ -4241,6 +4241,235 @@ static inline const char *jinx_oracle_image_type_extension(int64_t image_type) {
     }
 }
 
+
+static inline char *jinx_oracle_canonicalize_version(JinxValue value) {
+    const unsigned char *src = jinx_oracle_string_bytes(value);
+    uint32_t full_len = jinx_oracle_string_len(value);
+    uint32_t len = 0u;
+
+    while (len < full_len && src[len] != 0u) len++;
+
+    char *buf = (char *)malloc((size_t)len * 2u + 1u);
+    if (buf == NULL) return NULL;
+
+    if (len == 0u) {
+        buf[0] = '\0';
+        return buf;
+    }
+
+    const unsigned char *p = src;
+    char *q = buf;
+    unsigned char lp = *p++;
+    *q++ = (char)lp;
+
+    for (uint32_t i = 1u; i < len; i++, p++) {
+        unsigned char ch = *p;
+        unsigned char lq = (unsigned char)q[-1];
+        int prev_digit = isdigit((int)lp) && lp != (unsigned char)'.';
+        int curr_digit = isdigit((int)ch) && ch != (unsigned char)'.';
+        int prev_nondigit = !isdigit((int)lp) && lp != (unsigned char)'.';
+        int curr_nondigit = !isdigit((int)ch) && ch != (unsigned char)'.';
+
+        if (ch == '-' || ch == '_' || ch == '+') {
+            if (lq != '.') *q++ = '.';
+        } else if ((prev_nondigit && curr_digit) || (prev_digit && curr_nondigit)) {
+            if (lq != '.') *q++ = '.';
+            *q++ = (char)ch;
+        } else if (!isalnum((int)ch)) {
+            if (lq != '.') *q++ = '.';
+        } else {
+            *q++ = (char)ch;
+        }
+        lp = ch;
+    }
+
+    if (q > buf && q[-1] == '.') {
+        q[-1] = '\0';
+    } else {
+        *q = '\0';
+    }
+
+    return buf;
+}
+
+static inline int jinx_oracle_compare_special_version_forms(const char *a, const char *b) {
+    static const struct {
+        const char *name;
+        size_t len;
+        int order;
+    } forms[] = {
+        {"dev", 3u, 0},
+        {"alpha", 5u, 1},
+        {"a", 1u, 1},
+        {"beta", 4u, 2},
+        {"b", 1u, 2},
+        {"RC", 2u, 3},
+        {"rc", 2u, 3},
+        {"#", 1u, 4},
+        {"pl", 2u, 5},
+        {"p", 1u, 5},
+        {NULL, 0u, 0}
+    };
+
+    int found_a = -1;
+    int found_b = -1;
+
+    for (size_t i = 0u; forms[i].name != NULL; i++) {
+        if (strncmp(a, forms[i].name, forms[i].len) == 0) {
+            found_a = forms[i].order;
+            break;
+        }
+    }
+    for (size_t i = 0u; forms[i].name != NULL; i++) {
+        if (strncmp(b, forms[i].name, forms[i].len) == 0) {
+            found_b = forms[i].order;
+            break;
+        }
+    }
+
+    return found_a == found_b ? 0 : (found_a > found_b ? 1 : -1);
+}
+
+static inline int jinx_oracle_version_compare_cstr(const char *orig_a, const char *orig_b) {
+    if (*orig_a == '\0' || *orig_b == '\0') {
+        if (*orig_a == '\0' && *orig_b == '\0') return 0;
+        return *orig_a != '\0' ? 1 : -1;
+    }
+
+    char *a = orig_a[0] == '#' ? strdup(orig_a) : NULL;
+    char *b = orig_b[0] == '#' ? strdup(orig_b) : NULL;
+
+    if (a == NULL && orig_a[0] == '#') return 0;
+    if (b == NULL && orig_b[0] == '#') {
+        free(a);
+        return 0;
+    }
+
+    if (orig_a[0] != '#') {
+        size_t len = strlen(orig_a);
+        JinxValue temp = jinx_oracle_string_value_len(orig_a, (uint32_t)len);
+        a = jinx_oracle_canonicalize_version(temp);
+    }
+    if (orig_b[0] != '#') {
+        size_t len = strlen(orig_b);
+        JinxValue temp = jinx_oracle_string_value_len(orig_b, (uint32_t)len);
+        b = jinx_oracle_canonicalize_version(temp);
+    }
+
+    if (a == NULL || b == NULL) {
+        free(a);
+        free(b);
+        return 0;
+    }
+
+    char *p1 = a;
+    char *p2 = b;
+    char *n1 = a;
+    char *n2 = b;
+    int compare = 0;
+
+    while (*p1 && *p2 && n1 != NULL && n2 != NULL) {
+        n1 = strchr(p1, '.');
+        if (n1 != NULL) *n1 = '\0';
+        n2 = strchr(p2, '.');
+        if (n2 != NULL) *n2 = '\0';
+
+        if (isdigit((unsigned char)*p1) && isdigit((unsigned char)*p2)) {
+            long l1 = strtol(p1, NULL, 10);
+            long l2 = strtol(p2, NULL, 10);
+            compare = l1 == l2 ? 0 : (l1 > l2 ? 1 : -1);
+        } else if (!isdigit((unsigned char)*p1) && !isdigit((unsigned char)*p2)) {
+            compare = jinx_oracle_compare_special_version_forms(p1, p2);
+        } else if (isdigit((unsigned char)*p1)) {
+            compare = jinx_oracle_compare_special_version_forms("#N#", p2);
+        } else {
+            compare = jinx_oracle_compare_special_version_forms(p1, "#N#");
+        }
+
+        if (compare != 0) break;
+        if (n1 != NULL) p1 = n1 + 1;
+        if (n2 != NULL) p2 = n2 + 1;
+    }
+
+    if (compare == 0) {
+        if (n1 != NULL) {
+            compare = isdigit((unsigned char)*p1)
+                ? 1
+                : jinx_oracle_version_compare_cstr(p1, "#N#");
+        } else if (n2 != NULL) {
+            compare = isdigit((unsigned char)*p2)
+                ? -1
+                : jinx_oracle_version_compare_cstr("#N#", p2);
+        }
+    }
+
+    free(a);
+    free(b);
+    return compare;
+}
+
+static inline JinxValue jinx_oracle_version_compare_value(
+    JinxValue a_value,
+    JinxValue b_value,
+    JinxValue op_value,
+    uint32_t argc,
+    int *ok
+) {
+    uint32_t a_len = jinx_oracle_string_len(a_value);
+    uint32_t b_len = jinx_oracle_string_len(b_value);
+    char *a = (char *)malloc((size_t)a_len + 1u);
+    char *b = (char *)malloc((size_t)b_len + 1u);
+
+    *ok = 0;
+    if (a == NULL || b == NULL) {
+        free(a);
+        free(b);
+        return jinx_oracle_zero_value();
+    }
+
+    if (a_len != 0u) memcpy(a, jinx_oracle_string_bytes(a_value), a_len);
+    if (b_len != 0u) memcpy(b, jinx_oracle_string_bytes(b_value), b_len);
+    a[a_len] = '\0';
+    b[b_len] = '\0';
+
+    int compare = jinx_oracle_version_compare_cstr(a, b);
+    free(a);
+    free(b);
+
+    if (argc < 3u || op_value.type == 0u) {
+        *ok = 1;
+        return jinx_oracle_int_value(compare);
+    }
+
+    if (op_value.type != 3u) return jinx_oracle_zero_value();
+
+    const char *op = (const char *)jinx_oracle_string_bytes(op_value);
+    uint32_t op_len = jinx_oracle_string_len(op_value);
+
+#define JINX_OP_IS(lit) (op_len == sizeof(lit) - 1u && memcmp(op, lit, sizeof(lit) - 1u) == 0)
+    int result;
+    if (JINX_OP_IS("<") || JINX_OP_IS("lt")) {
+        result = compare == -1;
+    } else if (JINX_OP_IS("<=") || JINX_OP_IS("le")) {
+        result = compare != 1;
+    } else if (JINX_OP_IS(">") || JINX_OP_IS("gt")) {
+        result = compare == 1;
+    } else if (JINX_OP_IS(">=") || JINX_OP_IS("ge")) {
+        result = compare != -1;
+    } else if (JINX_OP_IS("==") || JINX_OP_IS("=") || JINX_OP_IS("eq")) {
+        result = compare == 0;
+    } else if (JINX_OP_IS("!=") || JINX_OP_IS("<>") || JINX_OP_IS("ne")) {
+        result = compare != 0;
+    } else {
+#undef JINX_OP_IS
+        return jinx_oracle_zero_value();
+    }
+#undef JINX_OP_IS
+
+    *ok = 1;
+    return jinx_oracle_bool_value(result);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -4284,6 +4513,23 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         } else {
             int include_dot = argc < 2u || jinx_oracle_boolish(arg1);
             ret = jinx_oracle_string_value(include_dot ? extension : extension + 1);
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "version_compare")) {
+        int compare_ok = 0;
+        ret = jinx_oracle_version_compare_value(
+            arg0,
+            arg1,
+            jinx_oracle_call_arg(ctx, 2u),
+            argc,
+            &compare_ok
+        );
+        if (!compare_ok) {
+            ctx->fault = "version_compare operator or allocation error";
+            return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
         return ret;
