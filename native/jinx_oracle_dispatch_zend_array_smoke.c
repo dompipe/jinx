@@ -166,6 +166,10 @@ int main(void) {
     result = jinx_call_builtin_through_oracle("count_chars", args, 2);
     if (!expect_string(result, "abc")) return fail("count_chars mode 3");
 
+    args[1] = jinx_oracle_int_value(5);
+    result = jinx_call_builtin_through_oracle("count_chars", args, 2);
+    if (result.type != 0u) return fail("count_chars invalid mode must fault");
+
     args[0] = jinx_oracle_string_value(",");
     args[1] = jinx_oracle_zend_array_value_borrowed(array);
     result = jinx_call_builtin_through_oracle("implode", args, 2);
@@ -193,6 +197,35 @@ int main(void) {
     if (!expect_long_index(range_array, 0, 1) || !expect_long_index(range_array, 4, 5)) return fail("range values");
     jinx_oracle_zend_array_value_release(result);
 
+    args[0] = jinx_oracle_int_value(5);
+    args[1] = jinx_oracle_int_value(1);
+    args[2] = jinx_oracle_int_value(-2);
+    result = jinx_call_builtin_through_oracle("range", args, 3);
+    if (!expect_array_count(result, 3)) return fail("negative-step range count");
+    JinxZendArray *negative_range = jinx_oracle_zend_array_ptr(result);
+    if (!expect_long_index(negative_range, 0, 5) ||
+        !expect_long_index(negative_range, 1, 3) ||
+        !expect_long_index(negative_range, 2, 1)) {
+        return fail("negative-step range values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_int_value(1);
+    args[1] = jinx_oracle_int_value(5);
+    args[2] = jinx_oracle_int_value(-1);
+    result = jinx_call_builtin_through_oracle("range", args, 3);
+    if (result.type != 0u) return fail("negative increasing range must fault");
+
+    args[0] = jinx_oracle_int_value(1);
+    args[1] = jinx_oracle_int_value(5);
+    args[2] = jinx_oracle_int_value(9);
+    result = jinx_call_builtin_through_oracle("range", args, 3);
+    if (result.type != 0u) return fail("oversized range step must fault");
+
+    args[2] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("range", args, 3);
+    if (result.type != 0u) return fail("zero range step must fault");
+
     args[0] = jinx_oracle_int_value(2);
     args[1] = jinx_oracle_int_value(3);
     args[2] = jinx_oracle_int_value(9);
@@ -201,6 +234,15 @@ int main(void) {
     JinxZendArray *filled = jinx_oracle_zend_array_ptr(result);
     if (!expect_long_index(filled, 2, 9) || !expect_long_index(filled, 4, 9)) return fail("array_fill values");
     jinx_oracle_zend_array_value_release(result);
+
+    args[1] = jinx_oracle_int_value(0);
+    result = jinx_call_builtin_through_oracle("array_fill", args, 3);
+    if (!expect_array_count(result, 0)) return fail("array_fill zero count");
+    jinx_oracle_zend_array_value_release(result);
+
+    args[1] = jinx_oracle_int_value(-1);
+    result = jinx_call_builtin_through_oracle("array_fill", args, 3);
+    if (result.type != 0u) return fail("array_fill negative count must fault");
 
     JinxZendArray *key_array = jinx_zend_array_new_packed(2);
     JinxZendArray *value_array = jinx_zend_array_new_packed(2);
@@ -235,6 +277,15 @@ int main(void) {
         return fail("array_combine values");
     }
     jinx_oracle_zend_array_value_release(result);
+
+    JinxZendArray *short_values = jinx_zend_array_new_packed(1);
+    if (short_values == 0 || !jinx_zend_array_append(short_values, jinx_zend_long(70))) {
+        return fail("array_combine mismatch source");
+    }
+    args[1] = jinx_oracle_zend_array_value_borrowed(short_values);
+    result = jinx_call_builtin_through_oracle("array_combine", args, 2);
+    if (result.type != 0u) return fail("array_combine mismatch must fault");
+    jinx_zend_array_release(short_values);
 
     JinxZendArray *count_source = jinx_zend_array_new_packed(5);
     JinxZendString *count_x = jinx_zend_string_new("x", 1);
@@ -402,7 +453,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;count_values=2:2,x:3;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
