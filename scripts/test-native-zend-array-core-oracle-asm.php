@@ -345,6 +345,9 @@ $jsonObjectDecoded = json_decode(
 $jsonObjectEncoded = json_encode($jsonObjectDecoded, 0, 512);
 $jsonFalseOverride = json_decode('{"a":1}', false, 512, JSON_OBJECT_AS_ARRAY);
 $jsonBigDecoded = json_decode('{"n":9223372036854775808}', true, 512, JSON_BIGINT_AS_STRING);
+$jsonInvalidUtf8 = "{\"s\":\"\xFFx\"}";
+$jsonIgnoreDecoded = json_decode($jsonInvalidUtf8, true, 512, JSON_INVALID_UTF8_IGNORE);
+$jsonSubstituteDecoded = json_decode($jsonInvalidUtf8, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
 json_decode('{"a":1,}', true, 512, 0);
 $jsonSyntaxCode = json_last_error();
 $jsonSyntaxMessage = json_last_error_msg();
@@ -365,8 +368,11 @@ $jsonEncodeReset = json_encode(['x' => 2, 'y' => 'z'], 0, 512);
 $jsonEncodeResetCode = json_last_error();
 $jsonEncodeResetMessage = json_last_error_msg();
 
-if (!is_array($jsonDecoded) || !is_array($jsonBigDecoded)) {
-    fail('PHP json_decode parity setup did not produce arrays');
+if (!is_array($jsonDecoded) || !is_array($jsonBigDecoded) ||
+    !is_array($jsonIgnoreDecoded) || !is_array($jsonSubstituteDecoded) ||
+    !isset($jsonIgnoreDecoded['s'], $jsonSubstituteDecoded['s']) ||
+    !is_string($jsonIgnoreDecoded['s']) || !is_string($jsonSubstituteDecoded['s'])) {
+    fail('PHP json_decode parity setup did not produce expected arrays/strings');
 }
 if (!is_object($jsonObjectDecoded) || !is_object($jsonObjectDecoded->nested) ||
     !is_object($jsonFalseOverride)) {
@@ -392,6 +398,8 @@ $expectedJsonParity = 'JSON_PARITY:'
     . ';object_encode=' . $jsonObjectEncoded
     . ';false_override=' . get_class($jsonFalseOverride)
     . ';bigint=' . $jsonBigDecoded['n']
+    . ';decode_ignore=' . bin2hex($jsonIgnoreDecoded['s'])
+    . ';decode_sub=' . bin2hex($jsonSubstituteDecoded['s'])
     . ';syntax=' . $jsonSyntaxCode . '|' . $jsonSyntaxMessage
     . ';valid=' . $jsonValidCode . '|' . $jsonValidMessage
     . ';encode=' . $jsonEncoded
@@ -568,8 +576,8 @@ if (!str_contains($text, $expectedCalParity)) {
 }
 
 if (!str_contains($text, $expectedJsonParity)) {
-    fwrite(STDERR, "FAIL: PHP-vs-JINX associative json_decode parity mismatch\nPHP: {$expectedJsonParity}\nJINX:\n{$text}\n");
+    fwrite(STDERR, "FAIL: PHP-vs-JINX native JSON parity mismatch\nPHP: {$expectedJsonParity}\nJINX:\n{$text}\n");
     exit(1);
 }
 
-echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics and associative JSON semantics' . PHP_EOL;
+echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics and native JSON semantics' . PHP_EOL;
