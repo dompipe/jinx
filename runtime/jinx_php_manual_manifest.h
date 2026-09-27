@@ -193,6 +193,15 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
         "Native Oracle ASM handlers for pure scalar/string behavior in the current JinxValue model; host-state and container forms remain outside this family."
+    },
+    {
+        "zend-array-native-core",
+        "https://www.php.net/manual/en/ref.array.php",
+        "count/array_key_exists/array_is_list/array_values/array_keys/array_key_first/array_key_last/array_sum/array_product/array_reverse/array_slice/array_merge/array_replace/array_flip/array_change_key_case",
+        "array|bool|int|string|float",
+        "jinx_oracle_zend_array_dispatch_builtin",
+        JINX_PHP_MANUAL_EXACT,
+        "Native carried JinxZendArray handlers with tombstone-aware iteration, key preservation, numeric aggregation, slicing, merging, replacement, flipping, and case conversion."
     }
 };
 
@@ -295,6 +304,17 @@ static inline int jinx_php_manual_name_is_pure_value_core(const char *name) {
         strcmp(name, "number_format") == 0;
 }
 
+static inline int jinx_php_manual_name_is_zend_array_native_core(const char *name) {
+    return strcmp(name, "count") == 0 || strcmp(name, "array_key_exists") == 0 ||
+        strcmp(name, "array_is_list") == 0 || strcmp(name, "array_values") == 0 ||
+        strcmp(name, "array_keys") == 0 || strcmp(name, "array_key_first") == 0 ||
+        strcmp(name, "array_key_last") == 0 || strcmp(name, "array_sum") == 0 ||
+        strcmp(name, "array_product") == 0 || strcmp(name, "array_reverse") == 0 ||
+        strcmp(name, "array_slice") == 0 || strcmp(name, "array_merge") == 0 ||
+        strcmp(name, "array_replace") == 0 || strcmp(name, "array_flip") == 0 ||
+        strcmp(name, "array_change_key_case") == 0;
+}
+
 static inline int jinx_php_manual_name_is_string_byte_compare(const char *name) {
     return strcmp(name, "strcmp") == 0 || strcmp(name, "strcasecmp") == 0 ||
         strcmp(name, "strncmp") == 0 || strcmp(name, "strncasecmp") == 0 ||
@@ -341,6 +361,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_starts(name, "ctype_")) {
         return &jinx_php_manual_handler_specs[7];
+    }
+
+    if (jinx_php_manual_name_is_zend_array_native_core(name)) {
+        return &jinx_php_manual_handler_specs[17];
     }
 
     if (jinx_php_manual_name_starts(name, "array_")) {
