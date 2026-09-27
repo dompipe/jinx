@@ -71,7 +71,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "math-core",
         "https://www.php.net/manual/en/ref.math.php",
-        "fmod/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan",
+        "fmod/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan/pow(native int|float)/fpow(float)",
         "int|float|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -258,6 +258,15 @@ static inline int jinx_php_manual_name_is_math_trig_log(const char *name) {
         strcmp(name, "log") == 0 || strcmp(name, "log10") == 0;
 }
 
+static inline int jinx_php_manual_name_is_math_core(const char *name) {
+    return strcmp(name, "fmod") == 0 || strcmp(name, "intdiv") == 0 ||
+        strcmp(name, "deg2rad") == 0 || strcmp(name, "rad2deg") == 0 ||
+        strcmp(name, "pi") == 0 || strcmp(name, "hypot") == 0 ||
+        strcmp(name, "is_finite") == 0 || strcmp(name, "is_infinite") == 0 ||
+        strcmp(name, "is_nan") == 0 || strcmp(name, "pow") == 0 ||
+        strcmp(name, "fpow") == 0;
+}
+
 static inline int jinx_php_manual_name_is_crypto(const char *name) {
     return strcmp(name, "crc32") == 0 || strcmp(name, "crypt") == 0 ||
         strcmp(name, "md5") == 0 || strcmp(name, "md5_file") == 0 ||
@@ -406,6 +415,10 @@ static inline const JinxPhpManualHandlerSpec *jinx_php_manual_lookup(const char 
 
     if (jinx_php_manual_name_is_math_trig_log(name)) {
         return &jinx_php_manual_handler_specs[3];
+    }
+
+    if (jinx_php_manual_name_is_math_core(name)) {
+        return &jinx_php_manual_handler_specs[4];
     }
 
     if (jinx_php_manual_name_is_pure_value_core(name)) {
