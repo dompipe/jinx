@@ -75,6 +75,13 @@ $cases = [
     ['htmlspecialchars', ["s:<a href='x'>&\""]],
     ['htmlspecialchars', ['s:&amp;<', 'i:11', 'null', 'b:false']],
     ['htmlspecialchars_decode', ['s:&lt;b&gt;&quot;x&quot;&#039;y&#039;&lt;/b&gt;']],
+    ['sprintf', ['s:There are %u million bicycles in %s.', 'i:7', 's:Amsterdam']],
+    ['sprintf', ['s:%2$s %1$d', 'i:42', 's:answer']],
+    ['sprintf', ["s:%'.8s", 's:abc']],
+    ['sprintf', ['s:%+05d', 'i:42']],
+    ['sprintf', ['s:%*s', 'i:5', 's:x']],
+    ['sprintf', ['s:%.*f', 'i:2', 'f:1.234']],
+    ['sprintf', ['s:%b %o %x %X', 'i:10', 'i:10', 'i:255', 'i:255']],
 ];
 
 foreach ($cases as [$function, $args]) {
