@@ -2284,6 +2284,93 @@ static inline JinxValue jinx_oracle_number_format_value(
     return jinx_oracle_string_value_len(out, pos);
 }
 
+
+static inline int jinx_oracle_ascii_alnum_string(JinxValue value) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+
+    if (len == 0u) return 0;
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned char ch = bytes[i];
+        if (!((ch >= (unsigned char)'0' && ch <= (unsigned char)'9') ||
+              (ch >= (unsigned char)'A' && ch <= (unsigned char)'Z') ||
+              (ch >= (unsigned char)'a' && ch <= (unsigned char)'z'))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static inline JinxValue jinx_oracle_str_increment_decrement_value(
+    JinxValue value,
+    int decrement,
+    int *ok
+) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    *ok = 0;
+
+    if (!jinx_oracle_ascii_alnum_string(value)) {
+        return jinx_oracle_zero_value();
+    }
+    if (decrement && bytes[0] == (unsigned char)'0') {
+        return jinx_oracle_zero_value();
+    }
+
+    char *out = jinx_oracle_scratch_string(len + 1u);
+    memcpy(out, bytes, len);
+
+    int carry = 0;
+    uint32_t position = len - 1u;
+    do {
+        unsigned char ch = (unsigned char)out[position];
+
+        if (!decrement) {
+            if (ch != (unsigned char)'z' && ch != (unsigned char)'Z' && ch != (unsigned char)'9') {
+                out[position] = (char)(ch + 1u);
+                carry = 0;
+            } else {
+                carry = 1;
+                out[position] = ch == (unsigned char)'9' ? '0' : (char)(ch - 25u);
+            }
+        } else {
+            if (ch != (unsigned char)'a' && ch != (unsigned char)'A' && ch != (unsigned char)'0') {
+                out[position] = (char)(ch - 1u);
+                carry = 0;
+            } else {
+                carry = 1;
+                out[position] = ch == (unsigned char)'0' ? '9' : (char)(ch + 25u);
+            }
+        }
+
+        if (!carry || position == 0u) break;
+        position--;
+    } while (1);
+
+    if (!decrement && carry) {
+        char *expanded = jinx_oracle_scratch_string(len + 1u);
+        memcpy(expanded + 1u, out, len);
+        expanded[0] = out[0] == '0' ? '1' : out[0];
+        *ok = 1;
+        return jinx_oracle_string_value_len(expanded, len + 1u);
+    }
+
+    if (decrement && (carry || (out[0] == '0' && len > 1u))) {
+        if (len == 1u) {
+            return jinx_oracle_zero_value();
+        }
+
+        char *contracted = jinx_oracle_scratch_string(len - 1u);
+        memcpy(contracted, out + 1u, len - 1u);
+        *ok = 1;
+        return jinx_oracle_string_value_len(contracted, len - 1u);
+    }
+
+    *ok = 1;
+    return jinx_oracle_string_value_len(out, len);
+}
+
 static inline JinxValue jinx_oracle_bin2hex_value(JinxValue value) {
     static const char hex[] = "0123456789abcdef";
     const unsigned char *bytes = jinx_oracle_string_bytes(value);
@@ -3810,6 +3897,23 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             return jinx_oracle_zero_value();
         }
         ret = jinx_oracle_str_repeat_value(arg0, arg1);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "str_increment", "str_decrement")) {
+        int conversion_ok = 0;
+        ret = jinx_oracle_str_increment_decrement_value(
+            arg0,
+            jinx_oracle_name_is(name, "str_decrement"),
+            &conversion_ok
+        );
+        if (!conversion_ok) {
+            ctx->fault = jinx_oracle_name_is(name, "str_decrement")
+                ? "str_decrement input is invalid or out of range"
+                : "str_increment input must be non-empty ASCII alphanumeric";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
