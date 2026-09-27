@@ -49,6 +49,7 @@ static int jinx_oracle_name_is_zend_array_builtin(const char *name) {
 
 static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
     return name != NULL && (
+        strcmp(name, "parse_url") == 0 ||
         strcmp(name, "count_chars") == 0 ||
         strcmp(name, "str_getcsv") == 0 ||
         strcmp(name, "strip_tags") == 0 ||
