@@ -5217,6 +5217,265 @@ static inline JinxValue jinx_oracle_calendar_date_string(
     return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
 }
 
+
+#define JINX_FRENCH_SDN_OFFSET 2375474
+#define JINX_FRENCH_FIRST_VALID 2375840
+#define JINX_FRENCH_LAST_VALID 2380952
+#define JINX_JEWISH_SDN_OFFSET 347997
+#define JINX_HALAKIM_PER_HOUR 1080
+#define JINX_HALAKIM_PER_DAY 25920
+#define JINX_HALAKIM_PER_LUNAR_CYCLE ((29 * JINX_HALAKIM_PER_DAY) + 13753)
+#define JINX_HALAKIM_PER_METONIC_CYCLE (JINX_HALAKIM_PER_LUNAR_CYCLE * (12 * 19 + 7))
+#define JINX_NEW_MOON_OF_CREATION 31524
+#define JINX_JEWISH_NOON (18 * JINX_HALAKIM_PER_HOUR)
+#define JINX_JEWISH_AM3_11_20 ((9 * JINX_HALAKIM_PER_HOUR) + 204)
+#define JINX_JEWISH_AM9_32_43 ((15 * JINX_HALAKIM_PER_HOUR) + 589)
+
+static const int jinx_oracle_jewish_months_per_year[19] = {
+    12, 12, 13, 12, 12, 13, 12, 13, 12, 12, 13, 12, 12, 13, 12, 12, 13, 12, 13
+};
+
+static const int jinx_oracle_jewish_year_offset[19] = {
+    0, 12, 24, 37, 49, 61, 74, 86, 99, 111, 123,
+    136, 148, 160, 173, 185, 197, 210, 222
+};
+
+static inline int64_t jinx_oracle_french_to_sdn(int year, int month, int day) {
+    if (year < 1 || year > 14 || month < 1 || month > 13 || day < 1 || day > 30) {
+        return 0;
+    }
+    return ((int64_t)year * JINX_CAL_DAYS_PER_4_YEARS) / 4
+        + (int64_t)(month - 1) * 30
+        + day
+        + JINX_FRENCH_SDN_OFFSET;
+}
+
+static inline void jinx_oracle_sdn_to_french(
+    int64_t sdn,
+    int *year_out,
+    int *month_out,
+    int *day_out
+) {
+    if (sdn < JINX_FRENCH_FIRST_VALID || sdn > JINX_FRENCH_LAST_VALID) {
+        *year_out = 0;
+        *month_out = 0;
+        *day_out = 0;
+        return;
+    }
+
+    int64_t temp = (sdn - JINX_FRENCH_SDN_OFFSET) * 4 - 1;
+    int day_of_year = (int)((temp % JINX_CAL_DAYS_PER_4_YEARS) / 4);
+    *year_out = (int)(temp / JINX_CAL_DAYS_PER_4_YEARS);
+    *month_out = day_of_year / 30 + 1;
+    *day_out = day_of_year % 30 + 1;
+}
+
+static inline int64_t jinx_oracle_jewish_tishri1(
+    int metonic_year,
+    int64_t molad_day,
+    int64_t molad_halakim
+) {
+    int64_t tishri1 = molad_day;
+    int dow = (int)(tishri1 % 7);
+    int leap_year = metonic_year == 2 || metonic_year == 5 || metonic_year == 7 ||
+        metonic_year == 10 || metonic_year == 13 || metonic_year == 16 || metonic_year == 18;
+    int last_was_leap = metonic_year == 3 || metonic_year == 6 || metonic_year == 8 ||
+        metonic_year == 11 || metonic_year == 14 || metonic_year == 17 || metonic_year == 0;
+
+    if (molad_halakim >= JINX_JEWISH_NOON ||
+        (!leap_year && dow == 2 && molad_halakim >= JINX_JEWISH_AM3_11_20) ||
+        (last_was_leap && dow == 1 && molad_halakim >= JINX_JEWISH_AM9_32_43)) {
+        tishri1++;
+        dow++;
+        if (dow == 7) dow = 0;
+    }
+
+    if (dow == 3 || dow == 5 || dow == 0) tishri1++;
+    return tishri1;
+}
+
+static inline int jinx_oracle_jewish_molad_of_cycle(
+    int metonic_cycle,
+    int64_t *molad_day,
+    int64_t *molad_halakim
+) {
+    if (metonic_cycle < 0 || molad_day == NULL || molad_halakim == NULL) return 0;
+
+    uint64_t cycle = (uint64_t)metonic_cycle;
+    uint64_t per_cycle = (uint64_t)JINX_HALAKIM_PER_METONIC_CYCLE;
+    if (cycle > (UINT64_MAX - (uint64_t)JINX_NEW_MOON_OF_CREATION) / per_cycle) return 0;
+
+    uint64_t total = (uint64_t)JINX_NEW_MOON_OF_CREATION + cycle * per_cycle;
+    if (total / JINX_HALAKIM_PER_DAY > (uint64_t)INT64_MAX) return 0;
+
+    *molad_day = (int64_t)(total / JINX_HALAKIM_PER_DAY);
+    *molad_halakim = (int64_t)(total % JINX_HALAKIM_PER_DAY);
+    return 1;
+}
+
+static inline int jinx_oracle_jewish_start_of_year(
+    int year,
+    int *metonic_cycle,
+    int *metonic_year,
+    int64_t *molad_day,
+    int64_t *molad_halakim,
+    int64_t *tishri1
+) {
+    if (year <= 0 || metonic_cycle == NULL || metonic_year == NULL ||
+        molad_day == NULL || molad_halakim == NULL || tishri1 == NULL) {
+        return 0;
+    }
+
+    *metonic_cycle = (year - 1) / 19;
+    *metonic_year = (year - 1) % 19;
+
+    if (!jinx_oracle_jewish_molad_of_cycle(*metonic_cycle, molad_day, molad_halakim)) return 0;
+
+    *molad_halakim += (int64_t)JINX_HALAKIM_PER_LUNAR_CYCLE *
+        jinx_oracle_jewish_year_offset[*metonic_year];
+    *molad_day += *molad_halakim / JINX_HALAKIM_PER_DAY;
+    *molad_halakim %= JINX_HALAKIM_PER_DAY;
+    *tishri1 = jinx_oracle_jewish_tishri1(*metonic_year, *molad_day, *molad_halakim);
+    return 1;
+}
+
+static inline int64_t jinx_oracle_jewish_to_sdn(int year, int month, int day) {
+    int64_t sdn;
+    int metonic_cycle;
+    int metonic_year;
+    int64_t tishri1;
+    int64_t tishri1_after;
+    int64_t molad_day;
+    int64_t molad_halakim;
+    int year_length;
+    int length_of_adar_i_ii;
+
+    if (year <= 0 || year >= INT_MAX - 1 || day <= 0 || day > 30) return 0;
+
+    switch (month) {
+        case 1:
+        case 2:
+            if (!jinx_oracle_jewish_start_of_year(
+                year, &metonic_cycle, &metonic_year, &molad_day, &molad_halakim, &tishri1
+            )) return 0;
+            sdn = month == 1 ? tishri1 + day - 1 : tishri1 + day + 29;
+            break;
+
+        case 3:
+            if (!jinx_oracle_jewish_start_of_year(
+                year, &metonic_cycle, &metonic_year, &molad_day, &molad_halakim, &tishri1
+            )) return 0;
+
+            molad_halakim += (int64_t)JINX_HALAKIM_PER_LUNAR_CYCLE *
+                jinx_oracle_jewish_months_per_year[metonic_year];
+            molad_day += molad_halakim / JINX_HALAKIM_PER_DAY;
+            molad_halakim %= JINX_HALAKIM_PER_DAY;
+            tishri1_after = jinx_oracle_jewish_tishri1(
+                (metonic_year + 1) % 19, molad_day, molad_halakim
+            );
+
+            year_length = (int)(tishri1_after - tishri1);
+            sdn = (year_length == 355 || year_length == 385)
+                ? tishri1 + day + 59
+                : tishri1 + day + 58;
+            break;
+
+        case 4:
+        case 5:
+        case 6:
+            if (!jinx_oracle_jewish_start_of_year(
+                year + 1, &metonic_cycle, &metonic_year, &molad_day, &molad_halakim, &tishri1_after
+            )) return 0;
+
+            length_of_adar_i_ii = jinx_oracle_jewish_months_per_year[(year - 1) % 19] == 12
+                ? 29 : 59;
+
+            if (month == 4) {
+                sdn = tishri1_after + day - length_of_adar_i_ii - 237;
+            } else if (month == 5) {
+                sdn = tishri1_after + day - length_of_adar_i_ii - 208;
+            } else {
+                sdn = tishri1_after + day - length_of_adar_i_ii - 178;
+            }
+            break;
+
+        default:
+            if (!jinx_oracle_jewish_start_of_year(
+                year + 1, &metonic_cycle, &metonic_year, &molad_day, &molad_halakim, &tishri1_after
+            )) return 0;
+
+            switch (month) {
+                case 7: sdn = tishri1_after + day - 207; break;
+                case 8: sdn = tishri1_after + day - 178; break;
+                case 9: sdn = tishri1_after + day - 148; break;
+                case 10: sdn = tishri1_after + day - 119; break;
+                case 11: sdn = tishri1_after + day - 89; break;
+                case 12: sdn = tishri1_after + day - 60; break;
+                case 13: sdn = tishri1_after + day - 30; break;
+                default: return 0;
+            }
+            break;
+    }
+
+    return sdn + JINX_JEWISH_SDN_OFFSET;
+}
+
+static inline int64_t jinx_oracle_calendar_to_sdn(int cal, int year, int month, int day) {
+    switch (cal) {
+        case 0: return jinx_oracle_gregorian_to_sdn(year, month, day);
+        case 1: return jinx_oracle_julian_to_sdn(year, month, day);
+        case 2: return jinx_oracle_jewish_to_sdn(year, month, day);
+        case 3: return jinx_oracle_french_to_sdn(year, month, day);
+        default: return 0;
+    }
+}
+
+static inline JinxValue jinx_oracle_cal_days_in_month_value(
+    JinxValue cal_value,
+    JinxValue month_value,
+    JinxValue year_value,
+    int *ok
+) {
+    int64_t cal64 = jinx_oracle_intish(cal_value);
+    int64_t month64 = jinx_oracle_intish(month_value);
+    int64_t year64 = jinx_oracle_intish(year_value);
+
+    *ok = 0;
+    if (cal64 < 0 || cal64 > 3) return jinx_oracle_zero_value();
+    if (month64 <= 0 || month64 > INT32_MAX - 1) return jinx_oracle_zero_value();
+    if (year64 > INT32_MAX - 1 || year64 < INT32_MIN) return jinx_oracle_zero_value();
+
+    int cal = (int)cal64;
+    int month = (int)month64;
+    int year = (int)year64;
+
+    int64_t start = jinx_oracle_calendar_to_sdn(cal, year, month, 1);
+    if (start == 0) return jinx_oracle_zero_value();
+
+    int64_t next = jinx_oracle_calendar_to_sdn(cal, year, month + 1, 1);
+    if (next == 0) {
+        int next_year = year == -1 ? 1 : year + 1;
+        next = jinx_oracle_calendar_to_sdn(cal, next_year, 1, 1);
+        if (cal == 3 && next == 0) next = 2380953;
+    }
+
+    if (next == 0) return jinx_oracle_zero_value();
+
+    *ok = 1;
+    return jinx_oracle_int_value(next - start);
+}
+
+static inline JinxValue jinx_oracle_french_date_string(int64_t sdn) {
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    jinx_oracle_sdn_to_french(sdn, &year, &month, &day);
+
+    char *out = jinx_oracle_scratch_string(48u);
+    int len = snprintf(out, 49u, "%d/%d/%d", month, day, year);
+    return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -5909,6 +6168,74 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         }
 
         ret = jinx_oracle_substr_count_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "cal_days_in_month")) {
+        int cal_ok = 0;
+        ret = jinx_oracle_cal_days_in_month_value(
+            arg0,
+            arg1,
+            jinx_oracle_call_arg(ctx, 2u),
+            &cal_ok
+        );
+        if (!cal_ok) {
+            ctx->fault = "cal_days_in_month invalid calendar/date";
+            return jinx_oracle_zero_value();
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "cal_to_jd")) {
+        int64_t cal = jinx_oracle_intish(arg0);
+        int64_t month = jinx_oracle_intish(arg1);
+        int64_t day = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u));
+        int64_t year = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 3u));
+
+        if (cal < 0 || cal > 3 ||
+            month <= 0 || month > INT32_MAX - 1 ||
+            day < INT32_MIN || day > INT32_MAX ||
+            year < INT32_MIN || year > INT32_MAX - 1) {
+            ctx->fault = "cal_to_jd invalid calendar/date range";
+            return jinx_oracle_zero_value();
+        }
+
+        ret = jinx_oracle_int_value(jinx_oracle_calendar_to_sdn(
+            (int)cal, (int)year, (int)month, (int)day
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jewishtojd")) {
+        int64_t year = jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u));
+        if (year < INT_MIN || year > INT_MAX) {
+            ctx->fault = "jewishtojd year outside native int range";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_int_value(jinx_oracle_jewish_to_sdn(
+            (int)year,
+            (int)jinx_oracle_intish(arg0),
+            (int)jinx_oracle_intish(arg1)
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "frenchtojd")) {
+        ret = jinx_oracle_int_value(jinx_oracle_french_to_sdn(
+            (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)),
+            (int)jinx_oracle_intish(arg0),
+            (int)jinx_oracle_intish(arg1)
+        ));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "jdtofrench")) {
+        ret = jinx_oracle_french_date_string(jinx_oracle_intish(arg0));
         jinx_oracle_return(ctx, ret);
         return ret;
     }
