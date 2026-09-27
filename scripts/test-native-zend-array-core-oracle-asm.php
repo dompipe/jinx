@@ -261,6 +261,12 @@ $rngOne = array_rand($rngSource);
 mt_srand(1234);
 $rngMany = array_rand($rngSource, 3);
 
+mt_srand(2468);
+$shuffleBefore = mt_rand();
+$shuffleValues = ['x' => 1, 'y' => 2, 'z' => 3, 'w' => 4, 'v' => 5];
+shuffle($shuffleValues);
+$shuffleAfter = mt_rand();
+
 $calGreg = cal_from_jd(
     cal_to_jd(CAL_GREGORIAN, 1, 1, 2024),
     CAL_GREGORIAN
@@ -319,7 +325,10 @@ $expectedRngParity = 'RNG_PARITY:'
     . ';reverse=' . $rngReverse
     . ';max=' . $rngMax
     . ';one=' . $rngOne
-    . ';many=' . implode(',', $rngMany);
+    . ';many=' . implode(',', $rngMany)
+    . ';shuffle_before=' . $shuffleBefore
+    . ';shuffle=' . implode(',', $shuffleValues)
+    . ';shuffle_after=' . $shuffleAfter;
 
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
