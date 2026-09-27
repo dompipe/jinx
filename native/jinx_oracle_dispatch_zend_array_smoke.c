@@ -708,13 +708,54 @@ int main(void) {
     }
     jinx_zend_array_release(mutation);
 
+    JinxZendArray *splice_source = jinx_zend_array_new_packed(6);
+    JinxZendArray *splice_replacement = jinx_zend_array_new_packed(2);
+    if (splice_source == 0 || splice_replacement == 0 ||
+        !jinx_zend_array_append(splice_source, jinx_zend_long(10)) ||
+        !jinx_zend_array_add_assoc(splice_source, "keep", 4, jinx_zend_long(20)) ||
+        !jinx_zend_array_add_index(splice_source, 2, jinx_zend_long(30)) ||
+        !jinx_zend_array_add_assoc(splice_source, "tail", 4, jinx_zend_long(40)) ||
+        !jinx_zend_array_add_index(splice_source, 5, jinx_zend_long(50)) ||
+        !jinx_zend_array_append(splice_replacement, jinx_zend_long(70)) ||
+        !jinx_zend_array_append(splice_replacement, jinx_zend_long(80))) {
+        return fail("array_splice source");
+    }
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(splice_source);
+    args[1] = jinx_oracle_int_value(2);
+    args[2] = jinx_oracle_int_value(2);
+    args[3] = jinx_oracle_zend_array_value_borrowed(splice_replacement);
+    result = jinx_call_builtin_through_oracle("array_splice", args, 4);
+
+    if (!expect_array_count(result, 2)) return fail("array_splice removed count");
+    JinxZendArray *removed = jinx_oracle_zend_array_ptr(result);
+    JinxZendValue *removed_tail = jinx_zend_array_find(removed, "tail", 4);
+    if (!expect_long_index(removed, 0, 30) ||
+        removed_tail == 0 || removed_tail->type != JINX_ZEND_LONG || removed_tail->value.lval != 40) {
+        return fail("array_splice removed values");
+    }
+
+    JinxZendValue *splice_keep = jinx_zend_array_find(splice_source, "keep", 4);
+    if (jinx_zend_array_live_count(splice_source) != 5u ||
+        !expect_long_index(splice_source, 0, 10) ||
+        splice_keep == 0 || splice_keep->type != JINX_ZEND_LONG || splice_keep->value.lval != 20 ||
+        !expect_long_index(splice_source, 1, 70) ||
+        !expect_long_index(splice_source, 2, 80) ||
+        !expect_long_index(splice_source, 3, 50)) {
+        return fail("array_splice rebuilt values");
+    }
+
+    jinx_oracle_zend_array_value_release(result);
+    jinx_zend_array_release(splice_replacement);
+    jinx_zend_array_release(splice_source);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;intersect3=keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace;in_loose=1;in_strict=0;search_loose=name;search_strict=false;filter=1:1,3:x;push=4;pop=40;shift=10;unshift=5;mutation=0:5,1:6,x:20,2:30,3:50;splice=0:10,keep:20,1:70,2:80,3:50;spliced=0:30,tail:40\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
