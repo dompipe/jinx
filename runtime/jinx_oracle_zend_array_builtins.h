@@ -2884,6 +2884,90 @@ static inline JinxValue jinx_oracle_zend_http_build_query_special(
     return jinx_oracle_string_value_len(scratch, len);
 }
 
+
+static inline int jinx_oracle_zend_add_jinx_string(
+    JinxZendArray *array,
+    const char *key,
+    JinxValue value
+) {
+    if (value.type != 3u) return 0;
+
+    JinxZendString *string = jinx_zend_string_new(
+        (const char *)value.as.ptr,
+        value.flags
+    );
+    if (string == 0) return 0;
+
+    int ok = jinx_zend_array_add_assoc(
+        array,
+        key,
+        strlen(key),
+        jinx_zend_string_value(string)
+    );
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static inline JinxValue jinx_oracle_zend_pathinfo_special(
+    const JinxValue *args,
+    size_t argc
+) {
+    if (argc < 1u || args[0].type != 3u) {
+        return jinx_oracle_zero_value();
+    }
+
+    JinxValue path = args[0];
+    JinxValue dirname = jinx_oracle_dirname_value(
+        path,
+        jinx_oracle_int_value(1),
+        1u
+    );
+    JinxValue basename = jinx_oracle_basename_value(
+        path,
+        jinx_oracle_zero_value(),
+        1u
+    );
+
+    const unsigned char *base = jinx_oracle_string_bytes(basename);
+    uint32_t base_len = jinx_oracle_string_len(basename);
+    uint32_t dot = UINT32_MAX;
+
+    for (uint32_t i = 0u; i < base_len; i++) {
+        if (base[i] == (unsigned char)'.') dot = i;
+    }
+
+    int has_extension = dot != UINT32_MAX;
+    JinxValue extension = has_extension
+        ? jinx_oracle_string_slice_copy(base, dot + 1u, base_len - dot - 1u)
+        : jinx_oracle_string_value_len("", 0u);
+    JinxValue filename = has_extension
+        ? jinx_oracle_string_slice_copy(base, 0u, dot)
+        : jinx_oracle_string_slice_copy(base, 0u, base_len);
+
+    int64_t flags = argc >= 2u ? jinx_oracle_intish(args[1]) : 15;
+
+    if (argc >= 2u && flags != 15) {
+        if (flags == 1) return dirname;
+        if (flags == 2) return basename;
+        if (flags == 4) return extension;
+        if (flags == 8) return filename;
+        return jinx_oracle_zero_value();
+    }
+
+    JinxZendArray *result = jinx_zend_array_new_packed(4u);
+    if (result == 0) return jinx_oracle_zero_value();
+
+    if (!jinx_oracle_zend_add_jinx_string(result, "dirname", dirname) ||
+        !jinx_oracle_zend_add_jinx_string(result, "basename", basename) ||
+        (has_extension && !jinx_oracle_zend_add_jinx_string(result, "extension", extension)) ||
+        !jinx_oracle_zend_add_jinx_string(result, "filename", filename)) {
+        jinx_zend_array_release(result);
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zend_array_value_owned(result);
+}
+
 typedef struct JinxOracleParsedUrl {
     const unsigned char *src;
     uint32_t len;
@@ -3645,6 +3729,10 @@ static inline JinxValue jinx_oracle_zend_array_dispatch_builtin(
 
     if (strcmp(name, "parse_str") == 0) return jinx_oracle_parse_str_special(args, argc);
     if (strcmp(name, "http_build_query") == 0) return jinx_oracle_http_build_query_special(args, argc);
+
+    if (strcmp(name, "pathinfo") == 0) {
+        return jinx_oracle_zend_pathinfo_special(args, argc);
+    }
 
     if (strcmp(name, "parse_str") == 0) {
         return jinx_oracle_zend_parse_str_special(args, argc);
