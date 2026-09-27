@@ -170,6 +170,34 @@ int main(void) {
     result = jinx_call_builtin_through_oracle("count_chars", args, 2);
     if (result.type != 0u) return fail("count_chars invalid mode must fault");
 
+    args[0] = jinx_oracle_string_value("Hello, world!");
+    result = jinx_call_builtin_through_oracle("str_word_count", args, 1);
+    if (!expect_int(result, 2)) return fail("str_word_count mode 0");
+
+    args[1] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("str_word_count", args, 2);
+    if (!expect_array_count(result, 2)) return fail("str_word_count mode 1 count");
+    JinxZendArray *words1 = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_index(words1, 0, "Hello") || !expect_string_index(words1, 1, "world")) {
+        return fail("str_word_count mode 1 values");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[1] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("str_word_count", args, 2);
+    if (!expect_array_count(result, 2)) return fail("str_word_count mode 2 count");
+    JinxZendArray *words2 = jinx_oracle_zend_array_ptr(result);
+    if (!expect_string_index(words2, 0, "Hello") || !expect_string_index(words2, 7, "world")) {
+        return fail("str_word_count mode 2 offsets");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    args[0] = jinx_oracle_string_value("abc123");
+    args[1] = jinx_oracle_int_value(0);
+    args[2] = jinx_oracle_string_value("0..9");
+    result = jinx_call_builtin_through_oracle("str_word_count", args, 3);
+    if (!expect_int(result, 1)) return fail("str_word_count charlist");
+
     args[0] = jinx_oracle_string_value(",");
     args[1] = jinx_oracle_zend_array_value_borrowed(array);
     result = jinx_call_builtin_through_oracle("implode", args, 2);
@@ -574,7 +602,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace\n");
+    printf("PARITY:recursive=4;keys_loose=1;keys_strict=;sum=100;product=240000;words=2;words1=Hello,world;words2=0:Hello,7:world;words_digits=1;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;range_neg=5,3,1;fill=2:9,3:9,4:9;fill_zero=0;combine=2:70,x:80;fill_keys_num=2:9,02:9,+2:9,-2:9;combine_num=2:70,02:80;count_values=2:2,x:3;count_values_num=2:2,02:1;chunk0=10,20;pad=10,20,30,40,0,0;unique=0:4,2:3;diff=0:10,name:30;intersect=1:20,keep:40;explode=a,b,c;split=ab,cd,ef;column=1:Ada,2:Grace;column_num=1:Ada,02:Grace\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
