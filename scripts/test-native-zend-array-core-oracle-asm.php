@@ -330,6 +330,34 @@ $expectedRngParity = 'RNG_PARITY:'
     . ';shuffle=' . implode(',', $shuffleValues)
     . ';shuffle_after=' . $shuffleAfter;
 
+$jsonDecoded = json_decode(
+    '{"name":"Ada","nums":[1,2],"ok":true,"none":null,"emoji":"\\uD83D\\uDE00"}',
+    true,
+    512,
+    0
+);
+$jsonBigDecoded = json_decode('{"n":9223372036854775808}', true, 512, JSON_BIGINT_AS_STRING);
+json_decode('{"a":1,}', true, 512, 0);
+$jsonSyntaxCode = json_last_error();
+$jsonSyntaxMessage = json_last_error_msg();
+json_decode('{"a":1}', true, 512, 0);
+$jsonValidCode = json_last_error();
+$jsonValidMessage = json_last_error_msg();
+
+if (!is_array($jsonDecoded) || !is_array($jsonBigDecoded)) {
+    fail('PHP json_decode parity setup did not produce arrays');
+}
+
+$expectedJsonParity = 'JSON_PARITY:'
+    . 'name=' . $jsonDecoded['name']
+    . ';nums=' . implode(',', $jsonDecoded['nums'])
+    . ';ok=' . ($jsonDecoded['ok'] ? '1' : '0')
+    . ';none=' . ($jsonDecoded['none'] === null ? 'null' : 'not-null')
+    . ';emoji=' . bin2hex($jsonDecoded['emoji'])
+    . ';bigint=' . $jsonBigDecoded['n']
+    . ';syntax=' . $jsonSyntaxCode . '|' . $jsonSyntaxMessage
+    . ';valid=' . $jsonValidCode . '|' . $jsonValidMessage;
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -498,4 +526,9 @@ if (!str_contains($text, $expectedCalParity)) {
     exit(1);
 }
 
-echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics' . PHP_EOL;
+if (!str_contains($text, $expectedJsonParity)) {
+    fwrite(STDERR, "FAIL: PHP-vs-JINX associative json_decode parity mismatch\nPHP: {$expectedJsonParity}\nJINX:\n{$text}\n");
+    exit(1);
+}
+
+echo 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array and associative JSON semantics' . PHP_EOL;
