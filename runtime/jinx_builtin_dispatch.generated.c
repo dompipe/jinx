@@ -112,8 +112,7 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "array_uintersect_uassoc") == 0 ||
         strcmp(name, "array_walk") == 0 ||
         strcmp(name, "array_walk_recursive") == 0 ||
-        strcmp(name, "array_rand") == 0 ||
-        strcmp(name, "json_decode") == 0
+        strcmp(name, "array_rand") == 0
     );
 }
 
@@ -3665,6 +3664,14 @@ JinxValue jinx_call_builtin_through_oracle_checked(
     int *ok
 ) {
     if (ok != NULL) *ok = 0;
+
+    if (name != NULL && strcmp(name, "json_decode") == 0 && args != NULL && argc >= 2 &&
+        ((args[1].type == 2u && args[1].as.i64 != 0) ||
+         (argc >= 4 && (args[3].type == 1u || args[3].type == 2u) && (args[3].as.i64 & 1LL) != 0))) {
+        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
+        if (ok != NULL) *ok = 1;
+        return result;
+    }
 
     if (jinx_oracle_name_is_zend_container_builtin(name) && (args != NULL || argc == 0)) {
         JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);
