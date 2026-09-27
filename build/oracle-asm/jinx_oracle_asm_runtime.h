@@ -1342,6 +1342,126 @@ fail:
     return jinx_oracle_zero_value();
 }
 
+
+static inline JinxValue jinx_oracle_wordwrap_value(
+    JinxValue text_value,
+    JinxValue width_value,
+    JinxValue break_value,
+    JinxValue cut_value,
+    uint32_t argc,
+    int *ok
+) {
+    const unsigned char *text = jinx_oracle_string_bytes(text_value);
+    uint32_t text_len = jinx_oracle_string_len(text_value);
+    int64_t width = argc >= 2u ? jinx_oracle_intish(width_value) : 75;
+    const unsigned char *break_bytes = argc >= 3u
+        ? jinx_oracle_string_bytes(break_value)
+        : (const unsigned char *)"\n";
+    uint32_t break_len = argc >= 3u ? jinx_oracle_string_len(break_value) : 1u;
+    int cut = argc >= 4u && jinx_oracle_boolish(cut_value);
+    int64_t laststart = 0;
+    int64_t lastspace = 0;
+
+    *ok = 0;
+
+    if (text_len == 0u) {
+        *ok = 1;
+        return jinx_oracle_string_value_len("", 0u);
+    }
+
+    if (break_len == 0u || (width == 0 && cut)) {
+        return jinx_oracle_zero_value();
+    }
+
+    if (break_len == 1u && !cut) {
+        char *out = jinx_oracle_scratch_string(text_len);
+        memcpy(out, text, text_len);
+
+        laststart = lastspace = 0;
+        for (int64_t current = 0; current < (int64_t)text_len; current++) {
+            if ((unsigned char)out[current] == break_bytes[0]) {
+                laststart = lastspace = current + 1;
+            } else if ((unsigned char)out[current] == (unsigned char)' ') {
+                if (current - laststart >= width) {
+                    out[current] = (char)break_bytes[0];
+                    laststart = current + 1;
+                }
+                lastspace = current;
+            } else if (current - laststart >= width && laststart != lastspace) {
+                out[lastspace] = (char)break_bytes[0];
+                laststart = lastspace + 1;
+            }
+        }
+
+        *ok = 1;
+        return jinx_oracle_string_value_len(out, text_len);
+    }
+
+    JinxOracleFormatBuffer out = {0};
+    int64_t current;
+
+    laststart = lastspace = 0;
+    for (current = 0; current < (int64_t)text_len; current++) {
+        if ((unsigned char)text[current] == break_bytes[0] &&
+            current + (int64_t)break_len < (int64_t)text_len &&
+            memcmp(text + current, break_bytes, break_len) == 0) {
+            size_t copy_len = (size_t)(current - laststart) + break_len;
+            if (!jinx_oracle_format_append(&out, (const char *)text + laststart, copy_len)) goto fail;
+            current += (int64_t)break_len - 1;
+            laststart = lastspace = current + 1;
+        } else if ((unsigned char)text[current] == (unsigned char)' ') {
+            if (current - laststart >= width) {
+                if (!jinx_oracle_format_append(
+                    &out,
+                    (const char *)text + laststart,
+                    (size_t)(current - laststart)
+                )) goto fail;
+                if (!jinx_oracle_format_append(&out, (const char *)break_bytes, break_len)) goto fail;
+                laststart = current + 1;
+            }
+            lastspace = current;
+        } else if (current - laststart >= width && cut && laststart >= lastspace) {
+            if (!jinx_oracle_format_append(
+                &out,
+                (const char *)text + laststart,
+                (size_t)(current - laststart)
+            )) goto fail;
+            if (!jinx_oracle_format_append(&out, (const char *)break_bytes, break_len)) goto fail;
+            laststart = lastspace = current;
+        } else if (current - laststart >= width && laststart < lastspace) {
+            if (!jinx_oracle_format_append(
+                &out,
+                (const char *)text + laststart,
+                (size_t)(lastspace - laststart)
+            )) goto fail;
+            if (!jinx_oracle_format_append(&out, (const char *)break_bytes, break_len)) goto fail;
+            laststart = lastspace = lastspace + 1;
+        }
+    }
+
+    if (laststart != current) {
+        if (!jinx_oracle_format_append(
+            &out,
+            (const char *)text + laststart,
+            (size_t)(current - laststart)
+        )) goto fail;
+    }
+
+    if (out.len > UINT32_MAX) goto fail;
+    {
+        char *scratch = jinx_oracle_scratch_string((uint32_t)out.len);
+        if (out.len != 0u) memcpy(scratch, out.data, out.len);
+        uint32_t result_len = (uint32_t)out.len;
+        free(out.data);
+        *ok = 1;
+        return jinx_oracle_string_value_len(scratch, result_len);
+    }
+
+fail:
+    free(out.data);
+    return jinx_oracle_zero_value();
+}
+
 static inline uint32_t jinx_oracle_crc32_bytes(const unsigned char *bytes, uint32_t len) {
     uint32_t crc = 0xffffffffu;
 
@@ -2647,6 +2767,24 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         );
         if (!format_ok) {
             ctx->fault = "sprintf format/argument error";
+            return jinx_oracle_zero_value();
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "wordwrap")) {
+        int wrap_ok = 0;
+        ret = jinx_oracle_wordwrap_value(
+            arg0,
+            arg1,
+            jinx_oracle_call_arg(ctx, 2u),
+            jinx_oracle_call_arg(ctx, 3u),
+            argc,
+            &wrap_ok
+        );
+        if (!wrap_ok) {
+            ctx->fault = "wordwrap argument error";
             return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
