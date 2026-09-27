@@ -68,6 +68,7 @@ $cases = [
     ['addcslashes', ['s:foo.bar', 's:.']],
     ['stripcslashes', ['s:foo\\nbar']],
     ['str_pad', ['s:Alien', 'i:10', 's:-=', 'i:2']],
+    ['str_pad', ['s:AlreadyLong', 'i:3', 's:', 'i:99']],
     ['str_replace', ['s:world', 's:JINX', 's:hello world world']],
     ['str_ireplace', ['s:WORLD', 's:JINX', 's:hello World world']],
     ['strtr', ['s:baab', 's:ab', 's:01']],
