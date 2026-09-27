@@ -17,6 +17,7 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 
 $cases = [
     ['str_repeat', ['x', -1], ['s:x', 'i:-1']],
+    ['metaphone', ['programming', -1], ['s:programming', 'i:-1']],
     ['chunk_split', ['x', 0], ['s:x', 'i:0']],
     ['strncmp', ['a', 'b', -1], ['s:a', 's:b', 'i:-1']],
     ['strncasecmp', ['a', 'b', -1], ['s:a', 's:b', 'i:-1']],
