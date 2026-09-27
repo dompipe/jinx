@@ -216,6 +216,11 @@ int main(void) {
     args[1] = jinx_oracle_zend_array_value_borrowed(vs_values);
     result = jinx_call_builtin_through_oracle("vsprintf", args, 2);
     if (!expect_string(result, "There are 7 million bicycles in Amsterdam.")) return fail("vsprintf");
+
+    args[0] = jinx_oracle_string_value("vprintf:%u:%s\n");
+    result = jinx_call_builtin_through_oracle("vprintf", args, 2);
+    if (!expect_int(result, 20)) return fail("vprintf return length");
+
     jinx_zend_array_release(vs_values);
 
     args[0] = jinx_oracle_string_value("bafoobar");
