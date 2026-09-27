@@ -38,7 +38,7 @@ JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {
 
 JinxValue jinx_call_builtin_through_oracle(
     const char *name,
-    const JinxValue *args,
+    JinxValue *args,
     size_t argc
 ) {
     JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
