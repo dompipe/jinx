@@ -134,6 +134,20 @@ int main(void) {
     result = jinx_call_builtin_through_oracle("implode", args, 2);
     if (!expect_string(result, "10,20,30,40")) return fail("implode");
 
+    JinxZendArray *vs_values = jinx_zend_array_new_packed(2);
+    JinxZendString *amsterdam = jinx_zend_string_new("Amsterdam", 9);
+    if (vs_values == 0 || amsterdam == 0 ||
+        !jinx_zend_array_append(vs_values, jinx_zend_long(7)) ||
+        !jinx_zend_array_append(vs_values, jinx_zend_string_value(amsterdam))) {
+        return fail("vsprintf source");
+    }
+    jinx_zend_string_release(amsterdam);
+    args[0] = jinx_oracle_string_value("There are %u million bicycles in %s.");
+    args[1] = jinx_oracle_zend_array_value_borrowed(vs_values);
+    result = jinx_call_builtin_through_oracle("vsprintf", args, 2);
+    if (!expect_string(result, "There are 7 million bicycles in Amsterdam.")) return fail("vsprintf");
+    jinx_zend_array_release(vs_values);
+
     args[0] = jinx_oracle_int_value(1);
     args[1] = jinx_oracle_int_value(5);
     result = jinx_call_builtin_through_oracle("range", args, 2);
@@ -213,7 +227,7 @@ int main(void) {
     jinx_zend_array_release(other);
     jinx_zend_array_release(array);
 
-    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3\n");
+    printf("PARITY:sum=100;product=240000;implode=10,20,30,40;vsprintf=There are 7 million bicycles in Amsterdam.;range=1,2,3,4,5;fill=2:9,3:9,4:9;combine=2:70,x:80;count_values=2:2,x:3\n");
     printf("PASS: Oracle generated dispatch Zend-array native core passed\n");
     return 0;
 }
