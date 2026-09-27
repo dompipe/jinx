@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <zlib.h>
 
 /*
  * Low-level native Oracle/PASM runtime carrier for generated wrappers.
@@ -6261,6 +6262,215 @@ static inline JinxValue jinx_oracle_mt_builtin(
     return jinx_oracle_zero_value();
 }
 
+
+#define JINX_PHP_ZLIB_ENCODING_RAW (-15)
+#define JINX_PHP_ZLIB_ENCODING_DEFLATE 15
+#define JINX_PHP_ZLIB_ENCODING_GZIP 31
+#define JINX_PHP_ZLIB_ENCODING_ANY 47
+
+static inline int jinx_oracle_zlib_valid_encoding(int encoding) {
+    return encoding == JINX_PHP_ZLIB_ENCODING_RAW ||
+        encoding == JINX_PHP_ZLIB_ENCODING_DEFLATE ||
+        encoding == JINX_PHP_ZLIB_ENCODING_GZIP;
+}
+
+static inline JinxValue jinx_oracle_zlib_encode_value(
+    JinxValue input,
+    int encoding,
+    int level,
+    int *ok
+) {
+    z_stream stream;
+    const unsigned char *bytes = jinx_oracle_string_bytes(input);
+    uint32_t len = jinx_oracle_string_len(input);
+    *ok = 0;
+
+    if (!jinx_oracle_zlib_valid_encoding(encoding) || level < -1 || level > 9) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    memset(&stream, 0, sizeof(stream));
+    if (deflateInit2(
+            &stream,
+            level,
+            Z_DEFLATED,
+            encoding,
+            MAX_MEM_LEVEL,
+            Z_DEFAULT_STRATEGY
+        ) != Z_OK) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    uLong bound = deflateBound(&stream, (uLong)len);
+    if (bound > UINT32_MAX) {
+        deflateEnd(&stream);
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string((uint32_t)bound);
+    stream.next_in = (Bytef *)bytes;
+    stream.avail_in = (uInt)len;
+    stream.next_out = (Bytef *)out;
+    stream.avail_out = (uInt)bound;
+
+    int status = deflate(&stream, Z_FINISH);
+    uint32_t out_len = stream.total_out > UINT32_MAX
+        ? UINT32_MAX
+        : (uint32_t)stream.total_out;
+    deflateEnd(&stream);
+
+    if (status != Z_STREAM_END || stream.total_out > UINT32_MAX) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    *ok = 1;
+    return jinx_oracle_string_value_len(out, out_len);
+}
+
+static inline int jinx_oracle_zlib_inflate_once(
+    const unsigned char *bytes,
+    uint32_t len,
+    int encoding,
+    uint32_t max_len,
+    char **out_buf,
+    uint32_t *out_len
+) {
+    z_stream stream;
+    char *buffer = NULL;
+    size_t capacity = len == 0u ? 64u : (size_t)len;
+    size_t used = 0u;
+
+    if (capacity < 64u) capacity = 64u;
+    if (max_len != 0u && capacity > max_len) capacity = max_len;
+    if (capacity == 0u) capacity = 1u;
+
+    buffer = (char *)malloc(capacity);
+    if (buffer == NULL) return Z_MEM_ERROR;
+
+    memset(&stream, 0, sizeof(stream));
+    int status = inflateInit2(&stream, encoding);
+    if (status != Z_OK) {
+        free(buffer);
+        return status;
+    }
+
+    stream.next_in = (Bytef *)bytes;
+    stream.avail_in = (uInt)len;
+
+    for (;;) {
+        if (used == capacity) {
+            if (max_len != 0u && used >= max_len) {
+                status = Z_MEM_ERROR;
+                break;
+            }
+
+            size_t next = capacity + (capacity >> 1u) + 1u;
+            if (next <= capacity) {
+                status = Z_MEM_ERROR;
+                break;
+            }
+            if (max_len != 0u && next > max_len) next = max_len;
+            if (next > UINT32_MAX) next = UINT32_MAX;
+            if (next <= capacity) {
+                status = Z_MEM_ERROR;
+                break;
+            }
+
+            char *grown = (char *)realloc(buffer, next);
+            if (grown == NULL) {
+                status = Z_MEM_ERROR;
+                break;
+            }
+            buffer = grown;
+            capacity = next;
+        }
+
+        stream.next_out = (Bytef *)(buffer + used);
+        stream.avail_out = (uInt)(capacity - used);
+
+        status = inflate(&stream, Z_NO_FLUSH);
+        used = (size_t)stream.total_out;
+
+        if (status == Z_STREAM_END) break;
+        if (status != Z_OK && status != Z_BUF_ERROR) break;
+
+        if (status == Z_BUF_ERROR && stream.avail_in == 0u) {
+            status = Z_DATA_ERROR;
+            break;
+        }
+
+        if (max_len != 0u && used >= max_len && status != Z_STREAM_END) {
+            status = Z_MEM_ERROR;
+            break;
+        }
+
+        if (capacity == UINT32_MAX && used == capacity) {
+            status = Z_MEM_ERROR;
+            break;
+        }
+    }
+
+    inflateEnd(&stream);
+
+    if (status != Z_STREAM_END || used > UINT32_MAX) {
+        free(buffer);
+        return status == Z_STREAM_END ? Z_MEM_ERROR : status;
+    }
+
+    *out_buf = buffer;
+    *out_len = (uint32_t)used;
+    return Z_STREAM_END;
+}
+
+static inline JinxValue jinx_oracle_zlib_decode_value(
+    JinxValue input,
+    int encoding,
+    int64_t max_length,
+    int *ok
+) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(input);
+    uint32_t len = jinx_oracle_string_len(input);
+    char *decoded = NULL;
+    uint32_t decoded_len = 0u;
+    *ok = 0;
+
+    if (max_length < 0 || max_length > UINT32_MAX || len == 0u) {
+        return jinx_oracle_bool_value(0);
+    }
+
+    int status = jinx_oracle_zlib_inflate_once(
+        bytes,
+        len,
+        encoding,
+        (uint32_t)max_length,
+        &decoded,
+        &decoded_len
+    );
+
+    if (status == Z_DATA_ERROR && encoding == JINX_PHP_ZLIB_ENCODING_ANY) {
+        status = jinx_oracle_zlib_inflate_once(
+            bytes,
+            len,
+            JINX_PHP_ZLIB_ENCODING_RAW,
+            (uint32_t)max_length,
+            &decoded,
+            &decoded_len
+        );
+    }
+
+    if (status != Z_STREAM_END || decoded == NULL) {
+        free(decoded);
+        return jinx_oracle_bool_value(0);
+    }
+
+    char *out = jinx_oracle_scratch_string(decoded_len);
+    if (decoded_len != 0u) memcpy(out, decoded, decoded_len);
+    free(decoded);
+
+    *ok = 1;
+    return jinx_oracle_string_value_len(out, decoded_len);
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -6277,6 +6487,70 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_in4(name, "gzcompress", "gzdeflate", "gzencode", "zlib_encode")) {
+        int encoding;
+        int level;
+        int zlib_ok = 0;
+
+        if (jinx_oracle_name_is(name, "zlib_encode")) {
+            if (argc < 2u) {
+                ctx->fault = "zlib_encode requires data and encoding";
+                return jinx_oracle_zero_value();
+            }
+            encoding = (int)jinx_oracle_intish(arg1);
+            level = argc >= 3u ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)) : -1;
+        } else {
+            level = argc >= 2u ? (int)jinx_oracle_intish(arg1) : -1;
+            if (jinx_oracle_name_is(name, "gzdeflate")) {
+                encoding = argc >= 3u
+                    ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
+                    : JINX_PHP_ZLIB_ENCODING_RAW;
+            } else if (jinx_oracle_name_is(name, "gzencode")) {
+                encoding = argc >= 3u
+                    ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
+                    : JINX_PHP_ZLIB_ENCODING_GZIP;
+            } else {
+                encoding = argc >= 3u
+                    ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
+                    : JINX_PHP_ZLIB_ENCODING_DEFLATE;
+            }
+        }
+
+        if (!jinx_oracle_zlib_valid_encoding(encoding) || level < -1 || level > 9) {
+            ctx->fault = "zlib encoding or compression level is invalid";
+            return jinx_oracle_zero_value();
+        }
+
+        ret = jinx_oracle_zlib_encode_value(arg0, encoding, level, &zlib_ok);
+        if (!zlib_ok) ret = jinx_oracle_bool_value(0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in4(name, "gzuncompress", "gzinflate", "gzdecode", "zlib_decode")) {
+        int encoding = JINX_PHP_ZLIB_ENCODING_ANY;
+        int64_t max_length = argc >= 2u ? jinx_oracle_intish(arg1) : 0;
+        int zlib_ok = 0;
+
+        if (max_length < 0) {
+            ctx->fault = "zlib max_length must be greater than or equal to 0";
+            return jinx_oracle_zero_value();
+        }
+
+        if (jinx_oracle_name_is(name, "gzuncompress")) {
+            encoding = JINX_PHP_ZLIB_ENCODING_DEFLATE;
+        } else if (jinx_oracle_name_is(name, "gzinflate")) {
+            encoding = JINX_PHP_ZLIB_ENCODING_RAW;
+        } else if (jinx_oracle_name_is(name, "gzdecode")) {
+            encoding = JINX_PHP_ZLIB_ENCODING_GZIP;
+        }
+
+        ret = jinx_oracle_zlib_decode_value(arg0, encoding, max_length, &zlib_ok);
+        if (!zlib_ok) ret = jinx_oracle_bool_value(0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (jinx_oracle_name_in4(name, "mt_srand", "srand", "mt_rand", "rand") ||
         jinx_oracle_name_in2(name, "mt_getrandmax", "getrandmax")) {
