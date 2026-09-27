@@ -62,7 +62,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "math-trig-log",
         "https://www.php.net/manual/en/ref.math.php",
-        "acos/acosh/asin/asinh/atan/atan2/atanh/ceil/floor/sqrt/sin/sinh/cos/cosh/tan/tanh/exp/expm1/log/log10",
+        "acos/acosh/asin/asinh/atan/atan2/atanh/ceil/floor/sqrt/sin/sinh/cos/cosh/tan/tanh/exp/expm1/log/log10/log1p",
         "float",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -71,7 +71,7 @@ static const JinxPhpManualHandlerSpec jinx_php_manual_handler_specs[] = {
     {
         "math-core",
         "https://www.php.net/manual/en/ref.math.php",
-        "fmod/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan/pow(native int|float)/fpow(float)",
+        "fmod/fdiv/intdiv/deg2rad/rad2deg/pi/hypot/is_finite/is_infinite/is_nan/pow(native int|float)/fpow(float)",
         "int|float|bool",
         "jinx_oracle_asm_call_builtin",
         JINX_PHP_MANUAL_EXACT,
@@ -255,11 +255,13 @@ static inline int jinx_php_manual_name_is_math_trig_log(const char *name) {
         strcmp(name, "cos") == 0 || strcmp(name, "cosh") == 0 ||
         strcmp(name, "tan") == 0 || strcmp(name, "tanh") == 0 ||
         strcmp(name, "exp") == 0 || strcmp(name, "expm1") == 0 ||
-        strcmp(name, "log") == 0 || strcmp(name, "log10") == 0;
+        strcmp(name, "log") == 0 || strcmp(name, "log10") == 0 ||
+        strcmp(name, "log1p") == 0;
 }
 
 static inline int jinx_php_manual_name_is_math_core(const char *name) {
-    return strcmp(name, "fmod") == 0 || strcmp(name, "intdiv") == 0 ||
+    return strcmp(name, "fmod") == 0 || strcmp(name, "fdiv") == 0 ||
+        strcmp(name, "intdiv") == 0 ||
         strcmp(name, "deg2rad") == 0 || strcmp(name, "rad2deg") == 0 ||
         strcmp(name, "pi") == 0 || strcmp(name, "hypot") == 0 ||
         strcmp(name, "is_finite") == 0 || strcmp(name, "is_infinite") == 0 ||
