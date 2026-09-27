@@ -7224,6 +7224,49 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
+    if (jinx_oracle_name_in2(name, "strtolower", "strtoupper")) {
+        ret = jinx_oracle_string_transform_case(
+            arg0,
+            jinx_oracle_name_is(name, "strtoupper")
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in2(name, "lcfirst", "ucfirst")) {
+        ret = jinx_oracle_string_transform_first(
+            arg0,
+            jinx_oracle_name_is(name, "ucfirst")
+        );
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "strrev")) {
+        ret = jinx_oracle_string_reverse(arg0);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_in4(name, "trim", "ltrim", "rtrim", "chop")) {
+        if (argc >= 2u) {
+            ctx->fault = "custom trim character masks are not native yet";
+            return jinx_oracle_zero_value();
+        }
+
+        int trim_left =
+            jinx_oracle_name_is(name, "trim") ||
+            jinx_oracle_name_is(name, "ltrim");
+        int trim_right =
+            jinx_oracle_name_is(name, "trim") ||
+            jinx_oracle_name_is(name, "rtrim") ||
+            jinx_oracle_name_is(name, "chop");
+
+        ret = jinx_oracle_string_trim_default(arg0, trim_left, trim_right);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
     if (jinx_oracle_name_is(name, "ucwords")) {
         ret = jinx_oracle_ucwords_value(arg0, arg1, argc);
         jinx_oracle_return(ctx, ret);
