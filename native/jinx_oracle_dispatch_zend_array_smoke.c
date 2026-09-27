@@ -1109,6 +1109,78 @@ int main(void) {
     jinx_oracle_zend_array_value_release(args[1]);
     args[1] = jinx_oracle_zero_value();
 
+    JinxZendArray *query_data = jinx_zend_array_new_packed(6);
+    JinxZendArray *query_user = jinx_zend_array_new_packed(2);
+    JinxZendString *query_bar = jinx_zend_string_new("bar", 3);
+    JinxZendString *query_php = jinx_zend_string_new("hypertext processor", 19);
+    JinxZendString *query_ceo = jinx_zend_string_new("CEO", 3);
+    JinxZendString *query_bob = jinx_zend_string_new("Bob Smith", 9);
+    if (query_data == 0 || query_user == 0 || query_bar == 0 || query_php == 0 ||
+        query_ceo == 0 || query_bob == 0 ||
+        !jinx_zend_array_add_assoc(query_data, "foo", 3, jinx_zend_string_value(query_bar)) ||
+        !jinx_zend_array_add_assoc(query_data, "php", 3, jinx_zend_string_value(query_php)) ||
+        !jinx_zend_array_add_assoc(query_data, "null", 4, jinx_zend_null()) ||
+        !jinx_zend_array_add_index(query_data, 0, jinx_zend_string_value(query_ceo)) ||
+        !jinx_zend_array_add_assoc(query_user, "name", 4, jinx_zend_string_value(query_bob)) ||
+        !jinx_zend_array_add_assoc(query_user, "age", 3, jinx_zend_long(47)) ||
+        !jinx_zend_array_add_assoc(query_data, "user", 4, jinx_zend_array_value(query_user))) {
+        return fail("http_build_query source");
+    }
+    jinx_zend_string_release(query_bar);
+    jinx_zend_string_release(query_php);
+    jinx_zend_string_release(query_ceo);
+    jinx_zend_string_release(query_bob);
+    jinx_zend_array_release(query_user);
+
+    args[0] = jinx_oracle_zend_array_value_borrowed(query_data);
+    args[1] = jinx_oracle_string_value("flags_");
+    args[2] = jinx_oracle_string_value("&");
+    args[3] = jinx_oracle_int_value(1);
+    result = jinx_call_builtin_through_oracle("http_build_query", args, 4);
+    if (!expect_string(
+        result,
+        "foo=bar&php=hypertext+processor&flags_0=CEO&user%5Bname%5D=Bob+Smith&user%5Bage%5D=47"
+    )) return fail("http_build_query RFC1738");
+
+    args[3] = jinx_oracle_int_value(2);
+    result = jinx_call_builtin_through_oracle("http_build_query", args, 4);
+    if (!expect_string(
+        result,
+        "foo=bar&php=hypertext%20processor&flags_0=CEO&user%5Bname%5D=Bob%20Smith&user%5Bage%5D=47"
+    )) return fail("http_build_query RFC3986");
+    jinx_zend_array_release(query_data);
+
+    args[0] = jinx_oracle_string_value(
+        "first=value&arr[]=foo+bar&arr[]=baz&My+Value=Something&nested[x]=1"
+    );
+    args[1] = jinx_oracle_zero_value();
+    result = jinx_call_builtin_through_oracle("parse_str", args, 2);
+    if (result.type != 0u || !jinx_oracle_value_is_zend_array(args[1])) {
+        return fail("parse_str reference result");
+    }
+
+    JinxZendArray *parsed_query = jinx_oracle_zend_array_ptr(args[1]);
+    JinxZendValue *parsed_first = jinx_zend_array_find(parsed_query, "first", 5);
+    JinxZendValue *parsed_arr = jinx_zend_array_find(parsed_query, "arr", 3);
+    JinxZendValue *parsed_mangled = jinx_zend_array_find(parsed_query, "My_Value", 8);
+    JinxZendValue *parsed_nested = jinx_zend_array_find(parsed_query, "nested", 6);
+    if (parsed_first == 0 || parsed_first->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(parsed_first->value.str, "value", 5) ||
+        parsed_arr == 0 || parsed_arr->type != JINX_ZEND_ARRAY ||
+        !expect_string_index(parsed_arr->value.array, 0, "foo bar") ||
+        !expect_string_index(parsed_arr->value.array, 1, "baz") ||
+        parsed_mangled == 0 || parsed_mangled->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(parsed_mangled->value.str, "Something", 9) ||
+        parsed_nested == 0 || parsed_nested->type != JINX_ZEND_ARRAY) {
+        return fail("parse_str values");
+    }
+    JinxZendValue *parsed_x = jinx_zend_array_find(parsed_nested->value.array, "x", 1);
+    if (parsed_x == 0 || parsed_x->type != JINX_ZEND_STRING ||
+        !jinx_zend_string_equals_bytes(parsed_x->value.str, "1", 1)) {
+        return fail("parse_str nested value");
+    }
+    jinx_oracle_zend_array_value_release(args[1]);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
