@@ -2298,6 +2298,104 @@ int main(void) {
     jinx_zend_array_release(rand_source);
     jinx_zend_array_release(shuffle_source);
 
+    JinxValue json_args[4];
+    json_args[0] = jinx_oracle_string_value("{\"name\":\"Ada\",\"nums\":[1,2],\"ok\":true,\"none\":null,\"emoji\":\"\\uD83D\\uDE00\"}");
+    json_args[1] = jinx_oracle_bool_value(1);
+    json_args[2] = jinx_oracle_int_value(512);
+    json_args[3] = jinx_oracle_int_value(0);
+
+    JinxValue json_result = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
+    if (!expect_array_count(json_result, 5)) return fail("json_decode associative object count");
+    JinxZendArray *json_object = jinx_oracle_zend_array_ptr(json_result);
+    JinxZendValue *json_name = jinx_zend_array_find(json_object, "name", 4);
+    JinxZendValue *json_nums = jinx_zend_array_find(json_object, "nums", 4);
+    JinxZendValue *json_ok = jinx_zend_array_find(json_object, "ok", 2);
+    JinxZendValue *json_none = jinx_zend_array_find(json_object, "none", 4);
+    JinxZendValue *json_emoji = jinx_zend_array_find(json_object, "emoji", 5);
+    if (json_name == 0 || json_name->type != JINX_ZEND_STRING ||
+        json_name->value.str == 0 || json_name->value.str->len != 3u ||
+        memcmp(json_name->value.str->bytes, "Ada", 3u) != 0 ||
+        json_nums == 0 || json_nums->type != JINX_ZEND_ARRAY ||
+        json_nums->value.array == 0 ||
+        jinx_zend_array_live_count(json_nums->value.array) != 2u ||
+        jinx_zend_array_index(json_nums->value.array, 0u) == 0 ||
+        jinx_zend_array_index(json_nums->value.array, 1u) == 0 ||
+        jinx_zend_array_index(json_nums->value.array, 0u)->type != JINX_ZEND_LONG ||
+        jinx_zend_array_index(json_nums->value.array, 1u)->type != JINX_ZEND_LONG ||
+        jinx_zend_array_index(json_nums->value.array, 0u)->value.lval != 1 ||
+        jinx_zend_array_index(json_nums->value.array, 1u)->value.lval != 2 ||
+        json_ok == 0 || json_ok->type != JINX_ZEND_TRUE ||
+        json_none == 0 || json_none->type != JINX_ZEND_NULL ||
+        json_emoji == 0 || json_emoji->type != JINX_ZEND_STRING ||
+        json_emoji->value.str == 0 || json_emoji->value.str->len != 4u ||
+        memcmp(json_emoji->value.str->bytes, "\xF0\x9F\x98\x80", 4u) != 0) {
+        return fail("json_decode associative object values");
+    }
+
+    json_args[0] = jinx_oracle_string_value("{\"n\":9223372036854775808}");
+    json_args[3] = jinx_oracle_int_value(2);
+    JinxValue json_big_result = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
+    if (!expect_array_count(json_big_result, 1)) return fail("json_decode bigint object count");
+    JinxZendArray *json_big_object = jinx_oracle_zend_array_ptr(json_big_result);
+    JinxZendValue *json_big = jinx_zend_array_find(json_big_object, "n", 1);
+    if (json_big == 0 || json_big->type != JINX_ZEND_STRING ||
+        json_big->value.str == 0 || json_big->value.str->len != 19u ||
+        memcmp(json_big->value.str->bytes, "9223372036854775808", 19u) != 0) {
+        return fail("json_decode JSON_BIGINT_AS_STRING");
+    }
+
+    json_args[0] = jinx_oracle_string_value("{\"a\":1,}");
+    json_args[3] = jinx_oracle_int_value(0);
+    JinxValue json_invalid = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
+    if (json_invalid.type != 0u) return fail("json_decode syntax failure return");
+
+    JinxValue json_syntax_code = jinx_call_builtin_through_oracle("json_last_error", json_args, 0);
+    JinxValue json_syntax_msg = jinx_call_builtin_through_oracle("json_last_error_msg", json_args, 0);
+    if (!expect_int(json_syntax_code, 4) ||
+        json_syntax_msg.type != 3u ||
+        json_syntax_msg.flags != 12u ||
+        memcmp(json_syntax_msg.as.ptr, "Syntax error", 12u) != 0) {
+        return fail("json_decode syntax error state");
+    }
+
+    json_args[0] = jinx_oracle_string_value("{\"a\":1}");
+    JinxValue json_valid = jinx_call_builtin_through_oracle("json_decode", json_args, 4);
+    if (!expect_array_count(json_valid, 1)) return fail("json_decode valid reset object");
+    jinx_oracle_zend_array_value_release(json_valid);
+
+    JinxValue json_valid_code = jinx_call_builtin_through_oracle("json_last_error", json_args, 0);
+    JinxValue json_valid_msg = jinx_call_builtin_through_oracle("json_last_error_msg", json_args, 0);
+    if (!expect_int(json_valid_code, 0) ||
+        json_valid_msg.type != 3u ||
+        json_valid_msg.flags != 8u ||
+        memcmp(json_valid_msg.as.ptr, "No error", 8u) != 0) {
+        return fail("json_decode valid error reset");
+    }
+
+    printf(
+        "JSON_PARITY:name=%.*s;nums=%lld,%lld;ok=1;none=null;"
+        "emoji=%02x%02x%02x%02x;bigint=%.*s;syntax=%lld|%.*s;valid=%lld|%.*s\\n",
+        (int)json_name->value.str->len,
+        json_name->value.str->bytes,
+        (long long)jinx_zend_array_index(json_nums->value.array, 0u)->value.lval,
+        (long long)jinx_zend_array_index(json_nums->value.array, 1u)->value.lval,
+        (unsigned int)(unsigned char)json_emoji->value.str->bytes[0],
+        (unsigned int)(unsigned char)json_emoji->value.str->bytes[1],
+        (unsigned int)(unsigned char)json_emoji->value.str->bytes[2],
+        (unsigned int)(unsigned char)json_emoji->value.str->bytes[3],
+        (int)json_big->value.str->len,
+        json_big->value.str->bytes,
+        (long long)json_syntax_code.as.i64,
+        (int)json_syntax_msg.flags,
+        (const char *)json_syntax_msg.as.ptr,
+        (long long)json_valid_code.as.i64,
+        (int)json_valid_msg.flags,
+        (const char *)json_valid_msg.as.ptr
+    );
+
+    jinx_oracle_zend_array_value_release(json_result);
+    jinx_oracle_zend_array_value_release(json_big_result);
+
     jinx_zend_array_release(count_source);
     jinx_zend_array_release(value_array);
     jinx_zend_array_release(key_array);
