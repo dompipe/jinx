@@ -76,7 +76,8 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "ksort") == 0 ||
         strcmp(name, "krsort") == 0 ||
         strcmp(name, "natsort") == 0 ||
-        strcmp(name, "natcasesort") == 0
+        strcmp(name, "natcasesort") == 0 ||
+        strcmp(name, "array_multisort") == 0
     );
 }
 
