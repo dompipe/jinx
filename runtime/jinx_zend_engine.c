@@ -429,6 +429,72 @@ int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_
     return 1;
 }
 
+int jinx_zend_array_numeric_string_key(const char *key, size_t key_len, int64_t *index) {
+    const unsigned char *bytes = (const unsigned char *)key;
+    size_t pos = 0u;
+    int negative = 0;
+    uint64_t value = 0u;
+    uint64_t limit;
+
+    if (key == 0 || key_len == 0u || index == 0) {
+        return 0;
+    }
+
+    if (bytes[0] == (unsigned char)'-') {
+        negative = 1;
+        pos = 1u;
+        if (pos == key_len) {
+            return 0;
+        }
+    } else if (bytes[0] == (unsigned char)'+') {
+        return 0;
+    }
+
+    if (bytes[pos] < (unsigned char)'0' || bytes[pos] > (unsigned char)'9') {
+        return 0;
+    }
+
+    /* Zend does not convert decimal strings with leading zeroes, including "-0". */
+    if (bytes[pos] == (unsigned char)'0' && key_len > 1u) {
+        return 0;
+    }
+
+    limit = negative ? ((uint64_t)INT64_MAX + 1u) : (uint64_t)INT64_MAX;
+
+    for (; pos < key_len; pos++) {
+        unsigned char ch = bytes[pos];
+        uint64_t digit;
+
+        if (ch < (unsigned char)'0' || ch > (unsigned char)'9') {
+            return 0;
+        }
+
+        digit = (uint64_t)(ch - (unsigned char)'0');
+        if (value > (limit - digit) / 10u) {
+            return 0;
+        }
+        value = value * 10u + digit;
+    }
+
+    if (negative) {
+        *index = value == (uint64_t)INT64_MAX + 1u ? INT64_MIN : -(int64_t)value;
+    } else {
+        *index = (int64_t)value;
+    }
+
+    return 1;
+}
+
+int jinx_zend_array_add_symtable(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value) {
+    int64_t index;
+
+    if (jinx_zend_array_numeric_string_key(key, key_len, &index)) {
+        return jinx_zend_array_add_index(array, (size_t)index, value);
+    }
+
+    return jinx_zend_array_add_assoc(array, key, key_len, value);
+}
+
 int jinx_zend_array_add_assoc_separate(JinxZendArray **slot, const char *key, size_t key_len, JinxZendValue value) {
     JinxZendArray *array = jinx_zend_array_separate(slot);
     if (array == 0) {
