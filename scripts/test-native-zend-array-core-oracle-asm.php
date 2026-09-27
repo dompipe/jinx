@@ -194,6 +194,18 @@ $uintersectAssocNamed = array_uintersect_assoc($cmpA, $cmpB, 'strcmp');
 $uintersectUassocNamed = array_uintersect_uassoc($cmpA, $cmpB, 'strcmp', 'strcmp');
 $uintersectThreeNamed = array_uintersect($cmpA, $cmpB, $cmpC, 'strcmp');
 
+$walkValues = ['string' => 42, 'integer' => '7', 'boolean' => 0];
+array_walk($walkValues, 'settype');
+
+$walkRecursiveValues = [
+    'nested' => ['string' => 9, 'integer' => '8'],
+    'boolean' => 1,
+];
+array_walk_recursive($walkRecursiveValues, 'settype');
+
+$walkUserdataValues = [29 => 2];
+array_walk($walkUserdataValues, 'checkdate', 2024);
+
 $expectedParity = 'PARITY:'
     . 'recursive=' . count([[1, 2], 3], COUNT_RECURSIVE)
     . ';keys_loose=' . implode(',', array_keys($base, '20', false))
@@ -327,7 +339,16 @@ $expectedParity = 'PARITY:'
     . ';iukey=' . $pairs($intersectUkeyNamed)
     . ';uiassoc=' . $pairs($uintersectAssocNamed)
     . ';uiuassoc=' . $pairs($uintersectUassocNamed)
-    . ';uinter3=' . $pairs($uintersectThreeNamed);
+    . ';uinter3=' . $pairs($uintersectThreeNamed)
+    . ';walk='
+        . $walkValues['string'] . '|'
+        . $walkValues['integer'] . '|'
+        . ($walkValues['boolean'] ? 'true' : 'false')
+    . ';walkrec='
+        . $walkRecursiveValues['nested']['string'] . '|'
+        . $walkRecursiveValues['nested']['integer'] . '|'
+        . ($walkRecursiveValues['boolean'] ? 'true' : 'false')
+    . ';walkdata=' . $walkUserdataValues[29];
 
 if (!str_contains($text, $expectedParity)) {
     fwrite(STDERR, "FAIL: PHP-vs-JINX Zend-array parity mismatch\nPHP: {$expectedParity}\nJINX:\n{$text}\n");
