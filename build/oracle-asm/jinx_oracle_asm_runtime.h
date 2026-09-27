@@ -6492,6 +6492,24 @@ enum {
 
 static int jinx_oracle_json_error_code = JINX_JSON_ERROR_NONE;
 
+static inline const char *jinx_oracle_json_error_message(int error_code) {
+    switch (error_code) {
+        case JINX_JSON_ERROR_NONE: return "No error";
+        case JINX_JSON_ERROR_DEPTH: return "Maximum stack depth exceeded";
+        case JINX_JSON_ERROR_STATE_MISMATCH: return "State mismatch (invalid or malformed JSON)";
+        case JINX_JSON_ERROR_CTRL_CHAR: return "Control character error, possibly incorrectly encoded";
+        case JINX_JSON_ERROR_SYNTAX: return "Syntax error";
+        case JINX_JSON_ERROR_UTF8: return "Malformed UTF-8 characters, possibly incorrectly encoded";
+        case JINX_JSON_ERROR_RECURSION: return "Recursion detected";
+        case JINX_JSON_ERROR_INF_OR_NAN: return "Inf and NaN cannot be JSON encoded";
+        case JINX_JSON_ERROR_UNSUPPORTED_TYPE: return "Type is not supported";
+        case JINX_JSON_ERROR_INVALID_PROPERTY_NAME: return "The decoded property name is invalid";
+        case JINX_JSON_ERROR_UTF16: return "Single unpaired UTF-16 surrogate in unicode escape";
+        case JINX_JSON_ERROR_NON_BACKED_ENUM: return "Non-backed enums have no default serialization";
+        default: return "Unknown error";
+    }
+}
+
 typedef struct JinxOracleJsonValidator {
     const unsigned char *bytes;
     uint32_t len;
@@ -6875,6 +6893,18 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_is(name, "json_last_error")) {
+        ret = jinx_oracle_int_value((int64_t)jinx_oracle_json_error_code);
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "json_last_error_msg")) {
+        ret = jinx_oracle_string_value(jinx_oracle_json_error_message(jinx_oracle_json_error_code));
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (jinx_oracle_name_is(name, "json_validate")) {
         int64_t depth = argc >= 2u ? jinx_oracle_intish(arg1) : 512;
