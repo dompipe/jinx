@@ -1396,6 +1396,195 @@ fail:
 }
 
 
+
+static inline int jinx_oracle_hebrev_is_hebrew(unsigned char ch) {
+    return ch >= 224u && ch <= 250u;
+}
+
+static inline int jinx_oracle_hebrev_is_blank(unsigned char ch) {
+    return ch == (unsigned char)' ' || ch == (unsigned char)'\t';
+}
+
+static inline int jinx_oracle_hebrev_is_newline(unsigned char ch) {
+    return ch == (unsigned char)'\n' || ch == (unsigned char)'\r';
+}
+
+static inline char jinx_oracle_hebrev_mirror_punctuation(char ch) {
+    switch (ch) {
+        case '(': return ')';
+        case ')': return '(';
+        case '[': return ']';
+        case ']': return '[';
+        case '{': return '}';
+        case '}': return '{';
+        case '<': return '>';
+        case '>': return '<';
+        case '\\': return '/';
+        case '/': return '\\';
+        default: return ch;
+    }
+}
+
+static inline JinxValue jinx_oracle_hebrev_value(
+    JinxValue value,
+    JinxValue max_chars_value,
+    uint32_t argc
+) {
+    const unsigned char *input = jinx_oracle_string_bytes(value);
+    uint32_t len = jinx_oracle_string_len(value);
+    int64_t max_chars = argc >= 2u ? jinx_oracle_intish(max_chars_value) : 0;
+
+    if (len == 0u) {
+        return jinx_oracle_string_value_len("", 0u);
+    }
+
+    char *source = (char *)malloc((size_t)len + 1u);
+    char *hebrew = (char *)malloc((size_t)len + 1u);
+    char *broken = (char *)malloc((size_t)len + 1u);
+    if (source == NULL || hebrew == NULL || broken == NULL) {
+        free(source);
+        free(hebrew);
+        free(broken);
+        return jinx_oracle_zero_value();
+    }
+
+    memcpy(source, input, len);
+    source[len] = '\0';
+
+    const char *tmp = source;
+    size_t block_start = 0u;
+    size_t block_end = 0u;
+    size_t block_type;
+    size_t i;
+
+    char *target = hebrew + len;
+    *target = '\0';
+    target--;
+
+    block_type = jinx_oracle_hebrev_is_hebrew((unsigned char)*tmp) ? 2u : 1u;
+
+    do {
+        if (block_type == 2u) {
+            while ((jinx_oracle_hebrev_is_hebrew((unsigned char)tmp[1]) ||
+                    jinx_oracle_hebrev_is_blank((unsigned char)tmp[1]) ||
+                    ispunct((unsigned char)tmp[1]) ||
+                    tmp[1] == '\n') &&
+                   block_end < (size_t)len - 1u) {
+                tmp++;
+                block_end++;
+            }
+
+            for (i = block_start + 1u; i <= block_end + 1u; i++) {
+                *target = jinx_oracle_hebrev_mirror_punctuation(source[i - 1u]);
+                target--;
+            }
+            block_type = 1u;
+        } else {
+            while (!jinx_oracle_hebrev_is_hebrew((unsigned char)tmp[1]) &&
+                   tmp[1] != '\n' &&
+                   block_end < (size_t)len - 1u) {
+                tmp++;
+                block_end++;
+            }
+
+            while ((jinx_oracle_hebrev_is_blank((unsigned char)*tmp) ||
+                    ispunct((unsigned char)*tmp)) &&
+                   *tmp != '/' && *tmp != '-' &&
+                   block_end > block_start) {
+                tmp--;
+                block_end--;
+            }
+
+            for (i = block_end + 1u; i >= block_start + 1u; i--) {
+                *target = source[i - 1u];
+                target--;
+            }
+            block_type = 2u;
+        }
+
+        block_start = block_end + 1u;
+    } while (block_end < (size_t)len - 1u);
+
+    size_t begin = (size_t)len - 1u;
+    size_t end = begin;
+    char *write = broken;
+
+    while (1) {
+        int64_t char_count = 0;
+
+        while ((!max_chars || (max_chars > 0 && char_count < max_chars)) && begin > 0u) {
+            char_count++;
+            begin--;
+
+            if (jinx_oracle_hebrev_is_newline((unsigned char)hebrew[begin])) {
+                while (begin > 0u &&
+                       jinx_oracle_hebrev_is_newline((unsigned char)hebrew[begin - 1u])) {
+                    begin--;
+                    char_count++;
+                }
+                break;
+            }
+        }
+
+        if (max_chars >= 0 && char_count == max_chars) {
+            size_t new_char_count = (size_t)char_count;
+            size_t new_begin = begin;
+
+            while (new_char_count > 0u) {
+                if (jinx_oracle_hebrev_is_blank((unsigned char)hebrew[new_begin]) ||
+                    jinx_oracle_hebrev_is_newline((unsigned char)hebrew[new_begin])) {
+                    break;
+                }
+                new_begin++;
+                new_char_count--;
+            }
+
+            if (new_char_count > 0u) {
+                begin = new_begin;
+            }
+        }
+
+        size_t original_begin = begin;
+
+        if (jinx_oracle_hebrev_is_blank((unsigned char)hebrew[begin])) {
+            hebrew[begin] = '\n';
+        }
+
+        while (begin <= end &&
+               jinx_oracle_hebrev_is_newline((unsigned char)hebrew[begin])) {
+            begin++;
+        }
+
+        for (i = begin; i <= end; i++) {
+            *write++ = hebrew[i];
+        }
+
+        for (i = original_begin;
+             i <= end && jinx_oracle_hebrev_is_newline((unsigned char)hebrew[i]);
+             i++) {
+            *write++ = hebrew[i];
+        }
+
+        begin = original_begin;
+        if (begin == 0u) {
+            *write = '\0';
+            break;
+        }
+
+        begin--;
+        end = begin;
+    }
+
+    uint32_t out_len = (uint32_t)(write - broken);
+    char *out = jinx_oracle_scratch_string(out_len);
+    if (out_len != 0u) memcpy(out, broken, out_len);
+
+    free(source);
+    free(hebrew);
+    free(broken);
+    return jinx_oracle_string_value_len(out, out_len);
+}
+
 static inline JinxValue jinx_oracle_wordwrap_value(
     JinxValue text_value,
     JinxValue width_value,
@@ -4459,6 +4648,16 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         if (!format_ok) {
             ctx->fault = "sprintf format/argument error";
             return jinx_oracle_zero_value();
+        }
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "hebrev")) {
+        ret = jinx_oracle_hebrev_value(arg0, arg1, argc);
+        if (ret.type == 0u) {
+            ctx->fault = "hebrev native allocation failed";
+            return ret;
         }
         jinx_oracle_return(ctx, ret);
         return ret;
