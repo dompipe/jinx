@@ -94,8 +94,8 @@ function sampleArgs(string $name): array
     if ($name === 'array_chunk') return ['za:sample', 'i:2'];
     if ($name === 'array_rand') return ['za:sample', 'i:1'];
     if ($name === 'array_multisort') return ['za:sample'];
-    if (in_array($name, ['array_walk', 'array_walk_recursive'], true)) return ['za:sample', 's:abs'];
-    if (in_array($name, ['usort', 'uasort', 'uksort'], true)) return ['za:sample', 's:strcmp'];
+    if (in_array($name, ['array_walk', 'array_walk_recursive'], true)) return ['za:walk', 's:settype'];
+    if (in_array($name, ['usort', 'uasort', 'uksort'], true)) return ['za:strings', 's:strcmp'];
     if (in_array($name, ['sort', 'rsort', 'asort', 'arsort', 'ksort', 'krsort', 'natsort', 'natcasesort', 'shuffle'], true)) {
         return ['za:sample'];
     }
