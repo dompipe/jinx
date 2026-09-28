@@ -218,6 +218,17 @@ function sampleArgs(string $name): array
     if ($name === 'hash_hkdf') return ['s:sha256', 's:key', 'i:16', 's:info', 's:salt'];
     if ($name === 'hash_pbkdf2') return ['s:sha256', 's:password', 's:salt', 'i:1000', 'i:32', 'b:false'];
 
+    if ($name === 'finfo_open') return [];
+    if ($name === 'finfo_buffer') return ['finfo:default', 's:hello'];
+    if ($name === 'finfo_file') return ['finfo:default', 's:README.md'];
+    if ($name === 'finfo_set_flags') return ['finfo:default', 'i:0'];
+    if ($name === 'finfo_close') return ['finfo:default'];
+    if ($name === 'getimagesizefromstring') {
+        return ['h:89504e470d0a1a0a0000000d4948445200000001000000010806'];
+    }
+    if ($name === 'getimagesize' || $name === 'exif_imagetype') return ['s:README.md'];
+    if ($name === 'exif_tagname') return ['i:274'];
+
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
