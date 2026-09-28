@@ -1951,7 +1951,9 @@ JinxValue jinx_oracle_extended_builtin(
     if (strcmp(name, "chdir") == 0 ||
         strcmp(name, "chmod") == 0 ||
         strcmp(name, "chown") == 0 ||
+        strcmp(name, "lchown") == 0 ||
         strcmp(name, "chgrp") == 0 ||
+        strcmp(name, "lchgrp") == 0 ||
         strcmp(name, "file_exists") == 0 ||
         strcmp(name, "fileatime") == 0 ||
         strcmp(name, "filectime") == 0 ||
@@ -1982,7 +1984,7 @@ JinxValue jinx_oracle_extended_builtin(
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
         }
-        if (strcmp(name, "chown") == 0) {
+        if (strcmp(name, "chown") == 0 || strcmp(name, "lchown") == 0) {
             uid_t uid;
             if (argc < 2u) { free(path); return result; }
             if (args[1].type == 1u) {
@@ -1994,12 +1996,14 @@ JinxValue jinx_oracle_extended_builtin(
                 if (pw == NULL) { free(path); if (handled != NULL) *handled = 1; return jinx_oracle_bool_value(0); }
                 uid = pw->pw_uid;
             } else { free(path); return result; }
-            ok = chown(path, uid, (gid_t)-1) == 0;
+            ok = (strcmp(name, "lchown") == 0
+                ? lchown(path, uid, (gid_t)-1)
+                : chown(path, uid, (gid_t)-1)) == 0;
             free(path);
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
         }
-        if (strcmp(name, "chgrp") == 0) {
+        if (strcmp(name, "chgrp") == 0 || strcmp(name, "lchgrp") == 0) {
             gid_t gid;
             if (argc < 2u) { free(path); return result; }
             if (args[1].type == 1u) {
@@ -2011,7 +2015,9 @@ JinxValue jinx_oracle_extended_builtin(
                 if (gr == NULL) { free(path); if (handled != NULL) *handled = 1; return jinx_oracle_bool_value(0); }
                 gid = gr->gr_gid;
             } else { free(path); return result; }
-            ok = chown(path, (uid_t)-1, gid) == 0;
+            ok = (strcmp(name, "lchgrp") == 0
+                ? lchown(path, (uid_t)-1, gid)
+                : chown(path, (uid_t)-1, gid)) == 0;
             free(path);
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
