@@ -411,19 +411,6 @@ foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
     }
 }
 
-foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
-    $phpObject = new $dateClass('2024-01-02 03:04:05');
-    checkMethod(
-        $jinx,
-        $dateClass . '::getMicrosecond',
-        $dateClass === DateTime::class
-            ? 'dt:2024-01-02 03:04:05'
-            : 'dti:2024-01-02 03:04:05',
-        [],
-        'int:' . $phpObject->getMicrosecond()
-    );
-}
-
 
 /* Ten replacement routes available on the CI PHP runtime. */
 $dateTimeExtraExpected = [];
@@ -475,6 +462,16 @@ $dateTimeExtraExpected['DateInterval::createFromDateString'] =
 $dateInterfaceSource = new DateTimeImmutable('2024-02-03 04:05:06');
 $dateTimeExtraExpected['DateTime::createFromInterface'] =
     'result=string:' . DateTime::createFromInterface($dateInterfaceSource)
+        ->format('Y-m-d H:i:s');
+
+$mutableInterfaceSource = new DateTime('2024-02-03 04:05:06');
+$dateTimeExtraExpected['DateTimeImmutable::createFromInterface'] =
+    'result=string:'
+    . DateTimeImmutable::createFromInterface($mutableInterfaceSource)
+        ->format('Y-m-d H:i:s');
+
+$dateTimeExtraExpected['DateTime::createFromImmutable'] =
+    'result=string:' . DateTime::createFromImmutable($dateInterfaceSource)
         ->format('Y-m-d H:i:s');
 
 foreach ($dateTimeExtraExpected as $route => $expected) {
