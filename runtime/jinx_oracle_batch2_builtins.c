@@ -2,10 +2,12 @@
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fnmatch.h>
 #include <grp.h>
 #include <libintl.h>
+#include <limits.h>
 #include <locale.h>
 #include <netdb.h>
 #include <pwd.h>
