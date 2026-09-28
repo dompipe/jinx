@@ -1580,6 +1580,19 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
 
 /* ---------------- main extended builtin dispatcher ---------------- */
 
+JinxValue jinx_oracle_extended_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+) {
+    if (handled != NULL) *handled = 0;
+    return jinx_oracle_batch2_builtin_with_context(
+        ctx, name, args, argc, handled
+    );
+}
+
 JinxValue jinx_oracle_extended_builtin(
     const char *name,
     JinxValue *args,
