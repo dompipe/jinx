@@ -501,9 +501,16 @@ static inline uint64_t jinx_oracle_zend_unsigned_distance(int64_t high, int64_t 
 static inline JinxValue jinx_oracle_zend_range_special(const JinxValue *args, size_t argc) {
     if (argc < 2u) return jinx_oracle_zero_value();
 
-    int64_t start = jinx_oracle_intish(args[0]);
-    int64_t end = jinx_oracle_intish(args[1]);
-    int64_t signed_step = argc >= 3u ? jinx_oracle_intish(args[2]) : 1;
+    /* Exact native subset for now: integer boundaries and integer step.
+     * String-byte and floating ranges need their own PHP-accurate paths. */
+    if (args[0].type != 1u || args[1].type != 1u ||
+        (argc >= 3u && args[2].type != 1u)) {
+        return jinx_oracle_zero_value();
+    }
+
+    int64_t start = args[0].as.i64;
+    int64_t end = args[1].as.i64;
+    int64_t signed_step = argc >= 3u ? args[2].as.i64 : 1;
     int step_negative = signed_step < 0;
     uint64_t step;
 
@@ -525,8 +532,6 @@ static inline JinxValue jinx_oracle_zend_range_special(const JinxValue *args, si
     uint64_t distance = start < end
         ? jinx_oracle_zend_unsigned_distance(end, start)
         : jinx_oracle_zend_unsigned_distance(start, end);
-
-    if (step > distance) return jinx_oracle_zero_value();
 
     uint64_t count = distance / step + 1u;
     if (count > UINT32_MAX) return jinx_oracle_zero_value();
