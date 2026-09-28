@@ -38,6 +38,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
     printf("  %s oracle-strtok-smoke\n", argv0);
+    printf("  %s oracle-strptime-smoke\n", argv0);
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
@@ -1717,6 +1718,62 @@ static int command_oracle_posix_state_smoke(void) {
     return 0;
 }
 
+
+static int command_oracle_strptime_smoke(void) {
+    static const char *keys[] = {
+        "tm_sec", "tm_min", "tm_hour", "tm_mday",
+        "tm_mon", "tm_year", "tm_wday", "tm_yday"
+    };
+    JinxValue args[2];
+    JinxValue result;
+    JinxZendArray *array;
+    JinxZendValue *slot;
+    int ok = 0;
+
+    args[0] = jinx_value_string(
+        "2024-03-05 14:07:09 extra",
+        (uint32_t)strlen("2024-03-05 14:07:09 extra")
+    );
+    args[1] = jinx_value_string(
+        "%Y-%m-%d %H:%M:%S",
+        (uint32_t)strlen("%Y-%m-%d %H:%M:%S")
+    );
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "strptime", args, 2u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("strptime did not return a Zend array");
+    }
+
+    array = jinx_oracle_zend_array_ptr(result);
+    if (array == NULL || jinx_zend_array_live_count(array) != 9u) {
+        release_cli_value(result);
+        return fail("strptime returned the wrong field count");
+    }
+
+    for (size_t i = 0u; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        slot = jinx_zend_array_find(array, keys[i], strlen(keys[i]));
+        if (slot == NULL || slot->type != JINX_ZEND_LONG) {
+            release_cli_value(result);
+            return fail("strptime integer field missing");
+        }
+        printf("%s=int:%lld\n", keys[i], (long long)slot->value.lval);
+    }
+
+    slot = jinx_zend_array_find(array, "unparsed", 8u);
+    if (slot == NULL || slot->type != JINX_ZEND_STRING ||
+        slot->value.str == NULL) {
+        release_cli_value(result);
+        return fail("strptime unparsed field missing");
+    }
+    printf("unparsed=string:%s\n", slot->value.str->bytes);
+
+    release_cli_value(result);
+    return 0;
+}
+
 static int command_oracle_script_context_smoke(
     int argc,
     char **argv
@@ -2042,6 +2099,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-strtok-smoke") == 0) {
         return command_oracle_strtok_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-strptime-smoke") == 0) {
+        return command_oracle_strptime_smoke();
     }
 
     if (strcmp(argv[1], "oracle-script-context-smoke") == 0) {
