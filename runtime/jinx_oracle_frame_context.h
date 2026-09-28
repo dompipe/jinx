@@ -5,5 +5,7 @@
 
 void jinx_oracle_set_caller_frame(JinxZendCallFrame *frame);
 JinxZendCallFrame *jinx_oracle_get_caller_frame(void);
+void jinx_oracle_set_executor(JinxZendExecutor *executor);
+JinxZendExecutor *jinx_oracle_get_executor(void);
 
 #endif
