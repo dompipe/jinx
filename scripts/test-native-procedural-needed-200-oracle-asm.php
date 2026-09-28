@@ -532,6 +532,10 @@ if ($code === 0 && !str_starts_with($hashProbe, 'null/fault:')) {
     if ($hashProbe !== 'string:' . hash('sha256', 'abc')) {
         fail200("hash sha256 parity mismatch\nPHP: " . hash('sha256', 'abc') . "\nJINX: {$hashProbe}");
     }
+    expect200($jinx, 'md5', ['s:abc'], 'string:' . md5('abc'));
+    expect200($jinx, 'sha1', ['s:abc'], 'string:' . sha1('abc'));
+    expect200($jinx, 'md5_file', ['s:' . $root . '/README.md'], 'string:' . md5_file($root . '/README.md'));
+    expect200($jinx, 'sha1_file', ['s:' . $root . '/README.md'], 'string:' . sha1_file($root . '/README.md'));
     expect200($jinx, 'hash_hmac', ['s:sha256', 's:data', 's:key'], 'string:' . hash_hmac('sha256', 'data', 'key'));
     expect200(
         $jinx,
