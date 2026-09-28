@@ -67,4 +67,58 @@ checkMethod(
     'string:' . $phpImmutable->format('H:i:s')
 );
 
-echo "PASS: native Oracle method receiver preserves DateTime format parity per method\n";
+checkMethod(
+    $jinx,
+    'DateTime::getTimestamp',
+    'dt:2024-01-02 03:04:05',
+    [],
+    'int:' . $phpDate->getTimestamp()
+);
+checkMethod(
+    $jinx,
+    'DateTimeImmutable::getTimestamp',
+    'dti:2024-01-02 03:04:05',
+    [],
+    'int:' . $phpImmutable->getTimestamp()
+);
+checkMethod(
+    $jinx,
+    'DateTime::getOffset',
+    'dt:2024-01-02 03:04:05',
+    [],
+    'int:' . $phpDate->getOffset()
+);
+checkMethod(
+    $jinx,
+    'DateTimeImmutable::getOffset',
+    'dti:2024-01-02 03:04:05',
+    [],
+    'int:' . $phpImmutable->getOffset()
+);
+
+$phpZone = new DateTimeZone('UTC');
+checkMethod(
+    $jinx,
+    'DateTimeZone::getName',
+    'tz:UTC',
+    [],
+    'string:' . $phpZone->getName()
+);
+checkMethod(
+    $jinx,
+    'DateTimeZone::getOffset',
+    'tz:UTC',
+    ['dt:2024-01-02 03:04:05'],
+    'int:' . $phpZone->getOffset($phpDate)
+);
+
+$phpInterval = new DateInterval('P1Y2M3DT4H5M6S');
+checkMethod(
+    $jinx,
+    'DateInterval::format',
+    'di:P1Y2M3DT4H5M6S',
+    ['s:%Y-%M-%D %H:%I:%S'],
+    'string:' . $phpInterval->format('%Y-%M-%D %H:%I:%S')
+);
+
+echo "PASS: native Oracle method receiver preserves DateTime scalar parity per method\n";
