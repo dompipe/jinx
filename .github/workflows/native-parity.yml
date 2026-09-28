@@ -1,0 +1,23 @@
+name: Native PHP parity
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  native-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential php-cli zlib1g-dev libssl-dev libmagic-dev \
+            libcrypt-dev libresolv-wrapper libcurl4-openssl-dev libexif-dev
+      - name: Build native Jinx
+        run: ./scripts/build-native-jinx.sh
+      - name: Run registered Jinx parity suite
+        run: php scripts/test-bin-jinx.php
