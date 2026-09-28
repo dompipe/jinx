@@ -247,6 +247,9 @@ function sampleArgs(string $name): array
     if ($name === 'assert_options') return ['i:1'];
     if ($name === 'cli_get_process_title') return [];
     if ($name === 'cli_set_process_title') return ['s:jinx'];
+    if ($name === 'dns_get_mx' || $name === 'getmxrr') {
+        return ['s:__jinx_oracle_no_mx__.invalid', 'null', 'null'];
+    }
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
