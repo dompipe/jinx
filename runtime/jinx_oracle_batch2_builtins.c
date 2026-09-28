@@ -1,6 +1,7 @@
 #include "jinx_oracle_batch2_builtins.h"
 #include "jinx_oracle_hash_builtins.h"
 #include "jinx_oracle_finfo_builtins.h"
+#include "jinx_oracle_resource_registry.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -289,6 +290,12 @@ static JinxValue b2_new_dir(DIR *dir) {
         jinx_zend_object_release(object);
         return jinx_oracle_zero_value();
     }
+    if (jinx_oracle_resource_register(resource, "stream") == 0) {
+        closedir(dir);
+        free(resource);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
     return jinx_oracle_zend_object_value_owned(object);
 }
 
@@ -313,6 +320,12 @@ static JinxValue b2_new_stream(FILE *fp) {
         jinx_zend_object_release(object);
         return jinx_oracle_zero_value();
     }
+    if (jinx_oracle_resource_register(stream, "stream") == 0) {
+        fclose(fp);
+        free(stream);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
     return jinx_oracle_zend_object_value_owned(object);
 }
 
@@ -332,6 +345,12 @@ static JinxValue b2_new_gzip(gzFile gz) {
     stream->gz = gz;
     object = jinx_zend_object_new("gzip-stream");
     if (object == NULL || !b2_object_set_resource(object, "__gzip", stream)) {
+        gzclose(gz);
+        free(stream);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    if (jinx_oracle_resource_register(stream, "stream") == 0) {
         gzclose(gz);
         free(stream);
         jinx_zend_object_release(object);
@@ -1673,6 +1692,7 @@ JinxValue jinx_oracle_batch2_builtin(
 
         if (strcmp(name, "gzclose") == 0) {
             int rc = gzclose(stream->gz);
+            jinx_oracle_resource_unregister(stream);
             stream->gz = NULL;
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(rc == Z_OK);
@@ -2440,6 +2460,7 @@ csv_fail:
 
         if (strcmp(name, "closedir") == 0) {
             (void)closedir(resource->dir);
+            jinx_oracle_resource_unregister(resource);
             resource->dir = NULL;
             if (handled != NULL) *handled = 1;
             return jinx_oracle_zero_value();
