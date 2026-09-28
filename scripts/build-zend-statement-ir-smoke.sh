@@ -8,6 +8,7 @@ cc -std=c11 -Wall -Wextra -Werror \
   -I"${ROOT_DIR}/runtime" \
   "${ROOT_DIR}/native/jinx_zend_statement_ir_smoke.c" \
   "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+  "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
   -o "${ROOT_DIR}/build/native/jinx-zend-statement-ir-smoke"
 
 echo "Built ${ROOT_DIR}/build/native/jinx-zend-statement-ir-smoke"

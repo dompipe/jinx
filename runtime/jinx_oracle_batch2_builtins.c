@@ -1823,28 +1823,27 @@ JinxValue jinx_oracle_batch2_builtin(
             who = RUSAGE_CHILDREN;
         }
         if (getrusage(who, &u) != 0) return result;
-        array = jinx_zend_array_new_packed(18u);
+        array = jinx_zend_array_new_packed(17u);
         if (array == NULL) return result;
 #define B2_RUSAGE_ADD(k, v) \
         do { if (!jinx_zend_array_add_assoc(array, k, sizeof(k) - 1u, jinx_zend_long((int64_t)(v)))) { jinx_zend_array_release(array); return result; } } while (0)
-        B2_RUSAGE_ADD("ru_utime.tv_sec", u.ru_utime.tv_sec);
-        B2_RUSAGE_ADD("ru_utime.tv_usec", u.ru_utime.tv_usec);
-        B2_RUSAGE_ADD("ru_stime.tv_sec", u.ru_stime.tv_sec);
-        B2_RUSAGE_ADD("ru_stime.tv_usec", u.ru_stime.tv_usec);
+        B2_RUSAGE_ADD("ru_oublock", u.ru_oublock);
+        B2_RUSAGE_ADD("ru_inblock", u.ru_inblock);
+        B2_RUSAGE_ADD("ru_msgsnd", u.ru_msgsnd);
+        B2_RUSAGE_ADD("ru_msgrcv", u.ru_msgrcv);
         B2_RUSAGE_ADD("ru_maxrss", u.ru_maxrss);
         B2_RUSAGE_ADD("ru_ixrss", u.ru_ixrss);
         B2_RUSAGE_ADD("ru_idrss", u.ru_idrss);
-        B2_RUSAGE_ADD("ru_isrss", u.ru_isrss);
         B2_RUSAGE_ADD("ru_minflt", u.ru_minflt);
         B2_RUSAGE_ADD("ru_majflt", u.ru_majflt);
-        B2_RUSAGE_ADD("ru_nswap", u.ru_nswap);
-        B2_RUSAGE_ADD("ru_inblock", u.ru_inblock);
-        B2_RUSAGE_ADD("ru_oublock", u.ru_oublock);
-        B2_RUSAGE_ADD("ru_msgsnd", u.ru_msgsnd);
-        B2_RUSAGE_ADD("ru_msgrcv", u.ru_msgrcv);
         B2_RUSAGE_ADD("ru_nsignals", u.ru_nsignals);
         B2_RUSAGE_ADD("ru_nvcsw", u.ru_nvcsw);
         B2_RUSAGE_ADD("ru_nivcsw", u.ru_nivcsw);
+        B2_RUSAGE_ADD("ru_nswap", u.ru_nswap);
+        B2_RUSAGE_ADD("ru_utime.tv_usec", u.ru_utime.tv_usec);
+        B2_RUSAGE_ADD("ru_utime.tv_sec", u.ru_utime.tv_sec);
+        B2_RUSAGE_ADD("ru_stime.tv_usec", u.ru_stime.tv_usec);
+        B2_RUSAGE_ADD("ru_stime.tv_sec", u.ru_stime.tv_sec);
 #undef B2_RUSAGE_ADD
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);

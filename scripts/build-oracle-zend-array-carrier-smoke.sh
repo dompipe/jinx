@@ -17,6 +17,7 @@ mkdir -p "$OUT_DIR"
     -I"${ROOT_DIR}/build/oracle-asm" \
     "${ROOT_DIR}/native/jinx_oracle_zend_array_carrier_smoke.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     -o "$OUT"
 
 chmod +x "$OUT"

@@ -18,6 +18,7 @@ mkdir -p "$OUT_DIR"
     -I"${ROOT_DIR}/runtime" \
     "${ROOT_DIR}/native/jinx_zend_smoke.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -28,6 +29,7 @@ mkdir -p "$OUT_DIR"
     -I"${ROOT_DIR}/runtime" \
     "${ROOT_DIR}/native/jinx_zend_array_builtin_smoke.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     -o "$ARRAY_BUILTIN_OUT"
 
 "$CC_BIN" \
@@ -38,6 +40,7 @@ mkdir -p "$OUT_DIR"
     -I"${ROOT_DIR}/runtime" \
     "${ROOT_DIR}/native/jinx_zend_array_delete_smoke.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     -o "$ARRAY_DELETE_OUT"
 
 chmod +x "$OUT" "$ARRAY_BUILTIN_OUT" "$ARRAY_DELETE_OUT"

@@ -88,7 +88,7 @@ $frameSmoke = run200(
 if ($code !== 0 ||
     !str_contains(
         $frameSmoke,
-        'PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract and clears on frame leave'
+        'PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract/debug_backtrace/debug_print_backtrace and clears on frame leave'
     )) {
     fail200("native caller-frame smoke failed\n{$frameSmoke}");
 }

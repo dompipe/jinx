@@ -7,6 +7,7 @@ mkdir -p "$(dirname "$OUT")"
 cc -std=c11 -Wall -Wextra -pedantic \
   "$ROOT/native/jinx_zend_scalar_vm_smoke.c" \
   "$ROOT/runtime/jinx_zend_engine.c" \
+  "$ROOT/runtime/jinx_oracle_frame_context.c" \
   -o "$OUT"
 chmod +x "$OUT"
 echo "Built $OUT"

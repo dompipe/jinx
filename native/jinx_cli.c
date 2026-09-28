@@ -397,13 +397,21 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
 
 static int call_all_function_name(const char *name, JinxValue *out) {
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    uint32_t total_args = 0u;
     int ok = 0;
+
+    if (!jinx_lookup_oracle_arity(name, NULL, &total_args, NULL) ||
+        total_args > JINX_NATIVE_SAMPLE_ARGC) {
+        *out = jinx_value_null();
+        return 0;
+    }
+
     all_function_args(name, args);
 
     *out = jinx_call_builtin_through_oracle_checked(
         name,
         args,
-        JINX_NATIVE_SAMPLE_ARGC,
+        (size_t) total_args,
         &ok
     );
     release_cli_values(args, JINX_NATIVE_SAMPLE_ARGC);
@@ -416,12 +424,20 @@ static int call_first100_name(const char *name, JinxValue *out) {
 
 static int call_oracle_with_samples(const char *name, JinxValue *out) {
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    uint32_t total_args = 0u;
     int ok = 0;
+
+    if (!jinx_lookup_oracle_arity(name, NULL, &total_args, NULL) ||
+        total_args > JINX_NATIVE_SAMPLE_ARGC) {
+        *out = jinx_value_null();
+        return 0;
+    }
+
     all_function_args(name, args);
     *out = jinx_call_builtin_through_oracle_checked(
         name,
         args,
-        JINX_NATIVE_SAMPLE_ARGC,
+        (size_t) total_args,
         &ok
     );
     return ok;

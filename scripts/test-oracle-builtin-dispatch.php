@@ -62,6 +62,7 @@ $cmd = sprintf(
     escapeshellarg($root . '/runtime/jinx_oracle_asm_context.c'),
     escapeshellarg($root . '/runtime/jinx_builtin_dispatch.c'),
     escapeshellarg($root . '/runtime/jinx_zend_engine.c'),
+    escapeshellarg($root . '/runtime/jinx_oracle_frame_context.c'),
     escapeshellarg($binary)
 );
 

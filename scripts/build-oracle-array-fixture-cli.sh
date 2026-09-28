@@ -21,6 +21,7 @@ php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
     -I"${ROOT_DIR}/build/oracle-asm" \
     "${ROOT_DIR}/native/jinx_oracle_array_fixture_cli.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     -lm \

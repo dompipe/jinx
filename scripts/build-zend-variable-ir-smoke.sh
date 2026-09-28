@@ -11,6 +11,7 @@ cc -std=c11 -Wall -Wextra -pedantic \
   -I"$ROOT/runtime" \
   "$ROOT/native/jinx_zend_variable_ir_smoke.c" \
   "$ROOT/runtime/jinx_zend_engine.c" \
+  "$ROOT/runtime/jinx_oracle_frame_context.c" \
   -o "$OUT"
 
 chmod +x "$OUT"
