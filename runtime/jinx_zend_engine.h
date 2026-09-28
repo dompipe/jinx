@@ -103,6 +103,8 @@ typedef struct JinxZendCallFrame {
 typedef struct JinxZendExecutor {
     JinxZendCallFrame *current_frame;
     const char *last_error;
+    const char *last_error_file;
+    uint32_t last_error_line;
     uint32_t error_level;
     uint64_t executed_ops;
 } JinxZendExecutor;
