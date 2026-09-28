@@ -379,6 +379,7 @@ $contextBacked = [
     'compact' => 'frame',
     'extract' => 'frame',
     'debug_backtrace' => 'frame',
+    'debug_print_backtrace' => 'frame',
     'error_get_last' => 'error',
     'error_clear_last' => 'error',
     'get_included_files' => 'script',
