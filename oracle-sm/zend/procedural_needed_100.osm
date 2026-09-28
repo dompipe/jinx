@@ -128,6 +128,14 @@ targets {
   defined
 }
 
+source_coverage {
+  existing_zend_array_backend 38
+  existing_core_oracle_runtime 2
+  new_extended_oracle_backend 60
+  total_targets 100
+  note "source routing only; execution/parity status is owned by scripts/test-native-procedural-needed-100-oracle-asm.php"
+}
+
 batching {
   batch_01 "array callbacks/comparators: array_all through array_walk_recursive, plus call_user_func[_array]"
   batch_02 "array sort/mutation: sort/rsort/asort/arsort/ksort/krsort/nat*sort/u*sort/shuffle"
