@@ -711,6 +711,59 @@ JinxZendArray *jinx_zend_array_keys_builtin(const JinxZendArray *array) {
     return keys;
 }
 
+static char *jinx_zend_strdup_or_null(const char *text) {
+    size_t len;
+    char *copy;
+    if (text == NULL) return NULL;
+    len = strlen(text);
+    copy = (char *)malloc(len + 1u);
+    if (copy == NULL) return NULL;
+    memcpy(copy, text, len + 1u);
+    return copy;
+}
+
+int jinx_zend_executor_set_last_error(
+    JinxZendExecutor *executor,
+    uint32_t error_level,
+    const char *message,
+    const char *file,
+    uint32_t line
+) {
+    char *message_copy;
+    char *file_copy = NULL;
+
+    if (executor == NULL || message == NULL) return 0;
+
+    message_copy = jinx_zend_strdup_or_null(message);
+    if (message_copy == NULL) return 0;
+
+    if (file != NULL) {
+        file_copy = jinx_zend_strdup_or_null(file);
+        if (file_copy == NULL) {
+            free(message_copy);
+            return 0;
+        }
+    }
+
+    free(executor->last_error);
+    free(executor->last_error_file);
+    executor->last_error = message_copy;
+    executor->last_error_file = file_copy;
+    executor->last_error_line = line;
+    executor->error_level = error_level;
+    return 1;
+}
+
+void jinx_zend_executor_clear_last_error(JinxZendExecutor *executor) {
+    if (executor == NULL) return;
+    free(executor->last_error);
+    free(executor->last_error_file);
+    executor->last_error = NULL;
+    executor->last_error_file = NULL;
+    executor->last_error_line = 0u;
+    executor->error_level = 0u;
+}
+
 void jinx_zend_executor_init(JinxZendExecutor *executor) {
     if (executor == 0) {
         return;
