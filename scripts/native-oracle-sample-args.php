@@ -145,6 +145,15 @@ function jinxNativeOracleSampleArgs(string $name): array
     if ($name === 'deflate_init') return ['i:31'];
     if ($name === 'deflate_add') return ['deflate:gzip', 's:hello', 'i:2'];
     if ($name === 'hash_equals') return ['s:abc', 's:abc'];
+    if ($name === 'md5' || $name === 'sha1') return ['s:oracle'];
+    if ($name === 'random_bytes') return ['i:16'];
+    if ($name === 'preg_quote') return ['s:a.b/c', 's:/'];
+    if ($name === 'strptime') return ['s:2024-01-02 03:04:05', 's:%Y-%m-%d %H:%M:%S'];
+    if ($name === 'uniqid') return ['s:jinx', 'b:false'];
+    if ($name === 'openssl_digest') return ['s:oracle', 's:sha256', 'b:false'];
+    if ($name === 'mhash') return ['i:1', 's:oracle'];
+    if ($name === 'mhash_keygen_s2k') return ['i:1', 's:password', 's:salt', 'i:16'];
+
 
     if ($name === 'get_class_methods') return ['obj:ArrayIterator'];
     if ($name === 'filter_list' || $name === 'get_include_path') return [];
