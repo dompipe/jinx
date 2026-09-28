@@ -69,6 +69,18 @@ if (count($targets) !== 200) {
     fail200('expected exactly 200 second-wave targets, got ' . count($targets));
 }
 
+$constantSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-constant-smoke',
+    $code
+);
+if ($code !== 0 ||
+    !str_contains(
+        $constantSmoke,
+        'PASS: native define/defined/constant/get_defined_constants share one runtime registry'
+    )) {
+    fail200("runtime constant registry smoke failed\n{$constantSmoke}");
+}
+
 /* Deterministic metadata/introspection parity. */
 $checks = [
     ['function_exists', ['s:strlen'], 'bool:' . (function_exists('strlen') ? 'true' : 'false')],
