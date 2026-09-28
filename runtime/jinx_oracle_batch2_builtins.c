@@ -2356,31 +2356,6 @@ csv_fail:
         return jinx_oracle_zend_array_value_owned(out);
     }
 
-    if (strcmp(name, "get_resource_id") == 0) {
-        JinxZendObject *object;
-        const char *keys[] = {
-            "__stream", "__gzip", "__finfo", "__hash", "__deflate"
-        };
-        if (args == NULL || argc < 1u ||
-            args[0].type != JINX_ORACLE_VALUE_ZEND_OBJECT) return result;
-        object = jinx_oracle_zend_object_ptr(args[0]);
-        if (object == NULL || object->properties == NULL) return result;
-        for (size_t i = 0u; i < sizeof(keys) / sizeof(keys[0]); i++) {
-            JinxZendValue *slot = jinx_zend_array_find(
-                object->properties, keys[i], strlen(keys[i])
-            );
-            if (slot != NULL && slot->type == JINX_ZEND_RESOURCE &&
-                slot->value.ptr != NULL) {
-                uintptr_t id = (uintptr_t)slot->value.ptr;
-                if (handled != NULL) *handled = 1;
-                return jinx_oracle_int_value(
-                    (int64_t)(id & (uintptr_t)INT64_MAX)
-                );
-            }
-        }
-        return result;
-    }
-
 #ifdef JINX_HAVE_CRYPT
     if (strcmp(name, "crypt") == 0) {
         char *password;
@@ -2401,24 +2376,6 @@ csv_fail:
             : jinx_oracle_bool_value(0);
     }
 #endif
-
-    if (strcmp(name, "hash_algos") == 0) {
-        result = b2_string_list(
-            jinx_native_hash_algos,
-            jinx_native_hash_algos_count
-        );
-        if (result.type != 0u && handled != NULL) *handled = 1;
-        return result;
-    }
-
-    if (strcmp(name, "hash_hmac_algos") == 0) {
-        result = b2_string_list(
-            jinx_native_hash_hmac_algos,
-            jinx_native_hash_hmac_algos_count
-        );
-        if (result.type != 0u && handled != NULL) *handled = 1;
-        return result;
-    }
 
     return result;
 }
