@@ -259,6 +259,55 @@ JinxValue jinx_oracle_hash_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    if (strcmp(name, "md5") == 0 || strcmp(name, "sha1") == 0) {
+        const EVP_MD *md = strcmp(name, "md5") == 0 ? EVP_md5() : EVP_sha1();
+        unsigned char digest[EVP_MAX_MD_SIZE];
+        unsigned int digest_len = 0u;
+        int binary;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (EVP_Digest(
+            jinx_oracle_string_bytes(args[0]),
+            jinx_oracle_string_len(args[0]),
+            digest,
+            &digest_len,
+            md,
+            NULL
+        ) != 1) return result;
+        binary = argc >= 2u && jinx_oracle_boolish(args[1]);
+        if (handled != NULL) *handled = 1;
+        return hash_finish_bytes(digest, digest_len, binary);
+    }
+
+    if (strcmp(name, "md5_file") == 0 || strcmp(name, "sha1_file") == 0) {
+        const EVP_MD *md = strcmp(name, "md5_file") == 0 ? EVP_md5() : EVP_sha1();
+        EVP_MD_CTX *ctx;
+        char *path;
+        unsigned char digest[EVP_MAX_MD_SIZE];
+        unsigned int digest_len = 0u;
+        int binary;
+        int ok;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        path = hash_dup_string(args[0]);
+        if (path == NULL) return result;
+        ctx = EVP_MD_CTX_new();
+        if (ctx == NULL || EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+            EVP_MD_CTX_free(ctx);
+            free(path);
+            return result;
+        }
+        ok = hash_file_into_ctx(ctx, path);
+        free(path);
+        if (!ok || EVP_DigestFinal_ex(ctx, digest, &digest_len) != 1) {
+            EVP_MD_CTX_free(ctx);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        EVP_MD_CTX_free(ctx);
+        binary = argc >= 2u && jinx_oracle_boolish(args[1]);
+        if (handled != NULL) *handled = 1;
+        return hash_finish_bytes(digest, digest_len, binary);
+    }
+
     if (strcmp(name, "hash") == 0) {
         const EVP_MD *md;
         unsigned char digest[EVP_MAX_MD_SIZE];
