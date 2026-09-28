@@ -138,9 +138,7 @@ The native half is timed inside the GCC-built executable, not by launching one
 ./jinx bench-method-call 'DateTime::format' 100000 'dt:2024-01-02 03:04:05' 's:Y-m-d'
 ```
 
-The current parity-proven DateTime formatting methods are included explicitly
-as `method-dispatch` rows while the generated method wiring inventory catches
-up with the new method dispatcher.
+The current parity-proven DateTime/DateTimeImmutable/DateTimeZone/DateInterval scalar methods are included explicitly with receiver fixtures. Their rows combine the reviewed ledger route with `method-dispatch`, and point to `scripts/test-native-method-oracle-asm.php` as the parity proof.
 
 ## Native First-100 Benchmark
 
