@@ -113,7 +113,15 @@ JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --
 JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --route=extended
 JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --name=str
 JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --limit=100
+php scripts/benchmark-native-implemented-functions.php 1000 --no-build --case-timeout=10
 ```
+
+The benchmark prints progress before every implementation. A native case that
+does not return within the per-case timeout is marked `SKIP` and the run
+continues. Slow/network/stateful PHP families are rejected before native timing
+starts, so one DNS, process, filesystem, sleep, or similar route cannot hold the
+entire table open. `--quiet` suppresses progress lines when only the final
+table is wanted.
 
 The benchmark associates each measured row with:
 
