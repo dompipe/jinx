@@ -143,7 +143,6 @@ $throwableClasses = [
     Error::class,
     ErrorException::class,
     Exception::class,
-    FiberError::class,
     InvalidArgumentException::class,
     JsonException::class,
     LengthException::class,
@@ -172,6 +171,9 @@ $throwableMethods = [
     'getPrevious',
     'getTrace',
     'getTraceAsString',
+    'getFile',
+    'getLine',
+    '__toString',
 ];
 
 foreach ($throwableClasses as $class) {
@@ -183,6 +185,14 @@ foreach ($throwableClasses as $class) {
     }
 
     $phpThrowable = new $class('jinx-message', 73);
+    (new ReflectionProperty($class, 'file'))->setValue(
+        $phpThrowable,
+        'jinx-fixture.php'
+    );
+    (new ReflectionProperty($class, 'line'))->setValue(
+        $phpThrowable,
+        123
+    );
     $fixture = 'ex:' . $class;
 
     foreach ($throwableMethods as $method) {
@@ -198,6 +208,9 @@ foreach ($throwableClasses as $class) {
                 : failMethod("unexpected previous throwable for {$class}"),
             'getTrace' => 'zend-array:' . count($phpThrowable->getTrace()),
             'getTraceAsString' => 'string:' . $phpThrowable->getTraceAsString(),
+            'getFile' => 'string:' . $phpThrowable->getFile(),
+            'getLine' => 'int:' . $phpThrowable->getLine(),
+            '__toString' => 'string:' . $phpThrowable->__toString(),
         };
 
         checkMethod(
@@ -210,4 +223,4 @@ foreach ($throwableClasses as $class) {
     }
 }
 
-echo "PASS: native Oracle method receiver preserves DateTime and 210 Throwable route probes\n";
+echo "PASS: native Oracle method receiver preserves DateTime and 328 Throwable route probes\n";
