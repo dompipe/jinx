@@ -36,6 +36,8 @@ $mustFault = [
     ['array_rand', 'za:sample', 'i:0'],
     ['array_fill', 'i:0', 'i:-1', 'i:9'],
     ['count', 'za:sample', 'i:9'],
+    ['count', 'i:7'],
+    ['sizeof', 's:not-an-array'],
 ];
 
 foreach ($mustFault as $case) {
