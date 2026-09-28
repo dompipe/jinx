@@ -237,6 +237,8 @@ if (!mkdir($tmp, 0700, true) && !is_dir($tmp)) {
 
 $source = $tmp . '/source.txt';
 $link = $tmp . '/source-link';
+$nativeSymlink = $tmp . '/native-symlink';
+$nativeHardlink = $tmp . '/native-hardlink';
 $copy = $tmp . '/copy.txt';
 $written = $tmp . '/written.txt';
 file_put_contents($source, "alpha\nbeta\n");
@@ -248,6 +250,8 @@ if (!symlink($source, $link)) {
 
 $typedSource = 's:' . $source;
 $typedLink = 's:' . $link;
+$typedNativeSymlink = 's:' . $nativeSymlink;
+$typedNativeHardlink = 's:' . $nativeHardlink;
 $typedCopy = 's:' . $copy;
 $typedWritten = 's:' . $written;
 
@@ -255,6 +259,13 @@ $fsChecks = [
     ['file_exists', [$typedSource], 'bool:true'],
     ['is_link', [$typedLink], 'bool:' . (is_link($link) ? 'true' : 'false')],
     ['is_link', [$typedSource], 'bool:' . (is_link($source) ? 'true' : 'false')],
+    ['readlink', [$typedLink], 'string:' . readlink($link)],
+    ['linkinfo', [$typedLink], 'int:' . linkinfo($link)],
+    ['symlink', [$typedSource, $typedNativeSymlink], 'bool:true'],
+    ['is_link', [$typedNativeSymlink], 'bool:true'],
+    ['readlink', [$typedNativeSymlink], 'string:' . $source],
+    ['link', [$typedSource, $typedNativeHardlink], 'bool:true'],
+    ['file_exists', [$typedNativeHardlink], 'bool:true'],
     ['is_readable', [$typedSource], 'bool:' . (is_readable($source) ? 'true' : 'false')],
     ['is_writable', [$typedSource], 'bool:' . (is_writable($source) ? 'true' : 'false')],
     ['is_writeable', [$typedSource], 'bool:' . (is_writeable($source) ? 'true' : 'false')],
@@ -287,7 +298,7 @@ $fsChecks = [
 foreach ($fsChecks as [$name, $args, $expected]) {
     $actual = jinx100($jinx, $name, $args, false, $code);
     if ($code !== 0 || $actual !== $expected) {
-        @unlink($link); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+        @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
         fail100("{$name} filesystem parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
     }
 }
