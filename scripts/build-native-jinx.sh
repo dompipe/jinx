@@ -93,6 +93,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_hash_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_finfo_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_resource_registry.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_constant_registry.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_solar_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_dns_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_ftp_builtins.c" \
@@ -173,6 +174,7 @@ echo "Native class/constant metadata regenerated: runtime/jinx_native_core_metad
 echo "Extended procedural Oracle backend compiled: runtime/jinx_oracle_extended_builtins.c"
 echo "Second-wave Oracle backend compiled: runtime/jinx_oracle_batch2_builtins.c"
 echo "Native resource registry compiled: runtime/jinx_oracle_resource_registry.c"
+echo "Native constant registry compiled: runtime/jinx_oracle_constant_registry.c"
 echo "Native solar backend compiled: runtime/jinx_oracle_solar_builtins.c"
 echo "Native DNS decoder compiled: runtime/jinx_oracle_dns_builtins.c"
 echo "Native FTP backend compiled: runtime/jinx_oracle_curl_ftp_builtins.c"
