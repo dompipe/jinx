@@ -12,7 +12,14 @@ $routeFilter = null;
 $nameFilter = null;
 $caseTimeout = 10;
 $showProgress = true;
-$buildFirst = getenv('JINX_SKIP_BUILD') !== '1';
+/*
+ * Do not spend a full native rebuild on every benchmark invocation. Reuse an
+ * existing ./jinx by default; build only when it is missing or explicitly
+ * requested with --build/JINX_FORCE_BUILD=1.
+ */
+$buildFirst = getenv('JINX_FORCE_BUILD') === '1'
+    || (!is_file($jinx) || !is_executable($jinx));
+if (getenv('JINX_SKIP_BUILD') === '1') $buildFirst = false;
 
 foreach (array_slice($argv, 1) as $arg) {
     if (ctype_digit($arg)) {
@@ -43,6 +50,10 @@ foreach (array_slice($argv, 1) as $arg) {
         $buildFirst = false;
         continue;
     }
+    if ($arg === '--build') {
+        $buildFirst = true;
+        continue;
+    }
 
     fwrite(STDERR, "Unknown option: {$arg}\n");
     exit(1);
@@ -63,7 +74,10 @@ function benchRun(
         1 => ['pipe', 'w'],
         2 => ['pipe', 'w'],
     ];
-    $process = proc_open('exec ' . $command, $descriptors, $pipes);
+    $processCommand = PHP_OS_FAMILY === 'Windows'
+        ? $command
+        : 'exec ' . $command;
+    $process = proc_open($processCommand, $descriptors, $pipes);
     if (!is_resource($process)) {
         $code = 127;
         return 'could not start command';
@@ -230,6 +244,7 @@ function benchUnsafePhpFunction(string $name): ?string
         '/^(header|setcookie|setrawcookie|http_response_code)$/',
         '/^(posix_set|posix_kill|pcntl_|cli_set_process_title)$/',
         '/^(session_|socket_|stream_socket_|curl_|ftp_|mysqli_|pg_|sqlite_|odbc_|ldap_)/',
+        '/^(dns_|checkdnsrr|getmxrr|gethost|fsockopen|pfsockopen|mail$)/',
         '/^(srand|mt_srand)$/',
         '/^(define|class_alias|assert_options)$/',
         '/^(strtok)$/',
