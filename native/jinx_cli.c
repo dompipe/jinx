@@ -44,6 +44,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-method-call <Class::method> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s oracle-throwable-construct-smoke <Class>\n", argv0);
+    printf("  %s oracle-datetime-method-smoke <DateTime|DateTimeImmutable> <method>\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
@@ -2256,6 +2257,182 @@ static int command_oracle_throwable_construct_smoke(int argc, char **argv) {
     return 0;
 }
 
+static int command_oracle_datetime_method_smoke(int argc, char **argv) {
+    const char *class_name;
+    const char *method;
+    const char *fixture_spec;
+    char method_name[256];
+    char format_name[256];
+    JinxValue receiver = jinx_value_null();
+    JinxValue result = jinx_value_null();
+    JinxValue args[4];
+    JinxValue owned_arg_values[4];
+    size_t method_argc = 0u;
+    int ok = 0;
+
+    for (size_t i = 0u; i < 4u; i++) {
+        args[i] = jinx_value_null();
+        owned_arg_values[i] = jinx_value_null();
+    }
+
+    if (argc != 4) {
+        return fail("oracle-datetime-method-smoke requires class and method");
+    }
+    class_name = argv[2];
+    method = argv[3];
+    if (strcmp(class_name, "DateTime") == 0) {
+        fixture_spec = "dt:2024-01-02 03:04:05";
+    } else if (strcmp(class_name, "DateTimeImmutable") == 0) {
+        fixture_spec = "dti:2024-01-02 03:04:05";
+    } else {
+        return fail("datetime smoke class must be DateTime or DateTimeImmutable");
+    }
+
+    if (snprintf(method_name, sizeof(method_name), "%s::%s", class_name, method) < 0 ||
+        snprintf(format_name, sizeof(format_name), "%s::format", class_name) < 0 ||
+        strlen(method_name) >= sizeof(method_name) ||
+        strlen(format_name) >= sizeof(format_name)) {
+        return fail("datetime method name too long");
+    }
+
+    receiver = jinx_oracle_extended_fixture(fixture_spec);
+    if (receiver.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        release_cli_value(receiver);
+        return fail("could not create datetime receiver");
+    }
+
+    if (strcmp(method, "add") == 0 || strcmp(method, "sub") == 0) {
+        owned_arg_values[0] = jinx_oracle_extended_fixture("di:P1D");
+        args[0] = owned_arg_values[0];
+        method_argc = 1u;
+    } else if (strcmp(method, "modify") == 0) {
+        args[0] = jinx_value_string("+2 days", 7u);
+        method_argc = 1u;
+    } else if (strcmp(method, "setDate") == 0) {
+        args[0] = jinx_value_int(2025);
+        args[1] = jinx_value_int(6);
+        args[2] = jinx_value_int(7);
+        method_argc = 3u;
+    } else if (strcmp(method, "setISODate") == 0) {
+        args[0] = jinx_value_int(2025);
+        args[1] = jinx_value_int(10);
+        args[2] = jinx_value_int(3);
+        method_argc = 3u;
+    } else if (strcmp(method, "setTime") == 0) {
+        args[0] = jinx_value_int(11);
+        args[1] = jinx_value_int(22);
+        args[2] = jinx_value_int(33);
+        method_argc = 3u;
+    } else if (strcmp(method, "setTimestamp") == 0) {
+        args[0] = jinx_value_int(1704067200);
+        method_argc = 1u;
+    } else if (strcmp(method, "setTimezone") == 0) {
+        owned_arg_values[0] = jinx_oracle_extended_fixture("tz:America/New_York");
+        args[0] = owned_arg_values[0];
+        method_argc = 1u;
+    } else if (strcmp(method, "diff") == 0) {
+        owned_arg_values[0] = jinx_oracle_extended_fixture(
+            "dt:2024-01-05 05:06:07"
+        );
+        args[0] = owned_arg_values[0];
+        method_argc = 1u;
+    } else if (strcmp(method, "getTimezone") == 0) {
+        method_argc = 0u;
+    } else {
+        release_cli_value(receiver);
+        return fail("unsupported datetime state-smoke method");
+    }
+
+    result = jinx_call_method_through_oracle_checked(
+        method_name, receiver, args, method_argc, &ok
+    );
+    if (!ok) {
+        release_cli_value(result);
+        release_cli_value(receiver);
+        for (size_t i = 0u; i < 4u; i++) release_cli_value(owned_arg_values[i]);
+        return fail("datetime method dispatch failed");
+    }
+
+    if (strcmp(method, "getTimezone") == 0) {
+        JinxValue name_result;
+        int name_ok = 0;
+        name_result = jinx_call_method_through_oracle_checked(
+            "DateTimeZone::getName", result, NULL, 0u, &name_ok
+        );
+        if (!name_ok || name_result.type != 3u) {
+            release_cli_value(name_result);
+            release_cli_value(result);
+            release_cli_value(receiver);
+            return fail("datetime getTimezone result name failed");
+        }
+        fputs("result=", stdout);
+        print_value_line(name_result);
+        release_cli_value(name_result);
+    } else if (strcmp(method, "diff") == 0) {
+        JinxValue fmt_arg = jinx_value_string(
+            "%R%a %H:%I:%S",
+            (uint32_t)strlen("%R%a %H:%I:%S")
+        );
+        JinxValue diff_text;
+        int diff_ok = 0;
+        diff_text = jinx_call_method_through_oracle_checked(
+            "DateInterval::format", result, &fmt_arg, 1u, &diff_ok
+        );
+        if (!diff_ok || diff_text.type != 3u) {
+            release_cli_value(diff_text);
+            release_cli_value(result);
+            release_cli_value(receiver);
+            for (size_t i = 0u; i < 4u; i++) release_cli_value(owned_arg_values[i]);
+            return fail("datetime diff formatting failed");
+        }
+        fputs("result=", stdout);
+        print_value_line(diff_text);
+        release_cli_value(diff_text);
+    } else {
+        JinxValue fmt_arg = jinx_value_string(
+            "Y-m-d H:i:s",
+            (uint32_t)strlen("Y-m-d H:i:s")
+        );
+        JinxValue result_text;
+        JinxValue original_text;
+        int result_ok = 0;
+        int original_ok = 0;
+
+        result_text = jinx_call_method_through_oracle_checked(
+            format_name, result, &fmt_arg, 1u, &result_ok
+        );
+        original_text = jinx_call_method_through_oracle_checked(
+            format_name, receiver, &fmt_arg, 1u, &original_ok
+        );
+        if (!result_ok || !original_ok ||
+            result_text.type != 3u || original_text.type != 3u) {
+            release_cli_value(result_text);
+            release_cli_value(original_text);
+            release_cli_value(result);
+            release_cli_value(receiver);
+            for (size_t i = 0u; i < 4u; i++) release_cli_value(owned_arg_values[i]);
+            return fail("datetime mutation state formatting failed");
+        }
+        fputs("result=", stdout);
+        print_value_line(result_text);
+        fputs("original=", stdout);
+        print_value_line(original_text);
+        printf(
+            "same=bool:%s\n",
+            result.type == JINX_ORACLE_VALUE_ZEND_OBJECT &&
+            receiver.type == JINX_ORACLE_VALUE_ZEND_OBJECT &&
+            result.as.ptr == receiver.as.ptr ? "true" : "false"
+        );
+        release_cli_value(result_text);
+        release_cli_value(original_text);
+    }
+
+    release_cli_value(result);
+    release_cli_value(receiver);
+    for (size_t i = 0u; i < 4u; i++) release_cli_value(owned_arg_values[i]);
+    return 0;
+}
+
 static int command_bench_method_call(int argc, char **argv) {
     const char *name;
     long iterations;
@@ -2471,6 +2648,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-throwable-construct-smoke") == 0) {
         return command_oracle_throwable_construct_smoke(argc, argv);
+    }
+
+    if (strcmp(argv[1], "oracle-datetime-method-smoke") == 0) {
+        return command_oracle_datetime_method_smoke(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-call-hex") == 0) {
