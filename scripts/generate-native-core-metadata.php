@@ -73,10 +73,19 @@ usort($cfgRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
 
 $iniOwners = [];
 foreach ($extensions as $extension) {
-    $owned = ini_get_all($extension, false);
-    if (!is_array($owned)) {
-        continue;
+    /*
+     * ini_get_all($extension) warns for several built-in/Zend modules even
+     * when get_loaded_extensions() reports them (for example Core,
+     * Reflection, SPL, PDO, FFI, Phar, SimpleXML, and Zend OPcache).
+     * ReflectionExtension reads the owning INI entries without treating
+     * those loaded modules as missing extensions.
+     */
+    try {
+        $owned = (new ReflectionExtension((string)$extension))->getINIEntries();
+    } catch (ReflectionException) {
+        $owned = [];
     }
+
     foreach (array_keys($owned) as $iniName) {
         $iniOwners[(string)$iniName] = (string)$extension;
     }
