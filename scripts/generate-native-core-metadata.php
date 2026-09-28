@@ -28,6 +28,12 @@ function cint64(int $value): string {
 }
 
 $defaultTimezone = date_default_timezone_get();
+$systemTempDirectory = sys_get_temp_dir();
+$phpSapiName = PHP_SAPI;
+$phpIniLoadedFile = php_ini_loaded_file();
+$phpIniScannedFiles = php_ini_scanned_files();
+$posixUname = function_exists('posix_uname') ? posix_uname() : false;
+$posixUnameHasDomainname = is_array($posixUname) && array_key_exists('domainname', $posixUname);
 
 $assertActive = defined('ASSERT_ACTIVE') ? (int)@assert_options(ASSERT_ACTIVE) : 1;
 $assertWarning = defined('ASSERT_WARNING') ? (int)@assert_options(ASSERT_WARNING) : 1;
@@ -161,6 +167,13 @@ $code[] = '#ifndef JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#define JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#include <stddef.h>';
 $code[] = '#define JINX_NATIVE_PHP_DEFAULT_TIMEZONE ' . cstr($defaultTimezone);
+$code[] = '#define JINX_NATIVE_PHP_SYS_TEMP_DIR ' . cstr($systemTempDirectory);
+$code[] = '#define JINX_NATIVE_PHP_SAPI_NAME ' . cstr($phpSapiName);
+$code[] = '#define JINX_NATIVE_PHP_INI_LOADED_FILE_AVAILABLE ' . ($phpIniLoadedFile === false ? '0' : '1');
+$code[] = '#define JINX_NATIVE_PHP_INI_LOADED_FILE ' . cstr($phpIniLoadedFile === false ? '' : $phpIniLoadedFile);
+$code[] = '#define JINX_NATIVE_PHP_INI_SCANNED_FILES_AVAILABLE ' . ($phpIniScannedFiles === false ? '0' : '1');
+$code[] = '#define JINX_NATIVE_PHP_INI_SCANNED_FILES ' . cstr($phpIniScannedFiles === false ? '' : $phpIniScannedFiles);
+$code[] = '#define JINX_NATIVE_POSIX_UNAME_HAS_DOMAINNAME ' . ($posixUnameHasDomainname ? '1' : '0');
 $code[] = '#define JINX_NATIVE_ASSERT_ACTIVE ' . $assertActive;
 $code[] = '#define JINX_NATIVE_ASSERT_WARNING ' . $assertWarning;
 $code[] = '#define JINX_NATIVE_ASSERT_BAIL ' . $assertBail;
