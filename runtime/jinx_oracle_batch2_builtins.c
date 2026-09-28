@@ -73,6 +73,37 @@ static size_t jinx_oracle_batch2_ini_override_count = 0u;
 static size_t jinx_oracle_batch2_ini_override_capacity = 0u;
 
 
+static int64_t b2_gregorian_to_sdn(int input_year, int input_month, int input_day) {
+    int64_t year;
+    int month;
+
+    if (input_year == 0 || input_year < -4714 ||
+        input_year > INT_MAX - 4800 ||
+        input_month <= 0 || input_month > 12 ||
+        input_day <= 0 || input_day > 31) {
+        return 0;
+    }
+    if (input_year == -4714 &&
+        (input_month < 11 || (input_month == 11 && input_day < 25))) {
+        return 0;
+    }
+
+    year = input_year < 0 ? (int64_t)input_year + 4801LL
+                         : (int64_t)input_year + 4800LL;
+    if (input_month > 2) {
+        month = input_month - 3;
+    } else {
+        month = input_month + 9;
+        year--;
+    }
+
+    return (((year / 100LL) * 146097LL) / 4LL
+        + ((year % 100LL) * 1461LL) / 4LL
+        + ((int64_t)month * 153LL + 2LL) / 5LL
+        + (int64_t)input_day
+        - 32045LL);
+}
+
 static int b2_random_fill(unsigned char *out, size_t len) {
     int fd;
     size_t offset = 0u;
@@ -2572,6 +2603,40 @@ JinxValue jinx_oracle_batch2_builtin(
         }
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(previous);
+    }
+
+    if (strcmp(name, "jdtounix") == 0) {
+        int64_t day;
+        if (args == NULL || argc != 1u) return result;
+        day = jinx_oracle_intish(args[0]);
+        if (day < 2440588LL ||
+            day - 2440588LL > INT64_MAX / 86400LL) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((day - 2440588LL) * 86400LL);
+    }
+
+    if (strcmp(name, "unixtojd") == 0) {
+        int64_t timestamp = args != NULL && argc >= 1u && args[0].type != 0u
+            ? jinx_oracle_intish(args[0])
+            : (int64_t)time(NULL);
+        time_t raw;
+        struct tm tmv;
+        int64_t sdn;
+        if (timestamp < 0) return result;
+        raw = (time_t)timestamp;
+        if (localtime_r(&raw, &tmv) == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        sdn = b2_gregorian_to_sdn(
+            tmv.tm_year + 1900,
+            tmv.tm_mon + 1,
+            tmv.tm_mday
+        );
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(sdn);
     }
 
     if (strcmp(name, "time") == 0) {
