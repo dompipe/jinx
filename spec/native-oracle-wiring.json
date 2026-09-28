@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 674,
-        "extended_native_route": 376,
+        "native_named_route": 676,
+        "extended_native_route": 378,
         "context_native_route": 3,
-        "intentional_native_fault": 2853
+        "intentional_native_fault": 2851
     },
     "routes": {
         "_": "extended",
@@ -1330,7 +1330,7 @@
         "opcache_jit_blacklist": "intentional-native-fault",
         "opcache_reset": "intentional-native-fault",
         "opendir": "extended",
-        "openlog": "intentional-native-fault",
+        "openlog": "extended",
         "openssl_cipher_iv_length": "intentional-native-fault",
         "openssl_cipher_key_length": "intentional-native-fault",
         "openssl_cms_decrypt": "intentional-native-fault",
@@ -3415,7 +3415,7 @@
         "symlink": "extended",
         "sys_get_temp_dir": "extended",
         "sys_getloadavg": "extended",
-        "syslog": "intentional-native-fault",
+        "syslog": "extended",
         "system": "extended",
         "tan": "asm",
         "tanh": "asm",
