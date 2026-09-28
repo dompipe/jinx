@@ -204,6 +204,9 @@ $checks = [
     ['is_subclass_of', ['obj:ErrorException', 's:Exception'], 'bool:' . (is_subclass_of(new ErrorException('probe'), 'Exception') ? 'true' : 'false')],
     ['is_subclass_of', ['obj:ErrorException', 's:ErrorException'], 'bool:' . (is_subclass_of(new ErrorException('probe'), 'ErrorException') ? 'true' : 'false')],
     ['is_subclass_of', ['s:ErrorException', 's:Exception'], 'bool:' . (is_subclass_of('ErrorException', 'Exception') ? 'true' : 'false')],
+    ['is_callable', ['s:strlen'], 'bool:' . (is_callable('strlen') ? 'true' : 'false')],
+    ['is_callable', ['s:__jinx_missing_callable'], 'bool:' . (is_callable('__jinx_missing_callable') ? 'true' : 'false')],
+    ['tmpfile', [], 'zend-object:stream:1'],
     ['constant', ['s:PHP_VERSION_ID'], 'int:' . PHP_VERSION_ID],
     ['defined', ['s:PHP_VERSION_ID'], 'bool:' . (defined('PHP_VERSION_ID') ? 'true' : 'false')],
 ];
@@ -279,6 +282,25 @@ $typedTouched = 's:' . $touched;
 $typedCopy = 's:' . $copy;
 $typedWritten = 's:' . $written;
 
+$phpTemp = tempnam($tmp, 'jx');
+if ($phpTemp === false) {
+    fail100('PHP tempnam fixture failed');
+}
+$tempnamActual = jinx100($jinx, 'tempnam', ['s:' . $tmp, 's:jx'], false, $code);
+if ($code !== 0 || !str_starts_with($tempnamActual, 'string:')) {
+    @unlink($phpTemp);
+    fail100("tempnam return-contract mismatch\nJINX: {$tempnamActual}");
+}
+$jinxTemp = substr($tempnamActual, strlen('string:'));
+if (!is_file($jinxTemp) ||
+    dirname($jinxTemp) !== dirname($phpTemp) ||
+    !str_starts_with(basename($jinxTemp), 'jx') ||
+    !str_starts_with(basename($phpTemp), 'jx')) {
+    @unlink($jinxTemp);
+    @unlink($phpTemp);
+    fail100("tempnam filesystem parity mismatch\nPHP: {$phpTemp}\nJINX: {$jinxTemp}");
+}
+
 $fsChecks = [
     ['file_exists', [$typedSource], 'bool:true'],
     ['is_link', [$typedLink], 'bool:' . (is_link($link) ? 'true' : 'false')],
@@ -327,7 +349,7 @@ $fsChecks = [
 foreach ($fsChecks as [$name, $args, $expected]) {
     $actual = jinx100($jinx, $name, $args, false, $code);
     if ($code !== 0 || $actual !== $expected) {
-        @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+        @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
         fail100("{$name} filesystem parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
     }
 }
@@ -336,29 +358,29 @@ $actual = jinx100($jinx, 'touch', [$typedTouched, 'i:1700000000', 'i:1700000001'
 clearstatcache(true, $touched);
 if ($code !== 0 || $actual !== 'bool:true' ||
     filemtime($touched) !== 1700000000 || fileatime($touched) !== 1700000001) {
-    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+    @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("touch filesystem parity mismatch\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'file_get_contents', [$typedSource], true, $code);
 $expected = 'hex:' . bin2hex((string)file_get_contents($source));
 if ($code !== 0 || $actual !== $expected) {
-    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+    @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("file_get_contents parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'file_put_contents', [$typedWritten, 's:xyz'], false, $code);
 if ($code !== 0 || $actual !== 'int:3' || file_get_contents($written) !== 'xyz') {
-    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+    @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("file_put_contents parity mismatch\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'fgets', ['fp:tmp'], true, $code);
 if ($code !== 0 || $actual !== 'hex:' . bin2hex("a,b\n")) {
-    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+    @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("fgets parity mismatch\nJINX: {$actual}");
 }
 
-@unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+@unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
 
 echo 'PASS: first 100 needed procedural Oracle ASM targets execute without placeholders; existing array/calendar parity and extended callable/date/filesystem/introspection checks pass' . PHP_EOL;
