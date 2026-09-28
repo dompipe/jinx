@@ -199,6 +199,25 @@ function sampleArgs(string $name): array
     if ($name === 'deflate_add') return ['deflate:gzip', 's:hello', 'i:2'];
     if ($name === 'hash_equals') return ['s:abc', 's:abc'];
 
+    if ($name === 'get_class_methods') return ['obj:ArrayIterator'];
+    if ($name === 'filter_list' || $name === 'get_include_path') return [];
+    if ($name === 'filter_id') return ['s:int'];
+    if ($name === 'filter_var') return ['s:42', 'i:257'];
+    if ($name === 'get_resource_type') return ['fp:tmp'];
+    if ($name === 'exec') return ['s:printf jinx'];
+    if ($name === 'fputcsv') return ['fp:tmp', 'za:strings'];
+    if ($name === 'hash') return ['s:sha256', 's:abc'];
+    if ($name === 'hash_file') return ['s:sha256', 's:README.md'];
+    if ($name === 'hash_init') return ['s:sha256'];
+    if ($name === 'hash_copy' || $name === 'hash_final') return ['hash:sha256'];
+    if ($name === 'hash_update') return ['hash:sha256', 's:abc'];
+    if ($name === 'hash_update_file') return ['hash:sha256', 's:README.md'];
+    if ($name === 'hash_update_stream') return ['hash:sha256', 'fp:tmp'];
+    if ($name === 'hash_hmac') return ['s:sha256', 's:data', 's:key'];
+    if ($name === 'hash_hmac_file') return ['s:sha256', 's:README.md', 's:key'];
+    if ($name === 'hash_hkdf') return ['s:sha256', 's:key', 'i:16', 's:info', 's:salt'];
+    if ($name === 'hash_pbkdf2') return ['s:sha256', 's:password', 's:salt', 'i:1000', 'i:32', 'b:false'];
+
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
