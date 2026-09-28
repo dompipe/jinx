@@ -46,6 +46,8 @@ static void usage(const char *argv0) {
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
+    printf("  %s bench-call <function> <iterations> [typed-args...]\n", argv0);
+    printf("  %s bench-method-call <Class::method> <iterations> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s first100\n", argv0);
     printf("  %s first100-list\n", argv0);
     printf("  %s bench-first100 [iterations]\n", argv0);
@@ -828,6 +830,8 @@ static int command_benchmarks(void) {
     printf("  worker/native ratio:       0.50x\n\n");
     printf("Native GCC benchmark commands:\n");
     printf("  ./jinx bench-oracle 1000000\n");
+    printf("  ./jinx bench-call abs 1000000 i:-42\n");
+    printf("  ./jinx bench-method-call DateTime::format 100000 dt:2024-01-02T03:04:05 s:Y-m-d\n");
     printf("  ./jinx bench-first100 100000\n");
     printf("  ./jinx bench-all-functions 1000\n");
     return 0;
@@ -2019,6 +2023,89 @@ static int command_oracle_call(int argc, char **argv, int output_mode) {
     return exit_code;
 }
 
+static int command_bench_call(int argc, char **argv) {
+    const char *name;
+    long iterations;
+    JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    JinxValue result = jinx_value_null();
+    int supplied_argc;
+    void *owned_args[JINX_NATIVE_SAMPLE_ARGC] = {0};
+
+    if (argc < 4) {
+        return fail("bench-call requires a function name and iteration count");
+    }
+
+    name = argv[2];
+    iterations = atol(argv[3]);
+    if (iterations <= 0) {
+        iterations = 1;
+    }
+
+    if (jinx_lookup_oracle_wrapper(name) == NULL) {
+        fprintf(stderr, "missing: %s\n", name);
+        return 1;
+    }
+
+    supplied_argc = argc - 4;
+    if ((size_t)supplied_argc > JINX_NATIVE_SAMPLE_ARGC) {
+        fprintf(stderr, "too many arguments: max %u\n", JINX_NATIVE_SAMPLE_ARGC);
+        return 1;
+    }
+
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        args[i] = jinx_value_null();
+    }
+    for (int i = 0; i < supplied_argc; i++) {
+        args[i] = parse_cli_value(argv[i + 4], &owned_args[i]);
+    }
+
+    {
+        int oracle_ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            name, args, (size_t)supplied_argc, &oracle_ok
+        );
+        if (!oracle_ok) {
+            fprintf(stderr, "null/fault: %s\n", name);
+            release_cli_value(result);
+            release_cli_values(args, (size_t)supplied_argc);
+            for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) free(owned_args[i]);
+            return 1;
+        }
+        release_cli_value(result);
+    }
+
+    clock_t start = clock();
+    for (long i = 0; i < iterations; i++) {
+        int oracle_ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            name, args, (size_t)supplied_argc, &oracle_ok
+        );
+        if (!oracle_ok) {
+            fprintf(stderr, "null/fault during benchmark: %s\n", name);
+            release_cli_value(result);
+            release_cli_values(args, (size_t)supplied_argc);
+            for (size_t n = 0u; n < JINX_NATIVE_SAMPLE_ARGC; n++) free(owned_args[n]);
+            return 1;
+        }
+        release_cli_value(result);
+    }
+    clock_t elapsed = clock() - start;
+
+    release_cli_values(args, (size_t)supplied_argc);
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) free(owned_args[i]);
+
+    {
+        double seconds = (double) elapsed / (double) CLOCKS_PER_SEC;
+        double ns_per_call = seconds * 1000000000.0 / (double) iterations;
+        printf("JINX native single-function Oracle benchmark\n");
+        printf("Function: %s\n", name);
+        printf("Iterations: %ld\n", iterations);
+        printf("Elapsed ms: %.3f\n", seconds * 1000.0);
+        printf("Per call ns: %.1f\n", ns_per_call);
+    }
+    return 0;
+}
+
 static int command_oracle_method_call(int argc, char **argv) {
     const char *name;
     JinxValue receiver;
@@ -2087,6 +2174,119 @@ static int command_oracle_method_call(int argc, char **argv) {
         free(owned_args[i]);
     }
     return exit_code;
+}
+
+static int command_bench_method_call(int argc, char **argv) {
+    const char *name;
+    long iterations;
+    JinxValue receiver;
+    JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    JinxValue result = jinx_value_null();
+    int supplied_argc;
+    void *owned_receiver = NULL;
+    void *owned_args[JINX_NATIVE_SAMPLE_ARGC] = {0};
+
+    if (argc < 5) {
+        return fail("bench-method-call requires a method name, iteration count, and receiver fixture");
+    }
+
+    name = argv[2];
+    iterations = atol(argv[3]);
+    if (iterations <= 0) {
+        iterations = 1;
+    }
+
+    if (jinx_lookup_oracle_wrapper(name) == NULL) {
+        fprintf(stderr, "missing: %s\n", name);
+        return 1;
+    }
+
+    receiver = parse_cli_value(argv[4], &owned_receiver);
+    if (receiver.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        free(owned_receiver);
+        return fail("bench-method-call receiver must be a native object fixture");
+    }
+
+    supplied_argc = argc - 5;
+    if ((size_t)supplied_argc > JINX_NATIVE_SAMPLE_ARGC) {
+        release_cli_value(receiver);
+        free(owned_receiver);
+        fprintf(stderr, "too many arguments: max %u\n", JINX_NATIVE_SAMPLE_ARGC);
+        return 1;
+    }
+
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        args[i] = jinx_value_null();
+    }
+    for (int i = 0; i < supplied_argc; i++) {
+        args[i] = parse_cli_value(argv[i + 5], &owned_args[i]);
+    }
+
+    {
+        int oracle_ok = 0;
+        result = jinx_call_method_through_oracle_checked(
+            name, receiver, args, (size_t)supplied_argc, &oracle_ok
+        );
+        if (!oracle_ok) {
+            fprintf(stderr, "null/fault: %s\n", name);
+            release_cli_value(result);
+            release_cli_value(receiver);
+            release_cli_values(args, (size_t)supplied_argc);
+            free(owned_receiver);
+            for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) free(owned_args[i]);
+            return 1;
+        }
+        if (result.type == JINX_ORACLE_VALUE_ZEND_OBJECT && result.as.ptr == receiver.as.ptr) {
+            release_cli_value(receiver);
+            release_cli_values(args, (size_t)supplied_argc);
+            free(owned_receiver);
+            for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) free(owned_args[i]);
+            return fail("bench-method-call only benchmarks methods with non-receiver return values");
+        }
+        release_cli_value(result);
+    }
+
+    clock_t start = clock();
+    for (long i = 0; i < iterations; i++) {
+        int oracle_ok = 0;
+        result = jinx_call_method_through_oracle_checked(
+            name, receiver, args, (size_t)supplied_argc, &oracle_ok
+        );
+        if (!oracle_ok) {
+            fprintf(stderr, "null/fault during benchmark: %s\n", name);
+            release_cli_value(result);
+            release_cli_value(receiver);
+            release_cli_values(args, (size_t)supplied_argc);
+            free(owned_receiver);
+            for (size_t n = 0u; n < JINX_NATIVE_SAMPLE_ARGC; n++) free(owned_args[n]);
+            return 1;
+        }
+        if (result.type == JINX_ORACLE_VALUE_ZEND_OBJECT && result.as.ptr == receiver.as.ptr) {
+            release_cli_value(receiver);
+            release_cli_values(args, (size_t)supplied_argc);
+            free(owned_receiver);
+            for (size_t n = 0u; n < JINX_NATIVE_SAMPLE_ARGC; n++) free(owned_args[n]);
+            return fail("bench-method-call encountered a receiver-returning method");
+        }
+        release_cli_value(result);
+    }
+    clock_t elapsed = clock() - start;
+
+    release_cli_value(receiver);
+    release_cli_values(args, (size_t)supplied_argc);
+    free(owned_receiver);
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) free(owned_args[i]);
+
+    {
+        double seconds = (double) elapsed / (double) CLOCKS_PER_SEC;
+        double ns_per_call = seconds * 1000000000.0 / (double) iterations;
+        printf("JINX native single-method Oracle benchmark\n");
+        printf("Method: %s\n", name);
+        printf("Iterations: %ld\n", iterations);
+        printf("Elapsed ms: %.3f\n", seconds * 1000.0);
+        printf("Per call ns: %.1f\n", ns_per_call);
+    }
+    return 0;
 }
 
 static int command_bench_oracle(int argc, char **argv) {
@@ -2195,6 +2395,14 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-call-refs") == 0) {
         return command_oracle_call(argc, argv, 2);
+    }
+
+    if (strcmp(argv[1], "bench-call") == 0) {
+        return command_bench_call(argc, argv);
+    }
+
+    if (strcmp(argv[1], "bench-method-call") == 0) {
+        return command_bench_method_call(argc, argv);
     }
 
     if (strcmp(argv[1], "bench-oracle") == 0) {
