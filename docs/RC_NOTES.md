@@ -55,9 +55,9 @@ The installed `jinx` is the GCC-built binary, not a PHP launcher.
 The PHP RC helper remains available as:
 
 ```bash
-php bin/jinx rc
-php bin/jinx benchmarks
-php bin/jinx bench-wrapper-first100
+php scripts/jinx-web-tools.php rc
+php scripts/jinx-web-tools.php benchmarks
+php scripts/jinx-web-tools.php bench-wrapper-first100
 ```
 
 Use native `./jinx` for native Oracle/PASM timing.
@@ -150,7 +150,7 @@ This script validates PHP-side direct builtin calls where possible, then calls t
 ./jinx bench-all-functions <iterations>
 ```
 
-It does not use `php bin/jinx` for the native timing path.
+It does not use `php scripts/jinx-web-tools.php` for the native timing path.
 
 ## Worker-Style Native Wrappers
 
