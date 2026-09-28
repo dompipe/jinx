@@ -492,6 +492,14 @@ $phpAbortSetOld = ignore_user_abort(true);
 $phpAbortDuring = ignore_user_abort();
 ignore_user_abort((bool)$phpAbortBefore);
 
+$phpTimezoneBefore = date_default_timezone_get();
+$phpTimezoneSet = date_default_timezone_set('UTC');
+$phpTimezoneFormatted = @strftime('%Y-%m-%d %H:%M:%S', 0);
+date_default_timezone_set($phpTimezoneBefore);
+if (!$phpTimezoneSet || $phpTimezoneFormatted === false) {
+    fail200('PHP mutable timezone/strftime fixture failed');
+}
+
 $runtimeStateSmoke = run200(
     escapeshellarg($jinx) . ' oracle-runtime-state-smoke',
     $runtimeStateCode
@@ -504,6 +512,8 @@ $runtimeStateExpected = implode(PHP_EOL, [
     'abort_before=int:' . $phpAbortBefore,
     'abort_set_old=int:' . $phpAbortSetOld,
     'abort_during=int:' . $phpAbortDuring,
+    'tz_set=bool:true',
+    'tz_strftime=string:' . $phpTimezoneFormatted,
 ]);
 if ($runtimeStateCode !== 0 || $runtimeStateSmoke !== $runtimeStateExpected) {
     fail200(
