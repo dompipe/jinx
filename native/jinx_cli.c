@@ -4,10 +4,12 @@
 #include <time.h>
 #include <math.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "../runtime/jinx_function_list.generated.h"
 #include "../runtime/jinx_oracle_zend_array_carrier.h"
 #include "../runtime/jinx_oracle_extended_builtins.h"
+#include "../runtime/jinx_oracle_script_context.h"
 #include "../runtime/jinx_zend_array_delete.h"
 #include "../runtime/jinx_pasm_machine.h"
 
@@ -30,6 +32,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
+    printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
@@ -1249,6 +1252,96 @@ static int command_oracle_error_smoke(void) {
     return 0;
 }
 
+static int command_oracle_script_context_smoke(
+    int argc,
+    char **argv
+) {
+    struct stat main_stat;
+    JinxValue result;
+    int ok = 0;
+
+    if (argc < 4) {
+        return fail(
+            "oracle-script-context-smoke requires main-file and included-file"
+        );
+    }
+
+    if (stat(argv[2], &main_stat) != 0) {
+        return fail("could not stat main script context fixture");
+    }
+
+    if (!jinx_oracle_script_context_set_main(argv[2]) ||
+        !jinx_oracle_script_context_add_include(argv[3])) {
+        jinx_oracle_script_context_clear();
+        return fail("could not seed native script/include context");
+    }
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "get_included_files", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+        jinx_zend_array_live_count(
+            jinx_oracle_zend_array_ptr(result)
+        ) != 2u) {
+        release_cli_value(result);
+        jinx_oracle_script_context_clear();
+        return fail("get_included_files did not read script context");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "get_required_files", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+        jinx_zend_array_live_count(
+            jinx_oracle_zend_array_ptr(result)
+        ) != 2u) {
+        release_cli_value(result);
+        jinx_oracle_script_context_clear();
+        return fail("get_required_files did not alias included-file context");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "getlastmod", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 1u ||
+        result.as.i64 != (int64_t)main_stat.st_mtime) {
+        release_cli_value(result);
+        jinx_oracle_script_context_clear();
+        return fail("getlastmod did not use main script stat");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "getmyinode", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 1u ||
+        result.as.i64 != (int64_t)main_stat.st_ino) {
+        release_cli_value(result);
+        jinx_oracle_script_context_clear();
+        return fail("getmyinode did not use main script inode");
+    }
+    release_cli_value(result);
+
+    jinx_oracle_script_context_clear();
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "get_included_files", NULL, 0u, &ok
+    );
+    release_cli_value(result);
+    if (ok) {
+        return fail("get_included_files must fault without script context");
+    }
+
+    printf("PASS: native script context drives get_included_files/get_required_files/getlastmod/getmyinode\n");
+    return 0;
+}
+
 static int command_oracle_constant_smoke(void) {
     const char *constant_name = "__JINX_NATIVE_RUNTIME_CONSTANT_SMOKE__";
     JinxValue define_args[2];
@@ -1464,6 +1557,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-error-smoke") == 0) {
         return command_oracle_error_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-script-context-smoke") == 0) {
+        return command_oracle_script_context_smoke(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-call") == 0) {
