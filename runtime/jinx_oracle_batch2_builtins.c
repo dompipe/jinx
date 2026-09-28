@@ -8,6 +8,7 @@
 #include "jinx_oracle_curl_ftp_builtins.h"
 #include "jinx_oracle_http_meta_builtins.h"
 #include "jinx_oracle_constant_registry.h"
+#include "jinx_oracle_exif_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -3055,6 +3056,17 @@ csv_fail:
             return jinx_oracle_bool_value(0);
         }
         return result;
+    }
+
+    {
+        int exif_handled = 0;
+        JinxValue exif_result = jinx_oracle_exif_builtin(
+            name, args, argc, &exif_handled
+        );
+        if (exif_handled) {
+            if (handled != NULL) *handled = 1;
+            return exif_result;
+        }
     }
 
     return result;
