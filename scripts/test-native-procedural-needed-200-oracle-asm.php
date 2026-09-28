@@ -197,6 +197,8 @@ $checks = [
     ['setlocale', ['i:' . LC_ALL, 's:C'], 'string:C'],
     ['textdomain', ['s:messages'], (($v = textdomain('messages')) === false ? 'bool:false' : 'string:' . $v)],
     ['ngettext', ['s:one', 's:many', 'i:2'], 'string:' . ngettext('one', 'many', 2)],
+    ['preg_quote', ['s:a.b+c?'], 'string:' . preg_quote('a.b+c?')],
+    ['preg_quote', ['s:a/b', 's:/'], 'string:' . preg_quote('a/b', '/')],
     ['strtok', ['s:alpha,beta', 's:,'], 'string:' . strtok('alpha,beta', ',')],
     ['getprotobyname', ['s:tcp'], (($v = getprotobyname('tcp')) === false ? 'bool:false' : 'int:' . $v)],
     ['getprotobynumber', ['i:6'], (($v = getprotobynumber(6)) === false ? 'bool:false' : 'string:' . $v)],
@@ -258,6 +260,15 @@ if (function_exists('gmstrftime')) {
 foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
 }
+
+$phpPregQuoteBinary = preg_quote("a\0b");
+expect200(
+    $jinx,
+    'preg_quote',
+    ['h:610062'],
+    'hex:' . bin2hex($phpPregQuoteBinary),
+    true
+);
 
 $nativeTime = jinx200($jinx, 'time', [], false, $timeCode);
 if ($timeCode !== 0 || !preg_match('/^int:(-?[0-9]+)$/', $nativeTime, $timeMatch) ||
