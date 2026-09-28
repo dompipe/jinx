@@ -236,16 +236,29 @@ if (!mkdir($tmp, 0700, true) && !is_dir($tmp)) {
 }
 
 $source = $tmp . '/source.txt';
+$link = $tmp . '/source-link';
 $copy = $tmp . '/copy.txt';
 $written = $tmp . '/written.txt';
 file_put_contents($source, "alpha\nbeta\n");
+if (!symlink($source, $link)) {
+    @unlink($source);
+    @rmdir($tmp);
+    fail100('could not create filesystem parity symlink');
+}
 
 $typedSource = 's:' . $source;
+$typedLink = 's:' . $link;
 $typedCopy = 's:' . $copy;
 $typedWritten = 's:' . $written;
 
 $fsChecks = [
     ['file_exists', [$typedSource], 'bool:true'],
+    ['is_link', [$typedLink], 'bool:' . (is_link($link) ? 'true' : 'false')],
+    ['is_link', [$typedSource], 'bool:' . (is_link($source) ? 'true' : 'false')],
+    ['is_readable', [$typedSource], 'bool:' . (is_readable($source) ? 'true' : 'false')],
+    ['is_writable', [$typedSource], 'bool:' . (is_writable($source) ? 'true' : 'false')],
+    ['is_writeable', [$typedSource], 'bool:' . (is_writeable($source) ? 'true' : 'false')],
+    ['is_executable', [$typedSource], 'bool:' . (is_executable($source) ? 'true' : 'false')],
     ['fileatime', [$typedSource], 'int:' . fileatime($source)],
     ['filectime', [$typedSource], 'int:' . filectime($source)],
     ['filegroup', [$typedSource], 'int:' . filegroup($source)],
@@ -274,7 +287,7 @@ $fsChecks = [
 foreach ($fsChecks as [$name, $args, $expected]) {
     $actual = jinx100($jinx, $name, $args, false, $code);
     if ($code !== 0 || $actual !== $expected) {
-        @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+        @unlink($link); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
         fail100("{$name} filesystem parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
     }
 }
