@@ -319,18 +319,18 @@ foreach ($wiring['routes'] as $name => $route) {
 }
 
 /*
- * Method dispatch is newer than the generated wiring inventory. Keep the
- * currently parity-proven method cases explicitly associated with their proof
- * until the generated method route map catches up.
+ * Native method routes need receiver fixtures, so benchmark the currently
+ * parity-proven method set explicitly while still associating each row with
+ * the reviewed wiring ledger route.
  */
 $methodCases = [
     [
         'name' => 'DateTime::format',
         'receiver' => 'dt:2024-01-02 03:04:05',
-        'args' => ['s:Y-m-d H:i:s'],
+        'args' => ['s:Y-m-d'],
         'object' => new DateTime('2024-01-02 03:04:05'),
         'method' => 'format',
-        'php_args' => ['Y-m-d H:i:s'],
+        'php_args' => ['Y-m-d'],
     ],
     [
         'name' => 'DateTimeImmutable::format',
@@ -340,11 +340,72 @@ $methodCases = [
         'method' => 'format',
         'php_args' => ['H:i:s'],
     ],
+    [
+        'name' => 'DateTime::getTimestamp',
+        'receiver' => 'dt:2024-01-02 03:04:05',
+        'args' => [],
+        'object' => new DateTime('2024-01-02 03:04:05'),
+        'method' => 'getTimestamp',
+        'php_args' => [],
+    ],
+    [
+        'name' => 'DateTimeImmutable::getTimestamp',
+        'receiver' => 'dti:2024-01-02 03:04:05',
+        'args' => [],
+        'object' => new DateTimeImmutable('2024-01-02 03:04:05'),
+        'method' => 'getTimestamp',
+        'php_args' => [],
+    ],
+    [
+        'name' => 'DateTime::getOffset',
+        'receiver' => 'dt:2024-01-02 03:04:05',
+        'args' => [],
+        'object' => new DateTime('2024-01-02 03:04:05'),
+        'method' => 'getOffset',
+        'php_args' => [],
+    ],
+    [
+        'name' => 'DateTimeImmutable::getOffset',
+        'receiver' => 'dti:2024-01-02 03:04:05',
+        'args' => [],
+        'object' => new DateTimeImmutable('2024-01-02 03:04:05'),
+        'method' => 'getOffset',
+        'php_args' => [],
+    ],
+    [
+        'name' => 'DateTimeZone::getName',
+        'receiver' => 'tz:UTC',
+        'args' => [],
+        'object' => new DateTimeZone('UTC'),
+        'method' => 'getName',
+        'php_args' => [],
+    ],
+    [
+        'name' => 'DateTimeZone::getOffset',
+        'receiver' => 'tz:UTC',
+        'args' => ['dt:2024-01-02 03:04:05'],
+        'object' => new DateTimeZone('UTC'),
+        'method' => 'getOffset',
+        'php_args' => [new DateTime('2024-01-02 03:04:05')],
+    ],
+    [
+        'name' => 'DateInterval::format',
+        'receiver' => 'di:P1Y2M3DT4H5M6S',
+        'args' => ['s:%Y-%M-%D %H:%I:%S'],
+        'object' => new DateInterval('P1Y2M3DT4H5M6S'),
+        'method' => 'format',
+        'php_args' => ['%Y-%M-%D %H:%I:%S'],
+    ],
 ];
 
-if (($routeFilter === null || str_contains('method-dispatch', $routeFilter)) &&
-    ($limit === 0 || count($rows) < $limit)) {
+if ($limit === 0 || count($rows) < $limit) {
     foreach ($methodCases as $case) {
+        $ledgerRoute = (string) ($wiring['routes'][strtolower($case['name'])] ?? 'unlisted');
+        $caseRoute = $ledgerRoute . '+method-dispatch';
+
+        if ($routeFilter !== null && !str_contains(strtolower($caseRoute), $routeFilter)) {
+            continue;
+        }
         if ($nameFilter !== null && !str_contains(strtolower($case['name']), $nameFilter)) {
             continue;
         }
@@ -359,7 +420,7 @@ if (($routeFilter === null || str_contains('method-dispatch', $routeFilter)) &&
         }
         $probeOutput = benchRun($probe, $probeCode);
         if ($probeCode !== 0 || str_starts_with($probeOutput, 'null/fault')) {
-            $skipped[] = [$case['name'], 'method-dispatch', 'native method sample rejected'];
+            $skipped[] = [$case['name'], $caseRoute, 'native method sample rejected'];
             continue;
         }
 
@@ -375,8 +436,8 @@ if (($routeFilter === null || str_contains('method-dispatch', $routeFilter)) &&
         }
 
         $nativeOutput = benchRun($nativeCommand, $nativeCode);
-        if ($nativeCode !== 0 || preg_match('/Per call ns:\s*([0-9.]+)/', $nativeOutput, $m) !== 1) {
-            $skipped[] = [$case['name'], 'method-dispatch', 'native method benchmark failed'];
+        if ($nativeCode !== 0 || preg_match('/Per call ns:\\s*([0-9.]+)/', $nativeOutput, $m) !== 1) {
+            $skipped[] = [$case['name'], $caseRoute, 'native method benchmark failed'];
             continue;
         }
         $nativeNs = (float) $m[1];
@@ -393,13 +454,13 @@ if (($routeFilter === null || str_contains('method-dispatch', $routeFilter)) &&
 
         $rows[] = [
             'name' => $case['name'],
-            'route' => 'method-dispatch',
+            'route' => $caseRoute,
             'proof' => 'test-native-method-oracle-asm.php',
             'php_ns' => $phpNs,
             'jinx_ns' => $nativeNs,
             'ratio' => $nativeNs / max($phpNs, 0.000001),
         ];
-        $routeCounts['method-dispatch'] = ($routeCounts['method-dispatch'] ?? 0) + 1;
+        $routeCounts[$caseRoute] = ($routeCounts[$caseRoute] ?? 0) + 1;
 
         if ($limit > 0 && count($rows) >= $limit) {
             break;
