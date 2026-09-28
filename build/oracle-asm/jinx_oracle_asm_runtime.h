@@ -3086,7 +3086,7 @@ static inline JinxValue jinx_oracle_str_repeat_value(JinxValue value, JinxValue 
     }
 
     if ((uint64_t)len * (uint64_t)count > UINT32_MAX) {
-        return jinx_oracle_string_value_len("", 0u);
+        return jinx_oracle_zero_value();
     }
 
     out_len = len * (uint32_t)count;
@@ -7341,6 +7341,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             return jinx_oracle_zero_value();
         }
         ret = jinx_oracle_str_repeat_value(arg0, arg1);
+        if (ret.type == 0u) {
+            ctx->fault = "str_repeat result exceeds native string size";
+            return ret;
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7454,6 +7458,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_str_pad_value(
             arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_call_arg(ctx, 3u), argc
         );
+        if (ret.type != 3u) {
+            ctx->fault = "str_pad result exceeds native string size";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7462,6 +7470,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_str_replace_scalar(
             arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_name_is(name, "str_ireplace")
         );
+        if (ret.type != 3u) {
+            ctx->fault = "str_replace scalar result exceeds native string size";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
