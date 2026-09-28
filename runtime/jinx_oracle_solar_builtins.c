@@ -1,4 +1,5 @@
 #include "jinx_oracle_solar_builtins.h"
+#include "jinx_oracle_extended_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -96,7 +97,11 @@ static int64_t solar_utc_midnight(int y, int m, int d) {
     return solar_days_from_civil(y, (unsigned)m, (unsigned)d) * 86400LL;
 }
 
-static int solar_tz_enter(char **saved, int *had_saved) {
+static int solar_tz_enter(
+    const char *timezone,
+    char **saved,
+    int *had_saved
+) {
     const char *old = getenv("TZ");
     *saved = NULL;
     *had_saved = old != NULL;
@@ -104,7 +109,8 @@ static int solar_tz_enter(char **saved, int *had_saved) {
         *saved = strdup(old);
         if (*saved == NULL) return 0;
     }
-    if (setenv("TZ", JINX_NATIVE_PHP_DEFAULT_TIMEZONE, 1) != 0) {
+    if (timezone == NULL || *timezone == '\0' ||
+        setenv("TZ", timezone, 1) != 0) {
         free(*saved);
         *saved = NULL;
         return 0;
@@ -125,6 +131,7 @@ static void solar_tz_leave(char *saved, int had_saved) {
 
 static int solar_local_date(
     int64_t timestamp,
+    const char *timezone,
     int *year,
     int *month,
     int *day
@@ -135,7 +142,7 @@ static int solar_local_date(
     int had_saved;
     int ok;
 
-    if (!solar_tz_enter(&saved, &had_saved)) return 0;
+    if (!solar_tz_enter(timezone, &saved, &had_saved)) return 0;
     ok = localtime_r(&raw, &tmv) != NULL;
     solar_tz_leave(saved, had_saved);
     if (!ok) return 0;
@@ -146,7 +153,7 @@ static int solar_local_date(
     return 1;
 }
 
-static double solar_current_utc_offset_hours(void) {
+static double solar_current_utc_offset_hours(const char *timezone) {
     time_t now = time(NULL);
     struct tm local_tm;
     struct tm utc_tm;
@@ -155,7 +162,7 @@ static double solar_current_utc_offset_hours(void) {
     int64_t local_seconds;
     int64_t utc_seconds;
 
-    if (!solar_tz_enter(&saved, &had_saved)) return 0.0;
+    if (!solar_tz_enter(timezone, &saved, &had_saved)) return 0.0;
     if (localtime_r(&now, &local_tm) == NULL) {
         solar_tz_leave(saved, had_saved);
         return 0.0;
@@ -307,7 +314,13 @@ static JinxValue solar_info(
     if (!isfinite(latitude) || !isfinite(longitude)) {
         return jinx_oracle_zero_value();
     }
-    if (!solar_local_date(timestamp, &year, &month, &day)) {
+    if (!solar_local_date(
+        timestamp,
+        jinx_oracle_extended_default_timezone(),
+        &year,
+        &month,
+        &day
+    )) {
         return jinx_oracle_zero_value();
     }
 
@@ -438,7 +451,9 @@ JinxValue jinx_oracle_solar_builtin(
         gmt_offset =
             argc >= 6u && args[5].type != 0u
             ? jinx_oracle_floatish(args[5])
-            : solar_current_utc_offset_hours();
+            : solar_current_utc_offset_hours(
+                jinx_oracle_extended_default_timezone()
+            );
 
         if (!isfinite(latitude) || !isfinite(longitude) ||
             !isfinite(zenith) || !isfinite(gmt_offset)) {
