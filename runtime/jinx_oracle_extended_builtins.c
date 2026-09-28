@@ -1,5 +1,6 @@
 #include "jinx_oracle_extended_builtins.h"
 #include "jinx_oracle_batch2_builtins.h"
+#include "jinx_oracle_resource_registry.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -1048,6 +1049,12 @@ static JinxValue jinx_oracle_ext_new_stream(FILE *fp) {
         jinx_zend_object_release(object);
         return jinx_oracle_zero_value();
     }
+    if (jinx_oracle_resource_register(stream, "stream") == 0) {
+        fclose(fp);
+        free(stream);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
     return jinx_oracle_zend_object_value_owned(object);
 }
 
@@ -1993,6 +2000,7 @@ JinxValue jinx_oracle_extended_builtin(
         if (strcmp(name, "fclose") == 0) {
             JinxZendObject *resource_object = jinx_oracle_zend_object_ptr(args[0]);
             ok = fclose(stream->fp) == 0;
+            jinx_oracle_resource_unregister(stream);
             stream->fp = NULL;
             free(stream);
             slot->type = JINX_ZEND_NULL;
