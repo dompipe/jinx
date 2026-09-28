@@ -2,7 +2,7 @@ oracle_sm_family zend_procedural_needed_100
 
 purpose "First 100 needed procedural PHP builtins to move from null/fault placeholders into real Oracle ASM/native handlers. This target deliberately excludes Class::method callables so procedural parity work is not buried under SPL, Reflection, Throwable, and VM object methods."
 
-status targeted
+status implementing
 
 source_audit {
   command "php scripts/audit-native-oracle-placeholders.php --procedural --names-only --limit=100"
@@ -82,9 +82,6 @@ targets {
   date_parse
   date_parse_from_format
   date_sub
-  date_sun_info
-  date_sunrise
-  date_sunset
   date_time_set
   date_timestamp_get
   date_timestamp_set
@@ -139,7 +136,14 @@ batching {
   batch_05 "introspection constants/classes"
 }
 
+deferred_after_first_100 {
+  date_sun_info
+  date_sunrise
+  date_sunset
+  reason "astronomical solar-position parity is deferred until the first 100 procedural targets are proven"
+}
+
 notes {
-  "This is a target/worklist, not a claim that all 100 are implemented."
+  "This block contains exactly 100 first-wave procedural targets. Existing array/calendar handlers plus the extended native backend are being proven before status can move to implemented."
   "Promote a name only after a parity fixture proves PHP-vs-Jinx output/return/error behavior."
 }
