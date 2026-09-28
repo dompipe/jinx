@@ -1477,6 +1477,20 @@ JinxValue jinx_oracle_extended_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    if (strcmp(name, "DateTime::format") == 0 ||
+        strcmp(name, "DateTimeImmutable::format") == 0) {
+        int64_t timestamp;
+        const char *timezone;
+        if (args == NULL || argc != 2u || args[1].type != 3u) return result;
+        if (!jinx_oracle_ext_datetime_parts(
+            args[0], NULL, &timestamp, &timezone
+        )) return result;
+        result = jinx_oracle_ext_date_format_value(timestamp, timezone, args[1]);
+        if (result.type == 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "is_callable") == 0) {
         char *callable;
         int answer;
