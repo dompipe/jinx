@@ -398,6 +398,48 @@ $methodCases = [
     ],
 ];
 
+/*
+ * Throwable getter routes share one deterministic ex:<Class> receiver fixture.
+ * Discover them from the reviewed inventory so a newly promoted Throwable
+ * class automatically becomes benchmarkable without duplicating the parity
+ * suite's class list here.
+ */
+$throwableMethodNames = [
+    'getmessage' => 'getMessage',
+    'getcode' => 'getCode',
+    'getprevious' => 'getPrevious',
+    'gettrace' => 'getTrace',
+    'gettraceasstring' => 'getTraceAsString',
+];
+$declaredClassNames = [];
+foreach (get_declared_classes() as $declaredClass) {
+    $declaredClassNames[strtolower($declaredClass)] = $declaredClass;
+}
+
+foreach ($wiring['routes'] as $ledgerName => $ledgerRoute) {
+    if (!str_contains((string) $ledgerName, '::')) continue;
+    [$classLower, $methodLower] = explode('::', strtolower((string) $ledgerName), 2);
+    if (!isset($throwableMethodNames[$methodLower], $declaredClassNames[$classLower])) continue;
+
+    $class = $declaredClassNames[$classLower];
+    if (!is_a($class, Throwable::class, true)) continue;
+
+    try {
+        $object = new $class('jinx-message', 73);
+    } catch (Throwable) {
+        continue;
+    }
+
+    $methodCases[] = [
+        'name' => $class . '::' . $throwableMethodNames[$methodLower],
+        'receiver' => 'ex:' . $class,
+        'args' => [],
+        'object' => $object,
+        'method' => $throwableMethodNames[$methodLower],
+        'php_args' => [],
+    ];
+}
+
 if ($limit === 0 || count($rows) < $limit) {
     foreach ($methodCases as $case) {
         $ledgerRoute = (string) ($wiring['routes'][strtolower($case['name'])] ?? 'unlisted');
