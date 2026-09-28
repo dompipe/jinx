@@ -127,6 +127,33 @@ if ($limit === null && array_diff_key($signatures, $rows) !== []) {
     generation_fail('Source manifest callables missing Oracle wrappers: ' . implode(', ', array_keys(array_diff_key($signatures, $rows))));
 }
 
+/*
+ * Build a compile-time open-addressing index for callable lookup.
+ *
+ * The old generated runtime walked every entry in oracle_dispatch_table until
+ * it found a case-insensitive name match. With thousands of wrappers that made
+ * call cost depend on where a function happened to sit in the generated table.
+ * Keep the table itself stable, but generate a 50%-or-lower load-factor hash
+ * index that maps a case-insensitive FNV-1a name hash to the table row.
+ */
+$orderedRows = array_values($rows);
+$hashSize = 1;
+while ($hashSize < count($orderedRows) * 2) {
+    $hashSize <<= 1;
+}
+$hashSlots = array_fill(0, $hashSize, -1);
+foreach ($orderedRows as $rowIndex => $row) {
+    $slot = oracle_dispatch_hash((string)$row['name']) & ($hashSize - 1);
+    $probes = 0;
+    while ($hashSlots[$slot] !== -1) {
+        $slot = ($slot + 1) & ($hashSize - 1);
+        if (++$probes >= $hashSize) {
+            generation_fail('Oracle dispatch hash table overflow');
+        }
+    }
+    $hashSlots[$slot] = $rowIndex;
+}
+
 $outDir = dirname($outputPath);
 if (!is_dir($outDir)) {
     mkdir($outDir, 0777, true);
@@ -287,7 +314,7 @@ $code[] = '}';
 $code[] = '';
 $code[] = 'static const JinxOracleDispatchEntry oracle_dispatch_table[] = {';
 
-foreach ($rows as $row) {
+foreach ($orderedRows as $row) {
     $code[] = sprintf(
         '    { "%s", %s, %du, %du, %d },',
         c_escape($row['name']),
@@ -301,6 +328,24 @@ foreach ($rows as $row) {
 $code[] = '    { NULL, NULL, 0u, 0u, 0 }';
 $code[] = '};';
 $code[] = '';
+$code[] = 'enum { JINX_ORACLE_DISPATCH_HASH_SIZE = ' . $hashSize . ' };';
+$code[] = 'static const int oracle_dispatch_hash_slots[JINX_ORACLE_DISPATCH_HASH_SIZE] = {';
+foreach (array_chunk($hashSlots, 16) as $chunk) {
+    $code[] = '    ' . implode(', ', $chunk) . ',';
+}
+$code[] = '};';
+$code[] = '';
+$code[] = 'static uint32_t jinx_oracle_callable_hash(const char *name) {';
+$code[] = '    uint32_t hash = 2166136261u;';
+$code[] = '    while (*name) {';
+$code[] = '        unsigned char c = (unsigned char)*name++;';
+$code[] = '        if (c >= 65u && c <= 90u) c += 32u;';
+$code[] = '        hash ^= (uint32_t)c;';
+$code[] = '        hash *= 16777619u;';
+$code[] = '    }';
+$code[] = '    return hash;';
+$code[] = '}';
+$code[] = '';
 $code[] = 'static int jinx_oracle_callable_name_equal(const char *left, const char *right) {';
 $code[] = '    while (*left && *right) {';
 $code[] = '        unsigned char a = (unsigned char)*left++, b = (unsigned char)*right++;';
@@ -313,12 +358,15 @@ $code[] = '}';
 $code[] = '';
 $code[] = 'static const JinxOracleDispatchEntry *jinx_lookup_oracle_entry(const char *name) {';
 $code[] = '    if (name == NULL) return NULL;';
-$code[] = '    for (size_t i = 0; oracle_dispatch_table[i].name != NULL; i++) {';
-$code[] = '        if (jinx_oracle_callable_name_equal(oracle_dispatch_table[i].name, name)) {';
-$code[] = '            return &oracle_dispatch_table[i];';
+$code[] = '    size_t slot = (size_t)(jinx_oracle_callable_hash(name) & (JINX_ORACLE_DISPATCH_HASH_SIZE - 1u));';
+$code[] = '    for (size_t probe = 0u; probe < JINX_ORACLE_DISPATCH_HASH_SIZE; probe++) {';
+$code[] = '        int index = oracle_dispatch_hash_slots[slot];';
+$code[] = '        if (index < 0) return NULL;';
+$code[] = '        if (jinx_oracle_callable_name_equal(oracle_dispatch_table[index].name, name)) {';
+$code[] = '            return &oracle_dispatch_table[index];';
 $code[] = '        }';
+$code[] = '        slot = (slot + 1u) & (JINX_ORACLE_DISPATCH_HASH_SIZE - 1u);';
 $code[] = '    }';
-$code[] = '';
 $code[] = '    return NULL;';
 $code[] = '}';
 $code[] = '';
@@ -412,6 +460,21 @@ printf(
     count($rows),
     $outputPath
 );
+
+function oracle_dispatch_hash(string $name): int
+{
+    $hash = 2166136261;
+    $length = strlen($name);
+    for ($i = 0; $i < $length; $i++) {
+        $byte = ord($name[$i]);
+        if ($byte >= 65 && $byte <= 90) {
+            $byte += 32;
+        }
+        $hash ^= $byte;
+        $hash = ($hash * 16777619) & 0xffffffff;
+    }
+    return $hash;
+}
 
 function c_escape(string $value): string
 {
