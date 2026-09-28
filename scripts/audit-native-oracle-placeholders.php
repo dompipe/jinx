@@ -141,6 +141,15 @@ function sampleArgs(string $name): array
     if (in_array($name, ['fclose', 'feof', 'fflush', 'fgetc', 'fgetcsv', 'fgets', 'flock'], true)) {
         return $name === 'flock' ? ['fp:tmp', 'i:1'] : ['fp:tmp'];
     }
+    if ($name === 'fread') return ['fp:tmp', 'i:4'];
+    if ($name === 'fwrite') return ['fp:tmp', 's:x'];
+    if ($name === 'fseek') return ['fp:tmp', 'i:0', 'i:0'];
+    if (in_array($name, ['ftell', 'fstat', 'fsync', 'fdatasync'], true)) return ['fp:tmp'];
+    if ($name === 'is_dir') return ['s:.'];
+    if ($name === 'is_file' || $name === 'lstat') return ['s:README.md'];
+    if ($name === 'mkdir') return ['s:/__jinx_oracle_missing__/audit', 'i:493'];
+    if ($name === 'realpath' || $name === 'scandir') return ['s:.'];
+    if ($name === 'glob') return ['s:README*'];
     if ($name === 'fopen') return ['s:README.md', 's:rb'];
     if ($name === 'file_put_contents') return ['s:/__jinx_oracle_missing__/out', 's:x'];
     if (str_starts_with($name, 'file')) return ['s:README.md'];
