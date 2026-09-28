@@ -249,7 +249,7 @@ if ($cmd === 'bench-frozen-server') {
 
 if ($cmd === 'bench-cache-server') {
     $iterations = $args[0] ?? '100';
-    $script = $root . '/scripts/benchmark-bin-jinx-cache-server.php';
+    $script = $root . '/scripts/benchmark-jinx-web-cache-server.php';
 
     if (!is_file($script)) {
         fwrite(STDERR, "Missing benchmark script: {$script}" . PHP_EOL);
