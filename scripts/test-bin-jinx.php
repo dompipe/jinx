@@ -97,6 +97,21 @@ if ($code !== 0 ||
     fail("bench-method-call did not execute the parity-proven native method:\n{$out}");
 }
 
+$out = run(
+    'JINX_SKIP_BUILD=1 '
+    . escapeshellarg(PHP_BINARY)
+    . ' '
+    . escapeshellarg($root . '/scripts/benchmark-native-implemented-functions.php')
+    . ' 3 --limit=3',
+    $code
+);
+
+if ($code !== 0 ||
+    !str_contains($out, 'PHP vs native ./jinx implemented-function benchmark') ||
+    !str_contains($out, 'Benchmarked implementations: 3')) {
+    fail("implemented-function benchmark script did not complete its smoke run:\n{$out}");
+}
+
 $out = run(sprintf(
     '%s web-plan %s',
     $jinxCommand,
