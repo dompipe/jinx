@@ -363,6 +363,201 @@ static JinxValue b2_hostbyname_value(const char *host, int all) {
 }
 
 
+
+typedef struct JinxOracleImageInfo {
+    int width;
+    int height;
+    int type;
+    int bits;
+    int channels;
+    const char *mime;
+} JinxOracleImageInfo;
+
+static uint16_t b2_u16be(const unsigned char *p) {
+    return (uint16_t)(((uint16_t)p[0] << 8) | p[1]);
+}
+
+static uint32_t b2_u32be(const unsigned char *p) {
+    return ((uint32_t)p[0] << 24) |
+        ((uint32_t)p[1] << 16) |
+        ((uint32_t)p[2] << 8) |
+        (uint32_t)p[3];
+}
+
+static uint16_t b2_u16le(const unsigned char *p) {
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static uint32_t b2_u32le(const unsigned char *p) {
+    return (uint32_t)p[0] |
+        ((uint32_t)p[1] << 8) |
+        ((uint32_t)p[2] << 16) |
+        ((uint32_t)p[3] << 24);
+}
+
+static int b2_image_info(
+    const unsigned char *bytes,
+    size_t len,
+    JinxOracleImageInfo *info
+) {
+    if (bytes == NULL || info == NULL) return 0;
+    memset(info, 0, sizeof(*info));
+
+    if (len >= 10u &&
+        (memcmp(bytes, "GIF87a", 6u) == 0 ||
+         memcmp(bytes, "GIF89a", 6u) == 0)) {
+        info->width = (int)b2_u16le(bytes + 6u);
+        info->height = (int)b2_u16le(bytes + 8u);
+        info->type = 1;
+        info->mime = "image/gif";
+        return info->width > 0 && info->height > 0;
+    }
+
+    if (len >= 26u &&
+        memcmp(bytes, "\x89PNG\r\n\x1a\n", 8u) == 0 &&
+        memcmp(bytes + 12u, "IHDR", 4u) == 0) {
+        info->width = (int)b2_u32be(bytes + 16u);
+        info->height = (int)b2_u32be(bytes + 20u);
+        info->bits = bytes[24u];
+        info->type = 3;
+        info->mime = "image/png";
+        return info->width > 0 && info->height > 0;
+    }
+
+    if (len >= 30u && bytes[0] == 'B' && bytes[1] == 'M') {
+        info->width = (int)b2_u32le(bytes + 18u);
+        info->height = (int)b2_u32le(bytes + 22u);
+        if (info->height < 0) info->height = -info->height;
+        info->bits = (int)b2_u16le(bytes + 28u);
+        info->type = 6;
+        info->mime = "image/bmp";
+        return info->width > 0 && info->height > 0;
+    }
+
+    if (len >= 4u && bytes[0] == 0xffu && bytes[1] == 0xd8u) {
+        size_t pos = 2u;
+        while (pos + 4u <= len) {
+            uint8_t marker;
+            uint16_t seglen;
+            while (pos < len && bytes[pos] != 0xffu) pos++;
+            while (pos < len && bytes[pos] == 0xffu) pos++;
+            if (pos >= len) break;
+            marker = bytes[pos++];
+            if (marker == 0xd8u || marker == 0xd9u ||
+                (marker >= 0xd0u && marker <= 0xd7u) ||
+                marker == 0x01u) {
+                continue;
+            }
+            if (pos + 2u > len) break;
+            seglen = b2_u16be(bytes + pos);
+            if (seglen < 2u || pos + seglen > len) break;
+            if ((marker >= 0xc0u && marker <= 0xc3u) ||
+                (marker >= 0xc5u && marker <= 0xc7u) ||
+                (marker >= 0xc9u && marker <= 0xcbu) ||
+                (marker >= 0xcdu && marker <= 0xcfu)) {
+                if (seglen < 8u) return 0;
+                info->bits = bytes[pos + 2u];
+                info->height = (int)b2_u16be(bytes + pos + 3u);
+                info->width = (int)b2_u16be(bytes + pos + 5u);
+                info->channels = bytes[pos + 7u];
+                info->type = 2;
+                info->mime = "image/jpeg";
+                return info->width > 0 && info->height > 0;
+            }
+            pos += seglen;
+        }
+        return 0;
+    }
+
+    return 0;
+}
+
+static JinxValue b2_image_info_value(const JinxOracleImageInfo *info) {
+    JinxZendArray *array;
+    char geometry[96];
+    JinxZendString *string;
+    if (info == NULL || info->width <= 0 || info->height <= 0) {
+        return jinx_oracle_bool_value(0);
+    }
+    array = jinx_zend_array_new_packed(8u);
+    if (array == NULL) return jinx_oracle_zero_value();
+    jinx_zend_array_add_index(array, 0u, jinx_zend_long(info->width));
+    jinx_zend_array_add_index(array, 1u, jinx_zend_long(info->height));
+    jinx_zend_array_add_index(array, 2u, jinx_zend_long(info->type));
+    snprintf(
+        geometry, sizeof(geometry),
+        "width=\"%d\" height=\"%d\"",
+        info->width, info->height
+    );
+    string = jinx_zend_string_new(geometry, strlen(geometry));
+    if (string == NULL ||
+        !jinx_zend_array_add_index(
+            array, 3u, jinx_zend_string_value(string)
+        )) {
+        jinx_zend_string_release(string);
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+    jinx_zend_string_release(string);
+
+    if (info->bits > 0) {
+        jinx_zend_array_add_assoc(
+            array, "bits", 4u, jinx_zend_long(info->bits)
+        );
+    }
+    if (info->channels > 0) {
+        jinx_zend_array_add_assoc(
+            array, "channels", 8u, jinx_zend_long(info->channels)
+        );
+    }
+    if (info->mime != NULL) {
+        string = jinx_zend_string_new(info->mime, strlen(info->mime));
+        if (string == NULL ||
+            !jinx_zend_array_add_assoc(
+                array, "mime", 4u, jinx_zend_string_value(string)
+            )) {
+            jinx_zend_string_release(string);
+            jinx_zend_array_release(array);
+            return jinx_oracle_zero_value();
+        }
+        jinx_zend_string_release(string);
+    }
+    return jinx_oracle_zend_array_value_owned(array);
+}
+
+static unsigned char *b2_read_file_bytes(
+    const char *path,
+    size_t *len_out
+) {
+    FILE *fp;
+    long size;
+    unsigned char *bytes;
+    size_t got;
+    if (path == NULL || len_out == NULL) return NULL;
+    fp = fopen(path, "rb");
+    if (fp == NULL) return NULL;
+    if (fseek(fp, 0, SEEK_END) != 0 ||
+        (size = ftell(fp)) < 0 ||
+        fseek(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        return NULL;
+    }
+    bytes = (unsigned char *)malloc((size_t)size + 1u);
+    if (bytes == NULL) {
+        fclose(fp);
+        return NULL;
+    }
+    got = size == 0 ? 0u : fread(bytes, 1u, (size_t)size, fp);
+    if (got != (size_t)size && ferror(fp)) {
+        free(bytes);
+        fclose(fp);
+        return NULL;
+    }
+    fclose(fp);
+    *len_out = got;
+    return bytes;
+}
+
 JinxValue jinx_oracle_batch2_fixture(const char *spec) {
     if (spec == NULL) return jinx_oracle_zero_value();
 
@@ -1816,6 +2011,81 @@ csv_fail:
             if (handled != NULL) *handled = 1;
             return finfo_result;
         }
+    }
+
+
+    if (strcmp(name, "getimagesizefromstring") == 0) {
+        JinxOracleImageInfo info;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (handled != NULL) *handled = 1;
+        if (!b2_image_info(
+            jinx_oracle_string_bytes(args[0]),
+            jinx_oracle_string_len(args[0]),
+            &info
+        )) {
+            return jinx_oracle_bool_value(0);
+        }
+        return b2_image_info_value(&info);
+    }
+
+    if (strcmp(name, "getimagesize") == 0 ||
+        strcmp(name, "exif_imagetype") == 0) {
+        char *path;
+        unsigned char *bytes;
+        size_t len = 0u;
+        JinxOracleImageInfo info;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL) return result;
+        bytes = b2_read_file_bytes(path, &len);
+        free(path);
+        if (handled != NULL) *handled = 1;
+        if (bytes == NULL || !b2_image_info(bytes, len, &info)) {
+            free(bytes);
+            return jinx_oracle_bool_value(0);
+        }
+        free(bytes);
+        if (strcmp(name, "exif_imagetype") == 0) {
+            return jinx_oracle_int_value(info.type);
+        }
+        return b2_image_info_value(&info);
+    }
+
+    if (strcmp(name, "exif_tagname") == 0) {
+        int64_t tag;
+        const char *name_out = NULL;
+        if (args == NULL || argc < 1u) return result;
+        tag = jinx_oracle_intish(args[0]);
+        switch (tag) {
+            case 0x010e: name_out = "ImageDescription"; break;
+            case 0x010f: name_out = "Make"; break;
+            case 0x0110: name_out = "Model"; break;
+            case 0x0112: name_out = "Orientation"; break;
+            case 0x011a: name_out = "XResolution"; break;
+            case 0x011b: name_out = "YResolution"; break;
+            case 0x0128: name_out = "ResolutionUnit"; break;
+            case 0x0131: name_out = "Software"; break;
+            case 0x0132: name_out = "DateTime"; break;
+            case 0x013b: name_out = "Artist"; break;
+            case 0x8298: name_out = "Copyright"; break;
+            case 0x829a: name_out = "ExposureTime"; break;
+            case 0x829d: name_out = "FNumber"; break;
+            case 0x8827: name_out = "ISOSpeedRatings"; break;
+            case 0x9003: name_out = "DateTimeOriginal"; break;
+            case 0x9004: name_out = "DateTimeDigitized"; break;
+            case 0x9201: name_out = "ShutterSpeedValue"; break;
+            case 0x9202: name_out = "ApertureValue"; break;
+            case 0x9204: name_out = "ExposureBiasValue"; break;
+            case 0x9209: name_out = "Flash"; break;
+            case 0x920a: name_out = "FocalLength"; break;
+            case 0xa002: name_out = "ExifImageWidth"; break;
+            case 0xa003: name_out = "ExifImageLength"; break;
+            default: break;
+        }
+        if (handled != NULL) *handled = 1;
+        return name_out != NULL
+            ? jinx_oracle_string_value(name_out)
+            : jinx_oracle_bool_value(0);
     }
 
     return result;
