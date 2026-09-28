@@ -3,7 +3,7 @@
 # No target is complete until a real native handler and PHP comparison prove it.
 
 batch procedural_needed_200 {
-  count 201
+  count 200
   status implementing
 
 targets {
@@ -207,7 +207,6 @@ targets {
   hash_pbkdf2
   hash_update
   hash_update_file
-  hash_update_stream
 }
 
 rules {
