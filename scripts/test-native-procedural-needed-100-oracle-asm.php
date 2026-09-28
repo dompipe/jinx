@@ -197,6 +197,13 @@ $checks = [
     ['class_implements', ['s:stdClass'], 'zend-array:' . count(class_implements('stdClass', false) ?: [])],
     ['class_parents', ['s:stdClass'], 'zend-array:' . count(class_parents('stdClass', false) ?: [])],
     ['class_uses', ['s:stdClass'], 'zend-array:' . count(class_uses('stdClass', false) ?: [])],
+    ['is_a', ['obj:ErrorException', 's:Exception'], 'bool:' . (is_a(new ErrorException('probe'), 'Exception') ? 'true' : 'false')],
+    ['is_a', ['obj:ErrorException', 's:ErrorException'], 'bool:' . (is_a(new ErrorException('probe'), 'ErrorException') ? 'true' : 'false')],
+    ['is_a', ['s:ErrorException', 's:Exception'], 'bool:' . (is_a('ErrorException', 'Exception') ? 'true' : 'false')],
+    ['is_a', ['s:ErrorException', 's:Exception', 'b:true'], 'bool:' . (is_a('ErrorException', 'Exception', true) ? 'true' : 'false')],
+    ['is_subclass_of', ['obj:ErrorException', 's:Exception'], 'bool:' . (is_subclass_of(new ErrorException('probe'), 'Exception') ? 'true' : 'false')],
+    ['is_subclass_of', ['obj:ErrorException', 's:ErrorException'], 'bool:' . (is_subclass_of(new ErrorException('probe'), 'ErrorException') ? 'true' : 'false')],
+    ['is_subclass_of', ['s:ErrorException', 's:Exception'], 'bool:' . (is_subclass_of('ErrorException', 'Exception') ? 'true' : 'false')],
     ['constant', ['s:PHP_VERSION_ID'], 'int:' . PHP_VERSION_ID],
     ['defined', ['s:PHP_VERSION_ID'], 'bool:' . (defined('PHP_VERSION_ID') ? 'true' : 'false')],
 ];
