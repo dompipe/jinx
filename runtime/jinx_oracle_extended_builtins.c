@@ -1254,6 +1254,20 @@ static const JinxNativeClassMeta *jinx_oracle_ext_class_meta(const char *name) {
     return NULL;
 }
 
+static int jinx_oracle_ext_class_has_method(
+    const JinxNativeClassMeta *meta,
+    const char *method_name
+) {
+    if (meta == NULL || method_name == NULL) return 0;
+    for (size_t i = 0u; i < meta->method_count; i++) {
+        if (meta->methods[i] != NULL &&
+            strcasecmp(meta->methods[i], method_name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int jinx_oracle_ext_class_implements_name(
     const JinxNativeClassMeta *meta,
     const char *interface_name
@@ -1570,6 +1584,167 @@ JinxValue jinx_oracle_extended_builtin(
         result = jinx_oracle_ext_date_format_value(timestamp, timezone, args[0]);
         if (result.type != 0u && handled != NULL) *handled = 1;
         return result;
+    }
+
+    if (strcmp(name, "mktime") == 0) {
+        struct tm now_parts;
+        time_t now = time(NULL);
+        int64_t timestamp;
+        int year;
+        if (args == NULL || argc < 1u) return result;
+        if (!jinx_oracle_ext_parts_from_timestamp(
+                (int64_t)now,
+                jinx_oracle_ext_default_timezone,
+                &now_parts
+            )) return result;
+
+        now_parts.tm_hour = (int)jinx_oracle_intish(args[0]);
+        if (argc >= 2u && args[1].type != 0u) now_parts.tm_min = (int)jinx_oracle_intish(args[1]);
+        if (argc >= 3u && args[2].type != 0u) now_parts.tm_sec = (int)jinx_oracle_intish(args[2]);
+        if (argc >= 4u && args[3].type != 0u) now_parts.tm_mon = (int)jinx_oracle_intish(args[3]) - 1;
+        if (argc >= 5u && args[4].type != 0u) now_parts.tm_mday = (int)jinx_oracle_intish(args[4]);
+        if (argc >= 6u && args[5].type != 0u) {
+            year = (int)jinx_oracle_intish(args[5]);
+            if (year >= 0 && year < 70) year += 2000;
+            else if (year >= 70 && year <= 100) year += 1900;
+            now_parts.tm_year = year - 1900;
+        }
+        now_parts.tm_isdst = -1;
+        if (!jinx_oracle_ext_timestamp_from_parts(
+                now_parts.tm_year + 1900,
+                now_parts.tm_mon + 1,
+                now_parts.tm_mday,
+                now_parts.tm_hour,
+                now_parts.tm_min,
+                now_parts.tm_sec,
+                jinx_oracle_ext_default_timezone,
+                &timestamp
+            )) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(timestamp);
+    }
+
+    if (strcmp(name, "localtime") == 0) {
+        int64_t timestamp = args != NULL && argc >= 1u && args[0].type != 0u
+            ? jinx_oracle_intish(args[0])
+            : (int64_t)time(NULL);
+        int associative = args != NULL && argc >= 2u
+            ? jinx_oracle_boolish(args[1])
+            : 0;
+        struct tm tmv;
+        JinxZendArray *array;
+        if (!jinx_oracle_ext_parts_from_timestamp(
+                timestamp, jinx_oracle_ext_default_timezone, &tmv
+            )) return result;
+        array = jinx_zend_array_new_packed(9u);
+        if (array == NULL) return result;
+        if (associative) {
+            if (!jinx_zend_array_add_assoc(array, "tm_sec", 6u, jinx_zend_long(tmv.tm_sec)) ||
+                !jinx_zend_array_add_assoc(array, "tm_min", 6u, jinx_zend_long(tmv.tm_min)) ||
+                !jinx_zend_array_add_assoc(array, "tm_hour", 7u, jinx_zend_long(tmv.tm_hour)) ||
+                !jinx_zend_array_add_assoc(array, "tm_mday", 7u, jinx_zend_long(tmv.tm_mday)) ||
+                !jinx_zend_array_add_assoc(array, "tm_mon", 6u, jinx_zend_long(tmv.tm_mon)) ||
+                !jinx_zend_array_add_assoc(array, "tm_year", 7u, jinx_zend_long(tmv.tm_year)) ||
+                !jinx_zend_array_add_assoc(array, "tm_wday", 7u, jinx_zend_long(tmv.tm_wday)) ||
+                !jinx_zend_array_add_assoc(array, "tm_yday", 7u, jinx_zend_long(tmv.tm_yday)) ||
+                !jinx_zend_array_add_assoc(array, "tm_isdst", 8u, jinx_zend_long(tmv.tm_isdst > 0 ? 1 : 0))) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        } else {
+            int64_t values[9] = {
+                tmv.tm_sec, tmv.tm_min, tmv.tm_hour, tmv.tm_mday,
+                tmv.tm_mon, tmv.tm_year, tmv.tm_wday, tmv.tm_yday,
+                tmv.tm_isdst > 0 ? 1 : 0
+            };
+            for (size_t i = 0u; i < 9u; i++) {
+                if (!jinx_zend_array_append(array, jinx_zend_long(values[i]))) {
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+            }
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "idate") == 0) {
+        int64_t timestamp;
+        struct tm tmv;
+        const unsigned char *format;
+        int64_t value = -1;
+        char buf[32];
+        int offset;
+        int year;
+        int days;
+        if (args == NULL || argc < 1u || args[0].type != 3u ||
+            jinx_oracle_string_len(args[0]) != 1u) {
+            if (args != NULL && argc >= 1u && args[0].type == 3u) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            return result;
+        }
+        timestamp = argc >= 2u && args[1].type != 0u
+            ? jinx_oracle_intish(args[1])
+            : (int64_t)time(NULL);
+        if (!jinx_oracle_ext_parts_from_timestamp(
+                timestamp, jinx_oracle_ext_default_timezone, &tmv
+            )) return result;
+        format = jinx_oracle_string_bytes(args[0]);
+        year = tmv.tm_year + 1900;
+        switch ((char)format[0]) {
+            case 'd': case 'j': value = tmv.tm_mday; break;
+            case 'N': value = tmv.tm_wday == 0 ? 7 : tmv.tm_wday; break;
+            case 'w': value = tmv.tm_wday; break;
+            case 'z': value = tmv.tm_yday; break;
+            case 'W':
+                if (strftime(buf, sizeof(buf), "%V", &tmv) == 0u) value = -1;
+                else value = strtoll(buf, NULL, 10);
+                break;
+            case 'm': case 'n': value = tmv.tm_mon + 1; break;
+            case 't': {
+                static const int mdays[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+                days = mdays[tmv.tm_mon];
+                if (tmv.tm_mon == 1 &&
+                    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) days = 29;
+                value = days;
+                break;
+            }
+            case 'L': value = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0); break;
+            case 'y': value = year % 100; break;
+            case 'Y': value = year; break;
+            case 'o':
+                if (strftime(buf, sizeof(buf), "%G", &tmv) == 0u) value = -1;
+                else value = strtoll(buf, NULL, 10);
+                break;
+            case 'B': {
+                int64_t beat = (((timestamp % 86400LL) + 3600LL) * 10LL);
+                if (beat < 0) beat += 864000LL;
+                value = (beat / 864LL) % 1000LL;
+                break;
+            }
+            case 'g': case 'h': value = tmv.tm_hour % 12 ? tmv.tm_hour % 12 : 12; break;
+            case 'H': case 'G': value = tmv.tm_hour; break;
+            case 'i': value = tmv.tm_min; break;
+            case 's': value = tmv.tm_sec; break;
+            case 'I': value = tmv.tm_isdst > 0 ? 1 : 0; break;
+            case 'Z':
+                offset = jinx_oracle_ext_timezone_offset_seconds(
+                    timestamp, jinx_oracle_ext_default_timezone
+                );
+                value = offset;
+                break;
+            case 'U': value = timestamp; break;
+            default: value = -1; break;
+        }
+        if (handled != NULL) *handled = 1;
+        return value == -1
+            ? jinx_oracle_bool_value(0)
+            : jinx_oracle_int_value(value);
     }
 
     if (strcmp(name, "date_default_timezone_get") == 0) {
@@ -2691,6 +2866,42 @@ JinxValue jinx_oracle_extended_builtin(
                 strcmp(name,"is_dir")==0?S_ISDIR(st.st_mode):S_ISREG(st.st_mode)
             );
         }
+    }
+
+    if (strcmp(name, "method_exists") == 0) {
+        const JinxNativeClassMeta *meta = NULL;
+        char *class_name = NULL;
+        char *method_name;
+        int answer;
+        if (args == NULL || argc < 2u || args[1].type != 3u) return result;
+        if (args[0].type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            JinxZendObject *object = jinx_oracle_zend_object_ptr(args[0]);
+            if (object == NULL || object->class_name == NULL) return result;
+            meta = jinx_oracle_ext_class_meta(object->class_name);
+            if (meta == NULL) return result;
+        } else if (args[0].type == 3u) {
+            class_name = jinx_oracle_ext_dup_string_value(args[0]);
+            if (class_name == NULL) return result;
+            meta = jinx_oracle_ext_class_meta(class_name);
+            if (meta == NULL) {
+                free(class_name);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+        } else {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        method_name = jinx_oracle_ext_dup_string_value(args[1]);
+        if (method_name == NULL) {
+            free(class_name);
+            return result;
+        }
+        answer = jinx_oracle_ext_class_has_method(meta, method_name);
+        free(method_name);
+        free(class_name);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(answer);
     }
 
     if (strcmp(name, "is_a") == 0 || strcmp(name, "is_subclass_of") == 0) {
