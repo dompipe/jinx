@@ -69,6 +69,18 @@ static char *jinx_oracle_ext_strdup(const char *s) {
     return out;
 }
 
+static int jinx_oracle_ext_name_in_list(
+    const char *name,
+    const char *const *items,
+    size_t count
+) {
+    if (name == NULL || items == NULL) return 0;
+    for (size_t i = 0u; i < count; i++) {
+        if (items[i] != NULL && strcasecmp(items[i], name) == 0) return 1;
+    }
+    return 0;
+}
+
 static char *jinx_oracle_ext_dup_string_value(JinxValue value) {
     uint32_t len;
     char *out;
@@ -1430,6 +1442,85 @@ JinxValue jinx_oracle_extended_builtin(
 
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    if (strcmp(name, "is_callable") == 0) {
+        char *callable;
+        int answer;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc != 1u) return result;
+        callable = jinx_oracle_ext_dup_string_value(args[0]);
+        if (callable == NULL) return result;
+        if (strstr(callable, "::") != NULL) {
+            free(callable);
+            return result;
+        }
+        answer = jinx_oracle_ext_name_in_list(
+            callable,
+            jinx_native_internal_function_names,
+            jinx_native_internal_function_names_count
+        );
+        free(callable);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(answer);
+    }
+
+    if (strcmp(name, "tmpfile") == 0) {
+        FILE *fp;
+        if (argc != 0u) return result;
+        fp = tmpfile();
+        if (handled != NULL) *handled = 1;
+        return fp != NULL
+            ? jinx_oracle_ext_new_stream(fp)
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "tempnam") == 0) {
+        char *directory;
+        char *prefix;
+        char pattern[PATH_MAX];
+        size_t directory_len;
+        int fd;
+        int written;
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        directory = jinx_oracle_ext_dup_string_value(args[0]);
+        prefix = jinx_oracle_ext_dup_string_value(args[1]);
+        if (directory == NULL || prefix == NULL) {
+            free(directory);
+            free(prefix);
+            return result;
+        }
+        if (strchr(prefix, '/') != NULL || strchr(prefix, '\\') != NULL) {
+            free(directory);
+            free(prefix);
+            return result;
+        }
+        {
+            struct stat st;
+            if (stat(directory, &st) != 0 || !S_ISDIR(st.st_mode)) {
+                free(directory);
+                free(prefix);
+                return result;
+            }
+        }
+        directory_len = strlen(directory);
+        written = snprintf(
+            pattern,
+            sizeof(pattern),
+            "%s%s%sXXXXXX",
+            directory,
+            directory_len != 0u && directory[directory_len - 1u] == '/' ? "" : "/",
+            prefix
+        );
+        free(directory);
+        free(prefix);
+        if (written < 0 || (size_t)written >= sizeof(pattern)) return result;
+        fd = mkstemp(pattern);
+        if (handled != NULL) *handled = 1;
+        if (fd < 0) return jinx_oracle_bool_value(0);
+        close(fd);
+        return jinx_oracle_ext_copy_string(pattern, strlen(pattern));
+    }
 
     if (strcmp(name, "call_user_func") == 0) {
         if (jinx_oracle_ext_call_user_func(args, argc, &result)) {
