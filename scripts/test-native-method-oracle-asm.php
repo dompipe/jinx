@@ -174,6 +174,7 @@ $throwableMethods = [
     'getFile',
     'getLine',
     '__toString',
+    '__wakeup',
 ];
 
 foreach ($throwableClasses as $class) {
@@ -211,6 +212,9 @@ foreach ($throwableClasses as $class) {
             'getFile' => 'string:' . $phpThrowable->getFile(),
             'getLine' => 'int:' . $phpThrowable->getLine(),
             '__toString' => 'string:' . $phpThrowable->__toString(),
+            '__wakeup' => $phpThrowable->__wakeup() === null
+                ? 'null'
+                : failMethod("unexpected wakeup return for {$class}"),
         };
 
         checkMethod(
@@ -221,6 +225,31 @@ foreach ($throwableClasses as $class) {
             $expected
         );
     }
+
+    $phpConstructed = new $class('jinx-message', 73);
+    $phpConstructReturn = $phpConstructed->__construct(
+        'reset-message',
+        91
+    );
+    $constructExpected = implode(PHP_EOL, [
+        'return=' . ($phpConstructReturn === null ? 'null' : 'non-null'),
+        'message=string:' . $phpConstructed->getMessage(),
+        'code=int:' . $phpConstructed->getCode(),
+    ]);
+    $constructActual = runMethod(
+        escapeshellarg($jinx)
+        . ' oracle-throwable-construct-smoke '
+        . escapeshellarg($class),
+        $constructCode
+    );
+    if ($constructCode !== 0 ||
+        $constructActual !== $constructExpected) {
+        failMethod(
+            "{$class}::__construct state parity mismatch\n"
+            . "PHP:\n{$constructExpected}\n"
+            . "JINX:\n{$constructActual}"
+        );
+    }
 }
 
-echo "PASS: native Oracle method receiver preserves DateTime and 328 Throwable route probes\n";
+echo "PASS: native Oracle method receiver preserves DateTime and 410 Throwable route probes\n";
