@@ -3596,6 +3596,53 @@ JinxValue jinx_oracle_batch2_builtin(
             : jinx_oracle_bool_value(0);
     }
 
+    if (strcmp(name, "vfprintf") == 0) {
+        JinxOracleBatch2Stream *stream;
+        JinxZendArray *values;
+        size_t live;
+        JinxValue *format_args = NULL;
+        JinxValue formatted;
+        int format_ok = 0;
+        size_t written;
+        if (args == NULL || argc != 3u || args[1].type != 3u ||
+            !jinx_oracle_value_is_zend_array(args[2])) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        values = jinx_oracle_zend_array_ptr(args[2]);
+        live = jinx_zend_array_live_count(values);
+        if (live > UINT32_MAX) return result;
+        if (live != 0u) {
+            format_args = (JinxValue *)calloc(live, sizeof(*format_args));
+            if (format_args == NULL) return result;
+            for (size_t i = 0u; i < live; i++) {
+                const JinxZendBucket *bucket =
+                    jinx_zend_array_live_iter_at(values, i);
+                if (bucket == NULL ||
+                    !jinx_oracle_zend_to_jinx_borrowed(
+                        bucket->value, &format_args[i]
+                    )) {
+                    free(format_args);
+                    return result;
+                }
+            }
+        }
+        formatted = jinx_oracle_sprintf_values(
+            args[1],
+            format_args,
+            (uint32_t)live,
+            &format_ok
+        );
+        free(format_args);
+        if (!format_ok || formatted.type != 3u) return result;
+        written = formatted.flags == 0u
+            ? 0u
+            : fwrite(formatted.as.ptr, 1u, formatted.flags, stream->fp);
+        if (handled != NULL) *handled = 1;
+        return written == formatted.flags
+            ? jinx_oracle_int_value((int64_t)written)
+            : jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "fpassthru") == 0) {
         JinxOracleBatch2Stream *stream;
         unsigned char buffer[8192];
