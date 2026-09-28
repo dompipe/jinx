@@ -239,9 +239,20 @@ $source = $tmp . '/source.txt';
 $link = $tmp . '/source-link';
 $nativeSymlink = $tmp . '/native-symlink';
 $nativeHardlink = $tmp . '/native-hardlink';
+$renameSource = $tmp . '/rename-source.txt';
+$renameDest = $tmp . '/rename-dest.txt';
+$removeDir = $tmp . '/remove-dir';
+$touched = $tmp . '/touched.txt';
 $copy = $tmp . '/copy.txt';
 $written = $tmp . '/written.txt';
 file_put_contents($source, "alpha\nbeta\n");
+file_put_contents($renameSource, "rename\n");
+if (!mkdir($removeDir, 0700)) {
+    @unlink($source);
+    @unlink($renameSource);
+    @rmdir($tmp);
+    fail100('could not create filesystem parity removable directory');
+}
 if (!symlink($source, $link)) {
     @unlink($source);
     @rmdir($tmp);
@@ -252,6 +263,10 @@ $typedSource = 's:' . $source;
 $typedLink = 's:' . $link;
 $typedNativeSymlink = 's:' . $nativeSymlink;
 $typedNativeHardlink = 's:' . $nativeHardlink;
+$typedRenameSource = 's:' . $renameSource;
+$typedRenameDest = 's:' . $renameDest;
+$typedRemoveDir = 's:' . $removeDir;
+$typedTouched = 's:' . $touched;
 $typedCopy = 's:' . $copy;
 $typedWritten = 's:' . $written;
 
@@ -266,6 +281,11 @@ $fsChecks = [
     ['readlink', [$typedNativeSymlink], 'string:' . $source],
     ['link', [$typedSource, $typedNativeHardlink], 'bool:true'],
     ['file_exists', [$typedNativeHardlink], 'bool:true'],
+    ['rename', [$typedRenameSource, $typedRenameDest], 'bool:true'],
+    ['file_exists', [$typedRenameDest], 'bool:true'],
+    ['rmdir', [$typedRemoveDir], 'bool:true'],
+    ['file_exists', [$typedRemoveDir], 'bool:false'],
+    ['umask', [], 'int:' . umask()],
     ['is_readable', [$typedSource], 'bool:' . (is_readable($source) ? 'true' : 'false')],
     ['is_writable', [$typedSource], 'bool:' . (is_writable($source) ? 'true' : 'false')],
     ['is_writeable', [$typedSource], 'bool:' . (is_writeable($source) ? 'true' : 'false')],
@@ -298,9 +318,16 @@ $fsChecks = [
 foreach ($fsChecks as [$name, $args, $expected]) {
     $actual = jinx100($jinx, $name, $args, false, $code);
     if ($code !== 0 || $actual !== $expected) {
-        @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+        @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
         fail100("{$name} filesystem parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
     }
+}
+
+$actual = jinx100($jinx, 'touch', [$typedTouched, 'i:1700000000', 'i:1700000001'], false, $code);
+clearstatcache(true, $touched);
+if ($code !== 0 || $actual !== 'bool:true' ||
+    filemtime($touched) !== 1700000000 || fileatime($touched) !== 1700000001) {
+    fail100("touch filesystem parity mismatch\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'file_get_contents', [$typedSource], true, $code);
