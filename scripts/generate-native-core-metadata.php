@@ -88,6 +88,9 @@ $includePath = get_include_path();
 /* Preserve PHP's public ordering for hash_algos()/hash_hmac_algos(). */
 $hashAlgos = function_exists('hash_algos') ? hash_algos() : [];
 $hashHmacAlgos = function_exists('hash_hmac_algos') ? hash_hmac_algos() : [];
+$streamWrappers = function_exists('stream_get_wrappers') ? stream_get_wrappers() : [];
+$streamTransports = function_exists('stream_get_transports') ? stream_get_transports() : [];
+$streamFilters = function_exists('stream_get_filters') ? stream_get_filters() : [];
 
 $extensionFunctionRows = [];
 foreach ($extensions as $extension) {
@@ -211,6 +214,9 @@ $emitStringArray('jinx_native_extension_names', $extensions);
 $emitStringArray('jinx_native_enum_names', $enums);
 $emitStringArray('jinx_native_hash_algos', $hashAlgos);
 $emitStringArray('jinx_native_hash_hmac_algos', $hashHmacAlgos);
+$emitStringArray('jinx_native_stream_wrappers', $streamWrappers);
+$emitStringArray('jinx_native_stream_transports', $streamTransports);
+$emitStringArray('jinx_native_stream_filters', $streamFilters);
 
 $extensionSymbols = [];
 foreach ($extensionFunctionRows as $extension => $funcs) {
