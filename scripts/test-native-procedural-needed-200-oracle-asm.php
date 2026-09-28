@@ -377,6 +377,37 @@ $checks = [
 
 array_push($checks, ...$posixChecks);
 
+if (function_exists('pcntl_wifexited')) {
+    $pcntlWaitChecks = [
+        ['pcntl_wifexited', 0, pcntl_wifexited(0)],
+        ['pcntl_wifstopped', 0x137f, pcntl_wifstopped(0x137f)],
+        ['pcntl_wifsignaled', 9, pcntl_wifsignaled(9)],
+        ['pcntl_wifcontinued', 0xffff, pcntl_wifcontinued(0xffff)],
+    ];
+    foreach ($pcntlWaitChecks as [$name, $statusWord, $phpValue]) {
+        $checks[] = [
+            $name,
+            ['i:' . $statusWord],
+            'bool:' . ($phpValue ? 'true' : 'false'),
+        ];
+    }
+    $checks[] = [
+        'pcntl_wexitstatus',
+        ['i:' . 0x2a00],
+        (($v = pcntl_wexitstatus(0x2a00)) === false ? 'bool:false' : 'int:' . $v),
+    ];
+    $checks[] = [
+        'pcntl_wtermsig',
+        ['i:9'],
+        (($v = pcntl_wtermsig(9)) === false ? 'bool:false' : 'int:' . $v),
+    ];
+    $checks[] = [
+        'pcntl_wstopsig',
+        ['i:' . 0x137f],
+        (($v = pcntl_wstopsig(0x137f)) === false ? 'bool:false' : 'int:' . $v),
+    ];
+}
+
 if (function_exists('mhash_count') &&
     function_exists('mhash_get_hash_name') &&
     function_exists('mhash_get_block_size') &&
