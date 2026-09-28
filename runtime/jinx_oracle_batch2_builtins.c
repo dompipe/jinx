@@ -63,6 +63,15 @@ static char *jinx_oracle_batch2_assert_callback = NULL;
 static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
 
+typedef struct JinxOracleBatch2IniOverride {
+    char *name;
+    char *value;
+} JinxOracleBatch2IniOverride;
+
+static JinxOracleBatch2IniOverride *jinx_oracle_batch2_ini_overrides = NULL;
+static size_t jinx_oracle_batch2_ini_override_count = 0u;
+static size_t jinx_oracle_batch2_ini_override_capacity = 0u;
+
 
 static int b2_random_fill(unsigned char *out, size_t len) {
     int fd;
@@ -716,6 +725,131 @@ static const char *b2_cfg_value(const char *name) {
         }
     }
     return NULL;
+}
+
+static const JinxNativeIniMeta *b2_ini_meta(const char *name) {
+    if (name == NULL) return NULL;
+    for (size_t i = 0u; i < jinx_native_ini_metadata_count; i++) {
+        if (strcmp(name, jinx_native_ini_metadata[i].name) == 0) {
+            return &jinx_native_ini_metadata[i];
+        }
+    }
+    return NULL;
+}
+
+static JinxOracleBatch2IniOverride *b2_ini_override(const char *name) {
+    if (name == NULL) return NULL;
+    for (size_t i = 0u; i < jinx_oracle_batch2_ini_override_count; i++) {
+        if (strcmp(name, jinx_oracle_batch2_ini_overrides[i].name) == 0) {
+            return &jinx_oracle_batch2_ini_overrides[i];
+        }
+    }
+    return NULL;
+}
+
+static const char *b2_ini_current(const JinxNativeIniMeta *meta) {
+    JinxOracleBatch2IniOverride *override;
+    if (meta == NULL) return NULL;
+    override = b2_ini_override(meta->name);
+    return override != NULL ? override->value : meta->local_value;
+}
+
+static int b2_ini_store_override(const char *name, const char *value) {
+    JinxOracleBatch2IniOverride *override;
+    char *copy;
+    if (name == NULL || value == NULL) return 0;
+    override = b2_ini_override(name);
+    copy = strdup(value);
+    if (copy == NULL) return 0;
+    if (override != NULL) {
+        free(override->value);
+        override->value = copy;
+        return 1;
+    }
+    if (jinx_oracle_batch2_ini_override_count ==
+        jinx_oracle_batch2_ini_override_capacity) {
+        size_t new_capacity = jinx_oracle_batch2_ini_override_capacity == 0u
+            ? 8u
+            : jinx_oracle_batch2_ini_override_capacity * 2u;
+        JinxOracleBatch2IniOverride *grown = (JinxOracleBatch2IniOverride *)realloc(
+            jinx_oracle_batch2_ini_overrides,
+            new_capacity * sizeof(*grown)
+        );
+        if (grown == NULL) {
+            free(copy);
+            return 0;
+        }
+        jinx_oracle_batch2_ini_overrides = grown;
+        jinx_oracle_batch2_ini_override_capacity = new_capacity;
+    }
+    override = &jinx_oracle_batch2_ini_overrides[
+        jinx_oracle_batch2_ini_override_count++
+    ];
+    override->name = strdup(name);
+    override->value = copy;
+    if (override->name == NULL) {
+        free(copy);
+        jinx_oracle_batch2_ini_override_count--;
+        return 0;
+    }
+    return 1;
+}
+
+static void b2_ini_clear_override(const char *name) {
+    if (name == NULL) return;
+    for (size_t i = 0u; i < jinx_oracle_batch2_ini_override_count; i++) {
+        if (strcmp(name, jinx_oracle_batch2_ini_overrides[i].name) == 0) {
+            free(jinx_oracle_batch2_ini_overrides[i].name);
+            free(jinx_oracle_batch2_ini_overrides[i].value);
+            if (i + 1u < jinx_oracle_batch2_ini_override_count) {
+                memmove(
+                    &jinx_oracle_batch2_ini_overrides[i],
+                    &jinx_oracle_batch2_ini_overrides[i + 1u],
+                    (jinx_oracle_batch2_ini_override_count - i - 1u)
+                        * sizeof(*jinx_oracle_batch2_ini_overrides)
+                );
+            }
+            jinx_oracle_batch2_ini_override_count--;
+            return;
+        }
+    }
+}
+
+static char *b2_ini_value_string(JinxValue value) {
+    JinxValue string_value;
+    if (value.type == 3u) return b2_dup(value);
+    if (value.type == 0u) return strdup("");
+    string_value = jinx_oracle_strval_value(value);
+    if (string_value.type != 3u) return NULL;
+    return b2_dup(string_value);
+}
+
+static JinxValue b2_ini_set_value(
+    const char *name,
+    JinxValue new_value,
+    int *ok
+) {
+    const JinxNativeIniMeta *meta = b2_ini_meta(name);
+    const char *old_value;
+    char *replacement;
+    JinxValue result = jinx_oracle_bool_value(0);
+    if (ok != NULL) *ok = 0;
+    if (meta == NULL || (meta->access & 1) == 0) {
+        if (ok != NULL) *ok = 1;
+        return result;
+    }
+    old_value = b2_ini_current(meta);
+    replacement = b2_ini_value_string(new_value);
+    if (replacement == NULL) return result;
+    if (!b2_ini_store_override(name, replacement)) {
+        free(replacement);
+        return result;
+    }
+    free(replacement);
+    if (ok != NULL) *ok = 1;
+    return old_value != NULL
+        ? b2_copy(old_value, strlen(old_value))
+        : jinx_oracle_bool_value(0);
 }
 
 static const JinxNativeClassMeta *b2_class(const char *name) {
@@ -3093,7 +3227,11 @@ JinxValue jinx_oracle_batch2_builtin(
             return b2_copy(resolved, strlen(resolved));
         }
         {
-            char *paths = strdup(JINX_NATIVE_PHP_INCLUDE_PATH);
+            const JinxNativeIniMeta *include_meta = b2_ini_meta("include_path");
+            const char *include_path = include_meta != NULL
+                ? b2_ini_current(include_meta)
+                : JINX_NATIVE_PHP_INCLUDE_PATH;
+            char *paths = strdup(include_path != NULL ? include_path : "");
             char *save = NULL;
             char *entry = paths != NULL ? strtok_r(paths, ":", &save) : NULL;
             while (entry != NULL) {
@@ -3699,8 +3837,22 @@ JinxValue jinx_oracle_batch2_builtin(
     }
 
     if (strcmp(name, "get_include_path") == 0) {
+        const JinxNativeIniMeta *meta = b2_ini_meta("include_path");
+        const char *value = meta != NULL
+            ? b2_ini_current(meta)
+            : JINX_NATIVE_PHP_INCLUDE_PATH;
         if (handled != NULL) *handled = 1;
-        return jinx_oracle_string_value(JINX_NATIVE_PHP_INCLUDE_PATH);
+        return value != NULL
+            ? b2_copy(value, strlen(value))
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "set_include_path") == 0) {
+        int set_ok = 0;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        result = b2_ini_set_value("include_path", args[0], &set_ok);
+        if (set_ok && handled != NULL) *handled = 1;
+        return result;
     }
 
     if (strcmp(name, "get_resource_id") == 0 ||
@@ -3957,6 +4109,161 @@ csv_fail:
             : jinx_oracle_bool_value(0);
     }
 
+
+    if (strcmp(name, "ini_get") == 0) {
+        char *key;
+        const JinxNativeIniMeta *meta;
+        const char *value;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        key = b2_dup(args[0]);
+        if (key == NULL) return result;
+        meta = b2_ini_meta(key);
+        free(key);
+        if (handled != NULL) *handled = 1;
+        if (meta == NULL) return jinx_oracle_bool_value(0);
+        value = b2_ini_current(meta);
+        return value != NULL
+            ? b2_copy(value, strlen(value))
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "ini_set") == 0 || strcmp(name, "ini_alter") == 0) {
+        char *key;
+        int set_ok = 0;
+        if (args == NULL || argc != 2u || args[0].type != 3u) return result;
+        if (args[1].type != 0u && args[1].type != 1u &&
+            args[1].type != 2u && args[1].type != 3u &&
+            args[1].type != 5u) return result;
+        key = b2_dup(args[0]);
+        if (key == NULL) return result;
+        result = b2_ini_set_value(key, args[1], &set_ok);
+        free(key);
+        if (set_ok && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "ini_restore") == 0) {
+        char *key;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        key = b2_dup(args[0]);
+        if (key == NULL) return result;
+        b2_ini_clear_override(key);
+        free(key);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "ini_get_all") == 0) {
+        char *extension = NULL;
+        int details = 1;
+        JinxZendArray *array;
+        if (argc >= 1u && args != NULL && args[0].type != 0u) {
+            if (args[0].type != 3u) return result;
+            extension = b2_dup(args[0]);
+            if (extension == NULL) return result;
+            if (b2_extension(extension) == NULL) {
+                free(extension);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+        }
+        if (argc >= 2u) details = jinx_oracle_boolish(args[1]);
+        array = jinx_zend_array_new_packed(
+            jinx_native_ini_metadata_count == 0u
+                ? 1u
+                : jinx_native_ini_metadata_count
+        );
+        if (array == NULL) {
+            free(extension);
+            return result;
+        }
+        for (size_t i = 0u; i < jinx_native_ini_metadata_count; i++) {
+            const JinxNativeIniMeta *meta = &jinx_native_ini_metadata[i];
+            const char *current;
+            JinxZendValue value;
+            JinxZendString *owned = NULL;
+            if (extension != NULL &&
+                strcasecmp(extension, meta->extension) != 0) {
+                continue;
+            }
+            current = b2_ini_current(meta);
+            if (details) {
+                JinxZendArray *option = jinx_zend_array_new_packed(3u);
+                if (option == NULL) {
+                    free(extension);
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+                if (meta->global_value != NULL) {
+                    if (!b2_assoc_string(option, "global_value", meta->global_value)) {
+                        jinx_zend_array_release(option);
+                        free(extension);
+                        jinx_zend_array_release(array);
+                        return result;
+                    }
+                } else if (!jinx_zend_array_add_assoc(
+                    option, "global_value", 12u, jinx_zend_null()
+                )) {
+                    jinx_zend_array_release(option);
+                    free(extension);
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+                if (current != NULL) {
+                    if (!b2_assoc_string(option, "local_value", current)) {
+                        jinx_zend_array_release(option);
+                        free(extension);
+                        jinx_zend_array_release(array);
+                        return result;
+                    }
+                } else if (!jinx_zend_array_add_assoc(
+                    option, "local_value", 11u, jinx_zend_null()
+                )) {
+                    jinx_zend_array_release(option);
+                    free(extension);
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+                if (!jinx_zend_array_add_assoc(
+                        option, "access", 6u, jinx_zend_long(meta->access)
+                    ) ||
+                    !jinx_zend_array_add_assoc(
+                        array, meta->name, strlen(meta->name),
+                        jinx_zend_array_value(option)
+                    )) {
+                    jinx_zend_array_release(option);
+                    free(extension);
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+                jinx_zend_array_release(option);
+            } else {
+                if (current == NULL) {
+                    value = jinx_zend_null();
+                } else {
+                    owned = jinx_zend_string_new(current, strlen(current));
+                    if (owned == NULL) {
+                        free(extension);
+                        jinx_zend_array_release(array);
+                        return result;
+                    }
+                    value = jinx_zend_string_value(owned);
+                }
+                if (!jinx_zend_array_add_assoc(
+                        array, meta->name, strlen(meta->name), value
+                    )) {
+                    jinx_zend_string_release(owned);
+                    free(extension);
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+                jinx_zend_string_release(owned);
+            }
+        }
+        free(extension);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
 
     if (strcmp(name, "get_cfg_var") == 0) {
         char *key;
