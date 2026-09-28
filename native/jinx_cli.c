@@ -28,6 +28,7 @@ static void usage(const char *argv0) {
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
+    printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
@@ -975,6 +976,108 @@ static int command_bench_all_functions(int argc, char **argv) {
     return 0;
 }
 
+static int command_oracle_frame_smoke(void) {
+    JinxZendExecutor executor;
+    JinxZendCallFrame frame;
+    JinxZendValue frame_args[3];
+    JinxZendString *text_arg;
+    JinxValue result;
+    JinxValue get_arg_args[1];
+    int ok = 0;
+
+    text_arg = jinx_zend_string_new("oracle", 6u);
+    if (text_arg == NULL) {
+        return fail("could not allocate native frame smoke string");
+    }
+
+    frame_args[0] = jinx_zend_long(7);
+    frame_args[1] = jinx_zend_string_value(text_arg);
+    frame_args[2] = jinx_zend_bool(1);
+
+    jinx_zend_executor_init(&executor);
+    jinx_zend_frame_enter(
+        &executor,
+        &frame,
+        "jinx_frame_smoke",
+        frame_args,
+        3u
+    );
+    frame.scope_name = "JinxFrameScope";
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "func_num_args", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 1u || result.as.i64 != 3) {
+        release_cli_value(result);
+        jinx_zend_frame_leave(&executor, jinx_zend_null());
+        jinx_zend_string_release(text_arg);
+        return fail("func_num_args did not read caller frame argc");
+    }
+    release_cli_value(result);
+
+    get_arg_args[0] = jinx_value_int(1);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "func_get_arg", get_arg_args, 1u, &ok
+    );
+    if (!ok || result.type != 3u || result.flags != 6u ||
+        memcmp(result.as.ptr, "oracle", 6u) != 0) {
+        release_cli_value(result);
+        jinx_zend_frame_leave(&executor, jinx_zend_null());
+        jinx_zend_string_release(text_arg);
+        return fail("func_get_arg did not read caller frame argument");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "func_get_args", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+        jinx_zend_array_live_count(
+            jinx_oracle_zend_array_ptr(result)
+        ) != 3u) {
+        release_cli_value(result);
+        jinx_zend_frame_leave(&executor, jinx_zend_null());
+        jinx_zend_string_release(text_arg);
+        return fail("func_get_args did not copy caller frame arguments");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "get_called_class", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 3u ||
+        result.flags != strlen("JinxFrameScope") ||
+        memcmp(
+            result.as.ptr,
+            "JinxFrameScope",
+            strlen("JinxFrameScope")
+        ) != 0) {
+        release_cli_value(result);
+        jinx_zend_frame_leave(&executor, jinx_zend_null());
+        jinx_zend_string_release(text_arg);
+        return fail("get_called_class did not read frame scope");
+    }
+    release_cli_value(result);
+
+    (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+    jinx_zend_string_release(text_arg);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "func_num_args", NULL, 0u, &ok
+    );
+    release_cli_value(result);
+    if (ok) {
+        return fail("func_num_args must fault outside function context");
+    }
+
+    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class and clears on frame leave\n");
+    return 0;
+}
+
 static int command_oracle_constant_smoke(void) {
     const char *constant_name = "__JINX_NATIVE_RUNTIME_CONSTANT_SMOKE__";
     JinxValue define_args[2];
@@ -1182,6 +1285,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-constant-smoke") == 0) {
         return command_oracle_constant_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-frame-smoke") == 0) {
+        return command_oracle_frame_smoke();
     }
 
     if (strcmp(argv[1], "oracle-call") == 0) {
