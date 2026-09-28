@@ -48,7 +48,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-datetime-extra-smoke <Class::method>\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
-    printf("  %s bench-oracle [iterations]\n", argv0);
+    printf("  %s native-benchmark-id\n", argv0);\n    printf("  %s bench-oracle [iterations]\n", argv0);
     printf("  %s bench-call <function> <iterations> [typed-args...]\n", argv0);
     printf("  %s bench-method-call <Class::method> <iterations> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s first100\n", argv0);
