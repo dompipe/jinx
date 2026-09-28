@@ -83,6 +83,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_finfo_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_resource_registry.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_solar_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_dns_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
@@ -158,6 +159,7 @@ echo "Extended procedural Oracle backend compiled: runtime/jinx_oracle_extended_
 echo "Second-wave Oracle backend compiled: runtime/jinx_oracle_batch2_builtins.c"
 echo "Native resource registry compiled: runtime/jinx_oracle_resource_registry.c"
 echo "Native solar backend compiled: runtime/jinx_oracle_solar_builtins.c"
+echo "Native DNS decoder compiled: runtime/jinx_oracle_dns_builtins.c"
 if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
