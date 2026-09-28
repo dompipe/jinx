@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include "jinx_oracle_extended_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
@@ -84,11 +82,6 @@ static int jinx_oracle_ext_object_set_long(JinxZendObject *object, const char *k
         jinx_zend_array_add_assoc(object->properties, key, strlen(key), jinx_zend_long(value));
 }
 
-static int jinx_oracle_ext_object_set_bool(JinxZendObject *object, const char *key, int value) {
-    return object != NULL && object->properties != NULL &&
-        jinx_zend_array_add_assoc(object->properties, key, strlen(key), jinx_zend_bool(value));
-}
-
 static int jinx_oracle_ext_object_set_string(JinxZendObject *object, const char *key, const char *value) {
     JinxZendString *string;
     int ok;
@@ -128,12 +121,6 @@ static const char *jinx_oracle_ext_object_string(JinxZendObject *object, const c
     return value != NULL && value->type == JINX_ZEND_STRING && value->value.str != NULL
         ? value->value.str->bytes
         : fallback;
-}
-
-static int jinx_oracle_ext_object_is(JinxValue value, const char *class_name) {
-    JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
-    return object != NULL && object->class_name != NULL &&
-        strcmp(object->class_name, class_name) == 0;
 }
 
 static int jinx_oracle_ext_array_append_string(JinxZendArray *array, const char *bytes, size_t len) {
