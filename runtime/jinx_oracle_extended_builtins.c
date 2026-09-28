@@ -27,6 +27,7 @@
 
 typedef struct JinxOracleExtStream {
     FILE *fp;
+    int process_pipe;
 } JinxOracleExtStream;
 
 typedef struct JinxOracleExtInterval {
@@ -1050,32 +1051,44 @@ static JinxOracleExtStream *jinx_oracle_ext_stream_from_value(
     return (JinxOracleExtStream *)property->value.ptr;
 }
 
-static JinxValue jinx_oracle_ext_new_stream(FILE *fp) {
+static JinxValue jinx_oracle_ext_new_stream_kind(FILE *fp, int process_pipe) {
     JinxZendObject *object;
     JinxOracleExtStream *stream;
 
     if (fp == NULL) return jinx_oracle_zero_value();
     stream = (JinxOracleExtStream *)calloc(1u, sizeof(*stream));
     if (stream == NULL) {
-        fclose(fp);
+        if (process_pipe) (void)pclose(fp);
+        else fclose(fp);
         return jinx_oracle_zero_value();
     }
     stream->fp = fp;
+    stream->process_pipe = process_pipe;
 
     object = jinx_zend_object_new("stream");
     if (object == NULL || !jinx_oracle_ext_object_set_resource(object, "__stream", stream)) {
-        fclose(fp);
+        if (process_pipe) (void)pclose(fp);
+        else fclose(fp);
         free(stream);
         jinx_zend_object_release(object);
         return jinx_oracle_zero_value();
     }
     if (jinx_oracle_resource_register(stream, "stream") == 0) {
-        fclose(fp);
+        if (process_pipe) (void)pclose(fp);
+        else fclose(fp);
         free(stream);
         jinx_zend_object_release(object);
         return jinx_oracle_zero_value();
     }
     return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxValue jinx_oracle_ext_new_stream(FILE *fp) {
+    return jinx_oracle_ext_new_stream_kind(fp, 0);
+}
+
+static JinxValue jinx_oracle_ext_new_process_stream(FILE *fp) {
+    return jinx_oracle_ext_new_stream_kind(fp, 1);
 }
 
 static JinxZendArray *jinx_oracle_ext_parse_csv_line(
@@ -1406,6 +1419,13 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
         fputs("a,b\nsecond line\n", fp);
         rewind(fp);
         return jinx_oracle_ext_new_stream(fp);
+    }
+
+    if (strcmp(spec, "pp:tmp") == 0) {
+        FILE *fp = popen("printf jinx", "r");
+        return fp != NULL
+            ? jinx_oracle_ext_new_process_stream(fp)
+            : jinx_oracle_zero_value();
     }
 
     {
@@ -2079,6 +2099,40 @@ JinxValue jinx_oracle_extended_builtin(
         return ok ? jinx_oracle_int_value((int64_t)written) : jinx_oracle_bool_value(0);
     }
 
+    if (strcmp(name, "readfile") == 0) {
+        char *path;
+        FILE *fp;
+        unsigned char buffer[8192];
+        size_t total = 0u;
+        size_t n;
+        int write_failed = 0;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc >= 2u && args[1].type != 0u && jinx_oracle_boolish(args[1])) return result;
+        if (argc >= 3u && args[2].type != 0u) return result;
+        path = jinx_oracle_ext_dup_string_value(args[0]);
+        if (path == NULL) return result;
+        fp = fopen(path, "rb");
+        free(path);
+        if (fp == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        while ((n = fread(buffer, 1u, sizeof(buffer), fp)) != 0u) {
+            if (fwrite(buffer, 1u, n, stdout) != n) {
+                write_failed = 1;
+                break;
+            }
+            total += n;
+        }
+        ok = !write_failed && !ferror(fp);
+        fclose(fp);
+        fflush(stdout);
+        if (handled != NULL) *handled = 1;
+        return ok
+            ? jinx_oracle_int_value((int64_t)total)
+            : jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "file") == 0) {
         char *path;
         FILE *fp;
@@ -2112,6 +2166,62 @@ JinxValue jinx_oracle_extended_builtin(
         fclose(fp);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "popen") == 0) {
+        char *command;
+        char *mode;
+        const char *posix_mode = NULL;
+        FILE *fp;
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        command = jinx_oracle_ext_dup_string_value(args[0]);
+        mode = jinx_oracle_ext_dup_string_value(args[1]);
+        if (command == NULL || mode == NULL) {
+            free(command);
+            free(mode);
+            return result;
+        }
+        if (strcmp(mode, "r") == 0 || strcmp(mode, "rb") == 0) posix_mode = "r";
+        else if (strcmp(mode, "w") == 0 || strcmp(mode, "wb") == 0) posix_mode = "w";
+        else {
+            free(command);
+            free(mode);
+            return result;
+        }
+        fp = popen(command, posix_mode);
+        free(command);
+        free(mode);
+        if (handled != NULL) *handled = 1;
+        return fp != NULL
+            ? jinx_oracle_ext_new_process_stream(fp)
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "pclose") == 0) {
+        JinxZendValue *slot = NULL;
+        JinxOracleExtStream *stream;
+        JinxZendObject *resource_object;
+        int status;
+        if (args == NULL || argc != 1u) return result;
+        stream = jinx_oracle_ext_stream_from_value(args[0], &slot);
+        if (stream == NULL || stream->fp == NULL || !stream->process_pipe) return result;
+        resource_object = jinx_oracle_zend_object_ptr(args[0]);
+        status = pclose(stream->fp);
+        jinx_oracle_resource_unregister(stream);
+        stream->fp = NULL;
+        free(stream);
+        slot->type = JINX_ZEND_NULL;
+        slot->value.ptr = NULL;
+        if (resource_object != NULL) {
+            char *closed_name = jinx_oracle_ext_strdup("closed-resource");
+            if (closed_name != NULL) {
+                free((void *)resource_object->class_name);
+                resource_object->class_name = closed_name;
+            }
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)status);
     }
 
     if (strcmp(name, "fopen") == 0) {
@@ -2150,7 +2260,11 @@ JinxValue jinx_oracle_extended_builtin(
 
         if (strcmp(name, "fclose") == 0) {
             JinxZendObject *resource_object = jinx_oracle_zend_object_ptr(args[0]);
-            ok = fclose(stream->fp) == 0;
+            if (stream->process_pipe) {
+                ok = pclose(stream->fp) != -1;
+            } else {
+                ok = fclose(stream->fp) == 0;
+            }
             jinx_oracle_resource_unregister(stream);
             stream->fp = NULL;
             free(stream);
