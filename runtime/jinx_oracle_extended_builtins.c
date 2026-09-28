@@ -1644,6 +1644,261 @@ JinxValue jinx_oracle_extended_builtin(
         return jinx_oracle_bool_value(ok);
     }
 
+    if (strcmp(name, "date_sunrise") == 0 ||
+        strcmp(name, "date_sunset") == 0) {
+        int calc_sunset = strcmp(name, "date_sunset") == 0;
+        int64_t timestamp;
+        int retformat = 1;
+        double latitude = JINX_NATIVE_DATE_DEFAULT_LATITUDE;
+        double longitude = JINX_NATIVE_DATE_DEFAULT_LONGITUDE;
+        double zenith = calc_sunset
+            ? JINX_NATIVE_DATE_SUNSET_ZENITH
+            : JINX_NATIVE_DATE_SUNRISE_ZENITH;
+        double gmt_offset;
+        double hour_rise = 0.0;
+        double hour_set = 0.0;
+        double hour_value;
+        double altitude;
+        int64_t rise = 0;
+        int64_t set = 0;
+        int64_t transit = 0;
+        struct tm local_parts;
+        int state;
+
+        if (args == NULL || argc < 1u || args[0].type != 1u) return result;
+        timestamp = args[0].as.i64;
+
+        if (argc >= 2u && args[1].type != 0u) {
+            if (args[1].type != 1u) return result;
+            retformat = (int)args[1].as.i64;
+        }
+        if (retformat < 0 || retformat > 2) return result;
+
+        if (argc >= 3u && args[2].type != 0u &&
+            !jinx_oracle_ext_numeric_double(args[2], &latitude)) {
+            return result;
+        }
+        if (argc >= 4u && args[3].type != 0u &&
+            !jinx_oracle_ext_numeric_double(args[3], &longitude)) {
+            return result;
+        }
+        if (argc >= 5u && args[4].type != 0u &&
+            !jinx_oracle_ext_numeric_double(args[4], &zenith)) {
+            return result;
+        }
+
+        if (argc >= 6u && args[5].type != 0u) {
+            if (!jinx_oracle_ext_numeric_double(args[5], &gmt_offset)) {
+                return result;
+            }
+        } else {
+            gmt_offset = (double)jinx_oracle_ext_timezone_offset_seconds(
+                timestamp, jinx_oracle_ext_default_timezone
+            ) / 3600.0;
+        }
+
+        if (!isfinite(latitude) || !isfinite(longitude)) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (!isfinite(zenith) || !isfinite(gmt_offset)) return result;
+
+        if (!jinx_oracle_ext_parts_from_timestamp(
+            timestamp, jinx_oracle_ext_default_timezone, &local_parts
+        )) {
+            return result;
+        }
+
+        altitude = 90.0 - zenith;
+        state = jinx_oracle_ext_solar_rise_set(
+            local_parts.tm_year + 1900,
+            local_parts.tm_mon + 1,
+            local_parts.tm_mday,
+            jinx_oracle_ext_default_timezone,
+            longitude,
+            latitude,
+            altitude,
+            1,
+            &hour_rise,
+            &hour_set,
+            &rise,
+            &set,
+            &transit
+        );
+
+        if (state != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (retformat == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(calc_sunset ? set : rise);
+        }
+
+        hour_value = (calc_sunset ? hour_set : hour_rise) + gmt_offset;
+        if (hour_value > 24.0 || hour_value < 0.0) {
+            hour_value -= floor(hour_value / 24.0) * 24.0;
+        }
+        if (!(hour_value >= 0.0 && hour_value <= 24.0)) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (retformat == 2) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_float_value(hour_value);
+        }
+
+        {
+            char text[16];
+            int hour = (int)hour_value;
+            int minute = (int)(60.0 * (hour_value - (double)hour));
+            int len = snprintf(text, sizeof(text), "%02d:%02d", hour, minute);
+            if (len < 0 || (size_t)len >= sizeof(text)) return result;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_ext_copy_string(text, (size_t)len);
+        }
+    }
+
+    if (strcmp(name, "date_sun_info") == 0) {
+        int64_t timestamp;
+        double latitude;
+        double longitude;
+        struct tm local_parts;
+        JinxZendArray *array;
+        double dummy_rise = 0.0;
+        double dummy_set = 0.0;
+        int64_t rise = 0;
+        int64_t set = 0;
+        int64_t transit = 0;
+        int state;
+
+        if (args == NULL || argc < 3u || args[0].type != 1u ||
+            !jinx_oracle_ext_numeric_double(args[1], &latitude) ||
+            !jinx_oracle_ext_numeric_double(args[2], &longitude)) {
+            return result;
+        }
+        timestamp = args[0].as.i64;
+        if (!isfinite(latitude) || !isfinite(longitude)) return result;
+        if (!jinx_oracle_ext_parts_from_timestamp(
+            timestamp, jinx_oracle_ext_default_timezone, &local_parts
+        )) {
+            return result;
+        }
+
+        array = jinx_zend_array_new_packed(9u);
+        if (array == NULL) return result;
+
+        state = jinx_oracle_ext_solar_rise_set(
+            local_parts.tm_year + 1900,
+            local_parts.tm_mon + 1,
+            local_parts.tm_mday,
+            jinx_oracle_ext_default_timezone,
+            longitude,
+            latitude,
+            -35.0 / 60.0,
+            1,
+            &dummy_rise,
+            &dummy_set,
+            &rise,
+            &set,
+            &transit
+        );
+        if (!jinx_oracle_ext_sun_pair_add(
+            array, "sunrise", "sunset", state, rise, set
+        ) || !jinx_zend_array_add_assoc(
+            array, "transit", 7u, jinx_zend_long(transit)
+        )) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+
+        state = jinx_oracle_ext_solar_rise_set(
+            local_parts.tm_year + 1900,
+            local_parts.tm_mon + 1,
+            local_parts.tm_mday,
+            jinx_oracle_ext_default_timezone,
+            longitude,
+            latitude,
+            -6.0,
+            0,
+            &dummy_rise,
+            &dummy_set,
+            &rise,
+            &set,
+            &transit
+        );
+        if (!jinx_oracle_ext_sun_pair_add(
+            array,
+            "civil_twilight_begin",
+            "civil_twilight_end",
+            state,
+            rise,
+            set
+        )) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+
+        state = jinx_oracle_ext_solar_rise_set(
+            local_parts.tm_year + 1900,
+            local_parts.tm_mon + 1,
+            local_parts.tm_mday,
+            jinx_oracle_ext_default_timezone,
+            longitude,
+            latitude,
+            -12.0,
+            0,
+            &dummy_rise,
+            &dummy_set,
+            &rise,
+            &set,
+            &transit
+        );
+        if (!jinx_oracle_ext_sun_pair_add(
+            array,
+            "nautical_twilight_begin",
+            "nautical_twilight_end",
+            state,
+            rise,
+            set
+        )) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+
+        state = jinx_oracle_ext_solar_rise_set(
+            local_parts.tm_year + 1900,
+            local_parts.tm_mon + 1,
+            local_parts.tm_mday,
+            jinx_oracle_ext_default_timezone,
+            longitude,
+            latitude,
+            -18.0,
+            0,
+            &dummy_rise,
+            &dummy_set,
+            &rise,
+            &set,
+            &transit
+        );
+        if (!jinx_oracle_ext_sun_pair_add(
+            array,
+            "astronomical_twilight_begin",
+            "astronomical_twilight_end",
+            state,
+            rise,
+            set
+        )) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
     if (strcmp(name, "date_create") == 0 ||
         strcmp(name, "date_create_immutable") == 0) {
         char *text = NULL;
