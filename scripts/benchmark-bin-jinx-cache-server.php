@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$jinx = $root . '/bin/jinx';
+$webTools = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/scripts/jinx-web-tools.php');
 
 function fail(string $message): never
 {
@@ -154,7 +154,7 @@ $nativeCmd = sprintf(
 
 $jinxCmd = sprintf(
     '%s -S %s --jinx-cache %s %s',
-    escapeshellarg($jinx),
+    $webTools,
     escapeshellarg("{$host}:{$jinxPort}"),
     escapeshellarg($root . '/fixtures'),
     escapeshellarg($cacheRoot)
@@ -178,7 +178,7 @@ try {
     }
 
     $nativeResult = benchmark('native php -S source endpoint', $nativeUrl, $iterations);
-    $jinxResult = benchmark('bin/jinx -S --jinx-cache compiled endpoint', $jinxUrl, $iterations);
+    $jinxResult = benchmark('JINX web helper -S --jinx-cache compiled endpoint', $jinxUrl, $iterations);
 
     $ratio = $jinxResult['avg_ms'] / max($nativeResult['avg_ms'], 0.000001);
 
