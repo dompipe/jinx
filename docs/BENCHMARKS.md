@@ -5,7 +5,7 @@ These numbers were captured in local RC workspaces. Treat them as local snapshot
 The benchmark documentation is split into two paths:
 
 1. Native Oracle/PASM benchmarks through the built `./jinx` executable.
-2. PHP helper benchmarks through `php bin/jinx` or direct PHP scripts.
+2. Optional PHP web/helper benchmarks through explicit scripts such as `php scripts/jinx-web-tools.php`.
 
 Use the native executable path for native timing claims.
 
@@ -87,7 +87,7 @@ The comparison script builds `./jinx` unless `JINX_SKIP_BUILD=1` is set, validat
 ./jinx bench-all-functions <iterations>
 ```
 
-It does **not** use `php bin/jinx` for the native JINX timing path.
+It does **not** use `php scripts/jinx-web-tools.php` for the native JINX timing path.
 
 ## Implemented-Function PHP vs Native Benchmark
 
@@ -122,8 +122,7 @@ php scripts/benchmark-native-implemented-functions.php 1000 --no-build --case-ti
 
 Before timing, the benchmark runs `./jinx native-benchmark-id` and requires
 the exact native identity `native-root-jinx`. This prevents the benchmark
-from silently falling through the native CLI's unrelated `bin/jinx` PHP
-frontend compatibility path.
+from timing anything except the compiled repository-root `./jinx` binary.
 
 The benchmark prints progress before every implementation. A native case that
 does not return within the per-case timeout is marked `SKIP` and the run
@@ -230,7 +229,7 @@ acos after compact id table:               0.582 us/call
 Legacy PHP helper command:
 
 ```bash
-php bin/jinx bench-wrapper-first100 1000
+php scripts/jinx-web-tools.php bench-wrapper-first100 1000
 ```
 
 This benchmark walks the generated wrapper order and compares direct PHP calls against `WebNativeFunctions::call()` for the first 100 benchmarkable worker-callable PHP function wrappers. The current JINX PHP worker path uses the Oracle-shaped PHP dispatch table before falling back to the generic worker wrapper registry.
@@ -358,13 +357,13 @@ php scripts/benchmark-native-jinx-vs-php.php 1000
 PHP helper path:
 
 ```bash
-php bin/jinx bench-wrapper-first100
-php bin/jinx bench-worker
-php bin/jinx bench-endpoint
-php bin/jinx bench-docroot
-php bin/jinx bench-socket
-php bin/jinx bench-frozen-server
-php bin/jinx bench-cache-server
+php scripts/jinx-web-tools.php bench-wrapper-first100
+php scripts/jinx-web-tools.php bench-worker
+php scripts/jinx-web-tools.php bench-endpoint
+php scripts/jinx-web-tools.php bench-docroot
+php scripts/jinx-web-tools.php bench-socket
+php scripts/jinx-web-tools.php bench-frozen-server
+php scripts/jinx-web-tools.php bench-cache-server
 ```
 
 If a benchmark reports a locked log file on Windows, stop any leftover local PHP benchmark server process and rerun the benchmark.
