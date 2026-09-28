@@ -4,6 +4,7 @@
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -1105,10 +1106,13 @@ static JinxValue jinx_oracle_ext_file_get_contents(
 
     out = jinx_oracle_scratch_string((uint32_t)take);
     read_count = take == 0u ? 0u : fread(out, 1u, take, fp);
-    fclose(fp);
-    if (read_count != take && ferror(fp)) {
-        *ok = 1;
-        return jinx_oracle_bool_value(0);
+    {
+        int read_error = ferror(fp);
+        fclose(fp);
+        if (read_count != take && read_error) {
+            *ok = 1;
+            return jinx_oracle_bool_value(0);
+        }
     }
 
     *ok = 1;
@@ -1934,11 +1938,9 @@ JinxValue jinx_oracle_extended_builtin(
             else return result;
             if (operation & 4) native_op |= LOCK_NB;
             ok = flock(fileno(stream->fp), native_op) == 0;
-            if (argc >= 3u) {
-                (void)jinx_oracle_write_ref_arg(
-                    NULL, 0u, jinx_oracle_bool_value(!ok && (errno == EWOULDBLOCK || errno == EAGAIN))
-                );
-            }
+            /* The generated wrapper passes the optional would_block argument by
+             * reference. The central dispatcher owns write-back to the original
+             * call frame; this backend only reports the flock result. */
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
         }
