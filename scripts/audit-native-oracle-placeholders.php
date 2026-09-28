@@ -132,11 +132,13 @@ function sampleArgs(string $name): array
 
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
-    if (in_array($name, ['chgrp', 'chmod', 'chown', 'copy'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
+    if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
+    if ($name === 'copy') return ['s:/__jinx_oracle_missing__', 's:/tmp/jinx-oracle-audit-copy'];
     if (in_array($name, ['fclose', 'feof', 'fflush', 'fgetc', 'fgetcsv', 'fgets', 'flock'], true)) {
         return $name === 'flock' ? ['fp:tmp', 'i:1'] : ['fp:tmp'];
     }
     if ($name === 'fopen') return ['s:README.md', 's:rb'];
+    if ($name === 'file_put_contents') return ['s:/__jinx_oracle_missing__/out', 's:x'];
     if (str_starts_with($name, 'file')) return ['s:README.md'];
 
     if ($name === 'class_alias') return ['s:stdClass', 's:JinxAuditStdClass'];
