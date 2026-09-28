@@ -45,6 +45,7 @@ $tests = [
     'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
     'scripts/test-native-error-parity-oracle-asm.php' => 'PASS: native Oracle ASM exceptional scalar/string paths reject where PHP rejects',
     'scripts/test-native-no-fabricated-builtins.php' => 'PASS: unsupported native builtins fault instead of returning fabricated values',
+    'scripts/test-native-return-contracts.php' => 'PASS: native Oracle return contracts reject invalid argument paths, preserve legitimate nulls, and classify stream resources correctly',
     'scripts/test-native-math-core-oracle-asm.php' => 'PASS: native Oracle ASM math-core and cosine handlers match PHP',
     'scripts/test-native-scalar-core-oracle-asm.php' => 'PASS: native Oracle ASM scalar-core builtins match PHP for covered JinxValue semantics',
     'scripts/test-native-pure-core-oracle-asm.php' => 'PASS: native Oracle ASM pure scalar/string core matches PHP',
