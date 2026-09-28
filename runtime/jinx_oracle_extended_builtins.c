@@ -1,6 +1,7 @@
 #include "jinx_oracle_extended_builtins.h"
 #include "jinx_oracle_batch2_builtins.h"
 #include "jinx_oracle_resource_registry.h"
+#include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -2354,22 +2355,34 @@ JinxValue jinx_oracle_extended_builtin(
     if (strcmp(name, "defined") == 0 || strcmp(name, "constant") == 0) {
         char *constant_name;
         const JinxNativeConstantMeta *meta;
+        JinxValue runtime_value;
+        int runtime_defined;
         if (args == NULL || argc < 1u || args[0].type != 3u) return result;
         constant_name = jinx_oracle_ext_dup_string_value(args[0]);
         if (constant_name == NULL) return result;
         meta = jinx_oracle_ext_constant_meta(constant_name);
+        runtime_defined = jinx_oracle_constant_registry_defined(constant_name);
         if (strcmp(name, "defined") == 0) {
             free(constant_name);
             if (handled != NULL) *handled = 1;
-            return jinx_oracle_bool_value(meta != NULL);
+            return jinx_oracle_bool_value(meta != NULL || runtime_defined);
+        }
+        if (meta != NULL) {
+            free(constant_name);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_ext_constant_value(meta);
+        }
+        if (runtime_defined &&
+            jinx_oracle_constant_registry_get(
+                constant_name, &runtime_value
+            )) {
+            free(constant_name);
+            if (handled != NULL) *handled = 1;
+            return runtime_value;
         }
         free(constant_name);
-        if (meta == NULL) {
-            /* PHP 8+ constant() throws Error for an undefined constant. */
-            return result;
-        }
-        if (handled != NULL) *handled = 1;
-        return jinx_oracle_ext_constant_value(meta);
+        /* PHP 8+ constant() throws Error for an undefined constant. */
+        return result;
     }
 
     {
