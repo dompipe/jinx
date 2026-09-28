@@ -22,6 +22,65 @@ typedef struct JinxOracleHashStream {
     FILE *fp;
 } JinxOracleHashStream;
 
+
+typedef struct JinxMhashCompatEntry {
+    const char *mhash_name;
+    const char *hash_name;
+} JinxMhashCompatEntry;
+
+#define JINX_MHASH_NUM_ALGOS 42
+
+static const JinxMhashCompatEntry jinx_mhash_to_hash[JINX_MHASH_NUM_ALGOS] = {
+    {"CRC32", "crc32"},
+    {"MD5", "md5"},
+    {"SHA1", "sha1"},
+    {"HAVAL256", "haval256,3"},
+    {NULL, NULL},
+    {"RIPEMD160", "ripemd160"},
+    {NULL, NULL},
+    {"TIGER", "tiger192,3"},
+    {"GOST", "gost"},
+    {"CRC32B", "crc32b"},
+    {"HAVAL224", "haval224,3"},
+    {"HAVAL192", "haval192,3"},
+    {"HAVAL160", "haval160,3"},
+    {"HAVAL128", "haval128,3"},
+    {"TIGER128", "tiger128,3"},
+    {"TIGER160", "tiger160,3"},
+    {"MD4", "md4"},
+    {"SHA256", "sha256"},
+    {"ADLER32", "adler32"},
+    {"SHA224", "sha224"},
+    {"SHA512", "sha512"},
+    {"SHA384", "sha384"},
+    {"WHIRLPOOL", "whirlpool"},
+    {"RIPEMD128", "ripemd128"},
+    {"RIPEMD256", "ripemd256"},
+    {"RIPEMD320", "ripemd320"},
+    {NULL, NULL},
+    {"SNEFRU256", "snefru256"},
+    {"MD2", "md2"},
+    {"FNV132", "fnv132"},
+    {"FNV1A32", "fnv1a32"},
+    {"FNV164", "fnv164"},
+    {"FNV1A64", "fnv1a64"},
+    {"JOAAT", "joaat"},
+    {"CRC32C", "crc32c"},
+    {"MURMUR3A", "murmur3a"},
+    {"MURMUR3C", "murmur3c"},
+    {"MURMUR3F", "murmur3f"},
+    {"XXH32", "xxh32"},
+    {"XXH64", "xxh64"},
+    {"XXH3", "xxh3"},
+    {"XXH128", "xxh128"},
+};
+
+static const JinxMhashCompatEntry *hash_mhash_entry(int64_t algorithm) {
+    if (algorithm < 0 || algorithm >= JINX_MHASH_NUM_ALGOS) return NULL;
+    if (jinx_mhash_to_hash[algorithm].mhash_name == NULL) return NULL;
+    return &jinx_mhash_to_hash[algorithm];
+}
+
 static char *hash_dup_string(JinxValue value) {
     uint32_t len;
     char *out;
@@ -540,6 +599,100 @@ JinxValue jinx_oracle_hash_builtin(
     JinxValue result = jinx_oracle_zero_value();
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    if (strcmp(name, "mhash_count") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(JINX_MHASH_NUM_ALGOS - 1);
+    }
+
+    if (strcmp(name, "mhash_get_hash_name") == 0) {
+        const JinxMhashCompatEntry *entry;
+        if (args == NULL || argc != 1u) return result;
+        entry = hash_mhash_entry(jinx_oracle_intish(args[0]));
+        if (handled != NULL) *handled = 1;
+        return entry != NULL
+            ? hash_copy_bytes(
+                (const unsigned char *)entry->mhash_name,
+                strlen(entry->mhash_name)
+            )
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "mhash_get_block_size") == 0) {
+        const JinxMhashCompatEntry *entry;
+        const EVP_MD *md;
+        int size;
+        if (args == NULL || argc != 1u) return result;
+        entry = hash_mhash_entry(jinx_oracle_intish(args[0]));
+        if (entry == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        md = EVP_get_digestbyname(entry->hash_name);
+        if (handled != NULL) *handled = 1;
+        if (md == NULL) return jinx_oracle_bool_value(0);
+        size = EVP_MD_size(md);
+        return size > 0
+            ? jinx_oracle_int_value((int64_t)size)
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "mhash") == 0) {
+        const JinxMhashCompatEntry *entry;
+        const EVP_MD *md;
+        unsigned char digest[EVP_MAX_MD_SIZE];
+        unsigned int digest_len = 0u;
+        int64_t algorithm;
+
+        if (args == NULL || argc < 2u || argc > 3u ||
+            args[1].type != 3u) {
+            return result;
+        }
+        algorithm = jinx_oracle_intish(args[0]);
+        entry = hash_mhash_entry(algorithm);
+        if (entry == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        md = EVP_get_digestbyname(entry->hash_name);
+        if (md == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (argc == 3u && args[2].type != 0u) {
+            if (args[2].type != 3u ||
+                jinx_oracle_string_len(args[2]) > (uint32_t)INT_MAX) {
+                return result;
+            }
+            if (HMAC(
+                    md,
+                    jinx_oracle_string_bytes(args[2]),
+                    (int)jinx_oracle_string_len(args[2]),
+                    jinx_oracle_string_bytes(args[1]),
+                    jinx_oracle_string_len(args[1]),
+                    digest,
+                    &digest_len
+                ) == NULL) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+        } else if (EVP_Digest(
+                jinx_oracle_string_bytes(args[1]),
+                jinx_oracle_string_len(args[1]),
+                digest,
+                &digest_len,
+                md,
+                NULL
+            ) != 1) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return hash_copy_bytes(digest, digest_len);
+    }
 
     if (strcmp(name, "openssl_get_cert_locations") == 0) {
         if (argc != 0u) return result;
