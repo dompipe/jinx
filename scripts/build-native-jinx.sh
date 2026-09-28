@@ -98,6 +98,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -include "${ROOT_DIR}/runtime/jinx_php_manual_manifest.h" \
     "${ROOT_DIR}/native/jinx_cli_with_web_plan.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_extended_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_batch2_builtins.c" \
@@ -131,6 +132,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -I"${ROOT_DIR}/runtime" \
     "${ROOT_DIR}/native/jinx_zend_smoke.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     -o "$ZEND_SMOKE_OUT"
 
 cp "$OUT" "$COPY_OUT"
@@ -190,6 +192,7 @@ echo "Copied native JINX CLI: $COPY_OUT"
 echo "Built native Zend smoke: $ZEND_SMOKE_OUT"
 echo "Manual manifest compiled: runtime/jinx_php_manual_manifest.h"
 echo "Zend skeleton compiled: runtime/jinx_zend_engine.c"
+echo "Native caller-frame context compiled: runtime/jinx_oracle_frame_context.c"
 echo "Oracle dispatch duplicate audit: PASS"
 echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Native class/constant metadata regenerated: runtime/jinx_native_core_metadata.generated.h"
