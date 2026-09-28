@@ -8132,9 +8132,26 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in2(name, "is_countable", "is_iterable")) {
-        ret = jinx_oracle_bool_value(
-            arg0.type == 4u || arg0.type == JINX_ORACLE_VALUE_ZEND_ARRAY
-        );
+        if (arg0.type == 4u || arg0.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            ret = jinx_oracle_bool_value(1);
+            jinx_oracle_return(ctx, ret);
+            return ret;
+        }
+        if (arg0.type == JINX_ORACLE_VALUE_ZEND_OBJECT &&
+            jinx_oracle_native_resource_state(arg0) == 0) {
+            if (jinx_oracle_extended_builtin != NULL) {
+                int handled = 0;
+                JinxValue one_arg[1] = { arg0 };
+                ret = jinx_oracle_extended_builtin(name, one_arg, 1u, &handled);
+                if (handled) {
+                    jinx_oracle_return(ctx, ret);
+                    return ret;
+                }
+            }
+            ctx->fault = "is_countable/is_iterable object requires class metadata";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_bool_value(0);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
