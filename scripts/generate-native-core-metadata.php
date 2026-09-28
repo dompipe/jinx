@@ -70,6 +70,10 @@ if (function_exists('filter_list') && function_exists('filter_id')) {
     usort($filterRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
 }
 $includePath = get_include_path();
+$hashAlgos = function_exists('hash_algos') ? hash_algos() : [];
+$hashHmacAlgos = function_exists('hash_hmac_algos') ? hash_hmac_algos() : [];
+sort($hashAlgos, SORT_STRING);
+sort($hashHmacAlgos, SORT_STRING);
 
 $extensionFunctionRows = [];
 foreach ($extensions as $extension) {
@@ -175,6 +179,8 @@ $emitStringArray('jinx_native_trait_names', $traits);
 $emitStringArray('jinx_native_internal_function_names', $internalFunctions);
 $emitStringArray('jinx_native_extension_names', $extensions);
 $emitStringArray('jinx_native_enum_names', $enums);
+$emitStringArray('jinx_native_hash_algos', $hashAlgos);
+$emitStringArray('jinx_native_hash_hmac_algos', $hashHmacAlgos);
 
 $extensionSymbols = [];
 foreach ($extensionFunctionRows as $extension => $funcs) {
@@ -219,8 +225,12 @@ foreach ($classVarMetaRows as $idx => [$className, $items, $complete]) {
     $symbol = 'jinx_native_class_vars_' . $idx;
     $classVarSymbols[] = [$className, $symbol, count($items), $complete];
     $code[] = 'static const JinxNativeConstantMeta ' . $symbol . '[] = {';
-    foreach ($items as [$name, $type, $i64, $f64, $str]) {
-        $code[] = '    { ' . cstr((string)$name) . ', ' . (int)$type . ', ' . $i64 . ', ' . $f64 . ', ' . $str . ' },';
+    if ($items === []) {
+        $code[] = '    { NULL, 0u, 0LL, 0.0, NULL },';
+    } else {
+        foreach ($items as [$name, $type, $i64, $f64, $str]) {
+            $code[] = '    { ' . cstr((string)$name) . ', ' . (int)$type . ', ' . $i64 . ', ' . $f64 . ', ' . $str . ' },';
+        }
     }
     $code[] = '};';
 }
@@ -247,13 +257,15 @@ $code[] = '#endif';
 
 file_put_contents($out, implode(PHP_EOL, $code) . PHP_EOL);
 printf(
-    "PASS: generated native core metadata: %d classes, %d interfaces, %d traits, %d enums, %d functions, %d extensions, %d scalar constants -> %s\n",
+    "PASS: generated native core metadata: %d classes, %d interfaces, %d traits, %d enums, %d functions, %d extensions, %d hash algos, %d HMAC algos, %d scalar constants -> %s\n",
     count($classes),
     count($interfaces),
     count($traits),
     count($enums),
     count($internalFunctions),
     count($extensions),
+    count($hashAlgos),
+    count($hashHmacAlgos),
     count($constants),
     $out
 );
