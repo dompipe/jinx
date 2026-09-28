@@ -339,6 +339,16 @@ $checks = [
 
 array_push($checks, ...$posixChecks);
 
+if (function_exists('ini_parse_quantity')) {
+    foreach (['128M', '2K', '1G', '0x10', '0o10', '0b10', '-1', ' 3 K '] as $quantity) {
+        $checks[] = [
+            'ini_parse_quantity',
+            ['s:' . $quantity],
+            'int:' . ini_parse_quantity($quantity),
+        ];
+    }
+}
+
 if (function_exists('proc_nice')) {
     $checks[] = [
         'proc_nice',
