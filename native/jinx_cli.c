@@ -1528,6 +1528,76 @@ static int command_oracle_runtime_state_smoke(void) {
         if (!ok || result.type != 1u) return fail("ignore_user_abort restore failed");
         release_cli_value(result);
     }
+
+    {
+        char *original_timezone = NULL;
+        uint32_t original_timezone_len = 0u;
+
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "date_default_timezone_get", NULL, 0u, &ok
+        );
+        if (!ok || result.type != 3u) {
+            release_cli_value(result);
+            return fail("date_default_timezone_get failed in runtime-state smoke");
+        }
+        original_timezone_len = result.flags;
+        original_timezone = (char *)malloc((size_t)original_timezone_len + 1u);
+        if (original_timezone == NULL) {
+            release_cli_value(result);
+            return fail("could not copy original timezone");
+        }
+        if (original_timezone_len != 0u) {
+            memcpy(original_timezone, result.as.ptr, original_timezone_len);
+        }
+        original_timezone[original_timezone_len] = '\0';
+        release_cli_value(result);
+
+        args[0] = jinx_value_string("UTC", 3u);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "date_default_timezone_set", args, 1u, &ok
+        );
+        if (!ok || result.type != 2u || result.as.i64 == 0) {
+            free(original_timezone);
+            release_cli_value(result);
+            return fail("date_default_timezone_set UTC failed");
+        }
+        printf("tz_set="); print_value_line(result);
+        release_cli_value(result);
+
+        args[0] = jinx_value_string(
+            "%Y-%m-%d %H:%M:%S",
+            (uint32_t)strlen("%Y-%m-%d %H:%M:%S")
+        );
+        args[1] = jinx_value_int(0);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "strftime", args, 2u, &ok
+        );
+        if (!ok || result.type != 3u) {
+            free(original_timezone);
+            release_cli_value(result);
+            return fail("strftime did not observe mutable timezone");
+        }
+        printf("tz_strftime="); print_value_line(result);
+        release_cli_value(result);
+
+        args[0] = jinx_value_string(
+            original_timezone,
+            original_timezone_len
+        );
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "date_default_timezone_set", args, 1u, &ok
+        );
+        free(original_timezone);
+        if (!ok || result.type != 2u || result.as.i64 == 0) {
+            release_cli_value(result);
+            return fail("date_default_timezone_set restore failed");
+        }
+        release_cli_value(result);
+    }
     return 0;
 }
 
