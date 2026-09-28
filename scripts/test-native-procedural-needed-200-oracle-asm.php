@@ -409,6 +409,20 @@ if (function_exists('mhash_count') &&
         true
     );
 
+    if (function_exists('mhash_keygen_s2k')) {
+        $phpS2k = mhash_keygen_s2k($mhashMd5, 'password', 'salt', 24);
+        if (!is_string($phpS2k)) {
+            fail200('PHP mhash_keygen_s2k MD5 fixture failed');
+        }
+        expect200(
+            $jinx,
+            'mhash_keygen_s2k',
+            ['i:' . $mhashMd5, 's:password', 's:salt', 'i:24'],
+            'hex:' . bin2hex($phpS2k),
+            true
+        );
+    }
+
     $phpMhashHmac = mhash($mhashMd5, 'jinx', 'key');
     if (!is_string($phpMhashHmac)) {
         fail200('PHP keyed mhash MD5 fixture failed');
