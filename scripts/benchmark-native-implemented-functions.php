@@ -410,6 +410,9 @@ $throwableMethodNames = [
     'getprevious' => 'getPrevious',
     'gettrace' => 'getTrace',
     'gettraceasstring' => 'getTraceAsString',
+    'getfile' => 'getFile',
+    'getline' => 'getLine',
+    '__tostring' => '__toString',
 ];
 $declaredClassNames = [];
 foreach (get_declared_classes() as $declaredClass) {
@@ -426,6 +429,8 @@ foreach ($wiring['routes'] as $ledgerName => $ledgerRoute) {
 
     try {
         $object = new $class('jinx-message', 73);
+        (new ReflectionProperty($class, 'file'))->setValue($object, 'jinx-fixture.php');
+        (new ReflectionProperty($class, 'line'))->setValue($object, 123);
     } catch (Throwable) {
         continue;
     }
