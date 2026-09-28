@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 676,
-        "extended_native_route": 378,
+        "native_named_route": 677,
+        "extended_native_route": 379,
         "context_native_route": 3,
-        "intentional_native_fault": 2851
+        "intentional_native_fault": 2850
     },
     "routes": {
         "_": "extended",
@@ -3493,7 +3493,7 @@
         "unhandledmatcherror::getprevious": "intentional-native-fault",
         "unhandledmatcherror::gettrace": "intentional-native-fault",
         "unhandledmatcherror::gettraceasstring": "intentional-native-fault",
-        "uniqid": "intentional-native-fault",
+        "uniqid": "extended",
         "unitenum::cases": "intentional-native-fault",
         "unixtojd": "extended",
         "unlink": "extended",
