@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$jinx = $root . '/bin/jinx';
+$webTools = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/scripts/jinx-web-tools.php');
 
 function fail(string $message): never
 {
@@ -25,23 +25,23 @@ $cacheRoot = $root . '/build/web-cache-bin-test';
 
 $out = run(sprintf(
     '%s web-cache %s %s',
-    escapeshellarg($jinx),
+    $webTools,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php'),
     escapeshellarg($cacheRoot)
 ), $code);
 
 if ($code !== 0) {
-    fail("bin/jinx web-cache failed:\n{$out}");
+    fail("JINX web helper web-cache failed:\n{$out}");
 }
 
 $data = json_decode($out, true);
 
 if (!is_array($data)) {
-    fail("bin/jinx web-cache did not output JSON:\n{$out}");
+    fail("JINX web helper web-cache did not output JSON:\n{$out}");
 }
 
 if (empty($data['compiled']) || !is_file($data['compiled'])) {
-    fail("bin/jinx web-cache did not create compiled file:\n{$out}");
+    fail("JINX web helper web-cache did not create compiled file:\n{$out}");
 }
 
-echo "PASS: bin/jinx web-cache creates cached compiled endpoint\n";
+echo "PASS: JINX web helper web-cache creates cached compiled endpoint\n";
