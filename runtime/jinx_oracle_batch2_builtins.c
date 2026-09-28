@@ -1,4 +1,5 @@
 #include "jinx_oracle_batch2_builtins.h"
+#include "jinx_oracle_extended_builtins.h"
 #include "jinx_oracle_hash_builtins.h"
 #include "jinx_oracle_finfo_builtins.h"
 #include "jinx_oracle_resource_registry.h"
@@ -3882,7 +3883,11 @@ JinxValue jinx_oracle_batch2_builtin(
         raw = argc >= 2u && args[1].type != 0u ? (time_t)jinx_oracle_intish(args[1]) : time(NULL);
         old_tz = getenv("TZ");
         if (old_tz != NULL) saved_tz = strdup(old_tz);
-        if (setenv("TZ", JINX_NATIVE_PHP_DEFAULT_TIMEZONE, 1) != 0) {
+        if (setenv(
+                "TZ",
+                jinx_oracle_extended_default_timezone(),
+                1
+            ) != 0) {
             free(saved_tz); free(format); return result;
         }
         tzset();
