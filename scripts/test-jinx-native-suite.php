@@ -90,6 +90,7 @@ $scriptTests = [
     'native string transform oracle asm' => ['scripts/test-native-string-transform-oracle-asm.php', 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP for covered scalar cases'],
     'native scalar core oracle asm' => ['scripts/test-native-scalar-core-oracle-asm.php', 'PASS: native Oracle ASM scalar-core builtins execute'],
     'native math core oracle asm' => ['scripts/test-native-math-core-oracle-asm.php', 'PASS: native Oracle ASM math-core builtins execute'],
+    'first 100 procedural oracle asm' => ['scripts/test-native-procedural-needed-100-oracle-asm.php', 'PASS: first 100 needed procedural Oracle ASM targets execute without placeholders'],
     'regex string builtin families' => ['scripts/test-oracle-regex-string-builtin-execution.php', 'PASS: Oracle executes regex/string builtin PHP families'],
     'array mutation builtin families' => ['scripts/test-oracle-array-mutation-builtin-execution.php', 'PASS: Oracle executes array mutation builtin PHP families'],
     'security network builtin families' => ['scripts/test-oracle-security-network-builtin-execution.php', 'PASS: Oracle executes security/network builtin PHP families'],
