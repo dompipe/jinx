@@ -2814,6 +2814,11 @@ int main(int argc, char **argv) {
         return command_oracle_call(argc, argv, 2);
     }
 
+    if (strcmp(argv[1], "native-benchmark-id") == 0) {
+        printf("native-root-jinx\n");
+        return 0;
+    }
+
     if (strcmp(argv[1], "bench-call") == 0) {
         return command_bench_call(argc, argv);
     }
