@@ -237,6 +237,8 @@ function sampleArgs(string $name): array
     if ($name === 'crypt') return ['s:password', 's:xx'];
 
     if ($name === 'closedir') return ['dir:tmp'];
+    if ($name === 'get_resource_id' || $name === 'get_resource_type') return ['fp:tmp'];
+    if ($name === 'get_resources') return [];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
