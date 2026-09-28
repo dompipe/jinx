@@ -186,6 +186,9 @@ $checks = [
     ['connection_status', [], 'int:' . connection_status()],
     ['getcwd', [], 'string:' . getcwd()],
     ['getenv', ['s:PATH'], (($v = getenv('PATH')) === false ? 'bool:false' : 'string:' . $v)],
+    ['putenv', ['s:JINX_NATIVE_DIRECT_SMOKE=present'], 'bool:true'],
+    ['ignore_user_abort', [], 'int:' . ignore_user_abort()],
+    ['ignore_user_abort', ['b:true'], 'int:' . ignore_user_abort()],
     ['gethostname', [], (($v = gethostname()) === false ? 'bool:false' : 'string:' . $v)],
     ['getprotobyname', ['s:tcp'], (($v = getprotobyname('tcp')) === false ? 'bool:false' : 'int:' . $v)],
     ['getprotobynumber', ['i:6'], (($v = getprotobynumber(6)) === false ? 'bool:false' : 'string:' . $v)],
@@ -385,6 +388,37 @@ if ($iniSmokeCode !== 0 || $iniSmoke !== $iniSmokeExpected) {
         . $iniSmokeExpected
         . "\nJINX:\n"
         . $iniSmoke
+    );
+}
+
+$phpPutSet = putenv('JINX_NATIVE_ENV_SMOKE=present');
+$phpEnvDuring = getenv('JINX_NATIVE_ENV_SMOKE');
+$phpPutUnset = putenv('JINX_NATIVE_ENV_SMOKE');
+$phpEnvAfter = getenv('JINX_NATIVE_ENV_SMOKE');
+$phpAbortBefore = ignore_user_abort();
+$phpAbortSetOld = ignore_user_abort(true);
+$phpAbortDuring = ignore_user_abort();
+ignore_user_abort((bool)$phpAbortBefore);
+
+$runtimeStateSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-runtime-state-smoke',
+    $runtimeStateCode
+);
+$runtimeStateExpected = implode(PHP_EOL, [
+    'put_set=bool:' . ($phpPutSet ? 'true' : 'false'),
+    'env_during=' . ($phpEnvDuring === false ? 'bool:false' : 'string:' . $phpEnvDuring),
+    'put_unset=bool:' . ($phpPutUnset ? 'true' : 'false'),
+    'env_after=' . ($phpEnvAfter === false ? 'bool:false' : 'string:' . $phpEnvAfter),
+    'abort_before=int:' . $phpAbortBefore,
+    'abort_set_old=int:' . $phpAbortSetOld,
+    'abort_during=int:' . $phpAbortDuring,
+]);
+if ($runtimeStateCode !== 0 || $runtimeStateSmoke !== $runtimeStateExpected) {
+    fail200(
+        "native runtime-state smoke mismatch\nExpected:\n"
+        . $runtimeStateExpected
+        . "\nJINX:\n"
+        . $runtimeStateSmoke
     );
 }
 
