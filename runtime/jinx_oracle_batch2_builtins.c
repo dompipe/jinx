@@ -21,6 +21,7 @@
 #include <fnmatch.h>
 #include <grp.h>
 #include <libintl.h>
+#include <langinfo.h>
 #include <limits.h>
 #include <locale.h>
 #include <netdb.h>
@@ -2740,6 +2741,18 @@ JinxValue jinx_oracle_batch2_builtin(
         return selected != NULL ? b2_copy(selected, strlen(selected)) : jinx_oracle_bool_value(0);
     }
 
+    if (strcmp(name, "nl_langinfo") == 0) {
+        const char *value;
+        nl_item item;
+        if (args == NULL || argc != 1u) return result;
+        item = (nl_item)jinx_oracle_intish(args[0]);
+        value = nl_langinfo(item);
+        if (handled != NULL) *handled = 1;
+        return value != NULL
+            ? b2_copy(value, strlen(value))
+            : jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "bindtextdomain") == 0 ||
         strcmp(name, "bind_textdomain_codeset") == 0) {
         char *domain;
@@ -4585,6 +4598,87 @@ JinxValue jinx_oracle_batch2_builtin(
         free(type_name);
         if (result.type != 0u && handled != NULL) *handled = 1;
         return result;
+    }
+
+    if (strcmp(name, "shell_exec") == 0) {
+        char *command;
+        FILE *pipe;
+        unsigned char chunk[4096];
+        unsigned char *output = NULL;
+        size_t length = 0u;
+        size_t capacity = 0u;
+
+        if (args == NULL || argc != 1u || args[0].type != 3u ||
+            jinx_oracle_string_len(args[0]) == 0u) {
+            return result;
+        }
+        command = b2_dup(args[0]);
+        if (command == NULL) return result;
+        pipe = popen(command, "r");
+        free(command);
+        if (pipe == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        for (;;) {
+            size_t got = fread(chunk, 1u, sizeof(chunk), pipe);
+            if (got != 0u) {
+                if (length > SIZE_MAX - got) {
+                    free(output);
+                    (void)pclose(pipe);
+                    return result;
+                }
+                if (length + got > capacity) {
+                    size_t next = capacity == 0u ? 4096u : capacity;
+                    while (next < length + got) {
+                        if (next > SIZE_MAX / 2u) {
+                            next = length + got;
+                            break;
+                        }
+                        next *= 2u;
+                    }
+                    {
+                        unsigned char *grown = (unsigned char *)realloc(output, next);
+                        if (grown == NULL) {
+                            free(output);
+                            (void)pclose(pipe);
+                            return result;
+                        }
+                        output = grown;
+                        capacity = next;
+                    }
+                }
+                memcpy(output + length, chunk, got);
+                length += got;
+            }
+            if (got < sizeof(chunk)) {
+                if (feof(pipe)) break;
+                if (ferror(pipe)) {
+                    free(output);
+                    (void)pclose(pipe);
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+            }
+        }
+        (void)pclose(pipe);
+        if (handled != NULL) *handled = 1;
+        if (length == 0u) {
+            free(output);
+            return jinx_oracle_zero_value();
+        }
+        result = b2_copy(output, length);
+        free(output);
+        return result;
+    }
+
+    if (strcmp(name, "proc_nice") == 0) {
+        if (args == NULL || argc != 1u) return result;
+        errno = 0;
+        (void)nice((int)jinx_oracle_intish(args[0]));
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(errno == 0);
     }
 
     if (strcmp(name, "system") == 0 || strcmp(name, "passthru") == 0) {
