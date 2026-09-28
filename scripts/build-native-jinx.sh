@@ -105,6 +105,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_hash_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_finfo_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_resource_registry.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_script_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_constant_registry.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_solar_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_dns_builtins.c" \
@@ -196,6 +197,15 @@ case "$ORACLE_ERROR_SMOKE" in
         ;;
 esac
 
+SCRIPT_CONTEXT_SMOKE=$("$OUT" oracle-script-context-smoke "${ROOT_DIR}/scripts/test-native-procedural-needed-200-oracle-asm.php" "${ROOT_DIR}/README.md")
+case "$SCRIPT_CONTEXT_SMOKE" in
+    *"PASS: native script context drives get_included_files/get_required_files/getlastmod/getmyinode"*) ;;
+    *)
+        echo "FAIL: post-build script-context smoke failed: $SCRIPT_CONTEXT_SMOKE" >&2
+        exit 1
+        ;;
+esac
+
 WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
 case "$WEB_PLAN_SMOKE" in
     *WEB_IF_MISSING_ARRAY_KEY*) ;;
@@ -217,6 +227,7 @@ echo "Native class/constant metadata regenerated: runtime/jinx_native_core_metad
 echo "Extended procedural Oracle backend compiled: runtime/jinx_oracle_extended_builtins.c"
 echo "Second-wave Oracle backend compiled: runtime/jinx_oracle_batch2_builtins.c"
 echo "Native resource registry compiled: runtime/jinx_oracle_resource_registry.c"
+echo "Native script/include context compiled: runtime/jinx_oracle_script_context.c"
 echo "Native constant registry compiled: runtime/jinx_oracle_constant_registry.c"
 echo "Native solar backend compiled: runtime/jinx_oracle_solar_builtins.c"
 echo "Native DNS decoder compiled: runtime/jinx_oracle_dns_builtins.c"
@@ -259,6 +270,7 @@ echo "Extended Oracle smoke: call_user_func/class_exists/date_format PASS"
 echo "Native constant registry smoke: PASS"
 echo "Native caller-frame builtin smoke: PASS"
 echo "Native Zend last-error smoke: PASS"
+echo "Native script-context smoke: PASS"
 echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
