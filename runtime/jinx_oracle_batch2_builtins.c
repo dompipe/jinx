@@ -56,6 +56,7 @@
 #endif
 
 extern char **environ;
+extern char *strptime(const char *s, const char *format, struct tm *tm);
 
 static int64_t jinx_oracle_batch2_error_reporting = JINX_NATIVE_PHP_ERROR_REPORTING;
 static int jinx_oracle_batch2_assert_active = JINX_NATIVE_ASSERT_ACTIVE;
@@ -4075,6 +4076,58 @@ JinxValue jinx_oracle_batch2_builtin(
         free(saved_tz); free(format);
         if (handled != NULL) *handled = 1;
         return len != 0u ? b2_copy(buffer, len) : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "strptime") == 0) {
+        char *text;
+        char *format;
+        char *unparsed;
+        struct tm parsed_time;
+        JinxZendArray *array;
+
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) {
+            return result;
+        }
+
+        text = b2_dup(args[0]);
+        format = b2_dup(args[1]);
+        if (text == NULL || format == NULL) {
+            free(text);
+            free(format);
+            return result;
+        }
+
+        memset(&parsed_time, 0, sizeof(parsed_time));
+        unparsed = strptime(text, format, &parsed_time);
+        if (unparsed == NULL) {
+            free(text);
+            free(format);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        array = jinx_zend_array_new_packed(9u);
+        if (array == NULL ||
+            !jinx_zend_array_add_assoc(array, "tm_sec", 6u, jinx_zend_long(parsed_time.tm_sec)) ||
+            !jinx_zend_array_add_assoc(array, "tm_min", 6u, jinx_zend_long(parsed_time.tm_min)) ||
+            !jinx_zend_array_add_assoc(array, "tm_hour", 7u, jinx_zend_long(parsed_time.tm_hour)) ||
+            !jinx_zend_array_add_assoc(array, "tm_mday", 7u, jinx_zend_long(parsed_time.tm_mday)) ||
+            !jinx_zend_array_add_assoc(array, "tm_mon", 6u, jinx_zend_long(parsed_time.tm_mon)) ||
+            !jinx_zend_array_add_assoc(array, "tm_year", 7u, jinx_zend_long(parsed_time.tm_year)) ||
+            !jinx_zend_array_add_assoc(array, "tm_wday", 7u, jinx_zend_long(parsed_time.tm_wday)) ||
+            !jinx_zend_array_add_assoc(array, "tm_yday", 7u, jinx_zend_long(parsed_time.tm_yday)) ||
+            !b2_assoc_string(array, "unparsed", unparsed)) {
+            if (array != NULL) jinx_zend_array_release(array);
+            free(text);
+            free(format);
+            return result;
+        }
+
+        free(text);
+        free(format);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
     }
 
     if (strcmp(name, "gmstrftime") == 0) {
