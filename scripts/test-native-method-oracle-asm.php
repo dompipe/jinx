@@ -307,4 +307,89 @@ checkMethod(
     'int:' . $phpErrorException->getSeverity()
 );
 
-echo "PASS: native Oracle method receiver preserves DateTime and 479 Throwable route probes\n";
+/*
+ * Stateful DateTime method parity.  These probes verify the returned object's
+ * value, the receiver's value after the call, and mutable-vs-immutable object
+ * identity.  The native smoke uses the same deterministic fixtures/arguments.
+ */
+$dateTimeStateMethods = [
+    'add',
+    'sub',
+    'modify',
+    'setDate',
+    'setISODate',
+    'setTime',
+    'setTimestamp',
+    'setTimezone',
+    'diff',
+    'getTimezone',
+];
+
+foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
+    foreach ($dateTimeStateMethods as $method) {
+        $phpObject = new $dateClass('2024-01-02 03:04:05');
+
+        $phpResult = match ($method) {
+            'add' => $phpObject->add(new DateInterval('P1D')),
+            'sub' => $phpObject->sub(new DateInterval('P1D')),
+            'modify' => $phpObject->modify('+2 days'),
+            'setDate' => $phpObject->setDate(2025, 6, 7),
+            'setISODate' => $phpObject->setISODate(2025, 10, 3),
+            'setTime' => $phpObject->setTime(11, 22, 33),
+            'setTimestamp' => $phpObject->setTimestamp(1704067200),
+            'setTimezone' => $phpObject->setTimezone(
+                new DateTimeZone('America/New_York')
+            ),
+            'diff' => $phpObject->diff(
+                new DateTime('2024-01-05 05:06:07')
+            ),
+            'getTimezone' => $phpObject->getTimezone(),
+        };
+
+        if ($method === 'getTimezone') {
+            $expected = 'result=string:' . $phpResult->getName();
+        } elseif ($method === 'diff') {
+            $expected = 'result=string:'
+                . $phpResult->format('%R%a %H:%I:%S');
+        } else {
+            $expected = implode(PHP_EOL, [
+                'result=string:' . $phpResult->format('Y-m-d H:i:s'),
+                'original=string:' . $phpObject->format('Y-m-d H:i:s'),
+                'same=bool:' . (
+                    $phpResult === $phpObject ? 'true' : 'false'
+                ),
+            ]);
+        }
+
+        $actual = runMethod(
+            escapeshellarg($jinx)
+            . ' oracle-datetime-method-smoke '
+            . escapeshellarg($dateClass)
+            . ' '
+            . escapeshellarg($method),
+            $dateStateCode
+        );
+        if ($dateStateCode !== 0 || $actual !== $expected) {
+            failMethod(
+                "{$dateClass}::{$method} state parity mismatch\n"
+                . "PHP:\n{$expected}\n"
+                . "JINX:\n{$actual}"
+            );
+        }
+    }
+}
+
+foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
+    $phpObject = new $dateClass('2024-01-02 03:04:05');
+    checkMethod(
+        $jinx,
+        $dateClass . '::getMicrosecond',
+        $dateClass === DateTime::class
+            ? 'dt:2024-01-02 03:04:05'
+            : 'dti:2024-01-02 03:04:05',
+        [],
+        'int:' . $phpObject->getMicrosecond()
+    );
+}
+
+echo "PASS: native Oracle method receiver proves 501 newly added callable routes\n";
