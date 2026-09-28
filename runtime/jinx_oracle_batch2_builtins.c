@@ -1475,6 +1475,26 @@ JinxValue jinx_oracle_batch2_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    if (strcmp(name, "hash_algos") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_hash_algos,
+            jinx_native_hash_algos_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "hash_hmac_algos") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_hash_hmac_algos,
+            jinx_native_hash_hmac_algos_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "sys_get_temp_dir") == 0) {
         if (argc != 0u) return result;
         if (handled != NULL) *handled = 1;
