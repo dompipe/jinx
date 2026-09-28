@@ -7,6 +7,7 @@
 #include "jinx_oracle_ftp_builtins.h"
 #include "jinx_oracle_curl_ftp_builtins.h"
 #include "jinx_oracle_http_meta_builtins.h"
+#include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -265,6 +266,16 @@ static const JinxNativeClassMeta *b2_class(const char *name) {
     return NULL;
 }
 
+static const JinxNativeConstantMeta *b2_constant_meta(const char *name) {
+    if (name == NULL) return NULL;
+    for (size_t i = 0u; i < jinx_native_constant_metadata_count; i++) {
+        if (strcmp(name, jinx_native_constant_metadata[i].name) == 0) {
+            return &jinx_native_constant_metadata[i];
+        }
+    }
+    return NULL;
+}
+
 static JinxValue b2_constant_value(const JinxNativeConstantMeta *meta) {
     if (meta == NULL) return jinx_oracle_zero_value();
     if (meta->type == 1u) return jinx_oracle_int_value((int64_t)meta->i64);
@@ -296,6 +307,10 @@ static JinxValue b2_defined_constants(void) {
             return jinx_oracle_zero_value();
         }
         jinx_zend_string_release(owned);
+    }
+    if (!jinx_oracle_constant_registry_append_to_array(array)) {
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
     }
     return jinx_oracle_zend_array_value_owned(array);
 }
@@ -2999,6 +3014,33 @@ csv_fail:
             if (handled != NULL) *handled = 1;
             return http_meta_result;
         }
+    }
+
+    if (strcmp(name, "define") == 0) {
+        char *constant_name;
+        int ok_define;
+        if (args == NULL || argc < 2u || argc > 3u ||
+            args[0].type != 3u) {
+            return result;
+        }
+        if (argc >= 3u && jinx_oracle_boolish(args[2])) {
+            /* PHP 8 ignores case_insensitive but emits a warning; native
+             * warning propagation is not yet threaded through this bridge. */
+        }
+        constant_name = b2_dup(args[0]);
+        if (constant_name == NULL) return result;
+        if (b2_constant_meta(constant_name) != NULL ||
+            jinx_oracle_constant_registry_defined(constant_name)) {
+            free(constant_name);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        ok_define = jinx_oracle_constant_registry_define(
+            constant_name, args[1]
+        );
+        free(constant_name);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(ok_define);
     }
 
     return result;
