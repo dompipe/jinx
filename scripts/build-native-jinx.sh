@@ -64,6 +64,24 @@ if [ "$STRTOUPPER_SMOKE" != "string:JINX" ]; then
     exit 1
 fi
 
+CALL_USER_FUNC_SMOKE=$("$OUT" oracle-call call_user_func s:strlen s:oracle)
+if [ "$CALL_USER_FUNC_SMOKE" != "int:6" ]; then
+    echo "FAIL: post-build oracle-call call_user_func smoke expected int:6, got: $CALL_USER_FUNC_SMOKE" >&2
+    exit 1
+fi
+
+CLASS_EXISTS_SMOKE=$("$OUT" oracle-call class_exists s:stdClass)
+if [ "$CLASS_EXISTS_SMOKE" != "bool:true" ]; then
+    echo "FAIL: post-build oracle-call class_exists smoke expected bool:true, got: $CLASS_EXISTS_SMOKE" >&2
+    exit 1
+fi
+
+DATE_FORMAT_SMOKE=$("$OUT" oracle-call date_format "dt:2024-01-02 03:04:05" s:Y-m-d)
+if [ "$DATE_FORMAT_SMOKE" != "string:2024-01-02" ]; then
+    echo "FAIL: post-build oracle-call date_format smoke expected string:2024-01-02, got: $DATE_FORMAT_SMOKE" >&2
+    exit 1
+fi
+
 WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
 case "$WEB_PLAN_SMOKE" in
     *WEB_IF_MISSING_ARRAY_KEY*) ;;
@@ -84,6 +102,7 @@ echo "Native class/constant metadata regenerated: runtime/jinx_native_core_metad
 echo "Extended procedural Oracle backend compiled: runtime/jinx_oracle_extended_builtins.c"
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
+echo "Extended Oracle smoke: call_user_func/class_exists/date_format PASS"
 echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
