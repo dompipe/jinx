@@ -29,6 +29,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
+    printf("  %s oracle-error-smoke\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
@@ -1172,6 +1173,82 @@ static int command_oracle_frame_smoke(void) {
     return 0;
 }
 
+static int command_oracle_error_smoke(void) {
+    JinxZendExecutor executor;
+    JinxValue result;
+    int ok = 0;
+
+    jinx_zend_executor_init(&executor);
+    if (!jinx_zend_executor_set_last_error(
+            &executor,
+            512u,
+            "jinx native error",
+            "/tmp/jinx-error.php",
+            73u
+        )) {
+        return fail("could not seed Zend executor last-error state");
+    }
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "error_get_last", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        jinx_zend_executor_clear_last_error(&executor);
+        return fail("error_get_last did not return Zend error array");
+    }
+
+    {
+        JinxZendArray *array = jinx_oracle_zend_array_ptr(result);
+        JinxZendValue *type = jinx_zend_array_find(array, "type", 4u);
+        JinxZendValue *message = jinx_zend_array_find(array, "message", 7u);
+        JinxZendValue *file = jinx_zend_array_find(array, "file", 4u);
+        JinxZendValue *line = jinx_zend_array_find(array, "line", 4u);
+
+        if (type == NULL || type->type != JINX_ZEND_LONG ||
+            type->value.lval != 512 ||
+            message == NULL || message->type != JINX_ZEND_STRING ||
+            message->value.str == NULL ||
+            strcmp(message->value.str->bytes, "jinx native error") != 0 ||
+            file == NULL || file->type != JINX_ZEND_STRING ||
+            file->value.str == NULL ||
+            strcmp(file->value.str->bytes, "/tmp/jinx-error.php") != 0 ||
+            line == NULL || line->type != JINX_ZEND_LONG ||
+            line->value.lval != 73) {
+            release_cli_value(result);
+            jinx_zend_executor_clear_last_error(&executor);
+            return fail("error_get_last returned wrong error fields");
+        }
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "error_clear_last", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 0u) {
+        release_cli_value(result);
+        jinx_zend_executor_clear_last_error(&executor);
+        return fail("error_clear_last did not return null");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "error_get_last", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 0u) {
+        release_cli_value(result);
+        jinx_zend_executor_clear_last_error(&executor);
+        return fail("error_get_last did not return null after clear");
+    }
+    release_cli_value(result);
+
+    jinx_zend_executor_clear_last_error(&executor);
+    printf("PASS: native Zend executor last-error state drives error_get_last/error_clear_last\n");
+    return 0;
+}
+
 static int command_oracle_constant_smoke(void) {
     const char *constant_name = "__JINX_NATIVE_RUNTIME_CONSTANT_SMOKE__";
     JinxValue define_args[2];
@@ -1383,6 +1460,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-frame-smoke") == 0) {
         return command_oracle_frame_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-error-smoke") == 0) {
+        return command_oracle_error_smoke();
     }
 
     if (strcmp(argv[1], "oracle-call") == 0) {
