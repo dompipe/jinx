@@ -370,7 +370,43 @@ $concrete = [];
 $unwired = [];
 $groups = [];
 
+$contextBacked = [
+    'func_num_args' => 'frame',
+    'func_get_arg' => 'frame',
+    'func_get_args' => 'frame',
+    'get_called_class' => 'frame',
+    'get_defined_vars' => 'frame',
+    'compact' => 'frame',
+    'extract' => 'frame',
+    'error_get_last' => 'error',
+    'error_clear_last' => 'error',
+    'get_included_files' => 'script',
+    'get_required_files' => 'script',
+    'getlastmod' => 'script',
+    'getmyinode' => 'script',
+];
+
 foreach ($names as $name) {
+    if (isset($contextBacked[$name])) {
+        $kind = $contextBacked[$name];
+        if ($kind === 'frame') {
+            $command = escapeshellarg($jinx) . ' oracle-frame-smoke';
+        } elseif ($kind === 'error') {
+            $command = escapeshellarg($jinx) . ' oracle-error-smoke';
+        } else {
+            $command = escapeshellarg($jinx)
+                . ' oracle-script-context-smoke '
+                . escapeshellarg($root . '/scripts/test-native-procedural-needed-200-oracle-asm.php')
+                . ' '
+                . escapeshellarg($root . '/README.md');
+        }
+        $out = run($command, $code);
+        if ($code === 0 && str_contains($out, 'PASS:')) {
+            $concrete[] = $name;
+            continue;
+        }
+    }
+
     $args = sampleArgs($name);
     $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($name);
     foreach ($args as $arg) {
