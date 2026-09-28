@@ -1964,11 +1964,19 @@ JinxValue jinx_oracle_extended_builtin(
         if (stream == NULL || stream->fp == NULL) return result;
 
         if (strcmp(name, "fclose") == 0) {
+            JinxZendObject *resource_object = jinx_oracle_zend_object_ptr(args[0]);
             ok = fclose(stream->fp) == 0;
             stream->fp = NULL;
             free(stream);
             slot->type = JINX_ZEND_NULL;
             slot->value.ptr = NULL;
+            if (ok && resource_object != NULL) {
+                char *closed_name = jinx_oracle_ext_strdup("closed-resource");
+                if (closed_name != NULL) {
+                    free((void *)resource_object->class_name);
+                    resource_object->class_name = closed_name;
+                }
+            }
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
         }
@@ -2214,27 +2222,12 @@ JinxValue jinx_oracle_extended_builtin(
     }
 
     if (strcmp(name, "class_alias") == 0) {
-        char *original;
-        char *alias;
-        const JinxNativeClassMeta *meta;
-        if (args == NULL || argc < 2u || args[0].type != 3u || args[1].type != 3u) return result;
-        original = jinx_oracle_ext_dup_string_value(args[0]);
-        alias = jinx_oracle_ext_dup_string_value(args[1]);
-        if (original == NULL || alias == NULL) { free(original); free(alias); return result; }
-
         /*
-         * The generated metadata contains PHP's internal classes. PHP does not
-         * allow class_alias() to alias those as user-defined classes. Until
-         * Oracle's user-class registry is connected here, preserve the exact
-         * internal/missing-class result instead of inventing an alias.
+         * class_alias() requires Oracle's user-class registry. The generated
+         * metadata table only describes internal/runtime classes, so an
+         * unconditional false result would be a fabricated implementation.
          */
-        meta = jinx_oracle_ext_class_meta(original);
-        ok = 0;
-        (void)meta;
-        free(original);
-        free(alias);
-        if (handled != NULL) *handled = 1;
-        return jinx_oracle_bool_value(ok);
+        return result;
     }
 
     if (strcmp(name, "class_implements") == 0 ||
