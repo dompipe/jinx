@@ -1569,6 +1569,138 @@ JinxValue jinx_oracle_extended_builtin(
     }
 
     {
+        const char *datetime_alias = NULL;
+        int immutable = 0;
+        int mutating = 0;
+
+        if (strcmp(name, "DateTime::getTimezone") == 0) {
+            datetime_alias = "date_timezone_get";
+        } else if (strcmp(name, "DateTimeImmutable::getTimezone") == 0) {
+            datetime_alias = "date_timezone_get";
+            immutable = 1;
+        } else if (strcmp(name, "DateTime::diff") == 0) {
+            datetime_alias = "date_diff";
+        } else if (strcmp(name, "DateTimeImmutable::diff") == 0) {
+            datetime_alias = "date_diff";
+            immutable = 1;
+        } else if (strcmp(name, "DateTime::add") == 0) {
+            datetime_alias = "date_add";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::add") == 0) {
+            datetime_alias = "date_add";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::sub") == 0) {
+            datetime_alias = "date_sub";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::sub") == 0) {
+            datetime_alias = "date_sub";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::modify") == 0) {
+            datetime_alias = "date_modify";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::modify") == 0) {
+            datetime_alias = "date_modify";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::setDate") == 0) {
+            datetime_alias = "date_date_set";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::setDate") == 0) {
+            datetime_alias = "date_date_set";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::setISODate") == 0) {
+            datetime_alias = "date_isodate_set";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::setISODate") == 0) {
+            datetime_alias = "date_isodate_set";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::setTime") == 0) {
+            datetime_alias = "date_time_set";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::setTime") == 0) {
+            datetime_alias = "date_time_set";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::setTimestamp") == 0) {
+            datetime_alias = "date_timestamp_set";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::setTimestamp") == 0) {
+            datetime_alias = "date_timestamp_set";
+            immutable = 1;
+            mutating = 1;
+        } else if (strcmp(name, "DateTime::setTimezone") == 0) {
+            datetime_alias = "date_timezone_set";
+            mutating = 1;
+        } else if (strcmp(name, "DateTimeImmutable::setTimezone") == 0) {
+            datetime_alias = "date_timezone_set";
+            immutable = 1;
+            mutating = 1;
+        }
+
+        if (strcmp(name, "DateTime::getMicrosecond") == 0 ||
+            strcmp(name, "DateTimeImmutable::getMicrosecond") == 0) {
+            JinxZendObject *object =
+                args != NULL && argc == 1u
+                    ? jinx_oracle_zend_object_ptr(args[0])
+                    : NULL;
+            if (object == NULL) return result;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(
+                jinx_oracle_ext_object_long(object, "microsecond", 0)
+            );
+        }
+
+        if (datetime_alias != NULL) {
+            if (args == NULL || argc < 1u) return result;
+
+            if (immutable && mutating) {
+                JinxZendObject *source = NULL;
+                int64_t timestamp = 0;
+                const char *timezone = NULL;
+                JinxValue clone;
+                JinxValue call_args[8];
+                JinxValue alias_result;
+                int alias_handled = 0;
+
+                if (argc > 8u ||
+                    !jinx_oracle_ext_datetime_parts(
+                        args[0], &source, &timestamp, &timezone
+                    )) {
+                    return result;
+                }
+                clone = jinx_oracle_ext_new_datetime(
+                    "DateTimeImmutable", timestamp, timezone
+                );
+                if (!jinx_oracle_value_is_zend_object(clone)) return result;
+
+                call_args[0] = clone;
+                for (size_t i = 1u; i < argc; i++) call_args[i] = args[i];
+                alias_result = jinx_oracle_extended_builtin(
+                    datetime_alias,
+                    call_args,
+                    argc,
+                    &alias_handled
+                );
+                jinx_oracle_zend_container_value_release(clone);
+                if (!alias_handled) {
+                    jinx_oracle_zend_container_value_release(alias_result);
+                    return result;
+                }
+                if (handled != NULL) *handled = 1;
+                return alias_result;
+            }
+
+            return jinx_oracle_extended_builtin(
+                datetime_alias, args, argc, handled
+            );
+        }
+    }
+
+    {
         const char *separator = strstr(name, "::");
         JinxZendObject *object =
             args != NULL && argc >= 1u
