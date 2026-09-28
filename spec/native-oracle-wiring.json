@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 617,
-        "extended_native_route": 319,
+        "native_named_route": 619,
+        "extended_native_route": 321,
         "context_native_route": 3,
-        "intentional_native_fault": 2910
+        "intentional_native_fault": 2908
     },
     "routes": {
         "_": "extended",
@@ -1951,8 +1951,8 @@
         "random\\randomizer::pickarraykeys": "intentional-native-fault",
         "random\\randomizer::shufflearray": "intentional-native-fault",
         "random\\randomizer::shufflebytes": "intentional-native-fault",
-        "random_bytes": "intentional-native-fault",
-        "random_int": "intentional-native-fault",
+        "random_bytes": "extended",
+        "random_int": "extended",
         "range": "zend-container",
         "rangeexception::__construct": "intentional-native-fault",
         "rangeexception::__tostring": "intentional-native-fault",
