@@ -181,7 +181,7 @@ esac
 
 FRAME_CONTEXT_SMOKE=$("$OUT" oracle-frame-smoke)
 case "$FRAME_CONTEXT_SMOKE" in
-    *"PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract and clears on frame leave"*) ;;
+    *"PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract/debug_backtrace and clears on frame leave"*) ;;
     *)
         echo "FAIL: post-build caller-frame smoke failed: $FRAME_CONTEXT_SMOKE" >&2
         exit 1
