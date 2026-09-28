@@ -193,6 +193,8 @@ $checks = [
     ['gmmktime', ['i:0', 'i:0', 'i:0', 'i:1', 'i:1', 'i:2024'], 'int:' . gmmktime(0, 0, 0, 1, 1, 2024)],
     ['hash_equals', ['s:abc', 's:abc'], 'bool:true'],
     ['hash_equals', ['s:abc', 's:abd'], 'bool:false'],
+    ['hash_algos', [], 'zend-array:' . count(hash_algos())],
+    ['hash_hmac_algos', [], 'zend-array:' . count(hash_hmac_algos())],
     ['closedir', ['dir:tmp'], 'null'],
     ['assert', ['b:true'], 'bool:true'],
     ['get_resource_type', ['fp:tmp'], 'string:stream'],
