@@ -423,7 +423,7 @@ $code[] = '        jinx_oracle_value_is_zend_array(args[0])) {';
 $code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
 $code[] = '    }';
 $code[] = '';
-$code[] = '    JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);';
+$code[] = '    JinxOracleWrapper wrapper = entry->wrapper;';
 $code[] = '';
 $code[] = '    if (wrapper == NULL) {';
 $code[] = '        return jinx_value_null();';
