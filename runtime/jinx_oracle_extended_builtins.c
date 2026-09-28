@@ -1809,7 +1809,7 @@ JinxValue jinx_oracle_extended_builtin(
                         if (handled != NULL) *handled = 1;
                         return jinx_oracle_int_value(
                             jinx_oracle_ext_object_long(
-                                object, "severity", E_ERROR
+                                object, "severity", 1
                             )
                         );
                     }
