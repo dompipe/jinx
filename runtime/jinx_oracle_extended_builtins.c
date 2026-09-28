@@ -2186,6 +2186,54 @@ JinxValue jinx_oracle_extended_builtin(
         }
     }
 
+    if (strcmp(name, "readlink") == 0 || strcmp(name, "linkinfo") == 0) {
+        char *path;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        path = jinx_oracle_ext_dup_string_value(args[0]);
+        if (path == NULL) return result;
+
+        if (strcmp(name, "readlink") == 0) {
+            char target[PATH_MAX];
+            ssize_t length = readlink(path, target, sizeof(target) - 1u);
+            free(path);
+            if (handled != NULL) *handled = 1;
+            if (length < 0) return jinx_oracle_bool_value(0);
+            return jinx_oracle_ext_copy_string(target, (size_t)length);
+        }
+
+        {
+            struct stat st;
+            ok = lstat(path, &st) == 0;
+            free(path);
+            if (handled != NULL) *handled = 1;
+            return ok
+                ? jinx_oracle_int_value((int64_t)st.st_dev)
+                : jinx_oracle_int_value(-1);
+        }
+    }
+
+    if (strcmp(name, "link") == 0 || strcmp(name, "symlink") == 0) {
+        char *target;
+        char *link_path;
+        int rc;
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        target = jinx_oracle_ext_dup_string_value(args[0]);
+        link_path = jinx_oracle_ext_dup_string_value(args[1]);
+        if (target == NULL || link_path == NULL) {
+            free(target);
+            free(link_path);
+            return result;
+        }
+        rc = strcmp(name, "symlink") == 0
+            ? symlink(target, link_path)
+            : link(target, link_path);
+        free(target);
+        free(link_path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+
     if (strcmp(name, "is_dir") == 0 || strcmp(name, "is_file") == 0 ||
         strcmp(name, "is_link") == 0 || strcmp(name, "is_readable") == 0 ||
         strcmp(name, "is_writable") == 0 || strcmp(name, "is_writeable") == 0 ||
