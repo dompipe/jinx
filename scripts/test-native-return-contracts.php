@@ -106,6 +106,26 @@ foreach ($objectPredicates as [$name, $arg, $expected]) {
     }
 }
 
+/* Existing handlers that were previously mis-audited must execute with valid call shapes. */
+$recoveredHandlers = [
+    ['array_key_exists', ['s:keep', 'za:sample'], 'bool:true'],
+    ['array_pad', ['za:sample', 'i:6', 'i:0'], 'zend-array:6'],
+    ['array_search', ['i:20', 'za:sample'], 'int:1'],
+    ['array_splice', ['za:sample', 'i:1', 'i:2'], 'zend-array:2'],
+    ['base_convert', ['s:ff', 'i:16', 'i:10'], 'string:255'],
+    ['dirname', ['s:/tmp/example.txt'], 'string:/tmp'],
+    ['pathinfo', ['s:/tmp/example.txt'], 'zend-array:4'],
+    ['stat', ['s:README.md'], 'zend-array:26'],
+    ['unlink', ['s:/__jinx_oracle_missing__/return-contract'], 'bool:false'],
+];
+
+foreach ($recoveredHandlers as [$name, $args, $expected]) {
+    $out = runReturn(array_merge([$jinx, 'oracle-call', $name], $args), $code);
+    if ($code !== 0 || $out !== $expected) {
+        failReturn("{$name} valid call shape expected {$expected}, got {$out}");
+    }
+}
+
 /* Native stream carriers must behave like PHP resources, not ordinary objects. */
 $resourceChecks = [
     ['is_resource', 'bool:true'],
