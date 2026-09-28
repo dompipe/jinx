@@ -452,14 +452,14 @@ This benchmark intentionally calls the built native executable:
 ./jinx bench-all-functions <iterations>
 ```
 
-It does **not** call `php bin/jinx` for the JINX timing path.
+It does **not** call `php scripts/jinx-web-tools.php` for the JINX timing path.
 
 ## Important Files
 
 ```text
 native/jinx_cli.c
 native/jinx_zend_smoke.c
-bin/jinx
+scripts/jinx-web-tools.php
 runtime/jinx_zend_engine.h
 runtime/jinx_zend_engine.c
 runtime/jinx_php_manual_manifest.h
@@ -494,24 +494,23 @@ docs/WEB_WINDOW_INDEX.md
 
 ## PHP Helper Commands
 
-The PHP helper CLI remains useful for web/compiler workflows and legacy PHP-side benchmark notes:
+The optional PHP web-helper script remains available for web/compiler workflows, but it is not a Jinx executable and native `./jinx` never delegates to it:
 
 ```bash
-php bin/jinx rc
-php bin/jinx benchmarks
-php bin/jinx bench-wrapper-first100
-php bin/jinx bench-worker
-php bin/jinx bench-endpoint
+php scripts/jinx-web-tools.php rc
+php scripts/jinx-web-tools.php benchmarks
+php scripts/jinx-web-tools.php bench-wrapper-first100
+php scripts/jinx-web-tools.php bench-worker
+php scripts/jinx-web-tools.php bench-endpoint
 ```
 
-Use the native `./jinx` executable for native Oracle/PASM timing.
+Use the native repository-root `./jinx` executable for all Jinx CLI and Oracle/PASM timing. Unknown native commands fail instead of falling through to PHP.
 
 ## Package Contents
 
 The clean RC zip should include source-facing files only:
 
 ```text
-bin/
 docs/
 native/
 runtime/
