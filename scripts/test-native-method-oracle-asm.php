@@ -143,6 +143,9 @@ $throwableClasses = [
     Error::class,
     ErrorException::class,
     Exception::class,
+    FFI\Exception::class,
+    FFI\ParserException::class,
+    FiberError::class,
     InvalidArgumentException::class,
     JsonException::class,
     LengthException::class,
@@ -157,7 +160,10 @@ $throwableClasses = [
     Random\RandomException::class,
     RangeException::class,
     ReflectionException::class,
+    RequestParseBodyException::class,
     RuntimeException::class,
+    SodiumException::class,
+    PharException::class,
     TypeError::class,
     UnderflowException::class,
     UnexpectedValueException::class,
@@ -252,4 +258,53 @@ foreach ($throwableClasses as $class) {
     }
 }
 
-echo "PASS: native Oracle method receiver preserves DateTime and 410 Throwable route probes\n";
+/* Prove the Throwable interface routes against a concrete Exception receiver. */
+$phpInterfaceThrowable = new Exception('jinx-message', 73);
+(new ReflectionProperty(Exception::class, 'file'))->setValue(
+    $phpInterfaceThrowable,
+    'jinx-fixture.php'
+);
+(new ReflectionProperty(Exception::class, 'line'))->setValue(
+    $phpInterfaceThrowable,
+    123
+);
+$throwableInterfaceMethods = [
+    'getMessage',
+    'getCode',
+    'getPrevious',
+    'getTrace',
+    'getTraceAsString',
+    'getFile',
+    'getLine',
+    '__toString',
+];
+foreach ($throwableInterfaceMethods as $method) {
+    $expected = match ($method) {
+        'getMessage' => 'string:' . $phpInterfaceThrowable->getMessage(),
+        'getCode' => 'int:' . $phpInterfaceThrowable->getCode(),
+        'getPrevious' => 'null',
+        'getTrace' => 'zend-array:' . count($phpInterfaceThrowable->getTrace()),
+        'getTraceAsString' => 'string:' . $phpInterfaceThrowable->getTraceAsString(),
+        'getFile' => 'string:' . $phpInterfaceThrowable->getFile(),
+        'getLine' => 'int:' . $phpInterfaceThrowable->getLine(),
+        '__toString' => 'string:' . $phpInterfaceThrowable->__toString(),
+    };
+    checkMethod(
+        $jinx,
+        Throwable::class . '::' . $method,
+        'ex:' . Exception::class,
+        [],
+        $expected
+    );
+}
+
+$phpErrorException = new ErrorException('jinx-message', 73);
+checkMethod(
+    $jinx,
+    ErrorException::class . '::getSeverity',
+    'ex:' . ErrorException::class,
+    [],
+    'int:' . $phpErrorException->getSeverity()
+);
+
+echo "PASS: native Oracle method receiver preserves DateTime and 479 Throwable route probes\n";
