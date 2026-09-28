@@ -132,6 +132,17 @@ $opensslMdMethodsAliases = function_exists('openssl_get_md_methods')
 $opensslCurveNames = function_exists('openssl_get_curve_names')
     ? (openssl_get_curve_names() ?: [])
     : [];
+$opensslCertLocationRows = [];
+if (function_exists('openssl_get_cert_locations')) {
+    foreach (openssl_get_cert_locations() as $locationKey => $locationValue) {
+        if (is_string($locationKey)) {
+            $opensslCertLocationRows[] = [
+                $locationKey,
+                is_string($locationValue) ? $locationValue : '',
+            ];
+        }
+    }
+}
 $streamWrappers = function_exists('stream_get_wrappers') ? stream_get_wrappers() : [];
 $streamTransports = function_exists('stream_get_transports') ? stream_get_transports() : [];
 $streamFilters = function_exists('stream_get_filters') ? stream_get_filters() : [];
@@ -325,6 +336,14 @@ foreach ($splClassRows as [$classKey, $classValue]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_spl_classes_count = sizeof(jinx_native_spl_classes) / sizeof(jinx_native_spl_classes[0]);';
+$code[] = '';
+
+$code[] = 'static const JinxNativeStringPair jinx_native_openssl_cert_locations[] = {';
+foreach ($opensslCertLocationRows as [$locationKey, $locationValue]) {
+    $code[] = '    { ' . cstr($locationKey) . ', ' . cstr($locationValue) . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_openssl_cert_locations_count = sizeof(jinx_native_openssl_cert_locations) / sizeof(jinx_native_openssl_cert_locations[0]);';
 $code[] = '';
 
 $code[] = 'static const JinxNativeIniMeta jinx_native_ini_metadata[] = {';
