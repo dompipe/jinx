@@ -178,6 +178,15 @@ case "$CONSTANT_REGISTRY_SMOKE" in
         ;;
 esac
 
+FRAME_CONTEXT_SMOKE=$("$OUT" oracle-frame-smoke)
+case "$FRAME_CONTEXT_SMOKE" in
+    *"PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class and clears on frame leave"*) ;;
+    *)
+        echo "FAIL: post-build caller-frame smoke failed: $FRAME_CONTEXT_SMOKE" >&2
+        exit 1
+        ;;
+esac
+
 WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
 case "$WEB_PLAN_SMOKE" in
     *WEB_IF_MISSING_ARRAY_KEY*) ;;
@@ -239,6 +248,7 @@ echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
 echo "Extended Oracle smoke: call_user_func/class_exists/date_format PASS"
 echo "Native constant registry smoke: PASS"
+echo "Native caller-frame builtin smoke: PASS"
 echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
