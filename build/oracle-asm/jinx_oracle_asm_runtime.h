@@ -147,6 +147,8 @@ struct JinxOracleAsmContext {
     JinxValue *argv;
     uint32_t argc;
     uint32_t call_argc;
+    JinxValue method_receiver;
+    uint8_t method_receiver_valid;
     const char *fault;
 };
 
@@ -8553,7 +8555,48 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 }
 
 static inline JinxValue jinx_oracle_asm_call_method_builtin(JinxOracleAsmContext *ctx, const char *name, uint32_t argc) {
-    return jinx_oracle_asm_call_builtin(ctx, name, argc);
+    JinxValue ret = jinx_oracle_zero_value();
+    JinxValue method_args[65];
+
+    if (ctx == NULL || name == NULL || ctx->fault != NULL) return ret;
+    if (!ctx->method_receiver_valid) {
+        ctx->fault = "Native method call missing receiver";
+        return ret;
+    }
+
+    argc = ctx->call_argc;
+    if (argc > 64u) {
+        ctx->fault = "Oracle ASM method call frame overflow";
+        return ret;
+    }
+
+    method_args[0] = ctx->method_receiver;
+    for (uint32_t i = 0u; i < argc; i++) method_args[i + 1u] = ctx->call_args[i];
+
+    if (jinx_oracle_extended_builtin_with_context != NULL) {
+        int context_handled = 0;
+        ret = jinx_oracle_extended_builtin_with_context(
+            ctx, name, method_args, (size_t)argc + 1u, &context_handled
+        );
+        if (context_handled) {
+            jinx_oracle_return(ctx, ret);
+            return ret;
+        }
+    }
+
+    if (jinx_oracle_extended_builtin != NULL) {
+        int extended_handled = 0;
+        ret = jinx_oracle_extended_builtin(
+            name, method_args, (size_t)argc + 1u, &extended_handled
+        );
+        if (extended_handled) {
+            jinx_oracle_return(ctx, ret);
+            return ret;
+        }
+    }
+
+    ctx->fault = "No exact native Oracle ASM handler for method";
+    return ret;
 }
 
 static inline JinxValue jinx_oracle_asm_mov(JinxOracleAsmContext *ctx, uint32_t dst, uint32_t src) {
