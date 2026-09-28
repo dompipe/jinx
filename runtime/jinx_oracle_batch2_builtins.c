@@ -26,6 +26,9 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <syslog.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 #include <zlib.h>
@@ -40,6 +43,106 @@
 extern char **environ;
 
 static int64_t jinx_oracle_batch2_error_reporting = JINX_NATIVE_PHP_ERROR_REPORTING;
+static int jinx_oracle_batch2_assert_active = JINX_NATIVE_ASSERT_ACTIVE;
+static int jinx_oracle_batch2_assert_warning = JINX_NATIVE_ASSERT_WARNING;
+static int jinx_oracle_batch2_assert_bail = JINX_NATIVE_ASSERT_BAIL;
+static int jinx_oracle_batch2_assert_exception = JINX_NATIVE_ASSERT_EXCEPTION;
+static char *jinx_oracle_batch2_assert_callback = NULL;
+static char *jinx_oracle_batch2_process_title = NULL;
+
+
+static int b2_assert_option_slot(
+    int option,
+    int **numeric_slot,
+    char ***callback_slot
+) {
+    if (numeric_slot != NULL) *numeric_slot = NULL;
+    if (callback_slot != NULL) *callback_slot = NULL;
+
+#ifdef ASSERT_ACTIVE
+    if (option == ASSERT_ACTIVE) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_active;
+        return 1;
+    }
+#endif
+#ifdef ASSERT_WARNING
+    if (option == ASSERT_WARNING) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_warning;
+        return 1;
+    }
+#endif
+#ifdef ASSERT_BAIL
+    if (option == ASSERT_BAIL) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_bail;
+        return 1;
+    }
+#endif
+#ifdef ASSERT_EXCEPTION
+    if (option == ASSERT_EXCEPTION) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_exception;
+        return 1;
+    }
+#endif
+#ifdef ASSERT_CALLBACK
+    if (option == ASSERT_CALLBACK) {
+        if (callback_slot != NULL) *callback_slot = &jinx_oracle_batch2_assert_callback;
+        return 1;
+    }
+#endif
+
+    /* PHP's assert constants are stable integers, but use fallback numeric
+     * values when the C compiler does not see PHP headers. */
+    if (option == 1) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_active;
+        return 1;
+    }
+    if (option == 4) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_warning;
+        return 1;
+    }
+    if (option == 3) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_bail;
+        return 1;
+    }
+    if (option == 6) {
+        if (numeric_slot != NULL) *numeric_slot = &jinx_oracle_batch2_assert_exception;
+        return 1;
+    }
+    if (option == 2) {
+        if (callback_slot != NULL) *callback_slot = &jinx_oracle_batch2_assert_callback;
+        return 1;
+    }
+    return 0;
+}
+
+static const char *b2_process_title_current(void) {
+    if (jinx_oracle_batch2_process_title != NULL) {
+        return jinx_oracle_batch2_process_title;
+    }
+#ifdef __linux__
+    {
+        FILE *fp = fopen("/proc/self/cmdline", "rb");
+        if (fp != NULL) {
+            char buffer[4096];
+            size_t n = fread(buffer, 1u, sizeof(buffer) - 1u, fp);
+            fclose(fp);
+            if (n != 0u) {
+                for (size_t i = 0u; i < n; i++) {
+                    if (buffer[i] == '\0') buffer[i] = ' ';
+                }
+                while (n != 0u && buffer[n - 1u] == ' ') n--;
+                buffer[n] = '\0';
+                jinx_oracle_batch2_process_title = (char *)malloc(n + 1u);
+                if (jinx_oracle_batch2_process_title != NULL) {
+                    memcpy(jinx_oracle_batch2_process_title, buffer, n + 1u);
+                    return jinx_oracle_batch2_process_title;
+                }
+            }
+        }
+    }
+#endif
+    return NULL;
+}
 
 static char *b2_dup(JinxValue value) {
     uint32_t len;
@@ -2572,6 +2675,103 @@ csv_fail:
         return jinx_oracle_bool_value(rc >= 0);
     }
 #endif
+
+
+    if (strcmp(name, "assert") == 0) {
+        int truth;
+        if (args == NULL || argc < 1u) return result;
+        truth = jinx_oracle_boolish(args[0]);
+        if (!jinx_oracle_batch2_assert_active || truth) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(1);
+        }
+
+        /*
+         * A failed active assertion can warn, invoke a callback, throw
+         * AssertionError, or bail. The direct builtin bridge does not yet own
+         * the native call-frame/throwable path, so fail closed instead of
+         * returning a fabricated false/null success.
+         */
+        return result;
+    }
+
+    if (strcmp(name, "assert_options") == 0) {
+        int option;
+        int *numeric_slot = NULL;
+        char **callback_slot = NULL;
+
+        if (args == NULL || argc < 1u) return result;
+        option = (int)jinx_oracle_intish(args[0]);
+        if (!b2_assert_option_slot(option, &numeric_slot, &callback_slot)) {
+            return result;
+        }
+
+        if (numeric_slot != NULL) {
+            int previous = *numeric_slot;
+            if (argc >= 2u && args[1].type != 0u) {
+                *numeric_slot = jinx_oracle_boolish(args[1]) ? 1 : 0;
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(previous);
+        }
+
+        if (callback_slot != NULL) {
+            JinxValue previous = *callback_slot != NULL
+                ? jinx_oracle_string_value(*callback_slot)
+                : jinx_oracle_zero_value();
+
+            if (argc >= 2u) {
+                char *replacement = NULL;
+                if (args[1].type == 3u) {
+                    replacement = b2_dup(args[1]);
+                    if (replacement == NULL) return result;
+                    if (replacement[0] == '\0') {
+                        free(replacement);
+                        replacement = NULL;
+                    }
+                } else if (args[1].type != 0u) {
+                    return result;
+                }
+                free(*callback_slot);
+                *callback_slot = replacement;
+            }
+
+            if (handled != NULL) *handled = 1;
+            return previous;
+        }
+
+        return result;
+    }
+
+    if (strcmp(name, "cli_get_process_title") == 0) {
+        const char *title = b2_process_title_current();
+        if (handled != NULL) *handled = 1;
+        return title != NULL
+            ? b2_copy(title, strlen(title))
+            : jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "cli_set_process_title") == 0) {
+        char *title;
+        int os_ok = 0;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        title = b2_dup(args[0]);
+        if (title == NULL) return result;
+#ifdef __linux__
+        os_ok = prctl(PR_SET_NAME, (unsigned long)title, 0ul, 0ul, 0ul) == 0;
+#else
+        os_ok = 0;
+#endif
+        if (!os_ok) {
+            free(title);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        free(jinx_oracle_batch2_process_title);
+        jinx_oracle_batch2_process_title = title;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
 
     return result;
 }
