@@ -81,6 +81,18 @@ if ($code !== 0 ||
     fail200("runtime constant registry smoke failed\n{$constantSmoke}");
 }
 
+$frameSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-frame-smoke',
+    $code
+);
+if ($code !== 0 ||
+    !str_contains(
+        $frameSmoke,
+        'PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class and clears on frame leave'
+    )) {
+    fail200("native caller-frame smoke failed\n{$frameSmoke}");
+}
+
 /* Deterministic metadata/introspection parity. */
 $checks = [
     ['function_exists', ['s:strlen'], 'bool:' . (function_exists('strlen') ? 'true' : 'false')],
