@@ -14,6 +14,9 @@ php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c"
 
+php "${ROOT_DIR}/scripts/patch-native-array-predicate-standins.php" \
+    "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c"
+
 "$CC_BIN" \
     -std=c11 \
     -O2 \
@@ -57,6 +60,12 @@ if [ "$STRTOUPPER_SMOKE" != "string:JINX" ]; then
     exit 1
 fi
 
+ARRAY_ALL_SMOKE=$("$OUT" oracle-call array_all a:4 s:callback)
+if [ "$ARRAY_ALL_SMOKE" != "bool:true" ]; then
+    echo "FAIL: post-build oracle-call array_all stand-in smoke expected bool:true, got: $ARRAY_ALL_SMOKE" >&2
+    exit 1
+fi
+
 WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
 case "$WEB_PLAN_SMOKE" in
     *WEB_IF_MISSING_ARRAY_KEY*) ;;
@@ -74,6 +83,7 @@ echo "Zend skeleton compiled: runtime/jinx_zend_engine.c"
 echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
+echo "Native array predicate stand-in smoke: array_all PASS"
 echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
