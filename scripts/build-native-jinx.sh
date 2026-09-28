@@ -50,6 +50,16 @@ if printf '%s\n' '#include <resolv.h>' 'int main(void){unsigned char b[512]; ret
 fi
 rm -f "$RESOLV_PROBE"
 
+CURL_DEFINE=""
+CURL_LIBS=""
+CURL_PROBE="${OUT_DIR}/jinx-libcurl-probe"
+if printf '%s\n' '#include <curl/curl.h>' 'int main(void){CURL *c=curl_easy_init(); if(c) curl_easy_cleanup(c); return 0;}' | \
+    "$CC_BIN" -x c - -lcurl -o "$CURL_PROBE" >/dev/null 2>&1; then
+    CURL_DEFINE="-DJINX_HAVE_LIBCURL=1"
+    CURL_LIBS="-lcurl"
+fi
+rm -f "$CURL_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -68,6 +78,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${MAGIC_DEFINE} \
     ${CRYPT_DEFINE} \
     ${RESOLV_DEFINE} \
+    ${CURL_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -84,6 +95,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_resource_registry.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_solar_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_dns_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_curl_ftp_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
@@ -92,6 +104,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${MAGIC_LIBS} \
     ${CRYPT_LIBS} \
     ${RESOLV_LIBS} \
+    ${CURL_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -160,6 +173,7 @@ echo "Second-wave Oracle backend compiled: runtime/jinx_oracle_batch2_builtins.c
 echo "Native resource registry compiled: runtime/jinx_oracle_resource_registry.c"
 echo "Native solar backend compiled: runtime/jinx_oracle_solar_builtins.c"
 echo "Native DNS decoder compiled: runtime/jinx_oracle_dns_builtins.c"
+echo "Native FTP backend compiled: runtime/jinx_oracle_curl_ftp_builtins.c"
 if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
@@ -179,6 +193,11 @@ if [ -n "$RESOLV_DEFINE" ]; then
     echo "Native libresolv DNS backend: enabled"
 else
     echo "Native libresolv DNS backend: unavailable; DNS record checks remain faulting"
+fi
+if [ -n "$CURL_DEFINE" ]; then
+    echo "Native libcurl FTP backend: enabled"
+else
+    echo "Native libcurl FTP backend: unavailable; FTP family remains faulting"
 fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
