@@ -93,6 +93,9 @@ struct JinxZendReference {
 typedef struct JinxZendCallFrame {
     const char *function_name;
     const char *scope_name;
+    const char *call_file;
+    const char *call_type;
+    uint32_t call_line;
     JinxZendValue *args;
     size_t argc;
     JinxZendArray *locals;
@@ -178,6 +181,12 @@ int jinx_zend_executor_set_last_error(
 );
 void jinx_zend_executor_clear_last_error(JinxZendExecutor *executor);
 void jinx_zend_frame_enter(JinxZendExecutor *executor, JinxZendCallFrame *frame, const char *function_name, JinxZendValue *args, size_t argc);
+void jinx_zend_frame_set_callsite(
+    JinxZendCallFrame *frame,
+    const char *file,
+    uint32_t line,
+    const char *call_type
+);
 int jinx_zend_frame_set_local(JinxZendCallFrame *frame, const char *name, JinxZendValue value);
 JinxZendValue *jinx_zend_frame_get_local(JinxZendCallFrame *frame, const char *name);
 JinxZendValue jinx_zend_frame_leave(JinxZendExecutor *executor, JinxZendValue return_value);
