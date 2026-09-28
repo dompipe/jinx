@@ -53,6 +53,7 @@ function sample100(string $name): array
     if ($name === 'array_fill_keys') return ['za:sample', 'i:9'];
     if ($name === 'array_combine') return ['za:sample', 'za:sample'];
     if ($name === 'array_chunk') return ['za:sample', 'i:2'];
+    if ($name === 'array_column') return ['za:sample', 's:name'];
     if ($name === 'array_rand') return ['za:sample', 'i:1'];
     if ($name === 'array_multisort') return ['za:sample'];
     if (in_array($name, ['array_walk', 'array_walk_recursive'], true)) return ['za:walk', 's:settype'];
