@@ -83,9 +83,9 @@ static int64_t solar_days_from_civil(int y, unsigned m, unsigned d) {
     {
         const int era = (y >= 0 ? y : y - 399) / 400;
         const unsigned yoe = (unsigned)(y - era * 400);
+        const unsigned mp = (unsigned)((int)m + (m > 2u ? -3 : 9));
         const unsigned doy =
-            (153u * (m + (m > 2u ? (unsigned)-3 : 9u)) + 2u) / 5u +
-            d - 1u;
+            (153u * mp + 2u) / 5u + d - 1u;
         const unsigned doe =
             yoe * 365u + yoe / 4u - yoe / 100u + doy;
         return (int64_t)era * 146097 + (int64_t)doe - 719468;
@@ -479,16 +479,20 @@ JinxValue jinx_oracle_solar_builtin(
 
             {
                 char buffer[16];
+                char *out;
                 int hour = (int)n;
                 int minute = (int)(60.0 * (n - (double)hour));
                 int length = snprintf(
                     buffer, sizeof(buffer),
                     "%02d:%02d", hour, minute
                 );
-                if (length < 0) return jinx_oracle_zero_value();
+                if (length < 0 || (size_t)length >= sizeof(buffer)) {
+                    return jinx_oracle_zero_value();
+                }
+                out = jinx_oracle_scratch_string((uint32_t)length);
+                memcpy(out, buffer, (size_t)length);
                 return jinx_oracle_string_value_len(
-                    jinx_oracle_scratch_string((uint32_t)length),
-                    0u
+                    out, (uint32_t)length
                 );
             }
         }
