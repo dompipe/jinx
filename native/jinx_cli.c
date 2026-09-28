@@ -1004,6 +1004,17 @@ static int command_oracle_frame_smoke(void) {
     );
     frame.scope_name = "JinxFrameScope";
 
+    if (!jinx_zend_frame_set_local(
+            &frame, "alpha", jinx_zend_long(11)
+        ) ||
+        !jinx_zend_frame_set_local(
+            &frame, "beta", jinx_zend_long(22)
+        )) {
+        (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+        jinx_zend_string_release(text_arg);
+        return fail("could not seed native frame locals");
+    }
+
     result = jinx_call_builtin_through_oracle_checked(
         "func_num_args", NULL, 0u, &ok
     );
@@ -1062,6 +1073,89 @@ static int command_oracle_frame_smoke(void) {
     }
     release_cli_value(result);
 
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "get_defined_vars", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+        jinx_zend_array_live_count(
+            jinx_oracle_zend_array_ptr(result)
+        ) != 2u) {
+        release_cli_value(result);
+        (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+        jinx_zend_string_release(text_arg);
+        return fail("get_defined_vars did not read frame locals");
+    }
+    release_cli_value(result);
+
+    {
+        JinxValue compact_args[2];
+        compact_args[0] = jinx_value_string("alpha", 5u);
+        compact_args[1] = jinx_value_string("beta", 4u);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "compact", compact_args, 2u, &ok
+        );
+        if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+            jinx_zend_array_live_count(
+                jinx_oracle_zend_array_ptr(result)
+            ) != 2u) {
+            release_cli_value(result);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("compact did not read frame locals");
+        }
+        release_cli_value(result);
+    }
+
+    {
+        JinxZendArray *extract_array = jinx_zend_array_new_packed(2u);
+        JinxValue extract_args[2];
+        JinxZendValue *alpha;
+        JinxZendValue *gamma;
+
+        if (extract_array == NULL ||
+            !jinx_zend_array_add_assoc(
+                extract_array, "alpha", 5u, jinx_zend_long(99)
+            ) ||
+            !jinx_zend_array_add_assoc(
+                extract_array, "gamma", 5u, jinx_zend_long(33)
+            )) {
+            jinx_zend_array_release(extract_array);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("could not create extract smoke array");
+        }
+
+        extract_args[0] =
+            jinx_oracle_zend_array_value_borrowed(extract_array);
+        extract_args[1] = jinx_value_int(1); /* EXTR_SKIP */
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "extract", extract_args, 2u, &ok
+        );
+        if (!ok || result.type != 1u || result.as.i64 != 1) {
+            release_cli_value(result);
+            jinx_zend_array_release(extract_array);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("extract EXTR_SKIP returned wrong count");
+        }
+        release_cli_value(result);
+        jinx_zend_array_release(extract_array);
+
+        alpha = jinx_zend_frame_get_local(&frame, "alpha");
+        gamma = jinx_zend_frame_get_local(&frame, "gamma");
+        if (alpha == NULL || alpha->type != JINX_ZEND_LONG ||
+            alpha->value.lval != 11 ||
+            gamma == NULL || gamma->type != JINX_ZEND_LONG ||
+            gamma->value.lval != 33) {
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("extract did not mutate frame locals with PHP skip semantics");
+        }
+    }
+
     (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
     jinx_zend_string_release(text_arg);
 
@@ -1074,7 +1168,7 @@ static int command_oracle_frame_smoke(void) {
         return fail("func_num_args must fault outside function context");
     }
 
-    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class and clears on frame leave\n");
+    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract and clears on frame leave\n");
     return 0;
 }
 
