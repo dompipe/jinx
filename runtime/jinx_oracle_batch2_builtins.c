@@ -1475,6 +1475,104 @@ JinxValue jinx_oracle_batch2_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    if (strcmp(name, "sys_get_temp_dir") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return b2_copy(
+            JINX_NATIVE_PHP_SYS_TEMP_DIR,
+            strlen(JINX_NATIVE_PHP_SYS_TEMP_DIR)
+        );
+    }
+
+    if (strcmp(name, "sys_getloadavg") == 0) {
+        double load[3];
+        JinxZendArray *array;
+        if (argc != 0u) return result;
+        if (getloadavg(load, 3) == -1) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        array = jinx_zend_array_new_packed(3u);
+        if (array == NULL) return result;
+        for (size_t i = 0u; i < 3u; i++) {
+            if (!jinx_zend_array_append(array, jinx_zend_double(load[i]))) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "php_sapi_name") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return b2_copy(
+            JINX_NATIVE_PHP_SAPI_NAME,
+            strlen(JINX_NATIVE_PHP_SAPI_NAME)
+        );
+    }
+
+    if (strcmp(name, "php_ini_loaded_file") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return JINX_NATIVE_PHP_INI_LOADED_FILE_AVAILABLE
+            ? b2_copy(
+                JINX_NATIVE_PHP_INI_LOADED_FILE,
+                strlen(JINX_NATIVE_PHP_INI_LOADED_FILE)
+            )
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "php_ini_scanned_files") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return JINX_NATIVE_PHP_INI_SCANNED_FILES_AVAILABLE
+            ? b2_copy(
+                JINX_NATIVE_PHP_INI_SCANNED_FILES,
+                strlen(JINX_NATIVE_PHP_INI_SCANNED_FILES)
+            )
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "php_uname") == 0) {
+        struct utsname info;
+        char mode = 'a';
+        if (argc >= 1u) {
+            if (args == NULL || args[0].type != 3u ||
+                jinx_oracle_string_len(args[0]) != 1u) return result;
+            mode = (char)jinx_oracle_string_bytes(args[0])[0];
+            if (mode != 'a' && mode != 'm' && mode != 'n' &&
+                mode != 'r' && mode != 's' && mode != 'v') return result;
+        }
+        if (uname(&info) != 0) return result;
+        if (handled != NULL) *handled = 1;
+        if (mode == 's') return b2_copy(info.sysname, strlen(info.sysname));
+        if (mode == 'n') return b2_copy(info.nodename, strlen(info.nodename));
+        if (mode == 'r') return b2_copy(info.release, strlen(info.release));
+        if (mode == 'v') return b2_copy(info.version, strlen(info.version));
+        if (mode == 'm') return b2_copy(info.machine, strlen(info.machine));
+        {
+            char buffer[
+                sizeof(info.sysname) + sizeof(info.nodename) +
+                sizeof(info.release) + sizeof(info.version) +
+                sizeof(info.machine) + 8u
+            ];
+            int written = snprintf(
+                buffer,
+                sizeof(buffer),
+                "%s %s %s %s %s",
+                info.sysname,
+                info.nodename,
+                info.release,
+                info.version,
+                info.machine
+            );
+            if (written < 0 || (size_t)written >= sizeof(buffer)) return result;
+            return b2_copy(buffer, (size_t)written);
+        }
+    }
+
     if (strcmp(name, "random_bytes") == 0) {
         int64_t length;
         char *bytes;
@@ -1796,7 +1894,9 @@ JinxValue jinx_oracle_batch2_builtin(
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(0);
         }
-        array = jinx_zend_array_new_packed(5u);
+        array = jinx_zend_array_new_packed(
+            JINX_NATIVE_POSIX_UNAME_HAS_DOMAINNAME ? 6u : 5u
+        );
         if (array == NULL) return result;
         if (!b2_assoc_string(array, "sysname", info.sysname) ||
             !b2_assoc_string(array, "nodename", info.nodename) ||
@@ -1805,6 +1905,20 @@ JinxValue jinx_oracle_batch2_builtin(
             !b2_assoc_string(array, "machine", info.machine)) {
             jinx_zend_array_release(array);
             return result;
+        }
+        if (JINX_NATIVE_POSIX_UNAME_HAS_DOMAINNAME) {
+            char domain[256];
+            if (getdomainname(domain, sizeof(domain)) != 0) {
+                jinx_zend_array_release(array);
+                jinx_oracle_batch2_posix_last_error = errno;
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            domain[sizeof(domain) - 1u] = '\0';
+            if (!b2_assoc_string(array, "domainname", domain)) {
+                jinx_zend_array_release(array);
+                return result;
+            }
         }
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);
