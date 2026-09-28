@@ -255,6 +255,7 @@ function sampleArgs(string $name): array
     if ($name === 'define') return ['s:__JINX_AUDIT_CONSTANT__', 'i:73'];
     if ($name === 'get_browser') return ['s:JinxAudit'];
     if ($name === 'exif_thumbnail') return ['s:README.md'];
+    if ($name === 'error_get_last' || $name === 'error_clear_last') return [];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
