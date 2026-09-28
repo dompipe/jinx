@@ -348,6 +348,7 @@ $fsChecks = [
     ['feof', ['fp:tmp'], 'bool:false'],
     ['fflush', ['fp:tmp'], 'bool:true'],
     ['fgetc', ['fp:tmp'], 'string:a'],
+    ['rewind', ['fp:tmp'], 'bool:true'],
     ['fgetcsv', ['fp:tmp'], 'zend-array:2'],
     ['flock', ['fp:tmp', 'i:1'], 'bool:true'],
     ['chdir', ['s:.'], 'bool:true'],
