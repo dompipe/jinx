@@ -144,3 +144,4 @@ foreach ($cases as [$function, $args]) {
 }
 
 echo 'PASS: native Oracle ASM math-core and cosine handlers match PHP for covered scalar cases' . PHP_EOL;
+echo 'PASS: native Oracle ASM math-core builtins execute' . PHP_EOL;
