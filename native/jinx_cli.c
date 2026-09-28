@@ -53,6 +53,7 @@ static void usage(const char *argv0) {
     printf("  za:deleted    same native Zend array with index 1 and key \"name\" tombstoned\n");
     printf("  za:strings    native Zend array [\"b\", \"a\", \"c\"]\n");
     printf("  za:walk       native Zend array keyed for array_walk(settype)\n");
+    printf("  obj:<class>   native object fixture with generated class metadata\n");
     printf("  dt:<text>     native DateTime fixture\n");
     printf("  dti:<text>    native DateTimeImmutable fixture\n");
     printf("  tz:<name>     native DateTimeZone fixture\n");
@@ -551,7 +552,8 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
         return make_zend_walk_array_fixture();
     }
 
-    if (strncmp(text, "dt:", 3) == 0 ||
+    if (strncmp(text, "obj:", 4) == 0 ||
+        strncmp(text, "dt:", 3) == 0 ||
         strncmp(text, "dti:", 4) == 0 ||
         strncmp(text, "tz:", 3) == 0 ||
         strncmp(text, "di:", 3) == 0 ||
