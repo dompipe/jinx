@@ -63,6 +63,7 @@ targets {
   # calendar/date procedural family
   cal_days_in_month
   cal_to_jd
+  date
   date_add
   date_create
   date_create_from_format
@@ -119,7 +120,6 @@ targets {
   fopen
 
   # introspection/string/math holes needed by common PHP scripts
-  class_alias
   class_exists
   class_implements
   class_parents
