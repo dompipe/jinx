@@ -4,6 +4,8 @@
 #include "jinx_oracle_asm_context.h"
 #include <stddef.h>
 
+JinxValue jinx_oracle_batch2_fixture(const char *spec);
+
 JinxValue jinx_oracle_batch2_builtin(
     const char *name,
     JinxValue *args,
