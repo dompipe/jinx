@@ -638,6 +638,99 @@ JinxValue jinx_oracle_hash_builtin(
             : jinx_oracle_bool_value(0);
     }
 
+    if (strcmp(name, "mhash_keygen_s2k") == 0) {
+        const JinxMhashCompatEntry *entry;
+        const EVP_MD *md;
+        int64_t requested;
+        int digest_size;
+        unsigned char padded_salt[8] = {0};
+        size_t salt_len;
+        unsigned char *key;
+        size_t written = 0u;
+        size_t block_index = 0u;
+
+        if (args == NULL || argc != 4u ||
+            args[1].type != 3u || args[2].type != 3u) {
+            return result;
+        }
+        requested = jinx_oracle_intish(args[3]);
+        if (requested <= 0 || (uint64_t)requested > SIZE_MAX) return result;
+
+        entry = hash_mhash_entry(jinx_oracle_intish(args[0]));
+        if (entry == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        md = EVP_get_digestbyname(entry->hash_name);
+        if (md == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        digest_size = EVP_MD_size(md);
+        if (digest_size <= 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        salt_len = jinx_oracle_string_len(args[2]);
+        if (salt_len > sizeof(padded_salt)) salt_len = sizeof(padded_salt);
+        if (salt_len != 0u) {
+            memcpy(
+                padded_salt,
+                jinx_oracle_string_bytes(args[2]),
+                salt_len
+            );
+        }
+
+        key = (unsigned char *)malloc((size_t)requested);
+        if (key == NULL) return result;
+
+        while (written < (size_t)requested) {
+            EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+            unsigned char digest[EVP_MAX_MD_SIZE];
+            unsigned int digest_len = 0u;
+            unsigned char zero = 0u;
+            size_t take;
+
+            if (ctx == NULL || EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+                EVP_MD_CTX_free(ctx);
+                free(key);
+                return result;
+            }
+            for (size_t j = 0u; j < block_index; j++) {
+                if (EVP_DigestUpdate(ctx, &zero, 1u) != 1) {
+                    EVP_MD_CTX_free(ctx);
+                    free(key);
+                    return result;
+                }
+            }
+            if (EVP_DigestUpdate(ctx, padded_salt, sizeof(padded_salt)) != 1 ||
+                EVP_DigestUpdate(
+                    ctx,
+                    jinx_oracle_string_bytes(args[1]),
+                    jinx_oracle_string_len(args[1])
+                ) != 1 ||
+                EVP_DigestFinal_ex(ctx, digest, &digest_len) != 1) {
+                EVP_MD_CTX_free(ctx);
+                free(key);
+                return result;
+            }
+            EVP_MD_CTX_free(ctx);
+
+            take = (size_t)requested - written;
+            if (take > digest_len) take = digest_len;
+            memcpy(key + written, digest, take);
+            written += take;
+            block_index++;
+        }
+
+        result = hash_copy_bytes(key, (size_t)requested);
+        memset(key, 0, (size_t)requested);
+        free(key);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "mhash") == 0) {
         const JinxMhashCompatEntry *entry;
         const EVP_MD *md;
