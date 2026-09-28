@@ -435,6 +435,23 @@ static JinxValue b2_copy(const char *bytes, size_t len) {
     return jinx_oracle_string_value_len(out, (uint32_t)len);
 }
 
+static int b2_assoc_string(
+    JinxZendArray *array,
+    const char *key,
+    const char *text
+) {
+    JinxZendString *string;
+    int ok;
+    if (array == NULL || key == NULL || text == NULL) return 0;
+    string = jinx_zend_string_new(text, strlen(text));
+    if (string == NULL) return 0;
+    ok = jinx_zend_array_add_assoc(
+        array, key, strlen(key), jinx_zend_string_value(string)
+    );
+    jinx_zend_string_release(string);
+    return ok;
+}
+
 static int b2_append_string(JinxZendArray *array, const char *text) {
     JinxZendString *string;
     int ok;
@@ -3479,6 +3496,126 @@ csv_fail:
             if (handled != NULL) *handled = 1;
             return jinx_oracle_int_value(count);
         }
+    }
+
+    if (strcmp(name, "debug_backtrace") == 0) {
+        JinxZendCallFrame *frame = jinx_oracle_get_caller_frame();
+        int64_t options = b2_constant_int(
+            "DEBUG_BACKTRACE_PROVIDE_OBJECT", 1
+        );
+        int64_t limit = 0;
+        int64_t ignore_args = b2_constant_int(
+            "DEBUG_BACKTRACE_IGNORE_ARGS", 2
+        );
+        JinxZendArray *trace;
+        size_t emitted = 0u;
+
+        if (argc >= 1u && args != NULL && args[0].type != 0u) {
+            options = jinx_oracle_intish(args[0]);
+        }
+        if (argc >= 2u && args != NULL && args[1].type != 0u) {
+            limit = jinx_oracle_intish(args[1]);
+            if (limit < 0) return result;
+        }
+        if (argc > 2u) return result;
+
+        trace = jinx_zend_array_new_packed(8u);
+        if (trace == NULL) return result;
+
+        while (frame != NULL &&
+               (limit == 0 || (int64_t)emitted < limit)) {
+            JinxZendArray *record = jinx_zend_array_new_packed(8u);
+            if (record == NULL) {
+                jinx_zend_array_release(trace);
+                return result;
+            }
+
+            if (frame->call_file != NULL &&
+                frame->call_file[0] != '\0') {
+                if (!b2_assoc_string(
+                        record, "file", frame->call_file
+                    ) ||
+                    !jinx_zend_array_add_assoc(
+                        record, "line", 4u,
+                        jinx_zend_long((int64_t)frame->call_line)
+                    )) {
+                    jinx_zend_array_release(record);
+                    jinx_zend_array_release(trace);
+                    return result;
+                }
+            }
+
+            if (frame->function_name != NULL &&
+                frame->function_name[0] != '\0' &&
+                !b2_assoc_string(
+                    record, "function", frame->function_name
+                )) {
+                jinx_zend_array_release(record);
+                jinx_zend_array_release(trace);
+                return result;
+            }
+
+            if (frame->scope_name != NULL &&
+                frame->scope_name[0] != '\0') {
+                const char *type = frame->call_type != NULL &&
+                    frame->call_type[0] != '\0'
+                    ? frame->call_type
+                    : "::";
+                if (!b2_assoc_string(
+                        record, "class", frame->scope_name
+                    ) ||
+                    !b2_assoc_string(record, "type", type)) {
+                    jinx_zend_array_release(record);
+                    jinx_zend_array_release(trace);
+                    return result;
+                }
+            }
+
+            if ((options & ignore_args) == 0) {
+                JinxZendArray *arg_array = jinx_zend_array_new_packed(
+                    frame->argc == 0u ? 1u : frame->argc
+                );
+                if (arg_array == NULL) {
+                    jinx_zend_array_release(record);
+                    jinx_zend_array_release(trace);
+                    return result;
+                }
+                for (size_t i = 0u; i < frame->argc; i++) {
+                    if (!jinx_zend_array_append(
+                            arg_array, frame->args[i]
+                        )) {
+                        jinx_zend_array_release(arg_array);
+                        jinx_zend_array_release(record);
+                        jinx_zend_array_release(trace);
+                        return result;
+                    }
+                }
+                if (!jinx_zend_array_add_assoc(
+                        record, "args", 4u,
+                        jinx_zend_array_value(arg_array)
+                    )) {
+                    jinx_zend_array_release(arg_array);
+                    jinx_zend_array_release(record);
+                    jinx_zend_array_release(trace);
+                    return result;
+                }
+                jinx_zend_array_release(arg_array);
+            }
+
+            if (!jinx_zend_array_append(
+                    trace, jinx_zend_array_value(record)
+                )) {
+                jinx_zend_array_release(record);
+                jinx_zend_array_release(trace);
+                return result;
+            }
+            jinx_zend_array_release(record);
+            emitted++;
+            frame = frame->previous;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(trace);
     }
 
     if (strcmp(name, "error_clear_last") == 0) {
