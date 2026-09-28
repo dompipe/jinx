@@ -62,6 +62,18 @@ typedef struct JinxOracleZendObjectView {
     void *properties;
 } JinxOracleZendObjectView;
 
+static inline int jinx_oracle_native_resource_state(JinxValue value) {
+    const JinxOracleZendObjectView *object;
+    if (value.type != JINX_ORACLE_VALUE_ZEND_OBJECT || value.as.ptr == NULL) {
+        return 0;
+    }
+    object = (const JinxOracleZendObjectView *)value.as.ptr;
+    if (object->class_name == NULL) return 0;
+    if (strcmp(object->class_name, "stream") == 0) return 1;
+    if (strcmp(object->class_name, "closed-resource") == 0) return 2;
+    return 0;
+}
+
 enum JinxOracleRegister {
     JINX_ORA_ACC = 0,
     JINX_ORA_RET = 1,
@@ -7957,16 +7969,23 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "gettype")) {
         const char *type_name = "unknown type";
-        switch (arg0.type) {
-            case 0u: type_name = "NULL"; break;
-            case 1u: type_name = "integer"; break;
-            case 2u: type_name = "boolean"; break;
-            case 3u: type_name = "string"; break;
-            case 4u:
-            case JINX_ORACLE_VALUE_ZEND_ARRAY: type_name = "array"; break;
-            case 5u: type_name = "double"; break;
-            case JINX_ORACLE_VALUE_ZEND_OBJECT: type_name = "object"; break;
-            default: break;
+        int resource_state = jinx_oracle_native_resource_state(arg0);
+        if (resource_state == 1) {
+            type_name = "resource";
+        } else if (resource_state == 2) {
+            type_name = "resource (closed)";
+        } else {
+            switch (arg0.type) {
+                case 0u: type_name = "NULL"; break;
+                case 1u: type_name = "integer"; break;
+                case 2u: type_name = "boolean"; break;
+                case 3u: type_name = "string"; break;
+                case 4u:
+                case JINX_ORACLE_VALUE_ZEND_ARRAY: type_name = "array"; break;
+                case 5u: type_name = "double"; break;
+                case JINX_ORACLE_VALUE_ZEND_OBJECT: type_name = "object"; break;
+                default: break;
+            }
         }
         ret = jinx_oracle_string_value(type_name);
         jinx_oracle_return(ctx, ret);
@@ -7975,23 +7994,30 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "get_debug_type")) {
         const char *type_name = "unknown";
-        switch (arg0.type) {
-            case 0u: type_name = "null"; break;
-            case 1u: type_name = "int"; break;
-            case 2u: type_name = "bool"; break;
-            case 3u: type_name = "string"; break;
-            case 4u:
-            case JINX_ORACLE_VALUE_ZEND_ARRAY: type_name = "array"; break;
-            case 5u: type_name = "float"; break;
-            case JINX_ORACLE_VALUE_ZEND_OBJECT: {
-                const JinxOracleZendObjectView *object =
-                    (const JinxOracleZendObjectView *)arg0.as.ptr;
-                type_name = object != NULL && object->class_name != NULL
-                    ? object->class_name
-                    : "object";
-                break;
+        int resource_state = jinx_oracle_native_resource_state(arg0);
+        if (resource_state == 1) {
+            type_name = "resource (stream)";
+        } else if (resource_state == 2) {
+            type_name = "resource (closed)";
+        } else {
+            switch (arg0.type) {
+                case 0u: type_name = "null"; break;
+                case 1u: type_name = "int"; break;
+                case 2u: type_name = "bool"; break;
+                case 3u: type_name = "string"; break;
+                case 4u:
+                case JINX_ORACLE_VALUE_ZEND_ARRAY: type_name = "array"; break;
+                case 5u: type_name = "float"; break;
+                case JINX_ORACLE_VALUE_ZEND_OBJECT: {
+                    const JinxOracleZendObjectView *object =
+                        (const JinxOracleZendObjectView *)arg0.as.ptr;
+                    type_name = object != NULL && object->class_name != NULL
+                        ? object->class_name
+                        : "object";
+                    break;
+                }
+                default: break;
             }
-            default: break;
         }
         ret = jinx_oracle_string_value(type_name);
         jinx_oracle_return(ctx, ret);
@@ -8007,13 +8033,16 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "is_object")) {
-        ret = jinx_oracle_bool_value(arg0.type == JINX_ORACLE_VALUE_ZEND_OBJECT);
+        ret = jinx_oracle_bool_value(
+            arg0.type == JINX_ORACLE_VALUE_ZEND_OBJECT &&
+            jinx_oracle_native_resource_state(arg0) == 0
+        );
         jinx_oracle_return(ctx, ret);
         return ret;
     }
 
     if (jinx_oracle_name_is(name, "is_resource")) {
-        ret = jinx_oracle_bool_value(0);
+        ret = jinx_oracle_bool_value(jinx_oracle_native_resource_state(arg0) == 1);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
