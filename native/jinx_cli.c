@@ -621,6 +621,7 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
     }
 
     if (strncmp(text, "obj:", 4) == 0 ||
+        strncmp(text, "ex:", 3) == 0 ||
         strncmp(text, "dt:", 3) == 0 ||
         strncmp(text, "dti:", 4) == 0 ||
         strncmp(text, "tz:", 3) == 0 ||
