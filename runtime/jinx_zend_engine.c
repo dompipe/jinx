@@ -1,4 +1,5 @@
 #include "jinx_zend_engine.h"
+#include "jinx_oracle_frame_context.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -739,6 +740,7 @@ void jinx_zend_frame_enter(
     frame->return_value = jinx_zend_null();
     frame->previous = executor->current_frame;
     executor->current_frame = frame;
+    jinx_oracle_set_caller_frame(frame);
     executor->executed_ops++;
 }
 
@@ -746,6 +748,7 @@ JinxZendValue jinx_zend_frame_leave(JinxZendExecutor *executor, JinxZendValue re
     if (executor != 0 && executor->current_frame != 0) {
         executor->current_frame->return_value = return_value;
         executor->current_frame = executor->current_frame->previous;
+        jinx_oracle_set_caller_frame(executor->current_frame);
         executor->executed_ops++;
     }
 
