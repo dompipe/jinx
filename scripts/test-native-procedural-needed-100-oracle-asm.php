@@ -207,6 +207,8 @@ $checks = [
     ['is_callable', ['s:strlen'], 'bool:' . (is_callable('strlen') ? 'true' : 'false')],
     ['is_callable', ['s:__jinx_missing_callable'], 'bool:' . (is_callable('__jinx_missing_callable') ? 'true' : 'false')],
     ['tmpfile', [], 'zend-object:stream:1'],
+    ['popen', ['s:printf jinx', 's:r'], 'zend-object:stream:1'],
+    ['pclose', ['pp:tmp'], 'int:0'],
     ['constant', ['s:PHP_VERSION_ID'], 'int:' . PHP_VERSION_ID],
     ['defined', ['s:PHP_VERSION_ID'], 'bool:' . (defined('PHP_VERSION_ID') ? 'true' : 'false')],
 ];
@@ -352,6 +354,18 @@ foreach ($fsChecks as [$name, $args, $expected]) {
         @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
         fail100("{$name} filesystem parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
     }
+}
+
+$readfileActual = run100(
+    escapeshellarg($jinx)
+    . ' oracle-call readfile '
+    . escapeshellarg($typedSource),
+    $code
+);
+$readfileExpected = (string)file_get_contents($source) . 'int:' . filesize($source);
+if ($code !== 0 || $readfileActual !== $readfileExpected) {
+    @unlink($jinxTemp); @unlink($phpTemp); @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
+    fail100("readfile output/return parity mismatch\nExpected: {$readfileExpected}\nJINX: {$readfileActual}");
 }
 
 $actual = jinx100($jinx, 'touch', [$typedTouched, 'i:1700000000', 'i:1700000001'], false, $code);
