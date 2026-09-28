@@ -158,6 +158,17 @@ if (!isset($phpTraceProbe[0]['function'], $phpTraceProbe[0]['args']) ||
     fail200('PHP debug_backtrace contract fixture did not expose function/args');
 }
 
+/* PHP debug_print_backtrace contract fixture. */
+ob_start();
+(static function (): void {
+    debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
+})();
+$phpPrintedTrace = (string)ob_get_clean();
+if (!str_contains($phpPrintedTrace, '#0') ||
+    !str_contains($phpPrintedTrace, '()')) {
+    fail200('PHP debug_print_backtrace contract fixture had unexpected format');
+}
+
 /* Native frame smoke verifies function/class/type/file/line/args from the
  * real JinxZendCallFrame chain. */
 $frameSmoke = run200(
@@ -165,7 +176,11 @@ $frameSmoke = run200(
     $frameSmokeCode
 );
 if ($frameSmokeCode !== 0 ||
-    !str_contains($frameSmoke, 'debug_backtrace')) {
+    !str_contains($frameSmoke, 'debug_backtrace') ||
+    !str_contains(
+        $frameSmoke,
+        '#0 /tmp/jinx-frame-smoke.php(41): JinxFrameScope::jinx_frame_smoke()'
+    )) {
     fail200("native frame/debug_backtrace smoke failed\n{$frameSmoke}");
 }
 
