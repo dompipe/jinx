@@ -63,6 +63,7 @@ static char *jinx_oracle_batch2_assert_callback = NULL;
 static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
 static char *jinx_oracle_batch2_syslog_ident = NULL;
+static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
 
 typedef struct JinxOracleBatch2IniOverride {
     char *name;
@@ -2638,6 +2639,82 @@ JinxValue jinx_oracle_batch2_builtin(
         );
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(sdn);
+    }
+
+    if (strcmp(name, "uniqid") == 0) {
+        char *prefix = NULL;
+        size_t prefix_len = 0u;
+        int more_entropy = 0;
+        struct timeval tv;
+        unsigned int sec;
+        unsigned int usec;
+        char *out;
+        int written;
+
+        if (argc >= 1u && args != NULL) {
+            if (args[0].type != 3u) return result;
+            prefix_len = (size_t)jinx_oracle_string_len(args[0]);
+            if (memchr(jinx_oracle_string_bytes(args[0]), '\0', prefix_len) != NULL) {
+                return result;
+            }
+            prefix = b2_dup(args[0]);
+            if (prefix == NULL) return result;
+        } else {
+            prefix = strdup("");
+            if (prefix == NULL) return result;
+        }
+        if (argc >= 2u) more_entropy = jinx_oracle_boolish(args[1]);
+        if (argc > 2u) {
+            free(prefix);
+            return result;
+        }
+
+        do {
+            if (gettimeofday(&tv, NULL) != 0) {
+                free(prefix);
+                return result;
+            }
+        } while (tv.tv_sec == jinx_oracle_batch2_uniqid_prev.tv_sec &&
+                 tv.tv_usec == jinx_oracle_batch2_uniqid_prev.tv_usec);
+
+        jinx_oracle_batch2_uniqid_prev = tv;
+        sec = (unsigned int)(int)tv.tv_sec;
+        usec = (unsigned int)(tv.tv_usec % 0x100000);
+
+        out = (char *)malloc(prefix_len + 64u);
+        if (out == NULL) {
+            free(prefix);
+            return result;
+        }
+
+        if (more_entropy) {
+            uint32_t bytes = 0u;
+            double seed;
+            if (!b2_random_fill((unsigned char *)&bytes, sizeof(bytes))) {
+                bytes = (uint32_t)tv.tv_usec ^ (uint32_t)tv.tv_sec;
+            }
+            seed = ((double)bytes / (double)UINT32_MAX) * 10.0;
+            written = snprintf(
+                out, prefix_len + 64u,
+                "%s%08x%05x%.8F",
+                prefix, sec, usec, seed
+            );
+        } else {
+            written = snprintf(
+                out, prefix_len + 64u,
+                "%s%08x%05x",
+                prefix, sec, usec
+            );
+        }
+        free(prefix);
+        if (written < 0 || (size_t)written >= prefix_len + 64u) {
+            free(out);
+            return result;
+        }
+        result = b2_copy(out, (size_t)written);
+        free(out);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
     }
 
     if (strcmp(name, "time") == 0) {
