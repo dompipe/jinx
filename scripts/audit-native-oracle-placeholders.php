@@ -91,6 +91,10 @@ function sampleArgs(string $name): array
     if (in_array($name, ['array_udiff_uassoc', 'array_uintersect_uassoc'], true)) {
         return ['za:sample', 'za:sample', 's:strcmp', 's:strcmp'];
     }
+    if ($name === 'array_key_exists') return ['s:keep', 'za:sample'];
+    if ($name === 'array_pad') return ['za:sample', 'i:6', 'i:0'];
+    if ($name === 'array_search') return ['i:20', 'za:sample'];
+    if ($name === 'array_splice') return ['za:sample', 'i:1', 'i:2'];
     if ($name === 'array_fill') return ['i:0', 'i:3', 'i:9'];
     if ($name === 'array_fill_keys') return ['za:sample', 'i:9'];
     if ($name === 'array_combine') return ['za:sample', 'za:sample'];
@@ -134,6 +138,11 @@ function sampleArgs(string $name): array
     if ($name === 'date_parse') return ['s:2024-01-02 03:04:05'];
     if ($name === 'date_parse_from_format') return ['s:Y-m-d H:i:s', 's:2024-01-02 03:04:05'];
 
+    if ($name === 'base_convert') return ['s:ff', 'i:16', 'i:10'];
+    if ($name === 'dirname') return ['s:/tmp/example.txt'];
+    if ($name === 'pathinfo') return ['s:/tmp/example.txt'];
+    if ($name === 'stat') return ['s:README.md'];
+    if ($name === 'unlink') return ['s:/__jinx_oracle_missing__/unlink-audit'];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
