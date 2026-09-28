@@ -16,6 +16,8 @@
 static void print_value(JinxValue value);
 static void print_value_hex_line(JinxValue value);
 static JinxValue make_zend_array_fixture(int deleted);
+static JinxValue make_zend_string_array_fixture(void);
+static JinxValue make_zend_walk_array_fixture(void);
 static void release_cli_value(JinxValue value);
 static void release_cli_values(JinxValue *values, size_t count);
 
@@ -47,6 +49,8 @@ static void usage(const char *argv0) {
     printf("  a:<count>     array-count stand-in\n");
     printf("  za:sample     native Zend array [10, 20, \"name\" => 30, \"keep\" => 40]\n");
     printf("  za:deleted    same native Zend array with index 1 and key \"name\" tombstoned\n");
+    printf("  za:strings    native Zend array [\"b\", \"a\", \"c\"]\n");
+    printf("  za:walk       native Zend array keyed for array_walk(settype)\n");
     printf("  dt:<text>     native DateTime fixture\n");
     printf("  dti:<text>    native DateTimeImmutable fixture\n");
     printf("  tz:<name>     native DateTimeZone fixture\n");
@@ -211,6 +215,19 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
     if (strcmp(name, "array_map") == 0) {
         args[0] = jinx_value_string("abs", 3);
         args[1] = make_zend_array_fixture(0);
+        return;
+    }
+
+    if (strcmp(name, "array_walk") == 0 || strcmp(name, "array_walk_recursive") == 0) {
+        args[0] = make_zend_walk_array_fixture();
+        args[1] = jinx_value_string("settype", 7);
+        return;
+    }
+
+    if (strcmp(name, "usort") == 0 || strcmp(name, "uasort") == 0 ||
+        strcmp(name, "uksort") == 0) {
+        args[0] = make_zend_string_array_fixture();
+        args[1] = jinx_value_string("strcmp", 6);
         return;
     }
 
@@ -392,6 +409,56 @@ static JinxValue make_zend_array_fixture(int deleted) {
     return value;
 }
 
+static JinxValue make_zend_string_array_fixture(void) {
+    JinxZendArray *array = jinx_zend_array_new_packed(3u);
+    JinxZendString *b = NULL;
+    JinxZendString *a = NULL;
+    JinxZendString *c = NULL;
+    JinxValue value;
+
+    if (array == NULL) return jinx_value_null();
+    b = jinx_zend_string_new("b", 1u);
+    a = jinx_zend_string_new("a", 1u);
+    c = jinx_zend_string_new("c", 1u);
+    if (b == NULL || a == NULL || c == NULL ||
+        !jinx_zend_array_append(array, jinx_zend_string_value(b)) ||
+        !jinx_zend_array_append(array, jinx_zend_string_value(a)) ||
+        !jinx_zend_array_append(array, jinx_zend_string_value(c))) {
+        jinx_zend_string_release(b);
+        jinx_zend_string_release(a);
+        jinx_zend_string_release(c);
+        jinx_zend_array_release(array);
+        return jinx_value_null();
+    }
+    jinx_zend_string_release(b);
+    jinx_zend_string_release(a);
+    jinx_zend_string_release(c);
+    value = jinx_oracle_zend_array_value_retained(array);
+    jinx_zend_array_release(array);
+    return value;
+}
+
+static JinxValue make_zend_walk_array_fixture(void) {
+    JinxZendArray *array = jinx_zend_array_new_packed(3u);
+    JinxZendString *seven = NULL;
+    JinxValue value;
+
+    if (array == NULL) return jinx_value_null();
+    seven = jinx_zend_string_new("7", 1u);
+    if (seven == NULL ||
+        !jinx_zend_array_add_assoc(array, "string", 6u, jinx_zend_long(42)) ||
+        !jinx_zend_array_add_assoc(array, "integer", 7u, jinx_zend_string_value(seven)) ||
+        !jinx_zend_array_add_assoc(array, "boolean", 7u, jinx_zend_long(0))) {
+        jinx_zend_string_release(seven);
+        jinx_zend_array_release(array);
+        return jinx_value_null();
+    }
+    jinx_zend_string_release(seven);
+    value = jinx_oracle_zend_array_value_retained(array);
+    jinx_zend_array_release(array);
+    return value;
+}
+
 static int cli_hex_nibble(unsigned char c) {
     if (c >= (unsigned char)'0' && c <= (unsigned char)'9') return (int)(c - (unsigned char)'0');
     if (c >= (unsigned char)'a' && c <= (unsigned char)'f') return 10 + (int)(c - (unsigned char)'a');
@@ -458,6 +525,14 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
 
     if (strcmp(text, "za:deleted") == 0) {
         return make_zend_array_fixture(1);
+    }
+
+    if (strcmp(text, "za:strings") == 0) {
+        return make_zend_string_array_fixture();
+    }
+
+    if (strcmp(text, "za:walk") == 0) {
+        return make_zend_walk_array_fixture();
     }
 
     if (strncmp(text, "dt:", 3) == 0 ||
