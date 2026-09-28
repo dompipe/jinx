@@ -813,6 +813,163 @@ JinxValue jinx_oracle_batch2_fixture(const char *spec) {
     return jinx_oracle_zero_value();
 }
 
+
+JinxValue jinx_oracle_batch2_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+) {
+    JinxValue result = jinx_oracle_zero_value();
+    if (handled != NULL) *handled = 0;
+    if (ctx == NULL || name == NULL) return result;
+
+#ifdef JINX_HAVE_RESOLV
+    if (strcmp(name, "dns_get_mx") == 0 ||
+        strcmp(name, "getmxrr") == 0) {
+        char *hostname;
+        unsigned char answer[65536];
+        unsigned char *cp;
+        unsigned char *end;
+        HEADER *header;
+        int response_len;
+        int questions;
+        int answers;
+        JinxZendArray *hosts;
+        JinxZendArray *weights = NULL;
+        size_t found = 0u;
+
+        if (args == NULL || argc < 2u || args[0].type != 3u) return result;
+        hostname = b2_dup(args[0]);
+        if (hostname == NULL || hostname[0] == '\0') {
+            free(hostname);
+            return result;
+        }
+
+        response_len = res_query(
+            hostname, ns_c_in, ns_t_mx, answer, (int)sizeof(answer)
+        );
+        free(hostname);
+
+        hosts = jinx_zend_array_new_packed(4u);
+        if (hosts == NULL) return result;
+        if (argc >= 3u) {
+            weights = jinx_zend_array_new_packed(4u);
+            if (weights == NULL) {
+                jinx_zend_array_release(hosts);
+                return result;
+            }
+        }
+
+        if (response_len < 0) {
+            JinxValue hosts_value = jinx_oracle_zend_array_value_owned(hosts);
+            if (!jinx_oracle_write_ref_arg(ctx, 1u, hosts_value)) {
+                jinx_zend_array_release(hosts);
+                if (weights != NULL) jinx_zend_array_release(weights);
+                return result;
+            }
+            if (weights != NULL) {
+                JinxValue weights_value = jinx_oracle_zend_array_value_owned(weights);
+                if (!jinx_oracle_write_ref_arg(ctx, 2u, weights_value)) {
+                    jinx_zend_array_release(weights);
+                    return result;
+                }
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        header = (HEADER *)answer;
+        cp = answer + HFIXEDSZ;
+        end = answer + response_len;
+        questions = ntohs(header->qdcount);
+        answers = ntohs(header->ancount);
+
+        while (questions-- > 0) {
+            int skipped = dn_skipname(cp, end);
+            if (skipped < 0 || cp + skipped + QFIXEDSZ > end) {
+                jinx_zend_array_release(hosts);
+                if (weights != NULL) jinx_zend_array_release(weights);
+                return result;
+            }
+            cp += skipped + QFIXEDSZ;
+        }
+
+        while (answers-- > 0 && cp < end) {
+            int skipped = dn_skipname(cp, end);
+            uint16_t type;
+            uint16_t data_len;
+            unsigned char *record_end;
+
+            if (skipped < 0 || cp + skipped + 10u > end) {
+                jinx_zend_array_release(hosts);
+                if (weights != NULL) jinx_zend_array_release(weights);
+                return result;
+            }
+            cp += skipped;
+            type = ns_get16(cp);
+            cp += 2u;
+            cp += 2u; /* class */
+            cp += 4u; /* ttl */
+            data_len = ns_get16(cp);
+            cp += 2u;
+            if (cp + data_len > end) {
+                jinx_zend_array_release(hosts);
+                if (weights != NULL) jinx_zend_array_release(weights);
+                return result;
+            }
+            record_end = cp + data_len;
+
+            if (type == ns_t_mx && data_len >= 3u) {
+                uint16_t preference = ns_get16(cp);
+                char target[1024];
+                int expanded = dn_expand(
+                    answer, end, cp + 2u, target, sizeof(target) - 1u
+                );
+                if (expanded < 0) {
+                    jinx_zend_array_release(hosts);
+                    if (weights != NULL) jinx_zend_array_release(weights);
+                    return result;
+                }
+                if (!b2_append_string(hosts, target) ||
+                    (weights != NULL &&
+                     !jinx_zend_array_append(
+                         weights, jinx_zend_long((int64_t)preference)
+                     ))) {
+                    jinx_zend_array_release(hosts);
+                    if (weights != NULL) jinx_zend_array_release(weights);
+                    return result;
+                }
+                found++;
+            }
+            cp = record_end;
+        }
+
+        {
+            JinxValue hosts_value = jinx_oracle_zend_array_value_owned(hosts);
+            if (!jinx_oracle_write_ref_arg(ctx, 1u, hosts_value)) {
+                jinx_zend_array_release(hosts);
+                if (weights != NULL) jinx_zend_array_release(weights);
+                return result;
+            }
+            if (weights != NULL) {
+                JinxValue weights_value = jinx_oracle_zend_array_value_owned(weights);
+                if (!jinx_oracle_write_ref_arg(ctx, 2u, weights_value)) {
+                    jinx_zend_array_release(weights);
+                    return result;
+                }
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(found != 0u);
+    }
+#endif
+
+    return result;
+}
+
 JinxValue jinx_oracle_batch2_builtin(
     const char *name,
     JinxValue *args,
