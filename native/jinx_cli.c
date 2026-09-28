@@ -2513,10 +2513,18 @@ static int command_oracle_datetime_extra_smoke(int argc, char **argv) {
         receiver = jinx_oracle_extended_fixture("di:P1D");
         args[0] = jinx_value_string("2 days", 6u);
         user_argc = 1u;
-    } else if (strcmp(route, "DateTime::createFromInterface") == 0) {
-        receiver = jinx_oracle_extended_fixture("dt:2024-01-02 03:04:05");
+    } else if (strcmp(route, "DateTime::createFromInterface") == 0 ||
+               strcmp(route, "DateTimeImmutable::createFromInterface") == 0 ||
+               strcmp(route, "DateTime::createFromImmutable") == 0) {
+        receiver = jinx_oracle_extended_fixture(
+            strncmp(route, "DateTimeImmutable::", 19u) == 0
+                ? "dti:2024-01-02 03:04:05"
+                : "dt:2024-01-02 03:04:05"
+        );
         owned[0] = jinx_oracle_extended_fixture(
-            "dti:2024-02-03 04:05:06"
+            strcmp(route, "DateTimeImmutable::createFromInterface") == 0
+                ? "dt:2024-02-03 04:05:06"
+                : "dti:2024-02-03 04:05:06"
         );
         args[0] = owned[0];
         user_argc = 1u;
