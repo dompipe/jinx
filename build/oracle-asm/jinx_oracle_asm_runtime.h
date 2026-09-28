@@ -35,6 +35,18 @@ struct JinxValue {
     } as;
 };
 
+/*
+ * Extended native procedural backend. The generated Oracle wrappers remain
+ * the entry point; exact builtins not handled in this header fall through to
+ * this backend before a fault is reported.
+ */
+JinxValue jinx_oracle_extended_builtin(
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+);
+
 /* Stable JinxValue tags shared with the Zend container carrier layer. */
 #define JINX_ORACLE_VALUE_ZEND_ARRAY 6u
 #define JINX_ORACLE_VALUE_ZEND_OBJECT 7u
@@ -8263,6 +8275,20 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
         jinx_oracle_return(ctx, ret);
         return ret;
+    }
+
+    {
+        int extended_handled = 0;
+        ret = jinx_oracle_extended_builtin(
+            name,
+            ctx->call_args,
+            ctx->call_argc,
+            &extended_handled
+        );
+        if (extended_handled) {
+            jinx_oracle_return(ctx, ret);
+            return ret;
+        }
     }
 
     ctx->fault = "No exact native Oracle ASM handler for builtin";
