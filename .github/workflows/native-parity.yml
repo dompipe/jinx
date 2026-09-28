@@ -36,4 +36,4 @@ jobs:
           JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 3 --limit=3
           JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 3 --limit=1 '--name=Exception::getMessage'
       - name: Run registered Jinx parity suite
-        run: php scripts/test-bin-jinx.php
+        run: php scripts/test-native-jinx.php
