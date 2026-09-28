@@ -43,6 +43,17 @@ struct JinxValue {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
+JinxValue jinx_oracle_extended_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+);
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
 JinxValue jinx_oracle_extended_builtin(
     const char *name,
     JinxValue *args,
@@ -8439,6 +8450,21 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
         jinx_oracle_return(ctx, ret);
         return ret;
+    }
+
+    if (jinx_oracle_extended_builtin_with_context != NULL) {
+        int context_handled = 0;
+        ret = jinx_oracle_extended_builtin_with_context(
+            ctx,
+            name,
+            ctx->call_args,
+            ctx->call_argc,
+            &context_handled
+        );
+        if (context_handled) {
+            jinx_oracle_return(ctx, ret);
+            return ret;
+        }
     }
 
     if (jinx_oracle_extended_builtin != NULL) {
