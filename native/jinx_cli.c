@@ -45,6 +45,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-method-call <Class::method> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s oracle-throwable-construct-smoke <Class>\n", argv0);
     printf("  %s oracle-datetime-method-smoke <DateTime|DateTimeImmutable> <method>\n", argv0);
+    printf("  %s oracle-datetime-extra-smoke <Class::method>\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
@@ -2433,6 +2434,173 @@ static int command_oracle_datetime_method_smoke(int argc, char **argv) {
     return 0;
 }
 
+static int command_oracle_datetime_extra_smoke(int argc, char **argv) {
+    const char *route;
+    JinxValue receiver = jinx_value_null();
+    JinxValue args[3];
+    JinxValue owned[3];
+    JinxValue result = jinx_value_null();
+    JinxValue summary = jinx_value_null();
+    size_t user_argc = 0u;
+    int ok = 0;
+    int summary_ok = 0;
+
+    for (size_t i = 0u; i < 3u; i++) {
+        args[i] = jinx_value_null();
+        owned[i] = jinx_value_null();
+    }
+
+    if (argc != 3) {
+        return fail("oracle-datetime-extra-smoke requires exactly one Class::method route");
+    }
+    route = argv[2];
+
+    if (strcmp(route, "DateTime::__construct") == 0) {
+        receiver = jinx_oracle_extended_fixture("dt:2024-01-02 03:04:05");
+        args[0] = jinx_value_string(
+            "2025-06-07 11:22:33",
+            (uint32_t)strlen("2025-06-07 11:22:33")
+        );
+        user_argc = 1u;
+    } else if (strcmp(route, "DateTimeImmutable::__construct") == 0) {
+        receiver = jinx_oracle_extended_fixture("dti:2024-01-02 03:04:05");
+        args[0] = jinx_value_string(
+            "2025-06-07 11:22:33",
+            (uint32_t)strlen("2025-06-07 11:22:33")
+        );
+        user_argc = 1u;
+    } else if (strcmp(route, "DateTimeZone::__construct") == 0) {
+        receiver = jinx_oracle_extended_fixture("tz:UTC");
+        args[0] = jinx_value_string(
+            "America/New_York",
+            (uint32_t)strlen("America/New_York")
+        );
+        user_argc = 1u;
+    } else if (strcmp(route, "DateInterval::__construct") == 0) {
+        receiver = jinx_oracle_extended_fixture("di:P1D");
+        args[0] = jinx_value_string(
+            "P2Y3M4DT5H6M7S",
+            (uint32_t)strlen("P2Y3M4DT5H6M7S")
+        );
+        user_argc = 1u;
+    } else if (strcmp(route, "DateTime::createFromFormat") == 0) {
+        receiver = jinx_oracle_extended_fixture("dt:2024-01-02 03:04:05");
+        args[0] = jinx_value_string(
+            "!Y-m-d H:i:s", (uint32_t)strlen("!Y-m-d H:i:s")
+        );
+        args[1] = jinx_value_string(
+            "2025-06-07 11:22:33",
+            (uint32_t)strlen("2025-06-07 11:22:33")
+        );
+        user_argc = 2u;
+    } else if (strcmp(route, "DateTimeImmutable::createFromFormat") == 0) {
+        receiver = jinx_oracle_extended_fixture("dti:2024-01-02 03:04:05");
+        args[0] = jinx_value_string(
+            "!Y-m-d H:i:s", (uint32_t)strlen("!Y-m-d H:i:s")
+        );
+        args[1] = jinx_value_string(
+            "2025-06-07 11:22:33",
+            (uint32_t)strlen("2025-06-07 11:22:33")
+        );
+        user_argc = 2u;
+    } else if (strcmp(route, "DateTime::getLastErrors") == 0) {
+        receiver = jinx_oracle_extended_fixture("dt:2024-01-02 03:04:05");
+        user_argc = 0u;
+    } else if (strcmp(route, "DateTimeImmutable::getLastErrors") == 0) {
+        receiver = jinx_oracle_extended_fixture("dti:2024-01-02 03:04:05");
+        user_argc = 0u;
+    } else if (strcmp(route, "DateInterval::createFromDateString") == 0) {
+        receiver = jinx_oracle_extended_fixture("di:P1D");
+        args[0] = jinx_value_string("2 days", 6u);
+        user_argc = 1u;
+    } else if (strcmp(route, "DateTime::createFromInterface") == 0) {
+        receiver = jinx_oracle_extended_fixture("dt:2024-01-02 03:04:05");
+        owned[0] = jinx_oracle_extended_fixture(
+            "dti:2024-02-03 04:05:06"
+        );
+        args[0] = owned[0];
+        user_argc = 1u;
+    } else {
+        return fail("unsupported datetime extra-smoke route");
+    }
+
+    if (receiver.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        release_cli_value(receiver);
+        for (size_t i = 0u; i < 3u; i++) release_cli_value(owned[i]);
+        return fail("could not create datetime extra-smoke receiver");
+    }
+
+    result = jinx_call_method_through_oracle_checked(
+        route, receiver, args, user_argc, &ok
+    );
+    if (!ok) {
+        release_cli_value(result);
+        release_cli_value(receiver);
+        for (size_t i = 0u; i < 3u; i++) release_cli_value(owned[i]);
+        return fail("datetime extra-smoke route faulted");
+    }
+
+    if (strcmp(route, "DateTime::getLastErrors") == 0 ||
+        strcmp(route, "DateTimeImmutable::getLastErrors") == 0) {
+        fputs("result=", stdout);
+        print_value_line(result);
+        release_cli_value(result);
+        release_cli_value(receiver);
+        for (size_t i = 0u; i < 3u; i++) release_cli_value(owned[i]);
+        return 0;
+    }
+
+    if (strstr(route, "__construct") != NULL) {
+        release_cli_value(result);
+        result = jinx_oracle_zend_object_value_borrowed(
+            jinx_oracle_zend_object_ptr(receiver)
+        );
+    }
+
+    if (strncmp(route, "DateTimeZone::", 14u) == 0) {
+        summary = jinx_call_method_through_oracle_checked(
+            "DateTimeZone::getName", result, NULL, 0u, &summary_ok
+        );
+    } else if (strncmp(route, "DateInterval::", 14u) == 0) {
+        JinxValue fmt = jinx_value_string(
+            "%Y-%M-%D %H:%I:%S",
+            (uint32_t)strlen("%Y-%M-%D %H:%I:%S")
+        );
+        summary = jinx_call_method_through_oracle_checked(
+            "DateInterval::format", result, &fmt, 1u, &summary_ok
+        );
+    } else {
+        JinxValue fmt = jinx_value_string(
+            "Y-m-d H:i:s",
+            (uint32_t)strlen("Y-m-d H:i:s")
+        );
+        const char *format_route =
+            strstr(route, "DateTimeImmutable::") == route
+                ? "DateTimeImmutable::format"
+                : "DateTime::format";
+        summary = jinx_call_method_through_oracle_checked(
+            format_route, result, &fmt, 1u, &summary_ok
+        );
+    }
+
+    if (!summary_ok || summary.type != 3u) {
+        release_cli_value(summary);
+        if (strstr(route, "__construct") == NULL) release_cli_value(result);
+        release_cli_value(receiver);
+        for (size_t i = 0u; i < 3u; i++) release_cli_value(owned[i]);
+        return fail("datetime extra-smoke summary failed");
+    }
+
+    fputs("result=", stdout);
+    print_value_line(summary);
+
+    release_cli_value(summary);
+    if (strstr(route, "__construct") == NULL) release_cli_value(result);
+    release_cli_value(receiver);
+    for (size_t i = 0u; i < 3u; i++) release_cli_value(owned[i]);
+    return 0;
+}
+
 static int command_bench_method_call(int argc, char **argv) {
     const char *name;
     long iterations;
@@ -2652,6 +2820,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-datetime-method-smoke") == 0) {
         return command_oracle_datetime_method_smoke(argc, argv);
+    }
+
+    if (strcmp(argv[1], "oracle-datetime-extra-smoke") == 0) {
+        return command_oracle_datetime_extra_smoke(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-call-hex") == 0) {
