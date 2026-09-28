@@ -16,6 +16,7 @@
 #include "jinx_native_core_metadata.generated.h"
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fnmatch.h>
@@ -4937,6 +4938,118 @@ csv_fail:
             : jinx_oracle_bool_value(0);
     }
 
+
+    if (strcmp(name, "ini_parse_quantity") == 0) {
+        char *text;
+        char *start;
+        char *finish;
+        char *digits;
+        char *endptr = NULL;
+        int negative = 0;
+        int base = 0;
+        unsigned long long magnitude;
+        int64_t value = 0;
+        int64_t factor = 1;
+
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        text = b2_dup(args[0]);
+        if (text == NULL) return result;
+
+        start = text;
+        finish = text + strlen(text);
+        while (start < finish && isspace((unsigned char)*start)) start++;
+        while (finish > start && isspace((unsigned char)finish[-1])) finish--;
+
+        if (start == finish) {
+            free(text);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(0);
+        }
+
+        if (*start == '+' || *start == '-') {
+            negative = *start == '-';
+            start++;
+        }
+        if (start >= finish || !isdigit((unsigned char)*start)) {
+            free(text);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(0);
+        }
+
+        digits = start;
+        if ((finish - start) >= 2 && start[0] == '0') {
+            switch (start[1]) {
+                case 'x': case 'X':
+                    base = 16;
+                    digits = start + 2;
+                    break;
+                case 'o': case 'O':
+                    base = 8;
+                    digits = start + 2;
+                    break;
+                case 'b': case 'B':
+                    base = 2;
+                    digits = start + 2;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (digits >= finish || !isxdigit((unsigned char)*digits)) {
+            free(text);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(0);
+        }
+
+        errno = 0;
+        magnitude = strtoull(digits, &endptr, base);
+        if (endptr == digits) {
+            free(text);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(0);
+        }
+
+        if (negative) {
+            if (magnitude == (unsigned long long)INT64_MAX + 1ULL) {
+                value = INT64_MIN;
+            } else if (magnitude <= (unsigned long long)INT64_MAX) {
+                value = -(int64_t)magnitude;
+            } else {
+                value = INT64_MIN;
+            }
+        } else {
+            value = magnitude <= (unsigned long long)INT64_MAX
+                ? (int64_t)magnitude
+                : INT64_MAX;
+        }
+
+        while (endptr < finish && isspace((unsigned char)*endptr)) endptr++;
+        if (endptr < finish) {
+            unsigned char suffix = (unsigned char)finish[-1];
+            if (suffix == 'k' || suffix == 'K') {
+                factor = 1LL << 10;
+            } else if (suffix == 'm' || suffix == 'M') {
+                factor = 1LL << 20;
+            } else if (suffix == 'g' || suffix == 'G') {
+                factor = 1LL << 30;
+            }
+        }
+
+        if (factor != 1) {
+            if (value > 0 && value > INT64_MAX / factor) {
+                value = INT64_MAX;
+            } else if (value < 0 && value < INT64_MIN / factor) {
+                value = INT64_MIN;
+            } else {
+                value *= factor;
+            }
+        }
+
+        free(text);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(value);
+    }
 
     if (strcmp(name, "ini_get") == 0) {
         char *key;
