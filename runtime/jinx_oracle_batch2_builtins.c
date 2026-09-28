@@ -3,6 +3,7 @@
 #include "jinx_oracle_finfo_builtins.h"
 #include "jinx_oracle_resource_registry.h"
 #include "jinx_oracle_solar_builtins.h"
+#include "jinx_oracle_dns_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -2939,6 +2940,17 @@ csv_fail:
         if (solar_handled) {
             if (handled != NULL) *handled = 1;
             return solar_result;
+        }
+    }
+
+    {
+        int dns_handled = 0;
+        JinxValue dns_result = jinx_oracle_dns_builtin(
+            name, args, argc, &dns_handled
+        );
+        if (dns_handled) {
+            if (handled != NULL) *handled = 1;
+            return dns_result;
         }
     }
 
