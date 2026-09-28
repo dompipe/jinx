@@ -27,6 +27,8 @@ function cint64(int $value): string {
     return (string)$value . 'LL';
 }
 
+$defaultTimezone = date_default_timezone_get();
+
 $classes = get_declared_classes();
 sort($classes, SORT_STRING);
 $rows = [];
@@ -66,6 +68,7 @@ $code = [];
 $code[] = '#ifndef JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#define JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#include <stddef.h>';
+$code[] = '#define JINX_NATIVE_PHP_DEFAULT_TIMEZONE ' . cstr($defaultTimezone);
 $code[] = '';
 $code[] = 'typedef struct JinxNativeClassMeta { const char *name; const char *const *parents; size_t parent_count; const char *const *implements; size_t implements_count; const char *const *uses; size_t uses_count; } JinxNativeClassMeta;';
 $code[] = 'typedef struct JinxNativeConstantMeta { const char *name; unsigned type; long long i64; double f64; const char *str; } JinxNativeConstantMeta;';
