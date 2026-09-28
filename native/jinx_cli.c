@@ -29,6 +29,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
+    printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
     printf("  %s first100\n", argv0);
     printf("  %s first100-list\n", argv0);
@@ -993,7 +994,7 @@ static int command_oracle_smoke(void) {
     return 0;
 }
 
-static int command_oracle_call(int argc, char **argv, int hex_output) {
+static int command_oracle_call(int argc, char **argv, int output_mode) {
     const char *name;
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
     JinxValue result;
@@ -1037,8 +1038,15 @@ static int command_oracle_call(int argc, char **argv, int hex_output) {
         if (!oracle_ok) {
             fprintf(stderr, "null/fault: %s\n", name);
             exit_code = 1;
-        } else if (hex_output) {
-        print_value_hex_line(result);
+        } else if (output_mode == 1) {
+            print_value_hex_line(result);
+        } else if (output_mode == 2) {
+            printf("return=");
+            print_value_line(result);
+            for (int i = 0; i < supplied_argc; i++) {
+                printf("arg%d=", i);
+                print_value_line(args[i]);
+            }
         } else {
             print_value_line(result);
         }
@@ -1110,6 +1118,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-call-hex") == 0) {
         return command_oracle_call(argc, argv, 1);
+    }
+
+    if (strcmp(argv[1], "oracle-call-refs") == 0) {
+        return command_oracle_call(argc, argv, 2);
     }
 
     if (strcmp(argv[1], "bench-oracle") == 0) {
