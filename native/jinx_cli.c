@@ -1437,6 +1437,73 @@ static int command_oracle_ini_smoke(void) {
     return 0;
 }
 
+static int command_oracle_runtime_state_smoke(void) {
+    JinxValue args[2];
+    JinxValue result;
+    int ok = 0;
+
+    args[0] = jinx_value_string("JINX_NATIVE_ENV_SMOKE=present", 29u);
+    result = jinx_call_builtin_through_oracle_checked("putenv", args, 1u, &ok);
+    if (!ok || result.type != 2u) return fail("putenv set failed");
+    printf("put_set="); print_value_line(result);
+    release_cli_value(result);
+
+    args[0] = jinx_value_string("JINX_NATIVE_ENV_SMOKE", 21u);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("getenv", args, 1u, &ok);
+    if (!ok) return fail("getenv after putenv failed");
+    printf("env_during="); print_value_line(result);
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("putenv", args, 1u, &ok);
+    if (!ok || result.type != 2u) return fail("putenv unset failed");
+    printf("put_unset="); print_value_line(result);
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("getenv", args, 1u, &ok);
+    if (!ok) return fail("getenv after unset failed");
+    printf("env_after="); print_value_line(result);
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "ignore_user_abort", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 1u) return fail("ignore_user_abort read failed");
+    printf("abort_before="); print_value_line(result);
+    {
+        int64_t original = result.as.i64;
+        release_cli_value(result);
+        args[0] = jinx_value_bool(1);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "ignore_user_abort", args, 1u, &ok
+        );
+        if (!ok || result.type != 1u) return fail("ignore_user_abort set failed");
+        printf("abort_set_old="); print_value_line(result);
+        release_cli_value(result);
+
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "ignore_user_abort", NULL, 0u, &ok
+        );
+        if (!ok || result.type != 1u) return fail("ignore_user_abort reread failed");
+        printf("abort_during="); print_value_line(result);
+        release_cli_value(result);
+
+        args[0] = jinx_value_bool(original != 0);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "ignore_user_abort", args, 1u, &ok
+        );
+        if (!ok || result.type != 1u) return fail("ignore_user_abort restore failed");
+        release_cli_value(result);
+    }
+    return 0;
+}
+
 static int command_oracle_posix_error_smoke(void) {
     JinxValue access_args[1];
     JinxValue access_result;
