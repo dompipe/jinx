@@ -358,6 +358,23 @@ if (!is_file($jinx) || !is_executable($jinx)) {
     benchFail('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
 }
 
+if (is_link($jinx)) {
+    benchFail('repository-root ./jinx must be the compiled native binary, not a symlink');
+}
+
+$nativeIdentity = benchRequireOk(
+    escapeshellarg($jinx) . ' native-benchmark-id',
+    $caseTimeout
+);
+if (trim($nativeIdentity) !== 'native-root-jinx') {
+    benchFail(
+        'refusing to benchmark a frontend/fallback executable; expected native repository-root ./jinx identity'
+    );
+}
+
+printf("Native benchmark executable: %s (verified compiled ./jinx)\n", $jinx);
+fflush(STDOUT);
+
 $wiringPath = $root . '/spec/native-oracle-wiring.json';
 $wiring = json_decode((string) file_get_contents($wiringPath), true);
 if (!is_array($wiring) || !isset($wiring['routes']) || !is_array($wiring['routes'])) {
