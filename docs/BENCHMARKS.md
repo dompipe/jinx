@@ -100,11 +100,15 @@ Command:
 php scripts/benchmark-native-implemented-functions.php 1000
 ```
 
-Fast rerun after `./jinx` is already built:
+If repository-root `./jinx` already exists, the benchmark reuses it and starts
+immediately. Force a rebuild only when needed:
 
 ```bash
-JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000
+php scripts/benchmark-native-implemented-functions.php 1000 --build
 ```
+
+`JINX_SKIP_BUILD=1` and `--no-build` remain available for CI/scripts that
+must never trigger a build.
 
 Useful filters:
 
