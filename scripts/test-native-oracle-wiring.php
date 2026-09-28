@@ -183,7 +183,58 @@ $gates = wiringNamesInConditions(wiringBody($dispatch, 'jinx_oracle_name_is_zend
     wiringNamesInConditions(wiringBody($dispatch, 'jinx_oracle_name_is_zend_container_builtin')) +
     wiringNamesInConditions(wiringBody($dispatch, 'jinx_call_builtin_through_oracle_checked'));
 wiringSame($container, $gates, 'Zend container routes versus implementations');
-foreach ($scalar + $container as $name => $_) if (!isset($expected[$name])) wiringFail("native handler name absent from manifest: {$name}");
+
+$extendedSpecs = [
+    ['runtime/jinx_oracle_extended_builtins.c', ['jinx_oracle_extended_builtin']],
+    ['runtime/jinx_oracle_batch2_builtins.c', ['jinx_oracle_batch2_builtin']],
+    ['runtime/jinx_oracle_hash_builtins.c', ['jinx_oracle_hash_builtin']],
+    ['runtime/jinx_oracle_finfo_builtins.c', ['jinx_oracle_finfo_builtin']],
+    ['runtime/jinx_oracle_solar_builtins.c', ['jinx_oracle_solar_builtin']],
+    ['runtime/jinx_oracle_dns_builtins.c', ['jinx_oracle_dns_builtin']],
+    ['runtime/jinx_oracle_ftp_builtins.c', ['jinx_oracle_ftp_builtin']],
+    ['runtime/jinx_oracle_curl_ftp_builtins.c', ['jinx_oracle_curl_ftp_builtin']],
+    ['runtime/jinx_oracle_http_meta_builtins.c', ['jinx_oracle_http_meta_builtin']],
+    ['runtime/jinx_oracle_exif_builtins.c', ['jinx_oracle_exif_builtin']],
+];
+$contextSpecs = [
+    ['runtime/jinx_oracle_batch2_builtins.c', ['jinx_oracle_batch2_builtin_with_context']],
+    ['runtime/jinx_oracle_ftp_builtins.c', ['jinx_oracle_ftp_builtin_with_context']],
+];
+$extended = [];
+foreach ($extendedSpecs as [$sourcePath, $functions]) {
+    $source = wiringRead($root . '/' . $sourcePath);
+    foreach ($functions as $function) {
+        $extended += wiringNamesInConditions(wiringBody($source, $function));
+    }
+}
+$context = [];
+foreach ($contextSpecs as [$sourcePath, $functions]) {
+    $source = wiringRead($root . '/' . $sourcePath);
+    foreach ($functions as $function) {
+        $context += wiringNamesInConditions(wiringBody($source, $function));
+    }
+}
+$delegateChecks = [
+    ['runtime/jinx_oracle_extended_builtins.c', 'jinx_oracle_batch2_builtin('],
+    ['runtime/jinx_oracle_extended_builtins.c', 'jinx_oracle_batch2_builtin_with_context('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_hash_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_finfo_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_solar_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_dns_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_ftp_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_ftp_builtin_with_context('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_curl_ftp_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_http_meta_builtin('],
+    ['runtime/jinx_oracle_batch2_builtins.c', 'jinx_oracle_exif_builtin('],
+];
+foreach ($delegateChecks as [$sourcePath, $needle]) {
+    if (!str_contains(wiringRead($root . '/' . $sourcePath), $needle)) {
+        wiringFail("missing extended backend delegation {$needle} in {$sourcePath}");
+    }
+}
+foreach ($scalar + $container + $extended + $context as $name => $_) {
+    if (!isset($expected[$name])) wiringFail("native handler name absent from manifest: {$name}");
+}
 
 // PHP direct-dispatch entries must agree with their public name inventory too.
 $phpDirect = \jinx\web\WebNativeOracleDispatch::names();
@@ -206,12 +257,28 @@ foreach (wiringSet($first100Names[1], 'first100') as $name => $_) {
 }
 
 $routes = [];
-$counts = ['registered' => count($metadata), 'builtin' => 0, 'method' => 0, 'native_named_route' => 0, 'intentional_native_fault' => 0];
+$counts = [
+    'registered' => count($metadata),
+    'builtin' => 0,
+    'method' => 0,
+    'native_named_route' => 0,
+    'extended_native_route' => 0,
+    'context_native_route' => 0,
+    'intentional_native_fault' => 0,
+];
 foreach ($metadata as $name => $function) {
     ++$counts[$function['kind']];
     $route = [];
     if (isset($scalar[$name])) $route[] = 'asm';
     if (isset($container[$name])) $route[] = 'zend-container';
+    if (isset($extended[$name])) {
+        $route[] = 'extended';
+        ++$counts['extended_native_route'];
+    }
+    if (isset($context[$name])) {
+        $route[] = 'context';
+        ++$counts['context_native_route'];
+    }
     if (!$route) {
         $route[] = 'intentional-native-fault';
         ++$counts['intentional_native_fault'];
@@ -234,7 +301,9 @@ if ($ledger['routes'] !== $routes || $ledger['counts'] !== $counts) {
 
 // Compile one batch harness rather than launch thousands of CLI processes.
 // Unsupported wrappers get all declared arguments so an arity error cannot
-// disguise a missing terminal fault or a fabricated native result.
+// disguise a missing terminal fault or a fabricated native result. Extended
+// and context routes are inventoried statically here; their dedicated parity
+// tests and the full native build exercise the linked backend implementations.
 $build = $root . '/build/native';
 if (!is_dir($build)) mkdir($build, 0777, true);
 $rows = [];
