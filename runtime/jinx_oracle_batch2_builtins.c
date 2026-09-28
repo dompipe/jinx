@@ -2973,7 +2973,7 @@ JinxValue jinx_oracle_batch2_builtin(
             return b2_copy(resolved, strlen(resolved));
         }
         {
-            char *paths = b2_strdup(JINX_NATIVE_PHP_INCLUDE_PATH);
+            char *paths = strdup(JINX_NATIVE_PHP_INCLUDE_PATH);
             char *save = NULL;
             char *entry = paths != NULL ? strtok_r(paths, ":", &save) : NULL;
             while (entry != NULL) {
