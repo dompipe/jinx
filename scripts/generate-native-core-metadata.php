@@ -29,6 +29,11 @@ function cint64(int $value): string {
 
 $defaultTimezone = date_default_timezone_get();
 
+$assertActive = defined('ASSERT_ACTIVE') ? (int)@assert_options(ASSERT_ACTIVE) : 1;
+$assertWarning = defined('ASSERT_WARNING') ? (int)@assert_options(ASSERT_WARNING) : 1;
+$assertBail = defined('ASSERT_BAIL') ? (int)@assert_options(ASSERT_BAIL) : 0;
+$assertException = defined('ASSERT_EXCEPTION') ? (int)@assert_options(ASSERT_EXCEPTION) : 1;
+
 $interfaces = get_declared_interfaces();
 $traits = get_declared_traits();
 $definedFunctions = get_defined_functions();
@@ -152,6 +157,10 @@ $code[] = '#ifndef JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#define JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#include <stddef.h>';
 $code[] = '#define JINX_NATIVE_PHP_DEFAULT_TIMEZONE ' . cstr($defaultTimezone);
+$code[] = '#define JINX_NATIVE_ASSERT_ACTIVE ' . $assertActive;
+$code[] = '#define JINX_NATIVE_ASSERT_WARNING ' . $assertWarning;
+$code[] = '#define JINX_NATIVE_ASSERT_BAIL ' . $assertBail;
+$code[] = '#define JINX_NATIVE_ASSERT_EXCEPTION ' . $assertException;
 $code[] = '#define JINX_NATIVE_PHP_ERROR_REPORTING ' . (string)error_reporting() . 'LL';
 $code[] = '#define JINX_NATIVE_PHP_INCLUDE_PATH ' . cstr($includePath);
 $code[] = '';
