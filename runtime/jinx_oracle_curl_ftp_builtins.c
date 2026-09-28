@@ -496,6 +496,344 @@ static int ftp_is_binary_mode(int64_t mode) {
     return mode == ftp_constant("FTP_BINARY", 2);
 }
 
+
+static int ftp_valid_command_path(const char *path) {
+    return path != NULL &&
+        strchr(path, '\r') == NULL &&
+        strchr(path, '\n') == NULL;
+}
+
+static int ftp_download(
+    JinxOracleFtpConnection *connection,
+    const char *remote,
+    FILE *fp,
+    int64_t mode,
+    int64_t offset
+) {
+    char *url;
+    CURL *curl;
+    CURLcode code;
+
+    if (connection == NULL || remote == NULL || fp == NULL) return 0;
+    url = ftp_url(connection, remote, 0);
+    if (url == NULL) return 0;
+    curl = ftp_easy(connection, url);
+    free(url);
+    if (curl == NULL) return 0;
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ftp_file_write);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(
+        curl,
+        CURLOPT_TRANSFERTEXT,
+        ftp_is_binary_mode(mode) ? 0L : 1L
+    );
+    if (offset > 0) {
+        curl_easy_setopt(
+            curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)offset
+        );
+    }
+
+    code = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    return code == CURLE_OK;
+}
+
+static int ftp_upload(
+    JinxOracleFtpConnection *connection,
+    const char *remote,
+    FILE *fp,
+    int64_t mode,
+    int64_t offset,
+    int append
+) {
+    char *url;
+    CURL *curl;
+    CURLcode code;
+    long start;
+    long end;
+    curl_off_t size = -1;
+
+    if (connection == NULL || remote == NULL || fp == NULL) return 0;
+
+    start = ftell(fp);
+    if (start >= 0 && fseek(fp, 0, SEEK_END) == 0) {
+        end = ftell(fp);
+        if (end >= 0) size = (curl_off_t)(end - start);
+        (void)fseek(fp, start, SEEK_SET);
+    }
+
+    url = ftp_url(connection, remote, 0);
+    if (url == NULL) return 0;
+    curl = ftp_easy(connection, url);
+    free(url);
+    if (curl == NULL) return 0;
+
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, ftp_file_read);
+    curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+    if (size >= 0) {
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, size);
+    }
+    curl_easy_setopt(
+        curl,
+        CURLOPT_TRANSFERTEXT,
+        ftp_is_binary_mode(mode) ? 0L : 1L
+    );
+    if (offset > 0) {
+        curl_easy_setopt(
+            curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)offset
+        );
+    }
+    if (append) {
+        curl_easy_setopt(curl, CURLOPT_APPEND, 1L);
+    }
+
+    code = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    return code == CURLE_OK;
+}
+
+static int ftp_listing(
+    JinxOracleFtpConnection *connection,
+    const char *directory,
+    int names_only,
+    int mlsd,
+    JinxOracleCurlBuffer *buffer
+) {
+    char *url;
+    CURL *curl;
+    CURLcode code;
+
+    if (connection == NULL || buffer == NULL) return 0;
+    url = ftp_url(
+        connection,
+        directory != NULL ? directory : "",
+        1
+    );
+    if (url == NULL) return 0;
+    curl = ftp_easy(connection, url);
+    free(url);
+    if (curl == NULL) return 0;
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ftp_buffer_write);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, buffer);
+    if (mlsd) {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "MLSD");
+    } else {
+        curl_easy_setopt(
+            curl,
+            CURLOPT_DIRLISTONLY,
+            names_only ? 1L : 0L
+        );
+    }
+
+    code = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    return code == CURLE_OK;
+}
+
+static int ftp_entry_assoc_string(
+    JinxZendArray *array,
+    const char *key,
+    const char *value,
+    size_t value_len
+) {
+    JinxZendString *string;
+    int ok;
+    string = jinx_zend_string_new(value, value_len);
+    if (string == NULL) return 0;
+    ok = jinx_zend_array_add_assoc(
+        array, key, strlen(key), jinx_zend_string_value(string)
+    );
+    jinx_zend_string_release(string);
+    return ok;
+}
+
+static JinxValue ftp_mlsd_value(
+    const unsigned char *bytes,
+    size_t len
+) {
+    JinxZendArray *outer = jinx_zend_array_new_packed(8u);
+    size_t start = 0u;
+    if (outer == NULL) return jinx_oracle_zero_value();
+
+    while (start < len) {
+        size_t end = start;
+        const char *line;
+        size_t line_len;
+        const char *space;
+        JinxZendArray *entry;
+
+        while (end < len && bytes[end] != '\n') end++;
+        line = (const char *)bytes + start;
+        line_len = end - start;
+        while (line_len != 0u &&
+               (line[line_len - 1u] == '\r' ||
+                line[line_len - 1u] == '\n')) {
+            line_len--;
+        }
+
+        if (line_len != 0u) {
+            space = memchr(line, ' ', line_len);
+            if (space != NULL) {
+                const char *facts = line;
+                size_t facts_len = (size_t)(space - line);
+                const char *name = space + 1;
+                size_t name_len =
+                    line_len - (size_t)(name - line);
+
+                entry = jinx_zend_array_new_packed(8u);
+                if (entry == NULL ||
+                    !ftp_entry_assoc_string(
+                        entry, "name", name, name_len
+                    )) {
+                    jinx_zend_array_release(entry);
+                    jinx_zend_array_release(outer);
+                    return jinx_oracle_zero_value();
+                }
+
+                {
+                    size_t pos = 0u;
+                    while (pos < facts_len) {
+                        size_t semi = pos;
+                        const char *eq;
+                        while (semi < facts_len &&
+                               facts[semi] != ';') {
+                            semi++;
+                        }
+                        eq = memchr(
+                            facts + pos, '=',
+                            semi - pos
+                        );
+                        if (eq != NULL && eq > facts + pos) {
+                            size_t key_len =
+                                (size_t)(eq - (facts + pos));
+                            size_t value_len =
+                                semi - (size_t)(eq - facts) - 1u;
+                            char key[64];
+                            if (key_len < sizeof(key)) {
+                                memcpy(key, facts + pos, key_len);
+                                key[key_len] = '\0';
+                                for (size_t k = 0u; k < key_len; k++) {
+                                    if (key[k] >= 'A' && key[k] <= 'Z') {
+                                        key[k] =
+                                            (char)(key[k] - 'A' + 'a');
+                                    }
+                                }
+                                if (!ftp_entry_assoc_string(
+                                    entry,
+                                    key,
+                                    eq + 1,
+                                    value_len
+                                )) {
+                                    jinx_zend_array_release(entry);
+                                    jinx_zend_array_release(outer);
+                                    return jinx_oracle_zero_value();
+                                }
+                            }
+                        }
+                        pos = semi < facts_len ? semi + 1u : facts_len;
+                    }
+                }
+
+                if (!jinx_zend_array_append(
+                    outer,
+                    jinx_zend_array_value(entry)
+                )) {
+                    jinx_zend_array_release(entry);
+                    jinx_zend_array_release(outer);
+                    return jinx_oracle_zero_value();
+                }
+                jinx_zend_array_release(entry);
+            }
+        }
+
+        start = end;
+        while (start < len &&
+               (bytes[start] == '\r' || bytes[start] == '\n')) {
+            start++;
+        }
+    }
+
+    return jinx_oracle_zend_array_value_owned(outer);
+}
+
+static int ftp_quote_path(
+    JinxOracleFtpConnection *connection,
+    const char *verb,
+    const char *path
+) {
+    char *joined;
+    char *command;
+    size_t cap;
+    int ok;
+
+    if (!ftp_valid_command_path(path)) return 0;
+    joined = ftp_join_path(connection, path);
+    if (joined == NULL) return 0;
+    cap = strlen(verb) + strlen(joined) + 2u;
+    command = (char *)malloc(cap);
+    if (command == NULL) {
+        free(joined);
+        return 0;
+    }
+    snprintf(command, cap, "%s %s", verb, joined);
+    free(joined);
+    ok = ftp_quote_command(connection, command, NULL);
+    free(command);
+    return ok;
+}
+
+static int ftp_rename_path(
+    JinxOracleFtpConnection *connection,
+    const char *from,
+    const char *to
+) {
+    char *from_path;
+    char *to_path;
+    char *rnfr;
+    char *rnto;
+    struct curl_slist *quote = NULL;
+    size_t cap1;
+    size_t cap2;
+    int ok;
+
+    if (!ftp_valid_command_path(from) ||
+        !ftp_valid_command_path(to)) {
+        return 0;
+    }
+
+    from_path = ftp_join_path(connection, from);
+    to_path = ftp_join_path(connection, to);
+    if (from_path == NULL || to_path == NULL) {
+        free(from_path);
+        free(to_path);
+        return 0;
+    }
+
+    cap1 = strlen(from_path) + 6u;
+    cap2 = strlen(to_path) + 6u;
+    rnfr = (char *)malloc(cap1);
+    rnto = (char *)malloc(cap2);
+    if (rnfr == NULL || rnto == NULL) {
+        free(from_path); free(to_path);
+        free(rnfr); free(rnto);
+        return 0;
+    }
+    snprintf(rnfr, cap1, "RNFR %s", from_path);
+    snprintf(rnto, cap2, "RNTO %s", to_path);
+    free(from_path); free(to_path);
+
+    quote = curl_slist_append(quote, rnfr);
+    quote = curl_slist_append(quote, rnto);
+    free(rnfr); free(rnto);
+    if (quote == NULL) return 0;
+    ok = ftp_perform_simple(connection, "", 1, quote, NULL);
+    curl_slist_free_all(quote);
+    return ok;
+}
+
 JinxValue jinx_oracle_curl_ftp_builtin(
     const char *name,
     JinxValue *args,
@@ -756,6 +1094,365 @@ JinxValue jinx_oracle_curl_ftp_builtin(
 
             free(headers.data);
             return jinx_oracle_bool_value(1);
+        }
+
+
+        if (strcmp(name, "ftp_get") == 0 ||
+            strcmp(name, "ftp_nb_get") == 0) {
+            char *local;
+            char *remote;
+            FILE *fp;
+            int64_t mode = ftp_constant("FTP_BINARY", 2);
+            int64_t offset = 0;
+            int ok;
+            int nonblocking = strcmp(name, "ftp_nb_get") == 0;
+
+            if (argc < 3u ||
+                args[1].type != 3u ||
+                args[2].type != 3u) {
+                return result;
+            }
+            local = ftp_dup_value(args[1]);
+            remote = ftp_dup_value(args[2]);
+            if (local == NULL || remote == NULL) {
+                free(local); free(remote);
+                return result;
+            }
+            if (argc >= 4u && args[3].type != 0u) {
+                mode = jinx_oracle_intish(args[3]);
+            }
+            if (argc >= 5u && args[4].type != 0u) {
+                offset = jinx_oracle_intish(args[4]);
+            }
+
+            fp = fopen(local, "wb");
+            free(local);
+            if (fp == NULL) {
+                free(remote);
+                if (handled != NULL) *handled = 1;
+                return nonblocking
+                    ? jinx_oracle_int_value(ftp_status_failed())
+                    : jinx_oracle_bool_value(0);
+            }
+            ok = ftp_download(
+                connection, remote, fp, mode, offset
+            );
+            free(remote);
+            if (fclose(fp) != 0) ok = 0;
+
+            if (handled != NULL) *handled = 1;
+            return nonblocking
+                ? jinx_oracle_int_value(
+                    ok ? ftp_status_finished() : ftp_status_failed()
+                )
+                : jinx_oracle_bool_value(ok);
+        }
+
+        if (strcmp(name, "ftp_fget") == 0 ||
+            strcmp(name, "ftp_nb_fget") == 0) {
+            FILE *fp;
+            char *remote;
+            int64_t mode = ftp_constant("FTP_BINARY", 2);
+            int64_t offset = 0;
+            int ok;
+            int nonblocking = strcmp(name, "ftp_nb_fget") == 0;
+
+            if (argc < 3u || args[2].type != 3u) return result;
+            fp = ftp_stream_file(args[1]);
+            if (fp == NULL) return result;
+            remote = ftp_dup_value(args[2]);
+            if (remote == NULL) return result;
+            if (argc >= 4u && args[3].type != 0u) {
+                mode = jinx_oracle_intish(args[3]);
+            }
+            if (argc >= 5u && args[4].type != 0u) {
+                offset = jinx_oracle_intish(args[4]);
+            }
+            if (offset > 0 && connection->autoseek) {
+                (void)fseek(fp, (long)offset, SEEK_SET);
+            }
+            ok = ftp_download(
+                connection, remote, fp, mode, offset
+            );
+            free(remote);
+            if (handled != NULL) *handled = 1;
+            return nonblocking
+                ? jinx_oracle_int_value(
+                    ok ? ftp_status_finished() : ftp_status_failed()
+                )
+                : jinx_oracle_bool_value(ok);
+        }
+
+        if (strcmp(name, "ftp_put") == 0 ||
+            strcmp(name, "ftp_nb_put") == 0 ||
+            strcmp(name, "ftp_append") == 0) {
+            char *remote;
+            char *local;
+            FILE *fp;
+            int64_t mode = ftp_constant("FTP_BINARY", 2);
+            int64_t offset = 0;
+            int append = strcmp(name, "ftp_append") == 0;
+            int nonblocking = strcmp(name, "ftp_nb_put") == 0;
+            int ok;
+
+            if (argc < 3u ||
+                args[1].type != 3u ||
+                args[2].type != 3u) {
+                return result;
+            }
+            remote = ftp_dup_value(args[1]);
+            local = ftp_dup_value(args[2]);
+            if (remote == NULL || local == NULL) {
+                free(remote); free(local);
+                return result;
+            }
+            if (argc >= 4u && args[3].type != 0u) {
+                mode = jinx_oracle_intish(args[3]);
+            }
+            if (!append && argc >= 5u && args[4].type != 0u) {
+                offset = jinx_oracle_intish(args[4]);
+            }
+            fp = fopen(local, "rb");
+            free(local);
+            if (fp == NULL) {
+                free(remote);
+                if (handled != NULL) *handled = 1;
+                return nonblocking
+                    ? jinx_oracle_int_value(ftp_status_failed())
+                    : jinx_oracle_bool_value(0);
+            }
+            ok = ftp_upload(
+                connection, remote, fp, mode, offset, append
+            );
+            free(remote);
+            fclose(fp);
+
+            if (handled != NULL) *handled = 1;
+            return nonblocking
+                ? jinx_oracle_int_value(
+                    ok ? ftp_status_finished() : ftp_status_failed()
+                )
+                : jinx_oracle_bool_value(ok);
+        }
+
+        if (strcmp(name, "ftp_fput") == 0 ||
+            strcmp(name, "ftp_nb_fput") == 0) {
+            char *remote;
+            FILE *fp;
+            int64_t mode = ftp_constant("FTP_BINARY", 2);
+            int64_t offset = 0;
+            int nonblocking = strcmp(name, "ftp_nb_fput") == 0;
+            int ok;
+
+            if (argc < 3u || args[1].type != 3u) return result;
+            remote = ftp_dup_value(args[1]);
+            fp = ftp_stream_file(args[2]);
+            if (remote == NULL || fp == NULL) {
+                free(remote);
+                return result;
+            }
+            if (argc >= 4u && args[3].type != 0u) {
+                mode = jinx_oracle_intish(args[3]);
+            }
+            if (argc >= 5u && args[4].type != 0u) {
+                offset = jinx_oracle_intish(args[4]);
+            }
+            if (offset > 0 && connection->autoseek) {
+                (void)fseek(fp, (long)offset, SEEK_SET);
+            }
+            ok = ftp_upload(
+                connection, remote, fp, mode, offset, 0
+            );
+            free(remote);
+            if (handled != NULL) *handled = 1;
+            return nonblocking
+                ? jinx_oracle_int_value(
+                    ok ? ftp_status_finished() : ftp_status_failed()
+                )
+                : jinx_oracle_bool_value(ok);
+        }
+
+        if (strcmp(name, "ftp_nlist") == 0 ||
+            strcmp(name, "ftp_rawlist") == 0 ||
+            strcmp(name, "ftp_mlsd") == 0) {
+            char *directory;
+            JinxOracleCurlBuffer listing = {0};
+            int names_only = strcmp(name, "ftp_nlist") == 0;
+            int mlsd = strcmp(name, "ftp_mlsd") == 0;
+            int ok;
+
+            if (argc < 2u || args[1].type != 3u) return result;
+            directory = ftp_dup_value(args[1]);
+            if (directory == NULL) return result;
+
+            ok = ftp_listing(
+                connection,
+                directory,
+                names_only,
+                mlsd,
+                &listing
+            );
+            free(directory);
+            if (handled != NULL) *handled = 1;
+
+            if (!ok) {
+                free(listing.data);
+                return jinx_oracle_bool_value(0);
+            }
+
+            result = mlsd
+                ? ftp_mlsd_value(listing.data, listing.len)
+                : ftp_lines_value(listing.data, listing.len);
+            free(listing.data);
+            return result;
+        }
+
+        if (strcmp(name, "ftp_size") == 0 ||
+            strcmp(name, "ftp_mdtm") == 0) {
+            char *remote;
+            char *url;
+            CURL *curl;
+            CURLcode code;
+
+            if (argc < 2u || args[1].type != 3u) return result;
+            remote = ftp_dup_value(args[1]);
+            if (remote == NULL) return result;
+            url = ftp_url(connection, remote, 0);
+            free(remote);
+            if (url == NULL) return result;
+            curl = ftp_easy(connection, url);
+            free(url);
+            if (curl == NULL) return result;
+
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+            if (strcmp(name, "ftp_mdtm") == 0) {
+                curl_easy_setopt(curl, CURLOPT_FILETIME, 1L);
+            }
+            code = curl_easy_perform(curl);
+
+            if (handled != NULL) *handled = 1;
+            if (code != CURLE_OK) {
+                curl_easy_cleanup(curl);
+                return jinx_oracle_int_value(-1);
+            }
+
+            if (strcmp(name, "ftp_size") == 0) {
+                curl_off_t length = -1;
+                if (curl_easy_getinfo(
+                        curl,
+                        CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
+                        &length
+                    ) != CURLE_OK) {
+                    length = -1;
+                }
+                curl_easy_cleanup(curl);
+                return jinx_oracle_int_value((int64_t)length);
+            } else {
+                curl_off_t filetime = -1;
+                if (curl_easy_getinfo(
+                        curl,
+                        CURLINFO_FILETIME_T,
+                        &filetime
+                    ) != CURLE_OK) {
+                    filetime = -1;
+                }
+                curl_easy_cleanup(curl);
+                return jinx_oracle_int_value((int64_t)filetime);
+            }
+        }
+
+        if (strcmp(name, "ftp_delete") == 0 ||
+            strcmp(name, "ftp_rmdir") == 0 ||
+            strcmp(name, "ftp_mkdir") == 0) {
+            char *path;
+            int ok;
+            const char *verb =
+                strcmp(name, "ftp_delete") == 0 ? "DELE" :
+                (strcmp(name, "ftp_rmdir") == 0 ? "RMD" : "MKD");
+
+            if (argc < 2u || args[1].type != 3u) return result;
+            path = ftp_dup_value(args[1]);
+            if (path == NULL) return result;
+            ok = ftp_quote_path(connection, verb, path);
+
+            if (handled != NULL) *handled = 1;
+            if (strcmp(name, "ftp_mkdir") == 0) {
+                if (!ok) {
+                    free(path);
+                    return jinx_oracle_bool_value(0);
+                }
+                result = jinx_oracle_string_value(path);
+                {
+                    size_t n = strlen(path);
+                    char *copy = jinx_oracle_scratch_string((uint32_t)n);
+                    memcpy(copy, path, n);
+                    result = jinx_oracle_string_value_len(
+                        copy, (uint32_t)n
+                    );
+                }
+                free(path);
+                return result;
+            }
+
+            free(path);
+            return jinx_oracle_bool_value(ok);
+        }
+
+        if (strcmp(name, "ftp_rename") == 0) {
+            char *from;
+            char *to;
+            int ok;
+            if (argc < 3u ||
+                args[1].type != 3u ||
+                args[2].type != 3u) {
+                return result;
+            }
+            from = ftp_dup_value(args[1]);
+            to = ftp_dup_value(args[2]);
+            if (from == NULL || to == NULL) {
+                free(from); free(to);
+                return result;
+            }
+            ok = ftp_rename_path(connection, from, to);
+            free(from); free(to);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(ok);
+        }
+
+        if (strcmp(name, "ftp_chmod") == 0) {
+            int64_t permissions;
+            char *path;
+            char *joined;
+            char command[1024];
+            int ok;
+
+            if (argc < 3u || args[2].type != 3u) return result;
+            permissions = jinx_oracle_intish(args[1]);
+            path = ftp_dup_value(args[2]);
+            if (path == NULL || !ftp_valid_command_path(path)) {
+                free(path);
+                return result;
+            }
+            joined = ftp_join_path(connection, path);
+            free(path);
+            if (joined == NULL) return result;
+            if (strlen(joined) + 32u >= sizeof(command)) {
+                free(joined);
+                return result;
+            }
+            snprintf(
+                command,
+                sizeof(command),
+                "SITE CHMOD %llo %s",
+                (unsigned long long)permissions,
+                joined
+            );
+            free(joined);
+            ok = ftp_quote_command(connection, command, NULL);
+            if (handled != NULL) *handled = 1;
+            return ok
+                ? jinx_oracle_int_value(permissions)
+                : jinx_oracle_bool_value(0);
         }
 
         if (strcmp(name, "ftp_alloc") == 0) {
