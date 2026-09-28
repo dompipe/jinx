@@ -117,6 +117,21 @@ $includePath = get_include_path();
 /* Preserve PHP's public ordering for hash_algos()/hash_hmac_algos(). */
 $hashAlgos = function_exists('hash_algos') ? hash_algos() : [];
 $hashHmacAlgos = function_exists('hash_hmac_algos') ? hash_hmac_algos() : [];
+$opensslCipherMethods = function_exists('openssl_get_cipher_methods')
+    ? (openssl_get_cipher_methods(false) ?: [])
+    : [];
+$opensslCipherMethodsAliases = function_exists('openssl_get_cipher_methods')
+    ? (openssl_get_cipher_methods(true) ?: [])
+    : [];
+$opensslMdMethods = function_exists('openssl_get_md_methods')
+    ? (openssl_get_md_methods(false) ?: [])
+    : [];
+$opensslMdMethodsAliases = function_exists('openssl_get_md_methods')
+    ? (openssl_get_md_methods(true) ?: [])
+    : [];
+$opensslCurveNames = function_exists('openssl_get_curve_names')
+    ? (openssl_get_curve_names() ?: [])
+    : [];
 $streamWrappers = function_exists('stream_get_wrappers') ? stream_get_wrappers() : [];
 $streamTransports = function_exists('stream_get_transports') ? stream_get_transports() : [];
 $streamFilters = function_exists('stream_get_filters') ? stream_get_filters() : [];
@@ -263,6 +278,11 @@ $emitStringArray('jinx_native_extension_names', $extensions);
 $emitStringArray('jinx_native_enum_names', $enums);
 $emitStringArray('jinx_native_hash_algos', $hashAlgos);
 $emitStringArray('jinx_native_hash_hmac_algos', $hashHmacAlgos);
+$emitStringArray('jinx_native_openssl_cipher_methods', $opensslCipherMethods);
+$emitStringArray('jinx_native_openssl_cipher_methods_aliases', $opensslCipherMethodsAliases);
+$emitStringArray('jinx_native_openssl_md_methods', $opensslMdMethods);
+$emitStringArray('jinx_native_openssl_md_methods_aliases', $opensslMdMethodsAliases);
+$emitStringArray('jinx_native_openssl_curve_names', $opensslCurveNames);
 $emitStringArray('jinx_native_stream_wrappers', $streamWrappers);
 $emitStringArray('jinx_native_stream_transports', $streamTransports);
 $emitStringArray('jinx_native_stream_filters', $streamFilters);
