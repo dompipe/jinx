@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <glob.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -723,6 +724,226 @@ static int jinx_oracle_ext_timezone_offset_seconds(int64_t timestamp, const char
     if (buf[0] == '-') sign = -1;
     if (sscanf(buf + 1, "%2d%2d", &hh, &mm) != 2) return 0;
     return sign * (hh * 3600 + mm * 60);
+}
+
+
+#define JINX_ORACLE_EXT_PI 3.14159265358979323846264338327950288
+#define JINX_ORACLE_EXT_RADEG (180.0 / JINX_ORACLE_EXT_PI)
+#define JINX_ORACLE_EXT_DEGRAD (JINX_ORACLE_EXT_PI / 180.0)
+
+static double jinx_oracle_ext_sind(double value) {
+    return sin(value * JINX_ORACLE_EXT_DEGRAD);
+}
+
+static double jinx_oracle_ext_cosd(double value) {
+    return cos(value * JINX_ORACLE_EXT_DEGRAD);
+}
+
+static double jinx_oracle_ext_acosd(double value) {
+    return JINX_ORACLE_EXT_RADEG * acos(value);
+}
+
+static double jinx_oracle_ext_atan2d(double y, double x) {
+    return JINX_ORACLE_EXT_RADEG * atan2(y, x);
+}
+
+static double jinx_oracle_ext_astro_revolution(double value) {
+    return value - 360.0 * floor(value / 360.0);
+}
+
+static double jinx_oracle_ext_astro_rev180(double value) {
+    return value - 360.0 * floor(value / 360.0 + 0.5);
+}
+
+static double jinx_oracle_ext_astro_gmst0(double days) {
+    return jinx_oracle_ext_astro_revolution(
+        (180.0 + 356.0470 + 282.9404) +
+        (0.9856002585 + 4.70935E-5) * days
+    );
+}
+
+static void jinx_oracle_ext_astro_sunpos(
+    double days,
+    double *longitude,
+    double *radius
+) {
+    double mean_anomaly;
+    double perihelion;
+    double eccentricity;
+    double eccentric_anomaly;
+    double x;
+    double y;
+    double true_anomaly;
+
+    mean_anomaly = jinx_oracle_ext_astro_revolution(
+        356.0470 + 0.9856002585 * days
+    );
+    perihelion = 282.9404 + 4.70935E-5 * days;
+    eccentricity = 0.016709 - 1.151E-9 * days;
+    eccentric_anomaly = mean_anomaly +
+        eccentricity * JINX_ORACLE_EXT_RADEG *
+        jinx_oracle_ext_sind(mean_anomaly) *
+        (1.0 + eccentricity * jinx_oracle_ext_cosd(mean_anomaly));
+
+    x = jinx_oracle_ext_cosd(eccentric_anomaly) - eccentricity;
+    y = sqrt(1.0 - eccentricity * eccentricity) *
+        jinx_oracle_ext_sind(eccentric_anomaly);
+    *radius = sqrt(x * x + y * y);
+    true_anomaly = jinx_oracle_ext_atan2d(y, x);
+    *longitude = true_anomaly + perihelion;
+    if (*longitude >= 360.0) *longitude -= 360.0;
+}
+
+static void jinx_oracle_ext_astro_sun_ra_dec(
+    double days,
+    double *right_ascension,
+    double *declination,
+    double *radius
+) {
+    double longitude;
+    double obliquity;
+    double x;
+    double y;
+    double z;
+
+    jinx_oracle_ext_astro_sunpos(days, &longitude, radius);
+    x = *radius * jinx_oracle_ext_cosd(longitude);
+    y = *radius * jinx_oracle_ext_sind(longitude);
+    obliquity = 23.4393 - 3.563E-7 * days;
+    z = y * jinx_oracle_ext_sind(obliquity);
+    y = y * jinx_oracle_ext_cosd(obliquity);
+    *right_ascension = jinx_oracle_ext_atan2d(y, x);
+    *declination = jinx_oracle_ext_atan2d(z, sqrt(x * x + y * y));
+}
+
+static int jinx_oracle_ext_solar_rise_set(
+    int year,
+    int month,
+    int day,
+    const char *timezone,
+    double longitude,
+    double latitude,
+    double altitude,
+    int upper_limb,
+    double *hour_rise,
+    double *hour_set,
+    int64_t *ts_rise,
+    int64_t *ts_set,
+    int64_t *ts_transit
+) {
+    struct tm utc_parts;
+    time_t utc_midnight;
+    int64_t local_noon;
+    double days;
+    double solar_radius_distance;
+    double solar_ra;
+    double solar_dec;
+    double apparent_radius;
+    double diurnal_arc;
+    double solar_south;
+    double sidereal_time;
+    double cost;
+
+    memset(&utc_parts, 0, sizeof(utc_parts));
+    utc_parts.tm_year = year - 1900;
+    utc_parts.tm_mon = month - 1;
+    utc_parts.tm_mday = day;
+    utc_parts.tm_isdst = 0;
+    errno = 0;
+    utc_midnight = timegm(&utc_parts);
+    if (utc_midnight == (time_t)-1 && errno != 0) return 0;
+
+    if (!jinx_oracle_ext_timestamp_from_parts(
+        year, month, day, 12, 0, 0, timezone, &local_noon
+    )) {
+        return 0;
+    }
+
+    days = ((double)utc_midnight / 86400.0 + 2440587.5 - 2451545.0) +
+        2.0 - longitude / 360.0;
+    sidereal_time = jinx_oracle_ext_astro_revolution(
+        jinx_oracle_ext_astro_gmst0(days) + 180.0 + longitude
+    );
+    jinx_oracle_ext_astro_sun_ra_dec(
+        days, &solar_ra, &solar_dec, &solar_radius_distance
+    );
+    solar_south = 12.0 -
+        jinx_oracle_ext_astro_rev180(sidereal_time - solar_ra) / 15.0;
+    apparent_radius = 0.2666 / solar_radius_distance;
+    if (upper_limb) altitude -= apparent_radius;
+
+    cost = (
+        jinx_oracle_ext_sind(altitude) -
+        jinx_oracle_ext_sind(latitude) * jinx_oracle_ext_sind(solar_dec)
+    ) / (
+        jinx_oracle_ext_cosd(latitude) * jinx_oracle_ext_cosd(solar_dec)
+    );
+
+    *ts_transit = (int64_t)utc_midnight +
+        (int64_t)(solar_south * 3600.0);
+
+    if (cost >= 1.0) {
+        *ts_rise = *ts_set = *ts_transit;
+        return -1;
+    }
+
+    if (cost <= -1.0) {
+        *ts_rise = local_noon - 12 * 3600;
+        *ts_set = local_noon + 12 * 3600;
+        return 1;
+    }
+
+    diurnal_arc = jinx_oracle_ext_acosd(cost) / 15.0;
+    *ts_rise = (int64_t)utc_midnight +
+        (int64_t)((solar_south - diurnal_arc) * 3600.0);
+    *ts_set = (int64_t)utc_midnight +
+        (int64_t)((solar_south + diurnal_arc) * 3600.0);
+    if (hour_rise != NULL) *hour_rise = solar_south - diurnal_arc;
+    if (hour_set != NULL) *hour_set = solar_south + diurnal_arc;
+    return 0;
+}
+
+static int jinx_oracle_ext_numeric_double(JinxValue value, double *out) {
+    if (out == NULL) return 0;
+    if (value.type == 1u) {
+        *out = (double)value.as.i64;
+        return 1;
+    }
+    if (value.type == 5u) {
+        *out = value.as.f64;
+        return 1;
+    }
+    return 0;
+}
+
+static int jinx_oracle_ext_sun_pair_add(
+    JinxZendArray *array,
+    const char *begin_key,
+    const char *end_key,
+    int state,
+    int64_t rise,
+    int64_t set
+) {
+    if (array == NULL || begin_key == NULL || end_key == NULL) return 0;
+    if (state < 0) {
+        return jinx_zend_array_add_assoc(
+            array, begin_key, strlen(begin_key), jinx_zend_bool(0)
+        ) && jinx_zend_array_add_assoc(
+            array, end_key, strlen(end_key), jinx_zend_bool(0)
+        );
+    }
+    if (state > 0) {
+        return jinx_zend_array_add_assoc(
+            array, begin_key, strlen(begin_key), jinx_zend_bool(1)
+        ) && jinx_zend_array_add_assoc(
+            array, end_key, strlen(end_key), jinx_zend_bool(1)
+        );
+    }
+    return jinx_zend_array_add_assoc(
+        array, begin_key, strlen(begin_key), jinx_zend_long(rise)
+    ) && jinx_zend_array_add_assoc(
+        array, end_key, strlen(end_key), jinx_zend_long(set)
+    );
 }
 
 static void jinx_oracle_ext_append_text(char *out, size_t cap, size_t *pos, const char *text) {
