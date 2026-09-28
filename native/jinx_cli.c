@@ -1399,6 +1399,43 @@ static int command_oracle_error_smoke(void) {
     return 0;
 }
 
+static int command_oracle_ini_smoke(void) {
+    JinxValue args[2];
+    JinxValue result;
+    int ok = 0;
+
+    args[0] = jinx_value_string("precision", 9u);
+    result = jinx_call_builtin_through_oracle_checked("ini_get", args, 1u, &ok);
+    if (!ok || result.type != 3u) return fail("initial INI read failed");
+    printf("before="); print_value_line(result);
+    release_cli_value(result);
+
+    args[1] = jinx_value_string("13", 2u);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("ini_set", args, 2u, &ok);
+    if (!ok || result.type != 3u) return fail("INI write failed");
+    printf("set_old="); print_value_line(result);
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("ini_get", args, 1u, &ok);
+    if (!ok || result.type != 3u) return fail("mutated INI read failed");
+    printf("during="); print_value_line(result);
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("ini_restore", args, 1u, &ok);
+    if (!ok || result.type != 0u) return fail("INI restore failed");
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked("ini_get", args, 1u, &ok);
+    if (!ok || result.type != 3u) return fail("restored INI read failed");
+    printf("restored="); print_value_line(result);
+    release_cli_value(result);
+    return 0;
+}
+
 static int command_oracle_posix_error_smoke(void) {
     JinxValue access_args[1];
     JinxValue access_result;
