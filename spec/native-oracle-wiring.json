@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 575,
-        "extended_native_route": 277,
+        "native_named_route": 577,
+        "extended_native_route": 279,
         "context_native_route": 3,
-        "intentional_native_fault": 2952
+        "intentional_native_fault": 2950
     },
     "routes": {
         "_": "extended",
@@ -1122,7 +1122,7 @@
         "ip2long": "asm",
         "iptcembed": "intentional-native-fault",
         "iptcparse": "intentional-native-fault",
-        "is_a": "intentional-native-fault",
+        "is_a": "extended",
         "is_array": "asm",
         "is_bool": "asm",
         "is_callable": "intentional-native-fault",
@@ -1147,7 +1147,7 @@
         "is_resource": "asm",
         "is_scalar": "asm",
         "is_string": "asm",
-        "is_subclass_of": "intentional-native-fault",
+        "is_subclass_of": "extended",
         "is_uploaded_file": "intentional-native-fault",
         "is_writable": "extended",
         "is_writeable": "extended",
