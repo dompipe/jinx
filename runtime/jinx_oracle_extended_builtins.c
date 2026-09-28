@@ -1213,6 +1213,20 @@ static const JinxNativeClassMeta *jinx_oracle_ext_class_meta(const char *name) {
     return NULL;
 }
 
+static int jinx_oracle_ext_class_implements_name(
+    const JinxNativeClassMeta *meta,
+    const char *interface_name
+) {
+    if (meta == NULL || interface_name == NULL) return 0;
+    for (size_t i = 0u; i < meta->implements_count; i++) {
+        if (meta->implements[i] != NULL &&
+            strcasecmp(meta->implements[i], interface_name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static const JinxNativeConstantMeta *jinx_oracle_ext_constant_meta(const char *name) {
     if (name == NULL) return NULL;
     for (size_t i = 0u; i < jinx_native_constant_metadata_count; i++) {
@@ -1279,6 +1293,13 @@ static JinxValue jinx_oracle_ext_class_list(
 
 JinxValue jinx_oracle_extended_fixture(const char *spec) {
     if (spec == NULL) return jinx_oracle_zero_value();
+
+    if (strncmp(spec, "obj:", 4u) == 0) {
+        JinxZendObject *object = jinx_zend_object_new(spec + 4u);
+        return object != NULL
+            ? jinx_oracle_zend_object_value_owned(object)
+            : jinx_oracle_zero_value();
+    }
 
     if (strncmp(spec, "dt:", 3u) == 0) {
         int64_t timestamp;
@@ -2214,6 +2235,31 @@ JinxValue jinx_oracle_extended_builtin(
                 strcmp(name,"is_dir")==0?S_ISDIR(st.st_mode):S_ISREG(st.st_mode)
             );
         }
+    }
+
+    /* Object-sensitive variable predicates use generated PHP class metadata. */
+    if (strcmp(name, "is_countable") == 0 || strcmp(name, "is_iterable") == 0) {
+        JinxZendObject *object;
+        const JinxNativeClassMeta *meta;
+        int answer;
+
+        if (args == NULL || argc < 1u ||
+            args[0].type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            return result;
+        }
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL || object->class_name == NULL) return result;
+        meta = jinx_oracle_ext_class_meta(object->class_name);
+        if (meta == NULL) {
+            /* Unknown user classes require the Oracle user-class registry. */
+            return result;
+        }
+
+        answer = strcmp(name, "is_countable") == 0
+            ? jinx_oracle_ext_class_implements_name(meta, "Countable")
+            : jinx_oracle_ext_class_implements_name(meta, "Traversable");
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(answer);
     }
 
     /* Core class and constant introspection. */
