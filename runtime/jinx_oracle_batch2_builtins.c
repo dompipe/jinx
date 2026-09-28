@@ -2,6 +2,7 @@
 #include "jinx_oracle_hash_builtins.h"
 #include "jinx_oracle_finfo_builtins.h"
 #include "jinx_oracle_resource_registry.h"
+#include "jinx_oracle_solar_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -2771,6 +2772,17 @@ csv_fail:
         jinx_oracle_batch2_process_title = title;
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(1);
+    }
+
+    {
+        int solar_handled = 0;
+        JinxValue solar_result = jinx_oracle_solar_builtin(
+            name, args, argc, &solar_handled
+        );
+        if (solar_handled) {
+            if (handled != NULL) *handled = 1;
+            return solar_result;
+        }
     }
 
     return result;
