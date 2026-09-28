@@ -461,7 +461,13 @@ JinxValue jinx_oracle_solar_builtin(
             return jinx_oracle_bool_value(0);
         }
 
-        if (!solar_local_date(timestamp, &year, &month, &day)) {
+        if (!solar_local_date(
+            timestamp,
+            jinx_oracle_extended_default_timezone(),
+            &year,
+            &month,
+            &day
+        )) {
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(0);
         }
