@@ -190,6 +190,9 @@ $checks = [
     ['ignore_user_abort', [], 'int:' . ignore_user_abort()],
     ['ignore_user_abort', ['b:true'], 'int:' . ignore_user_abort()],
     ['gethostname', [], (($v = gethostname()) === false ? 'bool:false' : 'string:' . $v)],
+    ['setlocale', ['i:' . LC_ALL, 's:C'], 'string:C'],
+    ['textdomain', ['s:messages'], (($v = textdomain('messages')) === false ? 'bool:false' : 'string:' . $v)],
+    ['ngettext', ['s:one', 's:many', 'i:2'], 'string:' . ngettext('one', 'many', 2)],
     ['getprotobyname', ['s:tcp'], (($v = getprotobyname('tcp')) === false ? 'bool:false' : 'int:' . $v)],
     ['getprotobynumber', ['i:6'], (($v = getprotobynumber(6)) === false ? 'bool:false' : 'string:' . $v)],
     ['getservbyname', ['s:http', 's:tcp'], (($v = getservbyname('http', 'tcp')) === false ? 'bool:false' : 'int:' . $v)],
@@ -229,12 +232,67 @@ $checks = [
 
 array_push($checks, ...$posixChecks);
 
+if (function_exists('strftime')) {
+    $phpStrftime = @strftime('%Y-%m-%d %H:%M:%S', 1704067200);
+    $checks[] = [
+        'strftime',
+        ['s:%Y-%m-%d %H:%M:%S', 'i:1704067200'],
+        $phpStrftime === false ? 'bool:false' : 'string:' . $phpStrftime,
+    ];
+}
 if (function_exists('gmstrftime')) {
     $checks[] = ['gmstrftime', ['s:%Y-%m-%d', 'i:1704067200'], 'string:' . gmstrftime('%Y-%m-%d', 1704067200)];
 }
 
 foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
+}
+
+$nativeTime = jinx200($jinx, 'time', [], false, $timeCode);
+if ($timeCode !== 0 || !preg_match('/^int:(-?[0-9]+)$/', $nativeTime, $timeMatch) ||
+    abs((int)$timeMatch[1] - time()) > 5) {
+    fail200("time parity window mismatch\nJINX: {$nativeTime}");
+}
+
+$commandFixture = "printf 'alpha\\nbeta\\n'";
+ob_start();
+$phpSystemReturn = system($commandFixture);
+$phpSystemOutput = (string)ob_get_clean();
+$nativeSystem = jinx200($jinx, 'system', ['s:' . $commandFixture], false, $systemCode);
+$expectedSystem = rtrim($phpSystemOutput . 'string:' . (string)$phpSystemReturn, "\r\n");
+if ($systemCode !== 0 || $nativeSystem !== $expectedSystem) {
+    fail200("system output/return parity mismatch\nExpected:\n{$expectedSystem}\nJINX:\n{$nativeSystem}");
+}
+
+ob_start();
+$phpPassthruReturn = passthru($commandFixture);
+$phpPassthruOutput = (string)ob_get_clean();
+$nativePassthru = jinx200($jinx, 'passthru', ['s:' . $commandFixture], false, $passthruCode);
+$expectedPassthru = rtrim(
+    $phpPassthruOutput . ($phpPassthruReturn === null ? 'null' : 'bool:false'),
+    "\r\n"
+);
+if ($passthruCode !== 0 || $nativePassthru !== $expectedPassthru) {
+    fail200("passthru output/return parity mismatch\nExpected:\n{$expectedPassthru}\nJINX:\n{$nativePassthru}");
+}
+
+$gzipFixture = tempnam(sys_get_temp_dir(), 'jinx-readgz-');
+if ($gzipFixture === false ||
+    file_put_contents($gzipFixture, gzencode("alpha\nbeta\n")) === false) {
+    fail200('could not create readgzfile parity fixture');
+}
+ob_start();
+$phpReadGzReturn = readgzfile($gzipFixture);
+$phpReadGzOutput = (string)ob_get_clean();
+$nativeReadGz = jinx200($jinx, 'readgzfile', ['s:' . $gzipFixture], false, $readGzCode);
+@unlink($gzipFixture);
+$expectedReadGz = rtrim(
+    $phpReadGzOutput
+    . ($phpReadGzReturn === false ? 'bool:false' : 'int:' . $phpReadGzReturn),
+    "\r\n"
+);
+if ($readGzCode !== 0 || $nativeReadGz !== $expectedReadGz) {
+    fail200("readgzfile output/return parity mismatch\nExpected:\n{$expectedReadGz}\nJINX:\n{$nativeReadGz}");
 }
 
 $sleepUntilTarget = microtime(true) + 0.25;
