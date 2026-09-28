@@ -121,4 +121,93 @@ checkMethod(
     'string:' . $phpInterval->format('%Y-%M-%D %H:%I:%S')
 );
 
-echo "PASS: native Oracle method receiver preserves DateTime scalar parity per method\n";
+$throwableClasses = [
+    ArgumentCountError::class,
+    ArithmeticError::class,
+    AssertionError::class,
+    BadFunctionCallException::class,
+    BadMethodCallException::class,
+    ClosedGeneratorException::class,
+    CompileError::class,
+    DateError::class,
+    DateException::class,
+    DateInvalidOperationException::class,
+    DateInvalidTimeZoneException::class,
+    DateMalformedIntervalStringException::class,
+    DateMalformedPeriodStringException::class,
+    DateMalformedStringException::class,
+    DateObjectError::class,
+    DateRangeError::class,
+    DivisionByZeroError::class,
+    DomainException::class,
+    Error::class,
+    ErrorException::class,
+    Exception::class,
+    FiberError::class,
+    InvalidArgumentException::class,
+    JsonException::class,
+    LengthException::class,
+    LogicException::class,
+    OutOfBoundsException::class,
+    OutOfRangeException::class,
+    OverflowException::class,
+    ParseError::class,
+    PDOException::class,
+    Random\BrokenRandomEngineError::class,
+    Random\RandomError::class,
+    Random\RandomException::class,
+    RangeException::class,
+    ReflectionException::class,
+    RuntimeException::class,
+    TypeError::class,
+    UnderflowException::class,
+    UnexpectedValueException::class,
+    UnhandledMatchError::class,
+    ValueError::class,
+];
+
+$throwableMethods = [
+    'getMessage',
+    'getCode',
+    'getPrevious',
+    'getTrace',
+    'getTraceAsString',
+];
+
+foreach ($throwableClasses as $class) {
+    if (!class_exists($class)) {
+        failMethod("required Throwable class missing from PHP runtime: {$class}");
+    }
+    if (!is_a($class, Throwable::class, true)) {
+        failMethod("expected Throwable class is not Throwable: {$class}");
+    }
+
+    $phpThrowable = new $class('jinx-message', 73);
+    $fixture = 'ex:' . $class;
+
+    foreach ($throwableMethods as $method) {
+        if (!method_exists($phpThrowable, $method)) {
+            failMethod("required Throwable method missing: {$class}::{$method}");
+        }
+
+        $expected = match ($method) {
+            'getMessage' => 'string:' . $phpThrowable->getMessage(),
+            'getCode' => 'int:' . $phpThrowable->getCode(),
+            'getPrevious' => $phpThrowable->getPrevious() === null
+                ? 'null'
+                : failMethod("unexpected previous throwable for {$class}"),
+            'getTrace' => 'zend-array:' . count($phpThrowable->getTrace()),
+            'getTraceAsString' => 'string:' . $phpThrowable->getTraceAsString(),
+        };
+
+        checkMethod(
+            $jinx,
+            $class . '::' . $method,
+            $fixture,
+            [],
+            $expected
+        );
+    }
+}
+
+echo "PASS: native Oracle method receiver preserves DateTime and 210 Throwable route probes\n";
