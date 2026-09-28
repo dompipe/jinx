@@ -59,6 +59,8 @@ static void usage(const char *argv0) {
     printf("  tz:<name>     native DateTimeZone fixture\n");
     printf("  di:<text>     native DateInterval fixture\n");
     printf("  fp:tmp        native temporary stream fixture\n");
+    printf("  gz:tmp        native temporary gzip stream fixture\n");
+    printf("  deflate:gzip  native gzip DeflateContext fixture\n");
     printf("  null          null value\n");
     printf("  raw text defaults to string\n");
 }
@@ -557,7 +559,9 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
         strncmp(text, "dti:", 4) == 0 ||
         strncmp(text, "tz:", 3) == 0 ||
         strncmp(text, "di:", 3) == 0 ||
-        strcmp(text, "fp:tmp") == 0) {
+        strcmp(text, "fp:tmp") == 0 ||
+        strcmp(text, "gz:tmp") == 0 ||
+        strncmp(text, "deflate:", 8) == 0) {
         return jinx_oracle_extended_fixture(text);
     }
 
