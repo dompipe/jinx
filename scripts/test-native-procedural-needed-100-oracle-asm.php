@@ -354,6 +354,7 @@ $fsChecks = [
     ['fgetc', ['fp:tmp'], 'string:a'],
     ['rewind', ['fp:tmp'], 'bool:true'],
     ['fgetcsv', ['fp:tmp'], 'zend-array:2'],
+    ['vfprintf', ['fp:tmp', 's:%d,%d,%d,%d', 'za:sample'], 'int:' . strlen(sprintf('%d,%d,%d,%d', 10, 20, 30, 40))],
     ['flock', ['fp:tmp', 'i:1'], 'bool:true'],
     ['chdir', ['s:.'], 'bool:true'],
     ['chgrp', ['s:/__jinx_oracle_missing__', 'i:0'], 'bool:false'],
