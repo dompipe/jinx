@@ -175,6 +175,27 @@ expect200(
     'zend-array:' . count($phpSunInfo)
 );
 
+/* Context-aware by-reference DNS path: .invalid must not resolve, but PHP/Jinx
+ * both initialize host/weight outputs to arrays before returning false. */
+foreach (['dns_get_mx', 'getmxrr'] as $mxName) {
+    $cmd = escapeshellarg($jinx)
+        . ' oracle-call-refs ' . escapeshellarg($mxName)
+        . ' ' . escapeshellarg('s:__jinx_oracle_no_mx__.invalid')
+        . ' null null';
+    $mxOut = run200($cmd, $mxCode);
+    if ($mxCode === 0 && !str_contains($mxOut, 'null/fault:')) {
+        $expected = implode(PHP_EOL, [
+            'return=bool:false',
+            'arg0=string:__jinx_oracle_no_mx__.invalid',
+            'arg1=zend-array:0',
+            'arg2=zend-array:0',
+        ]);
+        if ($mxOut !== $expected) {
+            fail200("{$mxName} ref-writeback mismatch\nExpected:\n{$expected}\nJINX:\n{$mxOut}");
+        }
+    }
+}
+
 /* Stream behavior uses the deterministic fp:tmp fixture ("a,b\nsecond line\n"). */
 expect200($jinx, 'ftruncate', ['fp:tmp', 'i:2'], 'bool:true');
 expect200($jinx, 'fputs', ['fp:tmp', 's:x'], 'int:1');
