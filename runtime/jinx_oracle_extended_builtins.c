@@ -4,6 +4,9 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
+#include <glob.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <grp.h>
 #include <pwd.h>
@@ -923,6 +926,65 @@ static JinxZendArray *jinx_oracle_ext_date_parse_array(
 }
 
 /* ---------------- filesystem/stream carrier ---------------- */
+
+static JinxZendArray *jinx_oracle_ext_stat_array(const struct stat *st) {
+    static const char *const names[13] = {
+        "dev","ino","mode","nlink","uid","gid","rdev","size",
+        "atime","mtime","ctime","blksize","blocks"
+    };
+    int64_t values[13];
+    JinxZendArray *array;
+
+    if (st == NULL) return NULL;
+    values[0]=(int64_t)st->st_dev;
+    values[1]=(int64_t)st->st_ino;
+    values[2]=(int64_t)st->st_mode;
+    values[3]=(int64_t)st->st_nlink;
+    values[4]=(int64_t)st->st_uid;
+    values[5]=(int64_t)st->st_gid;
+    values[6]=(int64_t)st->st_rdev;
+    values[7]=(int64_t)st->st_size;
+    values[8]=(int64_t)st->st_atime;
+    values[9]=(int64_t)st->st_mtime;
+    values[10]=(int64_t)st->st_ctime;
+#ifdef st_blksize
+    values[11]=(int64_t)st->st_blksize;
+    values[12]=(int64_t)st->st_blocks;
+#else
+    values[11]=0;
+    values[12]=0;
+#endif
+    array=jinx_zend_array_new_packed(26u);
+    if(array==NULL) return NULL;
+    for(size_t i=0u;i<13u;i++){
+        if(!jinx_zend_array_add_index(array,i,jinx_zend_long(values[i])) ||
+           !jinx_zend_array_add_assoc(array,names[i],strlen(names[i]),jinx_zend_long(values[i]))){
+            jinx_zend_array_release(array);
+            return NULL;
+        }
+    }
+    return array;
+}
+
+static JinxZendArray *jinx_oracle_ext_string_list_from_dir(const char *path) {
+    DIR *dir;
+    struct dirent *entry;
+    JinxZendArray *array;
+    if(path==NULL) return NULL;
+    dir=opendir(path);
+    if(dir==NULL) return NULL;
+    array=jinx_zend_array_new_packed(16u);
+    if(array==NULL){ closedir(dir); return NULL; }
+    while((entry=readdir(dir))!=NULL){
+        if(!jinx_oracle_ext_array_append_string(array,entry->d_name,strlen(entry->d_name))){
+            closedir(dir);
+            jinx_zend_array_release(array);
+            return NULL;
+        }
+    }
+    closedir(dir);
+    return array;
+}
 
 static JinxOracleExtStream *jinx_oracle_ext_stream_from_value(
     JinxValue value,
@@ -1866,7 +1928,14 @@ JinxValue jinx_oracle_extended_builtin(
         strcmp(name, "fgetc") == 0 ||
         strcmp(name, "fgets") == 0 ||
         strcmp(name, "fgetcsv") == 0 ||
-        strcmp(name, "flock") == 0) {
+        strcmp(name, "flock") == 0 ||
+        strcmp(name, "fread") == 0 ||
+        strcmp(name, "fwrite") == 0 ||
+        strcmp(name, "fseek") == 0 ||
+        strcmp(name, "ftell") == 0 ||
+        strcmp(name, "fstat") == 0 ||
+        strcmp(name, "fsync") == 0 ||
+        strcmp(name, "fdatasync") == 0) {
         JinxZendValue *slot = NULL;
         JinxOracleExtStream *stream;
         if (args == NULL || argc < 1u) return result;
@@ -1933,6 +2002,79 @@ JinxValue jinx_oracle_extended_builtin(
             free(line);
             return array != NULL ? jinx_oracle_zend_array_value_owned(array) : result;
         }
+        if (strcmp(name, "fread") == 0) {
+            int64_t length;
+            char *out;
+            size_t got;
+            if (argc < 2u) return result;
+            length=jinx_oracle_intish(args[1]);
+            if(length<=0 || length>UINT32_MAX) return result;
+            out=jinx_oracle_scratch_string((uint32_t)length);
+            got=fread(out,1u,(size_t)length,stream->fp);
+            if(got==0u && ferror(stream->fp)){
+                if(handled!=NULL)*handled=1;
+                return jinx_oracle_bool_value(0);
+            }
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_string_value_len(out,(uint32_t)got);
+        }
+        if (strcmp(name, "fwrite") == 0) {
+            const unsigned char *bytes;
+            uint32_t len;
+            size_t requested;
+            size_t written;
+            if(argc<2u || args[1].type!=3u) return result;
+            bytes=jinx_oracle_string_bytes(args[1]);
+            len=jinx_oracle_string_len(args[1]);
+            requested=len;
+            if(argc>=3u && args[2].type!=0u){
+                int64_t limit=jinx_oracle_intish(args[2]);
+                if(limit<0) return result;
+                if((uint64_t)limit<(uint64_t)requested) requested=(size_t)limit;
+            }
+            written=requested==0u?0u:fwrite(bytes,1u,requested,stream->fp);
+            if(handled!=NULL)*handled=1;
+            return written==0u && requested!=0u && ferror(stream->fp)
+                ? jinx_oracle_bool_value(0)
+                : jinx_oracle_int_value((int64_t)written);
+        }
+        if (strcmp(name, "fseek") == 0) {
+            int64_t offset;
+            int whence=SEEK_SET;
+            if(argc<2u) return result;
+            offset=jinx_oracle_intish(args[1]);
+            if(argc>=3u) whence=(int)jinx_oracle_intish(args[2]);
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_int_value(fseek(stream->fp,(long)offset,whence)==0?0:-1);
+        }
+        if (strcmp(name, "ftell") == 0) {
+            long pos=ftell(stream->fp);
+            if(handled!=NULL)*handled=1;
+            return pos<0?jinx_oracle_bool_value(0):jinx_oracle_int_value((int64_t)pos);
+        }
+        if (strcmp(name, "fstat") == 0) {
+            struct stat st;
+            JinxZendArray *array;
+            if(handled!=NULL)*handled=1;
+            if(fstat(fileno(stream->fp),&st)!=0) return jinx_oracle_bool_value(0);
+            array=jinx_oracle_ext_stat_array(&st);
+            return array!=NULL?jinx_oracle_zend_array_value_owned(array):result;
+        }
+        if (strcmp(name, "fsync") == 0 || strcmp(name, "fdatasync") == 0) {
+            int rc;
+            if(strcmp(name,"fdatasync")==0){
+#ifdef __linux__
+                rc=fdatasync(fileno(stream->fp));
+#else
+                rc=fsync(fileno(stream->fp));
+#endif
+            } else {
+                rc=fsync(fileno(stream->fp));
+            }
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_bool_value(rc==0);
+        }
+
         if (strcmp(name, "flock") == 0) {
             int operation;
             int native_op = 0;
@@ -1949,6 +2091,87 @@ JinxValue jinx_oracle_extended_builtin(
              * call frame; this backend only reports the flock result. */
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
+        }
+    }
+
+    if (strcmp(name, "is_dir") == 0 || strcmp(name, "is_file") == 0 ||
+        strcmp(name, "lstat") == 0 || strcmp(name, "mkdir") == 0 ||
+        strcmp(name, "realpath") == 0 || strcmp(name, "scandir") == 0 ||
+        strcmp(name, "glob") == 0) {
+        char *path;
+        if(args==NULL || argc<1u || args[0].type!=3u) return result;
+        path=jinx_oracle_ext_dup_string_value(args[0]);
+        if(path==NULL) return result;
+
+        if(strcmp(name,"mkdir")==0){
+            mode_t mode=argc>=2u?(mode_t)jinx_oracle_intish(args[1]):0777;
+            ok=mkdir(path,mode)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_bool_value(ok);
+        }
+
+        if(strcmp(name,"realpath")==0){
+            char resolved[PATH_MAX];
+            char *rp=realpath(path,resolved);
+            free(path);
+            if(handled!=NULL)*handled=1;
+            return rp!=NULL?jinx_oracle_string_value(resolved):jinx_oracle_bool_value(0);
+        }
+
+        if(strcmp(name,"scandir")==0){
+            JinxZendArray *array=jinx_oracle_ext_string_list_from_dir(path);
+            free(path);
+            if(handled!=NULL)*handled=1;
+            return array!=NULL?jinx_oracle_zend_array_value_owned(array):jinx_oracle_bool_value(0);
+        }
+
+        if(strcmp(name,"glob")==0){
+            glob_t g;
+            JinxZendArray *array;
+            int flags=argc>=2u?(int)jinx_oracle_intish(args[1]):0;
+            int rc=glob(path,flags,NULL,&g);
+            free(path);
+            if(handled!=NULL)*handled=1;
+            if(rc==GLOB_NOMATCH){
+                globfree(&g);
+                return jinx_oracle_zend_array_value_owned(jinx_zend_array_new_packed(1u));
+            }
+            if(rc!=0){
+                globfree(&g);
+                return jinx_oracle_bool_value(0);
+            }
+            array=jinx_zend_array_new_packed(g.gl_pathc==0u?1u:g.gl_pathc);
+            if(array==NULL){ globfree(&g); return result; }
+            for(size_t i=0u;i<g.gl_pathc;i++){
+                if(!jinx_oracle_ext_array_append_string(array,g.gl_pathv[i],strlen(g.gl_pathv[i]))){
+                    jinx_zend_array_release(array); globfree(&g); return result;
+                }
+            }
+            globfree(&g);
+            return jinx_oracle_zend_array_value_owned(array);
+        }
+
+        if(strcmp(name,"lstat")==0){
+            struct stat st;
+            JinxZendArray *array;
+            ok=lstat(path,&st)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            if(!ok) return jinx_oracle_bool_value(0);
+            array=jinx_oracle_ext_stat_array(&st);
+            return array!=NULL?jinx_oracle_zend_array_value_owned(array):result;
+        }
+
+        {
+            struct stat st;
+            ok=stat(path,&st)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            if(!ok) return jinx_oracle_bool_value(0);
+            return jinx_oracle_bool_value(
+                strcmp(name,"is_dir")==0?S_ISDIR(st.st_mode):S_ISREG(st.st_mode)
+            );
         }
     }
 
