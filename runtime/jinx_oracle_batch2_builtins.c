@@ -62,6 +62,7 @@ static int jinx_oracle_batch2_assert_exception = JINX_NATIVE_ASSERT_EXCEPTION;
 static char *jinx_oracle_batch2_assert_callback = NULL;
 static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
+static char *jinx_oracle_batch2_syslog_ident = NULL;
 
 typedef struct JinxOracleBatch2IniOverride {
     char *name;
@@ -2970,10 +2971,45 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zero_value();
     }
 
+    if (strcmp(name, "openlog") == 0) {
+        char *ident;
+        char *owned_ident;
+        int option;
+        int facility;
+        if (args == NULL || argc != 3u || args[0].type != 3u) return result;
+        ident = b2_dup(args[0]);
+        if (ident == NULL) return result;
+        owned_ident = strdup(ident);
+        free(ident);
+        if (owned_ident == NULL) return result;
+        free(jinx_oracle_batch2_syslog_ident);
+        jinx_oracle_batch2_syslog_ident = owned_ident;
+        option = (int)jinx_oracle_intish(args[1]);
+        facility = (int)jinx_oracle_intish(args[2]);
+        openlog(jinx_oracle_batch2_syslog_ident, option, facility);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "syslog") == 0) {
+        char *message;
+        int priority;
+        if (args == NULL || argc != 2u || args[1].type != 3u) return result;
+        priority = (int)jinx_oracle_intish(args[0]);
+        message = b2_dup(args[1]);
+        if (message == NULL) return result;
+        syslog(priority, "%s", message);
+        free(message);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "closelog") == 0) {
         closelog();
+        free(jinx_oracle_batch2_syslog_ident);
+        jinx_oracle_batch2_syslog_ident = NULL;
         if (handled != NULL) *handled = 1;
-        return jinx_oracle_zero_value();
+        return jinx_oracle_bool_value(1);
     }
 
     if (strcmp(name, "error_log") == 0) {
