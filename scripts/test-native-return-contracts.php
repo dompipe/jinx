@@ -96,6 +96,21 @@ if ($code !== 0 || $out !== 'zend-array:1') {
     failReturn("range(1, 2, 3) expected a one-element array, got {$out}");
 }
 
+/* Object predicates must use class metadata, not hard-coded false. */
+$objectPredicates = [
+    ['is_countable', 'obj:ArrayIterator', 'bool:true'],
+    ['is_iterable', 'obj:ArrayIterator', 'bool:true'],
+    ['is_countable', 'obj:stdClass', 'bool:false'],
+    ['is_iterable', 'obj:stdClass', 'bool:false'],
+];
+
+foreach ($objectPredicates as [$name, $arg, $expected]) {
+    $out = runReturn([$jinx, 'oracle-call', $name, $arg], $code);
+    if ($code !== 0 || $out !== $expected) {
+        failReturn("{$name}({$arg}) expected {$expected}, got {$out}");
+    }
+}
+
 /* Native stream carriers must behave like PHP resources, not ordinary objects. */
 $resourceChecks = [
     ['is_resource', 'bool:true'],
