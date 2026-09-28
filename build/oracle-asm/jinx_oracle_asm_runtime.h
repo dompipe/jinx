@@ -40,6 +40,9 @@ struct JinxValue {
  * the entry point; exact builtins not handled in this header fall through to
  * this backend before a fault is reported.
  */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
 JinxValue jinx_oracle_extended_builtin(
     const char *name,
     JinxValue *args,
@@ -8277,7 +8280,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    {
+    if (jinx_oracle_extended_builtin != NULL) {
         int extended_handled = 0;
         ret = jinx_oracle_extended_builtin(
             name,
