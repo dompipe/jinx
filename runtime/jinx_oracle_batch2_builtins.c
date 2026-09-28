@@ -4069,8 +4069,6 @@ JinxValue jinx_oracle_batch2_builtin(
         FILE *pipe;
         unsigned char buffer[4096];
         char last[4096] = "";
-        size_t last_len = 0u;
-        size_t got;
         if (args == NULL || argc != 1u || args[0].type != 3u) return result;
         command = b2_dup(args[0]);
         if (command == NULL) return result;
@@ -4080,28 +4078,36 @@ JinxValue jinx_oracle_batch2_builtin(
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(0);
         }
-        while ((got = fread(buffer, 1u, sizeof(buffer), pipe)) != 0u) {
-            if (fwrite(buffer, 1u, got, stdout) != got) {
-                (void)pclose(pipe);
-                if (handled != NULL) *handled = 1;
-                return jinx_oracle_bool_value(0);
+        if (strcmp(name, "system") == 0) {
+            char line[4096];
+            while (fgets(line, sizeof(line), pipe) != NULL) {
+                size_t n = strlen(line);
+                if (fwrite(line, 1u, n, stdout) != n) {
+                    (void)pclose(pipe);
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+                while (n != 0u && (line[n - 1u] == '\n' || line[n - 1u] == '\r')) {
+                    line[--n] = '\0';
+                }
+                snprintf(last, sizeof(last), "%s", line);
             }
-            if (strcmp(name, "system") == 0) {
-                for (size_t i = 0u; i < got; i++) {
-                    unsigned char ch = buffer[i];
-                    if (ch == '\n') {
-                        last_len = 0u;
-                    } else if (ch != '\r' && last_len + 1u < sizeof(last)) {
-                        last[last_len++] = (char)ch;
-                        last[last_len] = '\0';
-                    }
+        } else {
+            size_t got;
+            while ((got = fread(buffer, 1u, sizeof(buffer), pipe)) != 0u) {
+                if (fwrite(buffer, 1u, got, stdout) != got) {
+                    (void)pclose(pipe);
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
                 }
             }
         }
         (void)pclose(pipe);
         fflush(stdout);
         if (handled != NULL) *handled = 1;
-        return strcmp(name, "passthru") == 0 ? jinx_oracle_zero_value() : b2_copy(last, last_len);
+        return strcmp(name, "passthru") == 0
+            ? jinx_oracle_zero_value()
+            : b2_copy(last, strlen(last));
     }
 
     if (strcmp(name, "exec") == 0) {
