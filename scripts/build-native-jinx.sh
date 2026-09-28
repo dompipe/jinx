@@ -154,6 +154,15 @@ if [ "$DATE_FORMAT_SMOKE" != "string:2024-01-02" ]; then
     exit 1
 fi
 
+CONSTANT_REGISTRY_SMOKE=$("$OUT" oracle-constant-smoke)
+case "$CONSTANT_REGISTRY_SMOKE" in
+    *"PASS: native define/defined/constant/get_defined_constants share one runtime registry"*) ;;
+    *)
+        echo "FAIL: post-build runtime constant registry smoke failed: $CONSTANT_REGISTRY_SMOKE" >&2
+        exit 1
+        ;;
+esac
+
 WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
 case "$WEB_PLAN_SMOKE" in
     *WEB_IF_MISSING_ARRAY_KEY*) ;;
@@ -207,6 +216,7 @@ fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
 echo "Extended Oracle smoke: call_user_func/class_exists/date_format PASS"
+echo "Native constant registry smoke: PASS"
 echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
