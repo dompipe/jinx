@@ -210,6 +210,11 @@ $checks = [
     ['php_uname', ['s:r'], 'string:' . php_uname('r')],
     ['php_uname', ['s:v'], 'string:' . php_uname('v')],
     ['php_uname', ['s:m'], 'string:' . php_uname('m')],
+    ['phpversion', [], 'string:' . phpversion()],
+    ['zend_version', [], 'string:' . zend_version()],
+    ['sleep', ['i:0'], 'int:' . sleep(0)],
+    ['usleep', ['i:0'], 'null'],
+    ['time_nanosleep', ['i:0', 'i:0'], 'bool:true'],
 ];
 
 array_push($checks, ...$posixChecks);
@@ -220,6 +225,18 @@ if (function_exists('gmstrftime')) {
 
 foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
+}
+
+$sleepUntilTarget = microtime(true) + 0.25;
+$sleepUntilActual = jinx200(
+    $jinx,
+    'time_sleep_until',
+    ['f:' . sprintf('%.6f', $sleepUntilTarget)],
+    false,
+    $code
+);
+if ($code !== 0 || $sleepUntilActual !== 'bool:true') {
+    fail200("time_sleep_until positive contract mismatch\nJINX: {$sleepUntilActual}");
 }
 
 if (function_exists('sys_getloadavg')) {
