@@ -198,6 +198,16 @@ $checks = [
     ['get_resource_type', ['fp:tmp'], 'string:stream'],
     ['get_resource_id', ['fp:tmp'], 'int:1'],
     ['get_resources', [], 'zend-array:0'],
+    ['sys_get_temp_dir', [], 'string:' . sys_get_temp_dir()],
+    ['php_sapi_name', [], (($v = php_sapi_name()) === false ? 'bool:false' : 'string:' . $v)],
+    ['php_ini_loaded_file', [], (($v = php_ini_loaded_file()) === false ? 'bool:false' : 'string:' . $v)],
+    ['php_ini_scanned_files', [], (($v = php_ini_scanned_files()) === false ? 'bool:false' : 'string:' . rtrim($v, "\r\n"))],
+    ['php_uname', [], 'string:' . php_uname()],
+    ['php_uname', ['s:s'], 'string:' . php_uname('s')],
+    ['php_uname', ['s:n'], 'string:' . php_uname('n')],
+    ['php_uname', ['s:r'], 'string:' . php_uname('r')],
+    ['php_uname', ['s:v'], 'string:' . php_uname('v')],
+    ['php_uname', ['s:m'], 'string:' . php_uname('m')],
 ];
 
 array_push($checks, ...$posixChecks);
@@ -208,6 +218,16 @@ if (function_exists('gmstrftime')) {
 
 foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
+}
+
+if (function_exists('sys_getloadavg')) {
+    $phpLoad = sys_getloadavg();
+    expect200(
+        $jinx,
+        'sys_getloadavg',
+        [],
+        $phpLoad === false ? 'bool:false' : 'zend-array:' . count($phpLoad)
+    );
 }
 
 if (function_exists('posix_getpid')) {
