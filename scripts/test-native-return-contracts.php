@@ -38,6 +38,8 @@ $mustFault = [
     ['count', 'za:sample', 'i:9'],
     ['count', 'i:7'],
     ['sizeof', 's:not-an-array'],
+    ['constant', 's:__JINX_UNDEFINED_CONSTANT__'],
+    ['fgets', 'fp:tmp', 'i:1'],
 ];
 
 foreach ($mustFault as $case) {
@@ -86,6 +88,12 @@ foreach ($arrayConversions as [$name, $arg, $expected]) {
 $out = runReturn([$jinx, 'oracle-call', 'strval', 'dt:2024-01-02 03:04:05'], $code);
 if ($code === 0 || !str_contains($out, 'null/fault: strval')) {
     failReturn("strval(DateTime) fabricated a scalar value instead of requiring __toString: {$out}");
+}
+
+/* A step larger than the distance is still a valid one-element integer range. */
+$out = runReturn([$jinx, 'oracle-call', 'range', 'i:1', 'i:2', 'i:3'], $code);
+if ($code !== 0 || $out !== 'zend-array:1') {
+    failReturn("range(1, 2, 3) expected a one-element array, got {$out}");
 }
 
 /* Native stream carriers must behave like PHP resources, not ordinary objects. */
