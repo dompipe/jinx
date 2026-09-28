@@ -166,6 +166,8 @@ static int b2_frame_value_to_jinx(
 }
 
 
+static const JinxNativeConstantMeta *b2_constant_meta(const char *name);
+
 static int64_t b2_constant_int(const char *name, int64_t fallback) {
     const JinxNativeConstantMeta *meta = b2_constant_meta(name);
     return meta != NULL && meta->type == 1u ? meta->i64 : fallback;
