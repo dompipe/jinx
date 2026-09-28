@@ -27,6 +27,9 @@ JinxValue jinx_oracle_extended_builtin(
  * as scalar typed arguments. */
 JinxValue jinx_oracle_extended_fixture(const char *spec);
 
+/* Shared mutable date/time runtime state for modular native date backends. */
+const char *jinx_oracle_extended_default_timezone(void);
+
 #ifdef __cplusplus
 }
 #endif
