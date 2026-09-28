@@ -462,6 +462,68 @@ if ($browscap === false || $browscap === '') {
 }
 
 /* Stream behavior uses the deterministic fp:tmp fixture ("a,b\nsecond line\n"). */
+$streamFixtureBytes = "a,b\nsecond line\n";
+$phpStream = tmpfile();
+if ($phpStream === false) fail200('PHP tmpfile stream fixture failed');
+fwrite($phpStream, $streamFixtureBytes);
+rewind($phpStream);
+$phpStreamLine = stream_get_line($phpStream, 1024, "\n");
+rewind($phpStream);
+$phpStreamLocal = stream_is_local($phpStream);
+$phpStreamTty = stream_isatty($phpStream);
+$phpStreamLocks = stream_supports_lock($phpStream);
+$phpStreamBlocking = stream_set_blocking($phpStream, true);
+$phpStreamReadBuffer = stream_set_read_buffer($phpStream, 0);
+$phpStreamWriteBuffer = stream_set_write_buffer($phpStream, 0);
+fclose($phpStream);
+
+expect200($jinx, 'stream_get_wrappers', [], 'zend-array:' . count(stream_get_wrappers()));
+expect200($jinx, 'stream_get_transports', [], 'zend-array:' . count(stream_get_transports()));
+expect200($jinx, 'stream_get_filters', [], 'zend-array:' . count(stream_get_filters()));
+expect200(
+    $jinx,
+    'stream_get_contents',
+    ['fp:tmp'],
+    'hex:' . bin2hex($streamFixtureBytes),
+    true
+);
+expect200(
+    $jinx,
+    'stream_get_contents',
+    ['fp:tmp', 'i:3'],
+    'hex:' . bin2hex(substr($streamFixtureBytes, 0, 3)),
+    true
+);
+expect200(
+    $jinx,
+    'stream_get_contents',
+    ['fp:tmp', 'null', 'i:4'],
+    'hex:' . bin2hex(substr($streamFixtureBytes, 4)),
+    true
+);
+expect200(
+    $jinx,
+    'stream_get_line',
+    ['fp:tmp', 'i:1024', 's:' . "\n"],
+    $phpStreamLine === false ? 'bool:false' : 'hex:' . bin2hex($phpStreamLine),
+    true
+);
+expect200($jinx, 'stream_copy_to_stream', ['fp:tmp', 'fp:tmp', 'i:4'], 'int:4');
+expect200($jinx, 'stream_is_local', ['fp:tmp'], 'bool:' . ($phpStreamLocal ? 'true' : 'false'));
+expect200($jinx, 'stream_isatty', ['fp:tmp'], 'bool:' . ($phpStreamTty ? 'true' : 'false'));
+expect200($jinx, 'stream_supports_lock', ['fp:tmp'], 'bool:' . ($phpStreamLocks ? 'true' : 'false'));
+expect200($jinx, 'stream_set_blocking', ['fp:tmp', 'b:true'], 'bool:' . ($phpStreamBlocking ? 'true' : 'false'));
+expect200($jinx, 'stream_set_read_buffer', ['fp:tmp', 'i:0'], 'int:' . $phpStreamReadBuffer);
+expect200($jinx, 'stream_set_write_buffer', ['fp:tmp', 'i:0'], 'int:' . $phpStreamWriteBuffer);
+
+$resolvedReadme = stream_resolve_include_path($root . '/README.md');
+expect200(
+    $jinx,
+    'stream_resolve_include_path',
+    ['s:' . $root . '/README.md'],
+    $resolvedReadme === false ? 'bool:false' : 'string:' . $resolvedReadme
+);
+
 expect200($jinx, 'ftruncate', ['fp:tmp', 'i:2'], 'bool:true');
 expect200($jinx, 'fputs', ['fp:tmp', 's:x'], 'int:1');
 expect200($jinx, 'fprintf', ['fp:tmp', 's:%s', 's:x'], 'int:1');
