@@ -10,6 +10,9 @@ ZEND_SMOKE_OUT="${OUT_DIR}/jinx-zend-smoke"
 
 mkdir -p "$OUT_DIR"
 
+php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
+    "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
+
 php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c"
@@ -71,6 +74,7 @@ echo "Copied native JINX CLI: $COPY_OUT"
 echo "Built native Zend smoke: $ZEND_SMOKE_OUT"
 echo "Manual manifest compiled: runtime/jinx_php_manual_manifest.h"
 echo "Zend skeleton compiled: runtime/jinx_zend_engine.c"
+echo "Oracle dispatch duplicate audit: PASS"
 echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
