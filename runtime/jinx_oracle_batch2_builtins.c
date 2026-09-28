@@ -6,6 +6,7 @@
 #include "jinx_oracle_dns_builtins.h"
 #include "jinx_oracle_ftp_builtins.h"
 #include "jinx_oracle_curl_ftp_builtins.h"
+#include "jinx_oracle_http_meta_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -2986,6 +2987,17 @@ csv_fail:
         if (ftp_handled) {
             if (handled != NULL) *handled = 1;
             return ftp_result;
+        }
+    }
+
+    {
+        int http_meta_handled = 0;
+        JinxValue http_meta_result = jinx_oracle_http_meta_builtin(
+            name, args, argc, &http_meta_handled
+        );
+        if (http_meta_handled) {
+            if (handled != NULL) *handled = 1;
+            return http_meta_result;
         }
     }
 
