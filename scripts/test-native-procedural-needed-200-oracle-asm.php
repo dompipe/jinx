@@ -110,6 +110,7 @@ $checks = [
     ['hash_equals', ['s:abc', 's:abc'], 'bool:true'],
     ['hash_equals', ['s:abc', 's:abd'], 'bool:false'],
     ['closedir', ['dir:tmp'], 'null'],
+    ['assert', ['b:true'], 'bool:true'],
     ['get_resource_type', ['fp:tmp'], 'string:stream'],
     ['get_resource_id', ['fp:tmp'], 'int:1'],
     ['get_resources', [], 'zend-array:0'],
@@ -180,6 +181,37 @@ expect200($jinx, 'fputs', ['fp:tmp', 's:x'], 'int:1');
 expect200($jinx, 'fprintf', ['fp:tmp', 's:%s', 's:x'], 'int:1');
 expect200($jinx, 'fputcsv', ['fp:tmp', 'za:strings'], 'int:6');
 expect200($jinx, 'fscanf', ['fp:tmp', 's:%c,%c'], 'zend-array:2');
+
+/* Current PHP/timelib solar algorithm parity with explicit coordinates. */
+$solarTs = 1704067200;
+$solarLat = 42.3314;
+$solarLon = -83.0458;
+$solarZenith = 90.833333;
+$solarOffset = -5.0;
+$phpSunrise = date_sunrise($solarTs, SUNFUNCS_RET_TIMESTAMP, $solarLat, $solarLon, $solarZenith, $solarOffset);
+$phpSunset = date_sunset($solarTs, SUNFUNCS_RET_TIMESTAMP, $solarLat, $solarLon, $solarZenith, $solarOffset);
+if ($phpSunrise !== false) {
+    expect200(
+        $jinx,
+        'date_sunrise',
+        ['i:' . $solarTs, 'i:' . SUNFUNCS_RET_TIMESTAMP, 'f:' . $solarLat, 'f:' . $solarLon, 'f:' . $solarZenith, 'f:' . $solarOffset],
+        'int:' . $phpSunrise
+    );
+}
+if ($phpSunset !== false) {
+    expect200(
+        $jinx,
+        'date_sunset',
+        ['i:' . $solarTs, 'i:' . SUNFUNCS_RET_TIMESTAMP, 'f:' . $solarLat, 'f:' . $solarLon, 'f:' . $solarZenith, 'f:' . $solarOffset],
+        'int:' . $phpSunset
+    );
+}
+expect200(
+    $jinx,
+    'date_sun_info',
+    ['i:' . $solarTs, 'f:' . $solarLat, 'f:' . $solarLon],
+    'zend-array:' . count(date_sun_info($solarTs, $solarLat, $solarLon))
+);
 
 /* Native gzip carrier and zlib context. */
 expect200($jinx, 'gzeof', ['gz:tmp'], 'bool:false');
