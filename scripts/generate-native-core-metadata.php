@@ -85,10 +85,9 @@ if (function_exists('filter_list') && function_exists('filter_id')) {
     usort($filterRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
 }
 $includePath = get_include_path();
+/* Preserve PHP's public ordering for hash_algos()/hash_hmac_algos(). */
 $hashAlgos = function_exists('hash_algos') ? hash_algos() : [];
 $hashHmacAlgos = function_exists('hash_hmac_algos') ? hash_hmac_algos() : [];
-sort($hashAlgos, SORT_STRING);
-sort($hashHmacAlgos, SORT_STRING);
 
 $extensionFunctionRows = [];
 foreach ($extensions as $extension) {
