@@ -1525,6 +1525,126 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
+    if (strcmp(name, "phpversion") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return b2_copy(
+            JINX_NATIVE_PHP_VERSION,
+            strlen(JINX_NATIVE_PHP_VERSION)
+        );
+    }
+
+    if (strcmp(name, "zend_version") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return b2_copy(
+            JINX_NATIVE_ZEND_VERSION,
+            strlen(JINX_NATIVE_ZEND_VERSION)
+        );
+    }
+
+    if (strcmp(name, "sleep") == 0) {
+        int64_t seconds;
+        if (args == NULL || argc != 1u) return result;
+        seconds = jinx_oracle_intish(args[0]);
+        if (seconds < 0 || (uint64_t)seconds > UINT_MAX) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)sleep((unsigned int)seconds));
+    }
+
+    if (strcmp(name, "usleep") == 0) {
+        int64_t microseconds;
+        struct timespec request;
+        struct timespec remaining;
+        if (args == NULL || argc != 1u) return result;
+        microseconds = jinx_oracle_intish(args[0]);
+        if (microseconds < 0) return result;
+        request.tv_sec = (time_t)(microseconds / 1000000);
+        request.tv_nsec = (long)((microseconds % 1000000) * 1000);
+        while (nanosleep(&request, &remaining) != 0) {
+            if (errno != EINTR) return result;
+            request = remaining;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "time_nanosleep") == 0) {
+        int64_t seconds;
+        int64_t nanoseconds;
+        struct timespec request;
+        struct timespec remaining;
+        if (args == NULL || argc != 2u) return result;
+        seconds = jinx_oracle_intish(args[0]);
+        nanoseconds = jinx_oracle_intish(args[1]);
+        if (seconds < 0 || nanoseconds < 0 || nanoseconds > 999999999) {
+            return result;
+        }
+        request.tv_sec = (time_t)seconds;
+        request.tv_nsec = (long)nanoseconds;
+        if (nanosleep(&request, &remaining) == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(1);
+        }
+        if (errno == EINTR) {
+            JinxZendArray *array = jinx_zend_array_new_packed(2u);
+            if (array == NULL) return result;
+            if (!jinx_zend_array_add_assoc(
+                    array, "seconds", 7u,
+                    jinx_zend_long((int64_t)remaining.tv_sec)
+                ) ||
+                !jinx_zend_array_add_assoc(
+                    array, "nanoseconds", 11u,
+                    jinx_zend_long((int64_t)remaining.tv_nsec)
+                )) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zend_array_value_owned(array);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "time_sleep_until") == 0) {
+        double target;
+        struct timeval now;
+        uint64_t current_ns;
+        uint64_t target_ns;
+        uint64_t diff_ns;
+        const uint64_t ns_per_sec = 1000000000ULL;
+        const double top_target = (double)(UINT64_MAX / ns_per_sec);
+        struct timespec request;
+        struct timespec remaining;
+        if (args == NULL || argc != 1u) return result;
+        target = jinx_oracle_floatish(args[0]);
+        if (!(target >= 0.0 && target <= top_target)) return result;
+        if (gettimeofday(&now, NULL) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        target_ns = (uint64_t)(target * (double)ns_per_sec);
+        current_ns = (uint64_t)now.tv_sec * ns_per_sec +
+            (uint64_t)now.tv_usec * 1000ULL;
+        if (target_ns < current_ns) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        diff_ns = target_ns - current_ns;
+        request.tv_sec = (time_t)(diff_ns / ns_per_sec);
+        request.tv_nsec = (long)(diff_ns % ns_per_sec);
+        while (nanosleep(&request, &remaining) != 0) {
+            if (errno != EINTR) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            request = remaining;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "sys_get_temp_dir") == 0) {
         if (argc != 0u) return result;
         if (handled != NULL) *handled = 1;
