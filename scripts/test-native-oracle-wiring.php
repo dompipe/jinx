@@ -214,6 +214,19 @@ foreach ($contextSpecs as [$sourcePath, $functions]) {
         $context += wiringNamesInConditions(wiringBody($source, $function));
     }
 }
+
+/*
+ * Method execution is audited by test-native-method-oracle-asm.php and must
+ * not inflate the builtin named-route ledger.  A method handler may share an
+ * extended backend with procedural builtins, but its public route remains
+ * method-dispatch only.
+ */
+foreach (array_keys($extended) as $name) {
+    if (($metadata[$name]['kind'] ?? null) === 'method') unset($extended[$name]);
+}
+foreach (array_keys($context) as $name) {
+    if (($metadata[$name]['kind'] ?? null) === 'method') unset($context[$name]);
+}
 $delegateChecks = [
     ['runtime/jinx_oracle_extended_builtins.c', 'jinx_oracle_batch2_builtin('],
     ['runtime/jinx_oracle_extended_builtins.c', 'jinx_oracle_batch2_builtin_with_context('],
