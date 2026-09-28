@@ -122,7 +122,36 @@ if (function_exists('posix_getuid')) {
         ['posix_strerror', ['i:2'], 'string:' . posix_strerror(2)],
         ['posix_access', ['s:' . $root . '/README.md'], 'bool:' . (posix_access($root . '/README.md') ? 'true' : 'false')],
         ['posix_access', ['s:' . $root . '/__jinx_missing_posix__'], 'bool:' . (posix_access($root . '/__jinx_missing_posix__') ? 'true' : 'false')],
+        ['posix_ctermid', [], (($v = posix_ctermid()) === false ? 'bool:false' : 'string:' . $v)],
+        ['posix_isatty', ['i:1'], 'bool:' . (posix_isatty(1) ? 'true' : 'false')],
+        ['posix_ttyname', ['i:1'], (($v = posix_ttyname(1)) === false ? 'bool:false' : 'string:' . $v)],
+        ['posix_times', [], (($v = posix_times()) === false ? 'bool:false' : 'zend-array:' . count($v))],
+        ['posix_uname', [], (($v = posix_uname()) === false ? 'bool:false' : 'zend-array:' . count($v))],
     ];
+    if (function_exists('posix_sysconf') && defined('POSIX_SC_PAGESIZE')) {
+        $posixChecks[] = [
+            'posix_sysconf',
+            ['i:' . constant('POSIX_SC_PAGESIZE')],
+            'int:' . posix_sysconf(constant('POSIX_SC_PAGESIZE')),
+        ];
+    }
+    if (function_exists('posix_pathconf') && defined('POSIX_PC_PATH_MAX')) {
+        $posixPath = $root;
+        $phpPathConf = posix_pathconf($posixPath, constant('POSIX_PC_PATH_MAX'));
+        $posixChecks[] = [
+            'posix_pathconf',
+            ['s:' . $posixPath, 'i:' . constant('POSIX_PC_PATH_MAX')],
+            $phpPathConf === false ? 'bool:false' : 'int:' . $phpPathConf,
+        ];
+    }
+    if (function_exists('posix_fpathconf') && defined('POSIX_PC_PIPE_BUF')) {
+        $phpFdConf = posix_fpathconf(1, constant('POSIX_PC_PIPE_BUF'));
+        $posixChecks[] = [
+            'posix_fpathconf',
+            ['i:1', 'i:' . constant('POSIX_PC_PIPE_BUF')],
+            $phpFdConf === false ? 'bool:false' : 'int:' . $phpFdConf,
+        ];
+    }
 }
 
 $checks = [
@@ -226,6 +255,28 @@ if ($frameSmokeCode !== 0 ||
         '#0 /tmp/jinx-frame-smoke.php(41): JinxFrameScope::jinx_frame_smoke()'
     )) {
     fail200("native frame/debug_backtrace smoke failed\n{$frameSmoke}");
+}
+
+if (function_exists('posix_get_last_error') && function_exists('posix_errno')) {
+    @posix_access('/__jinx_native_posix_missing__');
+    $phpPosixError = posix_get_last_error();
+    $posixErrorSmoke = run200(
+        escapeshellarg($jinx) . ' oracle-posix-error-smoke',
+        $posixErrorCode
+    );
+    $posixErrorExpected = implode(PHP_EOL, [
+        'access=bool:false',
+        'last=int:' . $phpPosixError,
+        'errno=int:' . $phpPosixError,
+    ]);
+    if ($posixErrorCode !== 0 || $posixErrorSmoke !== $posixErrorExpected) {
+        fail200(
+            "native POSIX last-error smoke mismatch\nExpected:\n"
+            . $posixErrorExpected
+            . "\nJINX:\n"
+            . $posixErrorSmoke
+        );
+    }
 }
 
 $errorSmoke = run200(
