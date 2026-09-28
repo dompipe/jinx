@@ -1243,6 +1243,45 @@ static int jinx_oracle_ext_class_implements_name(
     return 0;
 }
 
+static int jinx_oracle_ext_class_is_a_name(
+    const char *instance_name,
+    const char *target_name,
+    int only_subclass,
+    int *known
+) {
+    const JinxNativeClassMeta *meta;
+    if (known != NULL) *known = 0;
+    if (instance_name == NULL || target_name == NULL) return 0;
+    while (*instance_name == '\\') instance_name++;
+    while (*target_name == '\\') target_name++;
+
+    if (strcasecmp(instance_name, target_name) == 0) {
+        if (known != NULL) *known = 1;
+        return only_subclass ? 0 : 1;
+    }
+
+    meta = jinx_oracle_ext_class_meta(instance_name);
+    if (meta == NULL) return 0;
+
+    for (size_t i = 0u; i < meta->parent_count; i++) {
+        if (meta->parents[i] != NULL &&
+            strcasecmp(meta->parents[i], target_name) == 0) {
+            if (known != NULL) *known = 1;
+            return 1;
+        }
+    }
+    for (size_t i = 0u; i < meta->implements_count; i++) {
+        if (meta->implements[i] != NULL &&
+            strcasecmp(meta->implements[i], target_name) == 0) {
+            if (known != NULL) *known = 1;
+            return 1;
+        }
+    }
+
+    if (known != NULL) *known = 1;
+    return 0;
+}
+
 static const JinxNativeConstantMeta *jinx_oracle_ext_constant_meta(const char *name) {
     if (name == NULL) return NULL;
     for (size_t i = 0u; i < jinx_native_constant_metadata_count; i++) {
@@ -2441,6 +2480,51 @@ JinxValue jinx_oracle_extended_builtin(
                 strcmp(name,"is_dir")==0?S_ISDIR(st.st_mode):S_ISREG(st.st_mode)
             );
         }
+    }
+
+    if (strcmp(name, "is_a") == 0 || strcmp(name, "is_subclass_of") == 0) {
+        const char *instance_name = NULL;
+        char *instance_string = NULL;
+        char *target_name;
+        int only_subclass = strcmp(name, "is_subclass_of") == 0;
+        int allow_string = only_subclass;
+        int known = 0;
+        int answer;
+
+        if (args == NULL || argc < 2u || args[1].type != 3u) return result;
+        if (argc >= 3u) allow_string = jinx_oracle_boolish(args[2]);
+
+        if (args[0].type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            JinxZendObject *object = jinx_oracle_zend_object_ptr(args[0]);
+            if (object == NULL || object->class_name == NULL) return result;
+            instance_name = object->class_name;
+        } else if (allow_string && args[0].type == 3u) {
+            instance_string = jinx_oracle_ext_dup_string_value(args[0]);
+            if (instance_string == NULL) return result;
+            instance_name = instance_string;
+            if (jinx_oracle_ext_class_meta(instance_name) == NULL) {
+                free(instance_string);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+        } else {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        target_name = jinx_oracle_ext_dup_string_value(args[1]);
+        if (target_name == NULL) {
+            free(instance_string);
+            return result;
+        }
+        answer = jinx_oracle_ext_class_is_a_name(
+            instance_name, target_name, only_subclass, &known
+        );
+        free(target_name);
+        free(instance_string);
+        if (!known) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(answer);
     }
 
     /* Object-sensitive variable predicates use generated PHP class metadata. */
