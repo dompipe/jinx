@@ -8137,7 +8137,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (argc >= 1 && (jinx_oracle_name_is(name, "count") ||
         jinx_oracle_name_is(name, "sizeof"))) {
-        ret = jinx_oracle_int_value(arg0.type == 4u ? (int64_t)arg0.flags : jinx_oracle_intish(arg0));
+        if (arg0.type != 4u) {
+            ctx->fault = "count/sizeof requires array or Countable";
+            return jinx_oracle_zero_value();
+        }
+        ret = jinx_oracle_int_value((int64_t)arg0.flags);
         jinx_oracle_return(ctx, ret);
         return ret;
     }
