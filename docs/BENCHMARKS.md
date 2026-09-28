@@ -118,8 +118,9 @@ JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --
 The benchmark associates each measured row with:
 
 - the function or method name;
-- the native implementation route from `spec/native-oracle-wiring.json`;
-- the parity-proof family that covers that route;
+- the actual execution route used by the benchmark;
+- the reviewed builtin-ledger route from `spec/native-oracle-wiring.json`;
+- the parity-proof family that covers the implementation;
 - direct PHP nanoseconds per call;
 - native `./jinx` nanoseconds per call;
 - the JINX/PHP timing ratio.
@@ -138,7 +139,7 @@ The native half is timed inside the GCC-built executable, not by launching one
 ./jinx bench-method-call 'DateTime::format' 100000 'dt:2024-01-02 03:04:05' 's:Y-m-d'
 ```
 
-The current parity-proven DateTime/DateTimeImmutable/DateTimeZone/DateInterval scalar methods use explicit receiver fixtures. Throwable getter methods are discovered automatically from the reviewed wiring inventory and PHP class metadata using the deterministic `ex:<Class>` receiver fixture. Method rows combine the reviewed ledger route with `method-dispatch` and point to `scripts/test-native-method-oracle-asm.php` as the parity proof.
+The current parity-proven DateTime/DateTimeImmutable/DateTimeZone/DateInterval scalar methods use explicit receiver fixtures. Throwable methods are discovered automatically from the reviewed inventory and PHP class metadata using the deterministic `ex:<Class>` receiver fixture. Method rows report `method-dispatch` as the actual route and keep the builtin-ledger route in a separate column, because the builtin wiring ledger intentionally does not classify method-dispatch implementations. They point to `scripts/test-native-method-oracle-asm.php` as the parity proof.
 
 ## Native First-100 Benchmark
 
