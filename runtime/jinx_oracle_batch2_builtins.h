@@ -6,6 +6,14 @@
 
 JinxValue jinx_oracle_batch2_fixture(const char *spec);
 
+JinxValue jinx_oracle_batch2_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+);
+
 JinxValue jinx_oracle_batch2_builtin(
     const char *name,
     JinxValue *args,
