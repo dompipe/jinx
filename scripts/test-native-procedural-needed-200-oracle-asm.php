@@ -221,6 +221,20 @@ if (function_exists('posix_getpid')) {
     }
 }
 
+$randomBytes = jinx200($jinx, 'random_bytes', ['i:16'], true, $code);
+if ($code !== 0 || !preg_match('/^hex:[0-9a-f]{32}$/', $randomBytes)) {
+    fail200("random_bytes length/binary contract mismatch\nJINX: {$randomBytes}");
+}
+expect200($jinx, 'random_int', ['i:7', 'i:7'], 'int:' . random_int(7, 7));
+for ($i = 0; $i < 16; $i++) {
+    $randomInt = jinx200($jinx, 'random_int', ['i:-5', 'i:9'], false, $code);
+    if ($code !== 0 ||
+        !preg_match('/^int:(-?[0-9]+)$/', $randomInt, $match) ||
+        (int)$match[1] < -5 || (int)$match[1] > 9) {
+        fail200("random_int inclusive-range contract mismatch\nJINX: {$randomInt}");
+    }
+}
+
 /* PHP debug_backtrace contract fixture: first frame includes function
  * and args unless DEBUG_BACKTRACE_IGNORE_ARGS is requested. */
 $phpTraceProbe = (static function (): array {
