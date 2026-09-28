@@ -32,6 +32,7 @@ jobs:
         run: php scripts/test-native-method-oracle-asm.php
       - name: Smoke implemented-function benchmark
         run: |
+          test "$(./jinx native-benchmark-id)" = "native-root-jinx"
           JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 3 --limit=3
           JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 3 --limit=1 '--name=Exception::getMessage'
       - name: Run registered Jinx parity suite
