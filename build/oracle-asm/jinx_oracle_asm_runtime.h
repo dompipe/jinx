@@ -62,6 +62,21 @@ typedef struct JinxOracleZendObjectView {
     void *properties;
 } JinxOracleZendObjectView;
 
+typedef struct JinxOracleZendArrayView {
+    uint32_t refcount;
+    uint32_t flags;
+    size_t count;
+} JinxOracleZendArrayView;
+
+static inline size_t jinx_oracle_native_zend_array_count(JinxValue value) {
+    const JinxOracleZendArrayView *array;
+    if (value.type != JINX_ORACLE_VALUE_ZEND_ARRAY || value.as.ptr == NULL) {
+        return 0u;
+    }
+    array = (const JinxOracleZendArrayView *)value.as.ptr;
+    return array->count;
+}
+
 static inline int jinx_oracle_native_resource_state(JinxValue value) {
     const JinxOracleZendObjectView *object;
     if (value.type != JINX_ORACLE_VALUE_ZEND_OBJECT || value.as.ptr == NULL) {
@@ -3590,6 +3605,10 @@ static inline int jinx_oracle_boolish(JinxValue value) {
         return value.flags != 0u;
     }
 
+    if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        return jinx_oracle_native_zend_array_count(value) != 0u;
+    }
+
     if (value.type == 5u) {
         return value.as.f64 != 0.0;
     }
@@ -3632,9 +3651,13 @@ static inline JinxValue jinx_oracle_strval_value(JinxValue value) {
         return jinx_oracle_string_value_len(out, len < 0 ? 0u : (uint32_t)len);
     }
 
-    if (value.type == 4u) {
+    if (value.type == 4u || value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
         memcpy(out, "Array", 5u);
         return jinx_oracle_string_value_len(out, 5u);
+    }
+
+    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        return jinx_oracle_zero_value();
     }
 
     {
@@ -3879,6 +3902,12 @@ static inline int64_t jinx_oracle_intish(JinxValue value) {
     if (value.type == 1u) return value.as.i64;
     if (value.type == 2u) return value.as.i64 != 0 ? 1 : 0;
     if (value.type == 4u) return value.flags != 0u ? 1 : 0;
+    if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        return jinx_oracle_native_zend_array_count(value) != 0u ? 1 : 0;
+    }
+    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        return jinx_oracle_native_resource_state(value) == 0 ? 1 : 0;
+    }
 
     if (value.type == 5u) {
         if (value.as.f64 >= (double)INT64_MAX) return INT64_MAX;
@@ -3910,6 +3939,12 @@ static inline int64_t jinx_oracle_intish(JinxValue value) {
 static inline double jinx_oracle_floatish(JinxValue value) {
     if (value.type == 5u) return value.as.f64;
     if (value.type == 4u) return value.flags != 0u ? 1.0 : 0.0;
+    if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        return jinx_oracle_native_zend_array_count(value) != 0u ? 1.0 : 0.0;
+    }
+    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        return jinx_oracle_native_resource_state(value) == 0 ? 1.0 : 0.0;
+    }
 
     if (value.type == 3u) {
         const unsigned char *bytes = jinx_oracle_string_bytes(value);
@@ -8124,6 +8159,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "strval")) {
+        if (arg0.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            ctx->fault = "strval object/resource conversion requires native __toString/resource formatting";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_strval_value(arg0);
         jinx_oracle_return(ctx, ret);
         return ret;
