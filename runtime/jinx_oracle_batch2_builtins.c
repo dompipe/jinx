@@ -1675,6 +1675,58 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
+    if (strcmp(name, "password_algos") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_password_algos,
+            jinx_native_password_algos_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "timezone_identifiers_list") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_timezone_identifiers,
+            jinx_native_timezone_identifiers_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "timezone_version_get") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return b2_copy(
+            JINX_NATIVE_TIMEZONE_VERSION,
+            strlen(JINX_NATIVE_TIMEZONE_VERSION)
+        );
+    }
+
+    if (strcmp(name, "spl_classes") == 0) {
+        JinxZendArray *array;
+        if (argc != 0u) return result;
+        array = jinx_zend_array_new_packed(
+            jinx_native_spl_classes_count == 0u
+                ? 1u
+                : jinx_native_spl_classes_count
+        );
+        if (array == NULL) return result;
+        for (size_t i = 0u; i < jinx_native_spl_classes_count; i++) {
+            if (!b2_assoc_string(
+                    array,
+                    jinx_native_spl_classes[i].name,
+                    jinx_native_spl_classes[i].value
+                )) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
     if (strcmp(name, "hash_algos") == 0) {
         if (argc != 0u) return result;
         result = b2_string_list(
