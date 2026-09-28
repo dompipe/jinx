@@ -40,6 +40,16 @@ if printf '%s\n' '#include <crypt.h>' 'int main(void){return crypt("x","xx")==0;
 fi
 rm -f "$CRYPT_PROBE"
 
+RESOLV_DEFINE=""
+RESOLV_LIBS=""
+RESOLV_PROBE="${OUT_DIR}/jinx-resolv-probe"
+if printf '%s\n' '#include <resolv.h>' 'int main(void){unsigned char b[512]; return res_query("localhost",1,1,b,sizeof(b))< -2;}' | \
+    "$CC_BIN" -x c - -lresolv -o "$RESOLV_PROBE" >/dev/null 2>&1; then
+    RESOLV_DEFINE="-DJINX_HAVE_RESOLV=1"
+    RESOLV_LIBS="-lresolv"
+fi
+rm -f "$RESOLV_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -57,6 +67,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CRYPTO_DEFINE} \
     ${MAGIC_DEFINE} \
     ${CRYPT_DEFINE} \
+    ${RESOLV_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -77,6 +88,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CRYPTO_LIBS} \
     ${MAGIC_LIBS} \
     ${CRYPT_LIBS} \
+    ${RESOLV_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -156,6 +168,11 @@ if [ -n "$CRYPT_DEFINE" ]; then
     echo "Native libcrypt backend: enabled"
 else
     echo "Native libcrypt backend: unavailable; crypt remains faulting"
+fi
+if [ -n "$RESOLV_DEFINE" ]; then
+    echo "Native libresolv DNS backend: enabled"
+else
+    echo "Native libresolv DNS backend: unavailable; DNS record checks remain faulting"
 fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
