@@ -1,0 +1,145 @@
+oracle_sm_family zend_procedural_needed_100
+
+purpose "First 100 needed procedural PHP builtins to move from null/fault placeholders into real Oracle ASM/native handlers. This target deliberately excludes Class::method callables so procedural parity work is not buried under SPL, Reflection, Throwable, and VM object methods."
+
+status targeted
+
+source_audit {
+  command "php scripts/audit-native-oracle-placeholders.php --procedural --names-only --limit=100"
+  reason "prioritize actual function_name(...) builtins that still fault through ./jinx oracle-call sample arguments"
+}
+
+proof_contract {
+  each_target_must_have "a non-null ./jinx oracle-call result for documented sample args"
+  each_target_must_have "a PHP comparison fixture before status can move from targeted to implemented"
+  no_placeholder_success "null/fault, generic zero-value, or hard-coded smoke-only stand-ins do not satisfy this file"
+  oracle_first "wire behavior in Oracle/native handler path before treating PASM/native binary output as complete"
+}
+
+targets {
+  # array/procedural family
+  array_all
+  array_any
+  array_chunk
+  array_column
+  array_combine
+  array_diff_uassoc
+  array_diff_ukey
+  array_fill
+  array_fill_keys
+  array_find
+  array_find_key
+  array_intersect_uassoc
+  array_intersect_ukey
+  array_map
+  array_multisort
+  array_rand
+  array_reduce
+  array_udiff
+  array_udiff_assoc
+  array_udiff_uassoc
+  array_uintersect
+  array_uintersect_assoc
+  array_uintersect_uassoc
+  array_walk
+  array_walk_recursive
+  arsort
+  asort
+  ksort
+  krsort
+  natsort
+  natcasesort
+  rsort
+  sort
+  uasort
+  uksort
+  usort
+  shuffle
+
+  # callable/user-function dispatch
+  call_user_func
+  call_user_func_array
+
+  # calendar/date procedural family
+  cal_days_in_month
+  cal_to_jd
+  date_add
+  date_create
+  date_create_from_format
+  date_create_immutable
+  date_create_immutable_from_format
+  date_date_set
+  date_default_timezone_get
+  date_default_timezone_set
+  date_diff
+  date_format
+  date_get_last_errors
+  date_interval_create_from_date_string
+  date_interval_format
+  date_isodate_set
+  date_modify
+  date_offset_get
+  date_parse
+  date_parse_from_format
+  date_sub
+  date_sun_info
+  date_sunrise
+  date_sunset
+  date_time_set
+  date_timestamp_get
+  date_timestamp_set
+  date_timezone_get
+  date_timezone_set
+
+  # filesystem/stream procedural family
+  chdir
+  chgrp
+  chmod
+  chown
+  clearstatcache
+  copy
+  dirname
+  fclose
+  feof
+  fflush
+  fgetc
+  fgetcsv
+  fgets
+  file
+  file_exists
+  file_get_contents
+  file_put_contents
+  fileatime
+  filectime
+  filegroup
+  fileinode
+  filemtime
+  fileowner
+  fileperms
+  filesize
+  filetype
+  flock
+  fopen
+
+  # introspection/string/math holes needed by common PHP scripts
+  class_alias
+  class_exists
+  class_implements
+  class_parents
+  class_uses
+  constant
+  defined
+}
+
+batching {
+  batch_01 "array callbacks/comparators: array_all through array_walk_recursive, plus call_user_func[_array]"
+  batch_02 "array sort/mutation: sort/rsort/asort/arsort/ksort/krsort/nat*sort/u*sort/shuffle"
+  batch_03 "date/calendar constructors and formatting"
+  batch_04 "filesystem stat and file IO subset"
+  batch_05 "introspection constants/classes"
+}
+
+notes {
+  "This is a target/worklist, not a claim that all 100 are implemented."
+  "Promote a name only after a parity fixture proves PHP-vs-Jinx output/return/error behavior."
+}
