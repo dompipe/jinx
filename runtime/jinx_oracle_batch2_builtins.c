@@ -64,6 +64,9 @@ static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
 static char *jinx_oracle_batch2_syslog_ident = NULL;
 static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
+static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
+static size_t jinx_oracle_batch2_strtok_len = 0u;
+static size_t jinx_oracle_batch2_strtok_pos = 0u;
 
 typedef struct JinxOracleBatch2IniOverride {
     char *name;
@@ -2639,6 +2642,84 @@ JinxValue jinx_oracle_batch2_builtin(
         );
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(sdn);
+    }
+
+    if (strcmp(name, "strtok") == 0) {
+        const unsigned char *delimiters = NULL;
+        size_t delimiter_len = 0u;
+        unsigned char table[256] = {0};
+        size_t start;
+        size_t end;
+
+        if (args == NULL || argc < 1u || argc > 2u || args[0].type != 3u) {
+            return result;
+        }
+
+        if (argc == 2u && args[1].type != 0u) {
+            const unsigned char *source;
+            size_t source_len;
+            unsigned char *copy;
+            if (args[1].type != 3u) return result;
+            source = jinx_oracle_string_bytes(args[0]);
+            source_len = (size_t)jinx_oracle_string_len(args[0]);
+            copy = (unsigned char *)malloc(source_len == 0u ? 1u : source_len);
+            if (copy == NULL) return result;
+            if (source_len != 0u) memcpy(copy, source, source_len);
+            free(jinx_oracle_batch2_strtok_string);
+            jinx_oracle_batch2_strtok_string = copy;
+            jinx_oracle_batch2_strtok_len = source_len;
+            jinx_oracle_batch2_strtok_pos = 0u;
+            delimiters = jinx_oracle_string_bytes(args[1]);
+            delimiter_len = (size_t)jinx_oracle_string_len(args[1]);
+        } else {
+            if (jinx_oracle_batch2_strtok_string == NULL) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            delimiters = jinx_oracle_string_bytes(args[0]);
+            delimiter_len = (size_t)jinx_oracle_string_len(args[0]);
+        }
+
+        if (jinx_oracle_batch2_strtok_pos >= jinx_oracle_batch2_strtok_len) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        for (size_t i = 0u; i < delimiter_len; i++) {
+            table[delimiters[i]] = 1u;
+        }
+
+        while (jinx_oracle_batch2_strtok_pos < jinx_oracle_batch2_strtok_len &&
+               table[jinx_oracle_batch2_strtok_string[
+                   jinx_oracle_batch2_strtok_pos
+               ]] != 0u) {
+            jinx_oracle_batch2_strtok_pos++;
+        }
+
+        if (jinx_oracle_batch2_strtok_pos >= jinx_oracle_batch2_strtok_len) {
+            free(jinx_oracle_batch2_strtok_string);
+            jinx_oracle_batch2_strtok_string = NULL;
+            jinx_oracle_batch2_strtok_len = 0u;
+            jinx_oracle_batch2_strtok_pos = 0u;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        start = jinx_oracle_batch2_strtok_pos;
+        end = start + 1u;
+        while (end < jinx_oracle_batch2_strtok_len &&
+               table[jinx_oracle_batch2_strtok_string[end]] == 0u) {
+            end++;
+        }
+        jinx_oracle_batch2_strtok_pos =
+            end < jinx_oracle_batch2_strtok_len ? end + 1u : end;
+
+        result = b2_copy(
+            (const char *)jinx_oracle_batch2_strtok_string + start,
+            end - start
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
     }
 
     if (strcmp(name, "uniqid") == 0) {
