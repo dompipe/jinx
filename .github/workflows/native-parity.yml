@@ -19,5 +19,7 @@ jobs:
             libcrypt-dev libcurl4-openssl-dev libexif-dev
       - name: Build native Jinx
         run: ./scripts/build-native-jinx.sh
+      - name: Run native method parity probes
+        run: php scripts/test-native-method-oracle-asm.php
       - name: Run registered Jinx parity suite
         run: php scripts/test-bin-jinx.php
