@@ -36,6 +36,7 @@
 #include <sys/time.h>
 #include <sys/times.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <syslog.h>
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -1621,6 +1622,128 @@ JinxValue jinx_oracle_batch2_builtin(
         free(path);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(rc == 0);
+    }
+    if (strcmp(name, "posix_get_last_error") == 0 ||
+        strcmp(name, "posix_errno") == 0) {
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)jinx_oracle_batch2_posix_last_error);
+    }
+    if (strcmp(name, "posix_ctermid") == 0) {
+        char buffer[L_ctermid];
+        char *terminal = ctermid(buffer);
+        if (handled != NULL) *handled = 1;
+        if (terminal == NULL) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            return jinx_oracle_bool_value(0);
+        }
+        return b2_copy(terminal, strlen(terminal));
+    }
+    if (strcmp(name, "posix_sysconf") == 0) {
+        long value;
+        if (args == NULL || argc < 1u) return result;
+        value = sysconf((int)jinx_oracle_intish(args[0]));
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)value);
+    }
+    if (strcmp(name, "posix_pathconf") == 0) {
+        char *path;
+        long value;
+        if (args == NULL || argc < 2u || args[0].type != 3u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL || path[0] == '\0') {
+            free(path);
+            return result;
+        }
+        errno = 0;
+        value = pathconf(path, (int)jinx_oracle_intish(args[1]));
+        if (value < 0 && errno != 0) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            free(path);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)value);
+    }
+    if (strcmp(name, "posix_fpathconf") == 0) {
+        long value;
+        int fd;
+        if (args == NULL || argc < 2u || args[0].type != 1u) return result;
+        fd = (int)jinx_oracle_intish(args[0]);
+        errno = 0;
+        value = fpathconf(fd, (int)jinx_oracle_intish(args[1]));
+        if (value < 0 && errno != 0) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)value);
+    }
+    if (strcmp(name, "posix_isatty") == 0) {
+        int fd;
+        if (args == NULL || argc < 1u || args[0].type != 1u) return result;
+        fd = (int)jinx_oracle_intish(args[0]);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(isatty(fd) == 1);
+    }
+    if (strcmp(name, "posix_ttyname") == 0) {
+        int fd;
+        char *terminal;
+        if (args == NULL || argc < 1u || args[0].type != 1u) return result;
+        fd = (int)jinx_oracle_intish(args[0]);
+        errno = 0;
+        terminal = ttyname(fd);
+        if (handled != NULL) *handled = 1;
+        if (terminal == NULL) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            return jinx_oracle_bool_value(0);
+        }
+        return b2_copy(terminal, strlen(terminal));
+    }
+    if (strcmp(name, "posix_times") == 0) {
+        struct tms times_value;
+        clock_t ticks = times(&times_value);
+        JinxZendArray *array;
+        if (ticks == (clock_t)-1) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        array = jinx_zend_array_new_packed(5u);
+        if (array == NULL) return result;
+        if (!jinx_zend_array_add_assoc(array, "ticks", 5u, jinx_zend_long((int64_t)ticks)) ||
+            !jinx_zend_array_add_assoc(array, "utime", 5u, jinx_zend_long((int64_t)times_value.tms_utime)) ||
+            !jinx_zend_array_add_assoc(array, "stime", 5u, jinx_zend_long((int64_t)times_value.tms_stime)) ||
+            !jinx_zend_array_add_assoc(array, "cutime", 6u, jinx_zend_long((int64_t)times_value.tms_cutime)) ||
+            !jinx_zend_array_add_assoc(array, "cstime", 6u, jinx_zend_long((int64_t)times_value.tms_cstime))) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+    if (strcmp(name, "posix_uname") == 0) {
+        struct utsname info;
+        JinxZendArray *array;
+        if (uname(&info) != 0) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        array = jinx_zend_array_new_packed(5u);
+        if (array == NULL) return result;
+        if (!b2_assoc_string(array, "sysname", info.sysname) ||
+            !b2_assoc_string(array, "nodename", info.nodename) ||
+            !b2_assoc_string(array, "release", info.release) ||
+            !b2_assoc_string(array, "version", info.version) ||
+            !b2_assoc_string(array, "machine", info.machine)) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
     }
 
     if (strcmp(name, "function_exists") == 0 ||
