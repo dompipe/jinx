@@ -1336,7 +1336,7 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
     if (strcmp(spec, "fp:tmp") == 0) {
         FILE *fp = tmpfile();
         if (fp == NULL) return jinx_oracle_zero_value();
-        fputs("a,b\\nsecond line\\n", fp);
+        fputs("a,b\nsecond line\n", fp);
         rewind(fp);
         return jinx_oracle_ext_new_stream(fp);
     }
