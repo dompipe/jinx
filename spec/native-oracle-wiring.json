@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 724,
-        "extended_native_route": 426,
+        "native_named_route": 726,
+        "extended_native_route": 428,
         "context_native_route": 3,
-        "intentional_native_fault": 2803
+        "intentional_native_fault": 2801
     },
     "routes": {
         "_": "extended",
@@ -463,7 +463,7 @@
         "datetime::createfrominterface": "intentional-native-fault",
         "datetime::createfromtimestamp": "intentional-native-fault",
         "datetime::diff": "intentional-native-fault",
-        "datetime::format": "intentional-native-fault",
+        "datetime::format": "extended",
         "datetime::getlasterrors": "intentional-native-fault",
         "datetime::getmicrosecond": "intentional-native-fault",
         "datetime::getoffset": "intentional-native-fault",
@@ -488,7 +488,7 @@
         "datetimeimmutable::createfrommutable": "intentional-native-fault",
         "datetimeimmutable::createfromtimestamp": "intentional-native-fault",
         "datetimeimmutable::diff": "intentional-native-fault",
-        "datetimeimmutable::format": "intentional-native-fault",
+        "datetimeimmutable::format": "extended",
         "datetimeimmutable::getlasterrors": "intentional-native-fault",
         "datetimeimmutable::getmicrosecond": "intentional-native-fault",
         "datetimeimmutable::getoffset": "intentional-native-fault",
