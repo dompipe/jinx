@@ -63,6 +63,31 @@ foreach ($validNull as $case) {
     }
 }
 
+/* Real Zend-array carriers must use PHP array conversion rules, not object/scalar fallthrough. */
+$arrayConversions = [
+    ['boolval', 'za:empty', 'bool:false'],
+    ['boolval', 'za:sample', 'bool:true'],
+    ['intval', 'za:empty', 'int:0'],
+    ['intval', 'za:sample', 'int:1'],
+    ['floatval', 'za:empty', 'float:0'],
+    ['floatval', 'za:sample', 'float:1'],
+    ['strval', 'za:sample', 'string:Array'],
+    ['intval', 'dt:2024-01-02 03:04:05', 'int:1'],
+    ['floatval', 'dt:2024-01-02 03:04:05', 'float:1'],
+];
+
+foreach ($arrayConversions as [$name, $arg, $expected]) {
+    $out = runReturn([$jinx, 'oracle-call', $name, $arg], $code);
+    if ($code !== 0 || $out !== $expected) {
+        failReturn("{$name}({$arg}) expected {$expected}, got {$out}");
+    }
+}
+
+$out = runReturn([$jinx, 'oracle-call', 'strval', 'dt:2024-01-02 03:04:05'], $code);
+if ($code === 0 || !str_contains($out, 'null/fault: strval')) {
+    failReturn("strval(DateTime) fabricated a scalar value instead of requiring __toString: {$out}");
+}
+
 /* Native stream carriers must behave like PHP resources, not ordinary objects. */
 $resourceChecks = [
     ['is_resource', 'bool:true'],
