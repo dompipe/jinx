@@ -123,6 +123,29 @@ static int jinx_oracle_ext_object_set_string(JinxZendObject *object, const char 
     return ok;
 }
 
+static int jinx_oracle_ext_object_set_value(
+    JinxZendObject *object,
+    const char *key,
+    JinxValue value
+) {
+    JinxZendValue zend_value;
+    JinxZendString *owned_string = NULL;
+    int ok;
+
+    if (object == NULL || object->properties == NULL || key == NULL) return 0;
+    if (!jinx_oracle_jinx_value_to_zend(value, &zend_value, &owned_string)) {
+        return 0;
+    }
+    ok = jinx_zend_array_add_assoc(
+        object->properties,
+        key,
+        strlen(key),
+        zend_value
+    );
+    jinx_zend_string_release(owned_string);
+    return ok;
+}
+
 static int jinx_oracle_ext_object_set_resource(JinxZendObject *object, const char *key, void *ptr) {
     JinxZendValue value = jinx_zend_null();
     if (object == NULL || object->properties == NULL) return 0;
@@ -1574,10 +1597,16 @@ JinxValue jinx_oracle_extended_builtin(
                         return jinx_oracle_zero_value();
                     }
 
-                    if (strcasecmp(method, "__construct") == 0 &&
-                        argc >= 1u && argc <= 4u) {
+                    if (strcasecmp(method, "__construct") == 0) {
                         const char *message = "";
                         int64_t code = 0;
+                        int is_error_exception =
+                            strcasecmp(object->class_name, "ErrorException") == 0;
+
+                        if ((!is_error_exception && (argc < 1u || argc > 4u)) ||
+                            (is_error_exception && (argc < 1u || argc > 7u))) {
+                            return result;
+                        }
 
                         if (argc >= 2u) {
                             if (args[1].type != 3u) return result;
@@ -1597,8 +1626,60 @@ JinxValue jinx_oracle_extended_builtin(
                             return result;
                         }
 
+                        if (is_error_exception) {
+                            if (argc >= 4u &&
+                                !jinx_oracle_ext_object_set_long(
+                                    object, "severity",
+                                    jinx_oracle_intish(args[3])
+                                )) {
+                                return result;
+                            }
+                            if (argc >= 5u) {
+                                char *file;
+                                if (args[4].type != 3u) return result;
+                                file = jinx_oracle_ext_dup_string_value(args[4]);
+                                if (file == NULL ||
+                                    !jinx_oracle_ext_object_set_string(
+                                        object, "file", file
+                                    )) {
+                                    free(file);
+                                    return result;
+                                }
+                                free(file);
+                            }
+                            if (argc >= 6u &&
+                                !jinx_oracle_ext_object_set_long(
+                                    object, "line",
+                                    jinx_oracle_intish(args[5])
+                                )) {
+                                return result;
+                            }
+                            if (argc >= 7u &&
+                                !jinx_oracle_ext_object_set_value(
+                                    object, "previous", args[6]
+                                )) {
+                                return result;
+                            }
+                        } else if (argc >= 4u &&
+                                   !jinx_oracle_ext_object_set_value(
+                                       object, "previous", args[3]
+                                   )) {
+                            return result;
+                        }
+
                         if (handled != NULL) *handled = 1;
                         return jinx_oracle_zero_value();
+                    }
+
+                    if (strcasecmp(method, "getSeverity") == 0 &&
+                        argc == 1u &&
+                        strcasecmp(object->class_name, "ErrorException") == 0) {
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_int_value(
+                            jinx_oracle_ext_object_long(
+                                object, "severity", E_ERROR
+                            )
+                        );
                     }
 
                     if (strcasecmp(method, "getMessage") == 0 &&
@@ -1625,7 +1706,19 @@ JinxValue jinx_oracle_extended_builtin(
 
                     if (strcasecmp(method, "getPrevious") == 0 &&
                         argc == 1u) {
+                        JinxZendValue *previous =
+                            jinx_oracle_ext_object_prop(object, "previous");
                         if (handled != NULL) *handled = 1;
+                        if (previous == NULL ||
+                            previous->type == JINX_ZEND_NULL) {
+                            return jinx_oracle_zero_value();
+                        }
+                        if (previous->type == JINX_ZEND_OBJECT &&
+                            previous->value.object != NULL) {
+                            return jinx_oracle_zend_object_value_borrowed(
+                                previous->value.object
+                            );
+                        }
                         return jinx_oracle_zero_value();
                     }
 
