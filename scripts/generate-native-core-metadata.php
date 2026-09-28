@@ -30,6 +30,8 @@ function cint64(int $value): string {
 $defaultTimezone = date_default_timezone_get();
 $systemTempDirectory = sys_get_temp_dir();
 $phpSapiName = PHP_SAPI;
+$phpVersion = PHP_VERSION;
+$zendVersion = zend_version();
 $phpIniLoadedFile = php_ini_loaded_file();
 $phpIniScannedFiles = php_ini_scanned_files();
 $posixUname = function_exists('posix_uname') ? posix_uname() : false;
@@ -171,6 +173,8 @@ $code[] = '#include <stddef.h>';
 $code[] = '#define JINX_NATIVE_PHP_DEFAULT_TIMEZONE ' . cstr($defaultTimezone);
 $code[] = '#define JINX_NATIVE_PHP_SYS_TEMP_DIR ' . cstr($systemTempDirectory);
 $code[] = '#define JINX_NATIVE_PHP_SAPI_NAME ' . cstr($phpSapiName);
+$code[] = '#define JINX_NATIVE_PHP_VERSION ' . cstr($phpVersion);
+$code[] = '#define JINX_NATIVE_ZEND_VERSION ' . cstr($zendVersion);
 $code[] = '#define JINX_NATIVE_PHP_INI_LOADED_FILE_AVAILABLE ' . ($phpIniLoadedFile === false ? '0' : '1');
 $code[] = '#define JINX_NATIVE_PHP_INI_LOADED_FILE ' . cstr($phpIniLoadedFile === false ? '' : $phpIniLoadedFile);
 $code[] = '#define JINX_NATIVE_PHP_INI_SCANNED_FILES_AVAILABLE ' . ($phpIniScannedFiles === false ? '0' : '1');
