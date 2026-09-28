@@ -931,6 +931,154 @@ if ($code === 0 && !str_starts_with($hashProbe, 'null/fault:')) {
         'hex:' . bin2hex(hash_hkdf('sha256', 'key', 16, 'info', 'salt')),
         true
     );
+
+    if (function_exists('openssl_digest') &&
+        function_exists('openssl_encrypt') &&
+        function_exists('openssl_decrypt') &&
+        function_exists('openssl_cipher_iv_length') &&
+        function_exists('openssl_cipher_key_length')) {
+        $opensslMethod = 'aes-128-cbc';
+        $opensslData = 'Jinx OpenSSL parity';
+        $opensslKey = 'secret';
+        $opensslIv = '1234567890abcdef';
+
+        expect200(
+            $jinx,
+            'openssl_digest',
+            ['s:' . $opensslData, 's:sha256'],
+            'string:' . openssl_digest($opensslData, 'sha256')
+        );
+        expect200(
+            $jinx,
+            'openssl_digest',
+            ['s:' . $opensslData, 's:sha256', 'b:true'],
+            'hex:' . bin2hex(openssl_digest($opensslData, 'sha256', true)),
+            true
+        );
+        expect200(
+            $jinx,
+            'openssl_cipher_iv_length',
+            ['s:' . $opensslMethod],
+            'int:' . openssl_cipher_iv_length($opensslMethod)
+        );
+        expect200(
+            $jinx,
+            'openssl_cipher_key_length',
+            ['s:' . $opensslMethod],
+            'int:' . openssl_cipher_key_length($opensslMethod)
+        );
+
+        $phpOpenSslBase64 = openssl_encrypt(
+            $opensslData,
+            $opensslMethod,
+            $opensslKey,
+            0,
+            $opensslIv
+        );
+        if (!is_string($phpOpenSslBase64)) {
+            fail200('PHP OpenSSL base64 encryption fixture failed');
+        }
+        expect200(
+            $jinx,
+            'openssl_encrypt',
+            [
+                's:' . $opensslData,
+                's:' . $opensslMethod,
+                's:' . $opensslKey,
+                'i:0',
+                's:' . $opensslIv,
+            ],
+            'string:' . $phpOpenSslBase64
+        );
+        expect200(
+            $jinx,
+            'openssl_decrypt',
+            [
+                's:' . $phpOpenSslBase64,
+                's:' . $opensslMethod,
+                's:' . $opensslKey,
+                'i:0',
+                's:' . $opensslIv,
+            ],
+            'string:' . openssl_decrypt(
+                $phpOpenSslBase64,
+                $opensslMethod,
+                $opensslKey,
+                0,
+                $opensslIv
+            )
+        );
+
+        $rawOption = defined('OPENSSL_RAW_DATA') ? OPENSSL_RAW_DATA : 1;
+        $phpOpenSslRaw = openssl_encrypt(
+            $opensslData,
+            $opensslMethod,
+            $opensslKey,
+            $rawOption,
+            $opensslIv
+        );
+        if (!is_string($phpOpenSslRaw)) {
+            fail200('PHP OpenSSL raw encryption fixture failed');
+        }
+        expect200(
+            $jinx,
+            'openssl_encrypt',
+            [
+                's:' . $opensslData,
+                's:' . $opensslMethod,
+                's:' . $opensslKey,
+                'i:' . $rawOption,
+                's:' . $opensslIv,
+            ],
+            'hex:' . bin2hex($phpOpenSslRaw),
+            true
+        );
+        expect200(
+            $jinx,
+            'openssl_decrypt',
+            [
+                'h:' . bin2hex($phpOpenSslRaw),
+                's:' . $opensslMethod,
+                's:' . $opensslKey,
+                'i:' . $rawOption,
+                's:' . $opensslIv,
+            ],
+            'hex:' . bin2hex((string)openssl_decrypt(
+                $phpOpenSslRaw,
+                $opensslMethod,
+                $opensslKey,
+                $rawOption,
+                $opensslIv
+            )),
+            true
+        );
+
+        $zeroOption = $rawOption | (defined('OPENSSL_ZERO_PADDING') ? OPENSSL_ZERO_PADDING : 2);
+        $zeroData = '0123456789abcdef';
+        $phpOpenSslZero = openssl_encrypt(
+            $zeroData,
+            $opensslMethod,
+            $opensslKey,
+            $zeroOption,
+            $opensslIv
+        );
+        if (!is_string($phpOpenSslZero)) {
+            fail200('PHP OpenSSL zero-padding fixture failed');
+        }
+        expect200(
+            $jinx,
+            'openssl_encrypt',
+            [
+                's:' . $zeroData,
+                's:' . $opensslMethod,
+                's:' . $opensslKey,
+                'i:' . $zeroOption,
+                's:' . $opensslIv,
+            ],
+            'hex:' . bin2hex($phpOpenSslZero),
+            true
+        );
+    }
 }
 
 /* Optional libmagic backend follows the same fail-closed rule. */
