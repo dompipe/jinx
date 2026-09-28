@@ -1395,6 +1395,30 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
             : jinx_oracle_zero_value();
     }
 
+    if (strncmp(spec, "ex:", 3u) == 0) {
+        const char *class_name = spec + 3u;
+        int known = 0;
+        JinxZendObject *object;
+
+        if (!jinx_oracle_ext_class_is_a_name(
+            class_name, "Throwable", 0, &known
+        ) || !known) {
+            return jinx_oracle_zero_value();
+        }
+
+        object = jinx_zend_object_new(class_name);
+        if (object == NULL ||
+            !jinx_oracle_ext_object_set_string(
+                object, "message", "jinx-message"
+            ) ||
+            !jinx_oracle_ext_object_set_long(object, "code", 73)) {
+            jinx_zend_object_release(object);
+            return jinx_oracle_zero_value();
+        }
+
+        return jinx_oracle_zend_object_value_owned(object);
+    }
+
     if (strncmp(spec, "dt:", 3u) == 0) {
         int64_t timestamp;
         if (!jinx_oracle_ext_parse_datetime_text(
@@ -1511,6 +1535,76 @@ JinxValue jinx_oracle_extended_builtin(
             return jinx_oracle_extended_builtin(
                 procedural_alias, args, argc, handled
             );
+        }
+    }
+
+    {
+        const char *separator = strstr(name, "::");
+        JinxZendObject *object =
+            args != NULL && argc >= 1u
+                ? jinx_oracle_zend_object_ptr(args[0])
+                : NULL;
+
+        if (separator != NULL && object != NULL &&
+            object->class_name != NULL) {
+            size_t class_len = (size_t)(separator - name);
+            char class_name[256];
+            int known = 0;
+
+            if (class_len < sizeof(class_name)) {
+                memcpy(class_name, name, class_len);
+                class_name[class_len] = '\0';
+
+                if (strcasecmp(class_name, object->class_name) == 0 &&
+                    jinx_oracle_ext_class_is_a_name(
+                        object->class_name, "Throwable", 0, &known
+                    ) && known) {
+                    const char *method = separator + 2u;
+
+                    if (strcasecmp(method, "getMessage") == 0 &&
+                        argc == 1u) {
+                        const char *message =
+                            jinx_oracle_ext_object_string(
+                                object, "message", ""
+                            );
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_ext_copy_string(
+                            message, strlen(message)
+                        );
+                    }
+
+                    if (strcasecmp(method, "getCode") == 0 &&
+                        argc == 1u) {
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_int_value(
+                            jinx_oracle_ext_object_long(
+                                object, "code", 0
+                            )
+                        );
+                    }
+
+                    if (strcasecmp(method, "getPrevious") == 0 &&
+                        argc == 1u) {
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_zero_value();
+                    }
+
+                    if (strcasecmp(method, "getTrace") == 0 &&
+                        argc == 1u) {
+                        JinxZendArray *trace =
+                            jinx_zend_array_new_packed(1u);
+                        if (trace == NULL) return result;
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_zend_array_value_owned(trace);
+                    }
+
+                    if (strcasecmp(method, "getTraceAsString") == 0 &&
+                        argc == 1u) {
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_ext_copy_string("", 0u);
+                    }
+                }
+            }
         }
     }
 
