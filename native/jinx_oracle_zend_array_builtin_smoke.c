@@ -1,6 +1,8 @@
 #include <stdio.h>
 
-#include "../runtime/jinx_oracle_zend_array_builtins.h"
+#include "../runtime/jinx_builtin_dispatch.h"
+#include "../runtime/jinx_oracle_zend_array_carrier.h"
+#include "../runtime/jinx_zend_array_delete.h"
 
 static int expect_int(JinxValue value, int64_t expected) {
     return value.type == 1u && value.as.i64 == expected;
@@ -18,6 +20,7 @@ static int expect_array_live_count(JinxValue value, size_t expected) {
 int main(void) {
     JinxZendArray *array = jinx_zend_array_new_packed(4);
     JinxValue carried;
+    JinxValue args[2];
     JinxValue result;
     JinxZendArray *values;
     JinxZendArray *keys;
@@ -44,49 +47,60 @@ int main(void) {
 
     carried = jinx_oracle_zend_array_value_borrowed(array);
 
-    result = jinx_oracle_zend_array_dispatch_builtin("count", carried, jinx_oracle_zero_value());
+    args[0] = carried;
+    result = jinx_call_builtin_through_oracle("count", args, 1u);
     if (!expect_int(result, 2)) {
         fprintf(stderr, "FAIL: carrier count did not ignore tombstones\n");
         jinx_zend_array_release(array);
         return 1;
     }
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_key_exists", carried, jinx_oracle_int_value(1));
+    args[0] = jinx_oracle_int_value(1);
+    args[1] = carried;
+    result = jinx_call_builtin_through_oracle("array_key_exists", args, 2u);
     if (!expect_bool(result, 0)) {
         fprintf(stderr, "FAIL: deleted numeric key still exists\n");
         jinx_zend_array_release(array);
         return 1;
     }
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_key_exists", carried, jinx_oracle_int_value(0));
+    args[0] = jinx_oracle_int_value(0);
+    args[1] = carried;
+    result = jinx_call_builtin_through_oracle("array_key_exists", args, 2u);
     if (!expect_bool(result, 1)) {
         fprintf(stderr, "FAIL: live numeric key missing\n");
         jinx_zend_array_release(array);
         return 1;
     }
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_key_exists", carried, jinx_oracle_string_value("name"));
+    args[0] = jinx_oracle_string_value("name");
+    args[1] = carried;
+    result = jinx_call_builtin_through_oracle("array_key_exists", args, 2u);
     if (!expect_bool(result, 0)) {
         fprintf(stderr, "FAIL: deleted string key still exists\n");
         jinx_zend_array_release(array);
         return 1;
     }
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_key_exists", carried, jinx_oracle_string_value("keep"));
+    args[0] = jinx_oracle_string_value("keep");
+    args[1] = carried;
+    result = jinx_call_builtin_through_oracle("array_key_exists", args, 2u);
     if (!expect_bool(result, 1)) {
         fprintf(stderr, "FAIL: live string key missing\n");
         jinx_zend_array_release(array);
         return 1;
     }
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_is_list", carried, jinx_oracle_zero_value());
+    args[0] = carried;
+    result = jinx_call_builtin_through_oracle("array_is_list", args, 1u);
     if (!expect_bool(result, 0)) {
         fprintf(stderr, "FAIL: tombstoned sparse array reported as list\n");
         jinx_zend_array_release(array);
         return 1;
     }
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_values", carried, jinx_oracle_zero_value());
+    args[0] = carried;
+    result = jinx_call_builtin_through_oracle("array_values", args, 1u);
     if (!expect_array_live_count(result, 2)) {
         fprintf(stderr, "FAIL: array_values did not return two live values\n");
         jinx_oracle_zend_array_value_release(result);
@@ -104,7 +118,8 @@ int main(void) {
     }
     jinx_oracle_zend_array_value_release(result);
 
-    result = jinx_oracle_zend_array_dispatch_builtin("array_keys", carried, jinx_oracle_zero_value());
+    args[0] = carried;
+    result = jinx_call_builtin_through_oracle("array_keys", args, 1u);
     if (!expect_array_live_count(result, 2)) {
         fprintf(stderr, "FAIL: array_keys did not return two live keys\n");
         jinx_oracle_zend_array_value_release(result);

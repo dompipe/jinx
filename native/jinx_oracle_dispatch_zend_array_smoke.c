@@ -60,7 +60,129 @@ static int fail(const char *message) {
     return 1;
 }
 
+static int expect_dispatch_fault(const char *name, JinxValue *args, size_t argc) {
+    int ok = 1;
+    JinxValue result = jinx_call_builtin_through_oracle_checked(name, args, argc, &ok);
+    return !ok && result.type == 0u && result.flags == 0u;
+}
+
+static int check_container_dispatch_contract(void) {
+    JinxValue args[4];
+    JinxValue result;
+    int ok = 0;
+    const char *merges[] = {"array_merge", "array_merge_recursive"};
+    for (size_t i = 0u; i < 2u; i++) {
+        result = jinx_call_builtin_through_oracle_checked(merges[i], NULL, 0u, &ok);
+        if (!ok || !expect_array_count(result, 0u)) return fail("zero-argument merge dispatch");
+        printf("WIRING_MERGE:%s=%zu\n", merges[i], jinx_zend_array_live_count(jinx_oracle_zend_array_ptr(result)));
+        jinx_oracle_zend_array_value_release(result);
+    }
+
+    JinxZendArray *source = jinx_zend_array_new_packed(2u);
+    JinxZendArray *empty = jinx_zend_array_new_packed(1u);
+    if (source == 0 || empty == 0 ||
+        !jinx_zend_array_append(source, jinx_zend_long(10)) ||
+        !jinx_zend_array_add_assoc(source, "x", 1u, jinx_zend_long(20))) return fail("dispatch contract source");
+    const char *sets[] = {
+        "array_diff", "array_diff_assoc", "array_diff_key",
+        "array_intersect", "array_intersect_assoc", "array_intersect_key",
+        "array_diff_uassoc", "array_diff_ukey", "array_udiff", "array_udiff_assoc",
+        "array_intersect_uassoc", "array_intersect_ukey", "array_uintersect", "array_uintersect_assoc",
+        "array_udiff_uassoc", "array_uintersect_uassoc"
+    };
+    args[0] = jinx_oracle_zend_array_value_borrowed(source);
+    args[1] = jinx_oracle_string_value("strcmp");
+    args[2] = jinx_oracle_string_value("strcmp");
+    for (size_t i = 0u; i < sizeof(sets) / sizeof(sets[0]); i++) {
+        size_t argc = i < 6u ? 1u : (i < 14u ? 2u : 3u);
+        result = jinx_call_builtin_through_oracle_checked(sets[i], args, argc, &ok);
+        JinxZendArray *copy = jinx_oracle_zend_array_ptr(result);
+        if (!ok || !expect_array_count(result, 2u) || !expect_long_index(copy, 0u, 10) ||
+            !expect_long_key(copy, "x", 20)) return fail("single-array set operation dispatch");
+        printf("WIRING_SET:%s=%lld,%lld\n", sets[i],
+            (long long)jinx_zend_array_index(copy, 0u)->value.lval,
+            (long long)jinx_zend_array_find(copy, "x", 1u)->value.lval);
+        jinx_oracle_zend_array_value_release(result);
+    }
+
+    args[0] = jinx_oracle_string_value("0");
+    args[1] = jinx_oracle_zend_array_value_borrowed(source);
+    result = jinx_call_builtin_through_oracle_checked("array_key_exists", args, 2u, &ok);
+    if (!ok || !expect_bool(result, 1)) return fail("numeric string key dispatch");
+    printf("WIRING_KEY:numeric=%lld\n", (long long)result.as.i64);
+    args[0] = jinx_oracle_zero_value();
+    result = jinx_call_builtin_through_oracle_checked("key_exists", args, 2u, &ok);
+    if (!ok || !expect_bool(result, 0)) return fail("null key must not alias index zero");
+    if (!jinx_zend_array_add_assoc(source, "", 0u, jinx_zend_long(30))) return fail("empty key source");
+    result = jinx_call_builtin_through_oracle_checked("key_exists", args, 2u, &ok);
+    if (!ok || !expect_bool(result, 1)) return fail("null key empty string dispatch");
+    printf("WIRING_KEY:null=%lld\n", (long long)result.as.i64);
+    args[0] = jinx_oracle_zend_array_value_borrowed(empty);
+    if (!expect_dispatch_fault("array_key_exists", args, 2u)) return fail("array key type must fault");
+
+    const char *nullable[] = {"array_pop", "array_shift", "key", "array_key_first", "array_key_last",
+        "array_reduce", "array_find", "array_find_key"};
+    args[0] = jinx_oracle_zend_array_value_borrowed(empty);
+    args[1] = jinx_oracle_string_value("strcmp");
+    for (size_t i = 0u; i < sizeof(nullable) / sizeof(nullable[0]); i++) {
+        result = jinx_call_builtin_through_oracle_checked(nullable[i], args, i < 5u ? 1u : 2u, &ok);
+        if (!ok || result.type != 0u || result.flags != 0u) return fail("valid container null reported as a fault");
+        printf("WIRING_NULL:%s=null\n", nullable[i]);
+    }
+
+    args[0] = jinx_oracle_string_value("null");
+    result = jinx_call_builtin_through_oracle_checked("json_decode", args, 1u, &ok);
+    if (!ok || result.type != 0u) return fail("JSON literal null dispatch status");
+    args[0] = jinx_oracle_string_value("{");
+    result = jinx_call_builtin_through_oracle_checked("json_decode", args, 1u, &ok);
+    if (!ok || result.type != 0u) return fail("JSON syntax error null dispatch status");
+    printf("WIRING_NULL:json_decode=null\n");
+    args[0] = jinx_oracle_string_value("x=1");
+    args[1] = jinx_oracle_zero_value();
+    result = jinx_call_builtin_through_oracle_checked("parse_str", args, 2u, &ok);
+    if (!ok || result.type != 0u || !expect_array_count(args[1], 1u)) return fail("parse_str successful void status");
+    jinx_oracle_zend_array_value_release(args[1]);
+
+    args[0] = jinx_oracle_string_value("abc");
+    args[1] = jinx_oracle_int_value(5);
+    if (!expect_dispatch_fault("count_chars", args, 2u)) return fail("invalid count_chars mode status");
+    args[0] = jinx_oracle_zend_array_value_borrowed(source);
+    args[1] = jinx_oracle_int_value(0);
+    if (!expect_dispatch_fault("array_chunk", args, 2u)) return fail("invalid array_chunk length status");
+    args[1] = jinx_oracle_int_value(2);
+    if (!expect_dispatch_fault("count", args, 2u)) return fail("invalid count mode status");
+    args[1] = jinx_oracle_int_value(1);
+    if (!expect_dispatch_fault("array_unique", args, 2u)) return fail("unsupported array_unique sort mode status");
+    if (!expect_dispatch_fault("array_slice", args, 1u)) return fail("missing array_slice offset status");
+    if (!expect_dispatch_fault("array_sum", args, 2u)) return fail("extra array_sum argument status");
+    args[0] = jinx_oracle_string_value("https://example.com");
+    args[1] = jinx_oracle_int_value(8);
+    if (!expect_dispatch_fault("parse_url", args, 2u)) return fail("invalid parse_url selector status");
+    args[1] = jinx_oracle_int_value(-2);
+    result = jinx_call_builtin_through_oracle_checked("parse_url", args, 2u, &ok);
+    if (!ok || !expect_string_key(jinx_oracle_zend_array_ptr(result), "host", "example.com")) {
+        return fail("negative parse_url selector full result");
+    }
+    jinx_oracle_zend_array_value_release(result);
+
+    const char *callbacks[] = {"array_reduce", "array_filter", "array_find", "array_find_key",
+        "array_any", "array_all", "array_walk", "array_walk_recursive", "usort", "uasort", "uksort",
+        "array_udiff", "array_uintersect"};
+    args[0] = jinx_oracle_zend_array_value_borrowed(empty);
+    args[1] = jinx_oracle_string_value("__jinx_missing_callback__");
+    for (size_t i = 0u; i < sizeof(callbacks) / sizeof(callbacks[0]); i++) {
+        if (!expect_dispatch_fault(callbacks[i], args, 2u)) return fail("missing callback accepted on empty container");
+    }
+    args[0] = args[1];
+    args[1] = jinx_oracle_zend_array_value_borrowed(empty);
+    if (!expect_dispatch_fault("array_map", args, 2u)) return fail("missing array_map callback accepted on empty container");
+    jinx_zend_array_release(source);
+    jinx_zend_array_release(empty);
+    return 0;
+}
+
 int main(void) {
+    if (check_container_dispatch_contract() != 0) return 1;
     JinxZendArray *array = jinx_zend_array_new_packed(4);
     JinxZendArray *other = jinx_zend_array_new_packed(2);
     JinxValue args[8];

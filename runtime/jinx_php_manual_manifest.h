@@ -347,7 +347,7 @@ static inline int jinx_php_manual_name_is_scalar_core(const char *name) {
     return strcmp(name, "is_null") == 0 || strcmp(name, "is_bool") == 0 ||
         strcmp(name, "is_int") == 0 || strcmp(name, "is_integer") == 0 ||
         strcmp(name, "is_long") == 0 || strcmp(name, "is_float") == 0 ||
-        strcmp(name, "is_double") == 0 || strcmp(name, "is_real") == 0 ||
+        strcmp(name, "is_double") == 0 ||
         strcmp(name, "is_string") == 0 || strcmp(name, "is_array") == 0 ||
         strcmp(name, "is_scalar") == 0 || strcmp(name, "is_numeric") == 0 ||
         strcmp(name, "is_countable") == 0 || strcmp(name, "is_iterable") == 0 ||

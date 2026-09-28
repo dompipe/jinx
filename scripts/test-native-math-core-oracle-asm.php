@@ -33,6 +33,12 @@ function encodeMathValue(mixed $value): string
         return 'int:' . $value;
     }
     if (is_float($value)) {
+        if (is_nan($value)) {
+            return 'float:NAN';
+        }
+        if (is_infinite($value)) {
+            return 'float:' . ($value < 0 ? '-INF' : 'INF');
+        }
         return 'float:' . sprintf('%g', $value);
     }
 
@@ -96,6 +102,10 @@ $cases = [
     ['exp', ['f:1']],
     ['expm1', ['f:0.0000001']],
     ['log', ['f:2']],
+    ['log', ['f:8', 'f:2']],
+    ['log', ['f:1000', 'f:10']],
+    ['log', ['f:81', 'f:3']],
+    ['log', ['f:8', 'f:1']],
     ['log10', ['f:1000']],
     ['pow', ['i:2', 'i:8']],
     ['pow', ['i:-2', 'i:3']],
@@ -141,6 +151,26 @@ foreach ($cases as [$function, $args]) {
     if ($actual !== $expected) {
         fail("oracle-call {$function} parity mismatch: PHP={$expected}, JINX={$actual}");
     }
+}
+
+$rejectedCases = [
+    ['log', ['f:8', 'f:0']],
+    ['log', ['f:8', 'f:-2']],
+];
+foreach ($rejectedCases as [$function, $args]) {
+    $phpRejected = false;
+    try {
+        $function(...array_map('decodeMathArg', $args));
+    } catch (ValueError) {
+        $phpRejected = true;
+    }
+    if (!$phpRejected) fail("PHP accepted {$function} rejection fixture");
+    $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($function);
+    foreach ($args as $arg) $command .= ' ' . escapeshellarg($arg);
+    $output = [];
+    $code = 0;
+    exec($command . ' 2>&1', $output, $code);
+    if ($code === 0) fail("oracle-call {$function} accepted a PHP-rejected input");
 }
 
 echo 'PASS: native Oracle ASM math-core and cosine handlers match PHP for covered scalar cases' . PHP_EOL;

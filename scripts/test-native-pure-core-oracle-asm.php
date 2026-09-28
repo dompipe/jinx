@@ -53,6 +53,7 @@ $cases = [
     ['rawurldecode', ['s:a%20b%2Bc%2F~']],
     ['basename', ['s:/var/www/index.php']],
     ['basename', ['s:/var/www/index.php', 's:.php']],
+    ['basename', ['s:/var/www/index.php', 's:index.php']],
     ['dirname', ['s:/var/www/index.php']],
     ['dirname', ['s:/var/www/html/index.php', 'i:2']],
     ['base_convert', ['s:ff', 'i:16', 'i:2']],
@@ -82,6 +83,12 @@ $cases = [
     ['str_ireplace', ['s:WORLD', 's:JINX', 's:hello World world']],
     ['strtr', ['s:baab', 's:ab', 's:01']],
     ['levenshtein', ['s:kitten', 's:sitting']],
+    ['levenshtein', ['s:kitten', 's:sitting', 'i:2', 'i:3', 'i:4']],
+    ['levenshtein', ['s:kitten', 's:sitting', 'i:-1', 'i:1', 'i:1']],
+    ['levenshtein', ['s:a', 's:abc', 'i:4']],
+    ['levenshtein', ['s:a', 's:b', 'i:4', 'i:2']],
+    ['levenshtein', ['s:abc', 's:', 'i:2', 'i:3', 'i:4']],
+    ['levenshtein', ['s:', 's:abc', 'i:2', 'i:3', 'i:4']],
     ['similar_text', ['s:Hello World!', 's:Hello Peter!']],
     ['similar_text', ['s:', 's:']],
     ['strcoll', ['s:abc', 's:abd']],
@@ -91,6 +98,7 @@ $cases = [
     ['substr_replace', ['s:ABCDEFGH:/MNRPQR/', 's:bob', 'i:-3', 'i:2']],
     ['substr_replace', ['s:ABCDEFGH:/MNRPQR/', 's:bob', 'i:2', 'i:-3']],
     ['htmlspecialchars', ["s:<a href='x'>&\""]],
+    ['htmlspecialchars', ["s:<é>&\"", 'i:11', 's:UTF-8']],
     ['htmlspecialchars', ['s:&amp;<', 'i:11', 'null', 'b:false']],
     ['htmlspecialchars_decode', ['s:&lt;b&gt;&quot;x&quot;&#039;y&#039;&lt;/b&gt;']],
     ['sprintf', ['s:There are %u million bicycles in %s.', 'i:7', 's:Amsterdam']],
@@ -357,4 +365,30 @@ if ($printfActual !== $printfExpected) {
     fail("oracle-call printf parity mismatch: PHP={$printfExpected}, JINX={$printfActual}");
 }
 
-echo 'PASS: native Oracle ASM pure scalar/string core matches PHP for covered values' . PHP_EOL;
+// These are valid PHP overloads, but the scalar native helpers do not implement
+// their semantics. They must fault instead of silently ignoring arguments.
+$unsupportedCases = [
+    ['str_replace', ['s:world', 's:JINX', 's:hello world world', 'i:0'], 'replacement count'],
+    ['str_ireplace', ['s:WORLD', 's:JINX', 's:hello World world', 'i:0'], 'replacement count'],
+    ['str_replace', ['a:0', 's:JINX', 's:hello world'], 'array/coercion'],
+    ['strtr', ['s:abc', 'a:0'], 'three-string overload'],
+    ['levenshtein', ['s:kitten', 's:sitting', 'i:9223372036854775807'], 'cost overflow'],
+    ['htmlspecialchars', ['h:e93c', 'i:11', 's:ISO-8859-1'], 'non-UTF-8'],
+    ['htmlspecialchars', ["s:'", 'i:51'], 'non-HTML401'],
+    ['htmlspecialchars', ['h:ff3c'], 'invalid UTF-8'],
+];
+foreach ($unsupportedCases as [$function, $args, $reason]) {
+    $phpArgs = array_map('decodeArg', $args);
+    $function(...$phpArgs);
+    $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($function);
+    foreach ($args as $arg) $command .= ' ' . escapeshellarg($arg);
+    $output = [];
+    $code = 0;
+    exec($command . ' 2>&1', $output, $code);
+    $actual = implode(PHP_EOL, $output);
+    if ($code === 0 || !str_contains($actual, 'null/fault:')) {
+        fail("oracle-call {$function} must explicitly fault for {$reason}: {$actual}");
+    }
+}
+
+echo 'PASS: native Oracle ASM pure scalar/string core matches PHP for covered values; unsupported overloads fault' . PHP_EOL;

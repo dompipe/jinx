@@ -26,46 +26,91 @@ if (!is_array($index)) {
 $baseDir = dirname($indexPath);
 $rows = [];
 $headers = [];
+$symbols = [];
+$signatures = [];
+$manifestPath = $index['manifest']['source_manifest'] ?? '';
+if (!is_string($manifestPath) || $manifestPath === '') {
+    generation_fail('Oracle index must identify its source_manifest');
+}
+if (!is_file($manifestPath)) {
+    $manifestPath = dirname(__DIR__) . '/' . $manifestPath;
+}
+if (!is_file($manifestPath)) {
+    generation_fail('Missing source manifest: ' . $manifestPath);
+}
+$manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+foreach ($manifest['functions'] ?? [] as $function) {
+    $name = $function['name'] ?? '';
+    if (!is_string($name) || $name === '' || isset($signatures[strtolower($name)])) {
+        generation_fail('Empty or duplicate callable in source manifest: ' . (string) $name);
+    }
+    $arity = $function['arity'] ?? null;
+    if (!is_array($arity) || !is_int($arity['required'] ?? null) ||
+        !is_int($arity['total'] ?? null) || !is_bool($arity['variadic'] ?? null) ||
+        $arity['required'] < 0 || $arity['total'] < $arity['required']) {
+        generation_fail('Invalid callable arity: ' . $name);
+    }
+    $signatures[strtolower($name)] = $function;
+}
+if ($signatures === []) generation_fail('Source manifest has no callables');
 
 foreach (($index['files'] ?? []) as $file) {
     if (!is_array($file)) {
-        continue;
+        generation_fail('Invalid Oracle index file entry');
     }
 
     $outputFile = $file['output_file'] ?? null;
 
     if (!is_string($outputFile) || $outputFile === '') {
-        continue;
+        generation_fail('Missing output_file in Oracle index');
     }
 
     $headerPath = $baseDir . '/' . $outputFile;
 
     if (!is_file($headerPath)) {
-        continue;
+        generation_fail('Missing Oracle wrapper header: ' . $headerPath);
     }
+
+    if (isset($headers[$outputFile])) generation_fail('Duplicate Oracle wrapper header: ' . $outputFile);
 
     $headers[$outputFile] = true;
 
     $text = (string) file_get_contents($headerPath);
 
     preg_match_all(
-        '/\/\*\s*Callable:\s*([^*]+?)\s*\*\/\s*static\s+inline\s+JinxValue\s+(jinx_ora_[A-Za-z0-9_]+)\s*\(/',
+        '/\/\*\s*Callable:\s*([^*]+?)\s*\*\/\s*static\s+inline\s+JinxValue\s+(jinx_ora_[A-Za-z0-9_]+)\s*\([^)]*\)\s*\{(.*?)\n\}/s',
         $text,
         $matches,
         PREG_SET_ORDER
     );
 
+    if (count($matches) !== ($file['callables'] ?? null)) {
+        generation_fail('Stale callable count in Oracle index: ' . $outputFile);
+    }
+
     foreach ($matches as $match) {
         $name = trim($match[1]);
         $wrapper = trim($match[2]);
 
-        if ($name === '' || $wrapper === '') {
-            continue;
+        $key = strtolower($name);
+        if (isset($rows[$key]) || isset($symbols[$wrapper])) {
+            generation_fail('Duplicate callable or wrapper symbol: ' . $name);
         }
-
-        $rows[$name] = [
+        $signature = $signatures[$key] ?? null;
+        if ($signature === null || $signature['name'] !== $name) {
+            generation_fail('Wrapper callable missing or mismatched in source manifest: ' . $name);
+        }
+        preg_match_all('/\(void\)JINX_ORA_CALL_(METHOD_BUILTIN|BUILTIN)\(ctx, "([^"]+)", (\d+)\)/', $match[3], $calls, PREG_SET_ORDER);
+        $expectedKind = ($signature['kind'] ?? '') === 'method' ? 'METHOD_BUILTIN' : 'BUILTIN';
+        if (count($calls) !== 1 || $calls[0][1] !== $expectedKind || stripcslashes($calls[0][2]) !== $name ||
+            (int) $calls[0][3] !== $signature['arity']['total']) {
+            generation_fail('Wrapper call target/kind/arity mismatch: ' . $name);
+        }
+        $symbols[$wrapper] = true;
+        $rows[$key] = [
             'name' => $name,
             'wrapper' => $wrapper,
+            'arity' => $signature['arity'],
         ];
 
         if ($limit !== null && count($rows) >= $limit) {
@@ -77,6 +122,9 @@ foreach (($index['files'] ?? []) as $file) {
 if ($rows === []) {
     fwrite(STDERR, "No wrappers found in generated Oracle ASM headers\n");
     exit(1);
+}
+if ($limit === null && array_diff_key($signatures, $rows) !== []) {
+    generation_fail('Source manifest callables missing Oracle wrappers: ' . implode(', ', array_keys(array_diff_key($signatures, $rows))));
 }
 
 $outDir = dirname($outputPath);
@@ -241,23 +289,51 @@ $code[] = 'static const JinxOracleDispatchEntry oracle_dispatch_table[] = {';
 
 foreach ($rows as $row) {
     $code[] = sprintf(
-        '    { "%s", %s },',
+        '    { "%s", %s, %du, %du, %d },',
         c_escape($row['name']),
-        $row['wrapper']
+        $row['wrapper'],
+        $row['arity']['required'],
+        $row['arity']['total'],
+        $row['arity']['variadic'] ? 1 : 0
     );
 }
 
-$code[] = '    { NULL, NULL }';
+$code[] = '    { NULL, NULL, 0u, 0u, 0 }';
 $code[] = '};';
 $code[] = '';
-$code[] = 'JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {';
+$code[] = 'static int jinx_oracle_callable_name_equal(const char *left, const char *right) {';
+$code[] = '    while (*left && *right) {';
+$code[] = '        unsigned char a = (unsigned char)*left++, b = (unsigned char)*right++;';
+$code[] = '        if (a >= 65u && a <= 90u) a += 32u;';
+$code[] = '        if (b >= 65u && b <= 90u) b += 32u;';
+$code[] = '        if (a != b) return 0;';
+$code[] = '    }';
+$code[] = '    return *left == *right;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'static const JinxOracleDispatchEntry *jinx_lookup_oracle_entry(const char *name) {';
+$code[] = '    if (name == NULL) return NULL;';
 $code[] = '    for (size_t i = 0; oracle_dispatch_table[i].name != NULL; i++) {';
-$code[] = '        if (strcmp(oracle_dispatch_table[i].name, name) == 0) {';
-$code[] = '            return oracle_dispatch_table[i].wrapper;';
+$code[] = '        if (jinx_oracle_callable_name_equal(oracle_dispatch_table[i].name, name)) {';
+$code[] = '            return &oracle_dispatch_table[i];';
 $code[] = '        }';
 $code[] = '    }';
 $code[] = '';
 $code[] = '    return NULL;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {';
+$code[] = '    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);';
+$code[] = '    return entry != NULL ? entry->wrapper : NULL;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'int jinx_lookup_oracle_arity(const char *name, uint32_t *required_args, uint32_t *total_args, int *variadic) {';
+$code[] = '    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);';
+$code[] = '    if (entry == NULL) return 0;';
+$code[] = '    if (required_args != NULL) *required_args = entry->required_args;';
+$code[] = '    if (total_args != NULL) *total_args = entry->total_args;';
+$code[] = '    if (variadic != NULL) *variadic = entry->variadic;';
+$code[] = '    return 1;';
 $code[] = '}';
 $code[] = '';
 $code[] = 'JinxValue jinx_call_builtin_through_oracle_checked(';
@@ -268,32 +344,35 @@ $code[] = '    int *ok';
 $code[] = ') {';
 $code[] = '    if (ok != NULL) *ok = 0;';
 $code[] = '';
+$code[] = '    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);';
+$code[] = '    if (entry == NULL || argc > 64u || (argc != 0u && args == NULL) ||';
+$code[] = '        argc < entry->required_args || (!entry->variadic && argc > entry->total_args)) {';
+$code[] = '        return jinx_value_null();';
+$code[] = '    }';
+$code[] = '    name = entry->name;';
+$code[] = '';
+$code[] = '    if (argc == 0u && (strcmp(name, "array_merge") == 0 || strcmp(name, "array_merge_recursive") == 0)) {';
+$code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
+$code[] = '    }';
+$code[] = '';
 $code[] = '    if (name != NULL && strcmp(name, "json_encode") == 0 && args != NULL && argc >= 1 &&';
 $code[] = '        (argc < 2 || ((args[1].type == 1u || args[1].type == 2u) && args[1].as.i64 == 0))) {';
-$code[] = '        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
-$code[] = '        if (ok != NULL) *ok = result.type != 0u;';
-$code[] = '        return result;';
+$code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
 $code[] = '    }';
 $code[] = '';
 $code[] = '    if (name != NULL && strcmp(name, "json_decode") == 0 && args != NULL && argc >= 1 &&';
 $code[] = '        (argc < 4 || ((args[3].type == 1u || args[3].type == 2u) &&';
 $code[] = '         (args[3].as.i64 & ~(JINX_JSON_OBJECT_AS_ARRAY | JINX_JSON_BIGINT_AS_STRING | JINX_JSON_INVALID_UTF8_IGNORE | JINX_JSON_INVALID_UTF8_SUBSTITUTE)) == 0))) {';
-$code[] = '        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
-$code[] = '        if (ok != NULL) *ok = 1;';
-$code[] = '        return result;';
+$code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
 $code[] = '    }';
 $code[] = '';
 $code[] = '    if (jinx_oracle_name_is_zend_container_builtin(name) && (args != NULL || argc == 0)) {';
-$code[] = '        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
-$code[] = '        if (ok != NULL) *ok = jinx_oracle_zend_dispatch_result_ok(name, args, argc, result);';
-$code[] = '        return result;';
+$code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
 $code[] = '    }';
 $code[] = '';
 $code[] = '    if (argc >= 1 && args != NULL && jinx_oracle_name_is_zend_array_builtin(name) &&';
 $code[] = '        jinx_oracle_value_is_zend_array(args[0])) {';
-$code[] = '        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
-$code[] = '        if (ok != NULL) *ok = jinx_oracle_zend_dispatch_result_ok(name, args, argc, result);';
-$code[] = '        return result;';
+$code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
 $code[] = '    }';
 $code[] = '';
 $code[] = '    JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);';
@@ -337,4 +416,10 @@ printf(
 function c_escape(string $value): string
 {
     return addcslashes($value, "\\\"\n\r\t");
+}
+
+function generation_fail(string $message): never
+{
+    fwrite(STDERR, $message . PHP_EOL);
+    exit(1);
 }

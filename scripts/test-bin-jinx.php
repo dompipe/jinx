@@ -43,6 +43,7 @@ $tests = [
     'scripts/test-oracle-loop-execution.php' => 'PASS: Oracle executes loop PHP subset',
     'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
     'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
+    'scripts/test-native-oracle-wiring.php' => 'PASS: native Oracle wiring inventory and intentional faults verified',
     'scripts/test-native-error-parity-oracle-asm.php' => 'PASS: native Oracle ASM exceptional scalar/string paths reject where PHP rejects',
     'scripts/test-native-no-fabricated-builtins.php' => 'PASS: unsupported native builtins fault instead of returning fabricated values',
     'scripts/test-native-return-contracts.php' => 'PASS: native Oracle return contracts reject invalid argument paths, preserve legitimate nulls, and classify stream resources correctly',

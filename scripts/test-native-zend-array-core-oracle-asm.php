@@ -67,6 +67,59 @@ $mustReject(static fn () => range(1, 5, 0), 'range zero step');
 $mustReject(static fn () => array_fill(2, -1, 9), 'array_fill negative count');
 $mustReject(static fn () => array_combine([1, 2], [3]), 'array_combine mismatched counts');
 $mustReject(static fn () => str_getcsv('a,b', '::', '"', '\\'), 'str_getcsv multi-byte separator');
+$mustReject(static fn () => array_chunk([1], 0), 'array_chunk zero length');
+$mustReject(static fn () => count([1], 2), 'count invalid mode');
+$mustReject(static fn () => array_slice([1]), 'array_slice missing offset');
+$mustReject(static fn () => array_sum([1], 2), 'array_sum extra argument');
+$mustReject(static fn () => parse_url('https://example.com', 8), 'parse_url invalid selector');
+$mustReject(static fn () => array_key_exists([], [1]), 'array_key_exists array key');
+
+// Exercise the checked dispatch contract against PHP, including zero-argument
+// and one-array calls that can bypass the usual carried-first-argument route.
+$wiringLines = [];
+foreach (['array_merge', 'array_merge_recursive'] as $name) {
+    $wiringLines[] = "WIRING_MERGE:{$name}=" . count($name());
+}
+$single = [10, 'x' => 20];
+$setFamilies = [
+    0 => ['array_diff', 'array_diff_assoc', 'array_diff_key',
+        'array_intersect', 'array_intersect_assoc', 'array_intersect_key'],
+    1 => ['array_diff_uassoc', 'array_diff_ukey', 'array_udiff', 'array_udiff_assoc',
+        'array_intersect_uassoc', 'array_intersect_ukey', 'array_uintersect', 'array_uintersect_assoc'],
+    2 => ['array_udiff_uassoc', 'array_uintersect_uassoc'],
+];
+foreach ($setFamilies as $callbackCount => $names) {
+    foreach ($names as $name) {
+        $callArgs = [$single, ...array_fill(0, $callbackCount, 'strcmp')];
+        $actual = $name(...$callArgs);
+        $wiringLines[] = "WIRING_SET:{$name}=" . $actual[0] . ',' . $actual['x'];
+    }
+}
+$wiringLines[] = 'WIRING_KEY:numeric=' . (int) array_key_exists('0', $single);
+$single[''] = 30;
+$wiringLines[] = 'WIRING_KEY:null=' . (int) key_exists(null, $single);
+foreach (['array_pop', 'array_shift', 'key', 'array_key_first', 'array_key_last',
+    'array_reduce', 'array_find', 'array_find_key'] as $name) {
+    $empty = [];
+    $actual = in_array($name, ['array_reduce', 'array_find', 'array_find_key'], true)
+        ? $name($empty, 'strcmp') : $name($empty);
+    $wiringLines[] = "WIRING_NULL:{$name}=" . json_encode($actual);
+}
+$wiringLines[] = 'WIRING_NULL:json_decode=' . json_encode(json_decode('{'));
+foreach ($wiringLines as $line) {
+    if (!in_array($line, $out, true)) {
+        fwrite(STDERR, "FAIL: PHP-vs-JINX checked container dispatch mismatch\nPHP: {$line}\nJINX:\n{$text}\n");
+        exit(1);
+    }
+}
+foreach (['array_reduce', 'array_filter', 'array_find', 'array_find_key', 'array_any', 'array_all',
+    'array_walk', 'array_walk_recursive', 'usort', 'uasort', 'uksort', 'array_udiff', 'array_uintersect'] as $name) {
+    $mustReject(static function () use ($name): void {
+        $empty = [];
+        $name($empty, '__jinx_missing_callback__');
+    }, "{$name} missing callback on empty array");
+}
+$mustReject(static fn () => array_map('__jinx_missing_callback__', []), 'array_map missing callback on empty array');
 
 $base = [10, 20, 'name' => 30, 'keep' => 40];
 $mutation = [10, 'x' => 20, 2 => 30];

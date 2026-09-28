@@ -14,9 +14,18 @@ typedef JinxValue (*JinxOracleWrapper)(JinxOracleAsmContext *ctx);
 typedef struct JinxOracleDispatchEntry {
     const char *name;
     JinxOracleWrapper wrapper;
+    uint32_t required_args;
+    uint32_t total_args;
+    int variadic;
 } JinxOracleDispatchEntry;
 
 JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name);
+int jinx_lookup_oracle_arity(
+    const char *name,
+    uint32_t *required_args,
+    uint32_t *total_args,
+    int *variadic
+);
 
 void jinx_oracle_set_caller_frame(JinxZendCallFrame *frame);
 JinxZendCallFrame *jinx_oracle_get_caller_frame(void);

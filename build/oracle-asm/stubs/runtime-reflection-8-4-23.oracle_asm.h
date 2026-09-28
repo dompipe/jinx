@@ -858,8 +858,8 @@ static inline JinxValue jinx_ora_array_multisort(JinxOracleAsmContext *ctx) {
     JINX_ORA_PUSH_ARG_REF(ctx, JINX_ORA_R0);
     /* PASM: LOAD_ARG R1, rest */
     JINX_ORA_LOAD_ARG(ctx, JINX_ORA_R1, 1, "rest");
-    /* PASM: PUSH_ARG_REF R1 */
-    JINX_ORA_PUSH_ARG_REF(ctx, JINX_ORA_R1);
+    /* PASM: PUSH_ARG_VARIADIC_REF R1 */
+    JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, JINX_ORA_R1);
     /* PASM: CALL_BUILTIN array_multisort, argc=2 */
     (void)JINX_ORA_CALL_BUILTIN(ctx, "array_multisort", 2);
     /* PASM: MOV ACC, RET */
@@ -9794,8 +9794,8 @@ static inline JinxValue jinx_ora_fscanf(JinxOracleAsmContext *ctx) {
     JINX_ORA_PUSH_ARG(ctx, JINX_ORA_R1);
     /* PASM: LOAD_ARG R2, vars */
     JINX_ORA_LOAD_ARG(ctx, JINX_ORA_R2, 2, "vars");
-    /* PASM: PUSH_ARG_REF R2 */
-    JINX_ORA_PUSH_ARG_REF(ctx, JINX_ORA_R2);
+    /* PASM: PUSH_ARG_VARIADIC_REF R2 */
+    JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, JINX_ORA_R2);
     /* PASM: CALL_BUILTIN fscanf, argc=3 */
     (void)JINX_ORA_CALL_BUILTIN(ctx, "fscanf", 3);
     /* PASM: MOV ACC, RET */
@@ -35682,8 +35682,8 @@ static inline JinxValue jinx_ora_SplFileObject_fscanf(JinxOracleAsmContext *ctx)
     JINX_ORA_PUSH_ARG(ctx, JINX_ORA_R0);
     /* PASM: LOAD_ARG R1, vars */
     JINX_ORA_LOAD_ARG(ctx, JINX_ORA_R1, 1, "vars");
-    /* PASM: PUSH_ARG_REF R1 */
-    JINX_ORA_PUSH_ARG_REF(ctx, JINX_ORA_R1);
+    /* PASM: PUSH_ARG_VARIADIC_REF R1 */
+    JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, JINX_ORA_R1);
     /* PASM: CALL_METHOD_BUILTIN SplFileObject::fscanf, argc=2 */
     (void)JINX_ORA_CALL_METHOD_BUILTIN(ctx, "SplFileObject::fscanf", 2);
     /* PASM: MOV ACC, RET */
@@ -37830,8 +37830,8 @@ static inline JinxValue jinx_ora_SplTempFileObject_fscanf(JinxOracleAsmContext *
     JINX_ORA_PUSH_ARG(ctx, JINX_ORA_R0);
     /* PASM: LOAD_ARG R1, vars */
     JINX_ORA_LOAD_ARG(ctx, JINX_ORA_R1, 1, "vars");
-    /* PASM: PUSH_ARG_REF R1 */
-    JINX_ORA_PUSH_ARG_REF(ctx, JINX_ORA_R1);
+    /* PASM: PUSH_ARG_VARIADIC_REF R1 */
+    JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, JINX_ORA_R1);
     /* PASM: CALL_METHOD_BUILTIN SplTempFileObject::fscanf, argc=2 */
     (void)JINX_ORA_CALL_METHOD_BUILTIN(ctx, "SplTempFileObject::fscanf", 2);
     /* PASM: MOV ACC, RET */
@@ -38338,8 +38338,8 @@ static inline JinxValue jinx_ora_sscanf(JinxOracleAsmContext *ctx) {
     JINX_ORA_PUSH_ARG(ctx, JINX_ORA_R1);
     /* PASM: LOAD_ARG R2, vars */
     JINX_ORA_LOAD_ARG(ctx, JINX_ORA_R2, 2, "vars");
-    /* PASM: PUSH_ARG_REF R2 */
-    JINX_ORA_PUSH_ARG_REF(ctx, JINX_ORA_R2);
+    /* PASM: PUSH_ARG_VARIADIC_REF R2 */
+    JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, JINX_ORA_R2);
     /* PASM: CALL_BUILTIN sscanf, argc=3 */
     (void)JINX_ORA_CALL_BUILTIN(ctx, "sscanf", 3);
     /* PASM: MOV ACC, RET */

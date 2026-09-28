@@ -2537,7 +2537,7 @@
                 "LOAD_ARG R0, array",
                 "PUSH_ARG_REF R0",
                 "LOAD_ARG R1, rest",
-                "PUSH_ARG_REF R1",
+                "PUSH_ARG_VARIADIC_REF R1",
                 "CALL_BUILTIN array_multisort, argc=2",
                 "MOV ACC, RET"
             ],
@@ -29087,7 +29087,7 @@
                 "LOAD_ARG R1, format",
                 "PUSH_ARG R1",
                 "LOAD_ARG R2, vars",
-                "PUSH_ARG_REF R2",
+                "PUSH_ARG_VARIADIC_REF R2",
                 "CALL_BUILTIN fscanf, argc=3",
                 "MOV ACC, RET"
             ],
@@ -105875,7 +105875,7 @@
                 "LOAD_ARG R0, format",
                 "PUSH_ARG R0",
                 "LOAD_ARG R1, vars",
-                "PUSH_ARG_REF R1",
+                "PUSH_ARG_VARIADIC_REF R1",
                 "CALL_METHOD_BUILTIN SplFileObject::fscanf, argc=2",
                 "MOV ACC, RET"
             ],
@@ -112406,7 +112406,7 @@
                 "LOAD_ARG R0, format",
                 "PUSH_ARG R0",
                 "LOAD_ARG R1, vars",
-                "PUSH_ARG_REF R1",
+                "PUSH_ARG_VARIADIC_REF R1",
                 "CALL_METHOD_BUILTIN SplTempFileObject::fscanf, argc=2",
                 "MOV ACC, RET"
             ],
@@ -113943,7 +113943,7 @@
                 "LOAD_ARG R1, format",
                 "PUSH_ARG R1",
                 "LOAD_ARG R2, vars",
-                "PUSH_ARG_REF R2",
+                "PUSH_ARG_VARIADIC_REF R2",
                 "CALL_BUILTIN sscanf, argc=3",
                 "MOV ACC, RET"
             ],

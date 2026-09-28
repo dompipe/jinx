@@ -8,6 +8,10 @@ OUT="${OUT_DIR}/jinx-oracle-zend-array-builtin-smoke"
 
 mkdir -p "$OUT_DIR"
 
+php "${ROOT_DIR}/scripts/generate-oracle-dispatch-table.php" \
+    "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json" \
+    "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c"
+
 "$CC_BIN" \
     -std=c11 \
     -O2 \
@@ -17,6 +21,10 @@ mkdir -p "$OUT_DIR"
     -I"${ROOT_DIR}/build/oracle-asm" \
     "${ROOT_DIR}/native/jinx_oracle_zend_array_builtin_smoke.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
+    "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
+    -lm \
+    -lz \
     -o "$OUT"
 
 chmod +x "$OUT"

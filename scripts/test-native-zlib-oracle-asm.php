@@ -52,4 +52,36 @@ if (!str_contains($text, $expected)) {
     exit(1);
 }
 
-echo "PASS: native Oracle zlib helpers match PHP for covered one-shot semantics\n";
+$jinx = $root . '/jinx';
+$rejectedOptions = [
+    ['gzcompress', ['abc', 4294967295]],
+    ['gzdeflate', ['abc', 4294967296]],
+    ['gzencode', ['abc', -1, 4294967327]],
+    ['zlib_encode', ['abc', 4294967311]],
+    ['zlib_encode', ['abc', ZLIB_ENCODING_DEFLATE, 4294967295]],
+];
+foreach ($rejectedOptions as [$function, $args]) {
+    $phpRejected = false;
+    try {
+        $function(...$args);
+    } catch (ValueError) {
+        $phpRejected = true;
+    }
+    if (!$phpRejected) {
+        fwrite(STDERR, "FAIL: PHP accepted zlib rejection fixture {$function}\n");
+        exit(1);
+    }
+    $command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($function);
+    foreach ($args as $arg) {
+        $command .= ' ' . escapeshellarg((is_string($arg) ? 's:' : 'i:') . $arg);
+    }
+    $out = [];
+    $code = 0;
+    exec($command . ' 2>&1', $out, $code);
+    if ($code === 0) {
+        fwrite(STDERR, "FAIL: native {$function} accepted a PHP-rejected wide option\n");
+        exit(1);
+    }
+}
+
+echo "PASS: native Oracle zlib helpers match PHP for covered one-shot semantics and reject invalid wide options\n";

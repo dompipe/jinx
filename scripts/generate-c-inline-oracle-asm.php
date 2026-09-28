@@ -204,6 +204,8 @@ static inline JinxValue jinx_oracle_asm_mov(JinxOracleAsmContext *ctx, uint32_t 
     jinx_oracle_asm_push_arg_ref((ctx), (reg))
 #define JINX_ORA_PUSH_ARG_VARIADIC(ctx, reg) \
     jinx_oracle_asm_push_arg_variadic((ctx), (reg))
+#define JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, reg) \
+    jinx_oracle_asm_push_arg_variadic_ref((ctx), (reg))
 #define JINX_ORA_CALL_BUILTIN(ctx, name_literal, argc_literal) \
     jinx_oracle_asm_call_builtin((ctx), (name_literal), (argc_literal))
 #define JINX_ORA_CALL_METHOD_BUILTIN(ctx, name_literal, argc_literal) \
@@ -229,8 +231,10 @@ function emit_stub_header(string $sourceFile, array $functions): string
     $body[] = '/* Generated from PHP stub signatures through the lower-level PASM call profile. */';
     $body[] = '';
 
+    $seenSymbols = [];
     foreach ($functions as $fn) {
-        $body[] = emit_function_inline($fn);
+        $baseSymbol = safe_c_identifier((string)($fn['name'] ?? 'unknown'));
+        $body[] = emit_function_inline($fn, unique_c_symbol($baseSymbol, $seenSymbols));
         $body[] = '';
     }
 
@@ -240,10 +244,10 @@ function emit_stub_header(string $sourceFile, array $functions): string
 }
 
 /** @param array<string,mixed> $fn */
-function emit_function_inline(array $fn): string
+function emit_function_inline(array $fn, ?string $symbol = null): string
 {
     $name = (string)($fn['name'] ?? 'unknown');
-    $safe = safe_c_identifier($name);
+    $safe = $symbol ?? safe_c_identifier($name);
     $params = is_array($fn['parameters'] ?? null) ? $fn['parameters'] : [];
     $kind = (string)($fn['kind'] ?? 'builtin');
     $callMacro = $kind === 'method' ? 'JINX_ORA_CALL_METHOD_BUILTIN' : 'JINX_ORA_CALL_BUILTIN';
@@ -259,7 +263,10 @@ function emit_function_inline(array $fn): string
         $paramName = (string)($param['name'] ?? ('arg' . $index));
         $lines[] = '    /* PASM: LOAD_ARG R' . $index . ', ' . c_comment_escape($paramName) . ' */';
         $lines[] = '    JINX_ORA_LOAD_ARG(ctx, ' . $regName . ', ' . $index . ', "' . c_string_escape($paramName) . '");';
-        if (($param['by_ref'] ?? false) === true) {
+        if (($param['by_ref'] ?? false) === true && ($param['variadic'] ?? false) === true) {
+            $lines[] = '    /* PASM: PUSH_ARG_VARIADIC_REF R' . $index . ' */';
+            $lines[] = '    JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, ' . $regName . ');';
+        } elseif (($param['by_ref'] ?? false) === true) {
             $lines[] = '    /* PASM: PUSH_ARG_REF R' . $index . ' */';
             $lines[] = '    JINX_ORA_PUSH_ARG_REF(ctx, ' . $regName . ');';
         } elseif (($param['variadic'] ?? false) === true) {

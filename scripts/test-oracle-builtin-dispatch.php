@@ -32,7 +32,7 @@ int main(void) {
         1
     );
 
-    if (strlen_result.type != JINX_VALUE_INT || strlen_result.as.i64 != 6) {
+    if (strlen_result.type != 1u || strlen_result.as.i64 != 6) {
         return fail("strlen through Oracle dispatcher did not return 6");
     }
 
@@ -45,7 +45,7 @@ int main(void) {
         1
     );
 
-    if (count_result.type != JINX_VALUE_INT || count_result.as.i64 != 3) {
+    if (count_result.type != 1u || count_result.as.i64 != 3) {
         return fail("count through Oracle dispatcher did not return 3");
     }
 
@@ -55,12 +55,13 @@ int main(void) {
 C);
 
 $cmd = sprintf(
-    '%s -std=c11 -Wall -Wextra -Werror -I%s/runtime %s %s %s -o %s 2>&1',
+    '%s -std=c11 -Wall -Wextra -Werror -I%s/runtime %s %s %s %s -lm -lz -o %s 2>&1',
     escapeshellcmd($cc),
     escapeshellarg($root),
     escapeshellarg($testC),
     escapeshellarg($root . '/runtime/jinx_oracle_asm_context.c'),
     escapeshellarg($root . '/runtime/jinx_builtin_dispatch.c'),
+    escapeshellarg($root . '/runtime/jinx_zend_engine.c'),
     escapeshellarg($binary)
 );
 

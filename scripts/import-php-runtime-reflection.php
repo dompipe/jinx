@@ -163,7 +163,9 @@ function make_pasm_call_lowering(string $kind, string $name, array $parameters):
     foreach ($parameters as $index => $param) {
         $paramName = (string)($param['name'] ?? ('arg' . $index));
         $ops[] = 'LOAD_ARG R' . $index . ', ' . $paramName;
-        if (($param['by_ref'] ?? false) === true) {
+        if (($param['by_ref'] ?? false) === true && ($param['variadic'] ?? false) === true) {
+            $ops[] = 'PUSH_ARG_VARIADIC_REF R' . $index;
+        } elseif (($param['by_ref'] ?? false) === true) {
             $ops[] = 'PUSH_ARG_REF R' . $index;
         } elseif (($param['variadic'] ?? false) === true) {
             $ops[] = 'PUSH_ARG_VARIADIC R' . $index;

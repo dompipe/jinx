@@ -110,6 +110,35 @@ static int command_php_script(int argc, char **argv) {
     return 1;
 }
 
+static int command_php_frontend(int argc, char **argv) {
+    const char *slash = strrchr(argv[0], '/');
+    const char *backslash = strrchr(argv[0], '\\');
+    const char *separator = slash > backslash ? slash : backslash;
+    const char *suffix = "bin/jinx";
+    size_t directory_len = separator != NULL ? (size_t)(separator - argv[0] + 1) : 0u;
+    char *frontend = (char *)malloc(directory_len + strlen(suffix) + 1u);
+    char **php_argv = (char **)calloc((size_t)argc + 2u, sizeof(char *));
+
+    if (frontend == NULL || php_argv == NULL) {
+        free(frontend);
+        free(php_argv);
+        return fail("unable to allocate PHP frontend command");
+    }
+
+    if (directory_len != 0u) memcpy(frontend, argv[0], directory_len);
+    memcpy(frontend + directory_len, suffix, strlen(suffix) + 1u);
+
+    php_argv[0] = "php";
+    php_argv[1] = frontend;
+    for (int i = 1; i < argc; i++) php_argv[i + 1] = argv[i];
+    php_argv[argc + 1] = NULL;
+
+    execvp("php", php_argv);
+    free(frontend);
+    free(php_argv);
+    return fail("unable to execute PHP Jinx frontend");
+}
+
 static const char *const first100_names[] = {
     "abs", "acos", "acosh", "addcslashes", "addslashes",
     "array_all", "array_any", "array_change_key_case", "array_chunk", "array_column",
@@ -1719,6 +1748,5 @@ int main(int argc, char **argv) {
         return command_benchmarks();
     }
 
-    usage(argv[0]);
-    return 1;
+    return command_php_frontend(argc, argv);
 }

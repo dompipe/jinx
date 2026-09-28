@@ -1031,7 +1031,7 @@ static inline JinxValue jinx_oracle_basename_value(JinxValue path_value, JinxVal
     if (argc >= 2u && suffix_value.type == 3u) {
         const unsigned char *suffix = jinx_oracle_string_bytes(suffix_value);
         uint32_t suffix_len = jinx_oracle_string_len(suffix_value);
-        if (suffix_len > 0u && suffix_len <= out_len &&
+        if (suffix_len > 0u && suffix_len < out_len &&
             memcmp(path + end - suffix_len, suffix, suffix_len) == 0) {
             out_len -= suffix_len;
         }
@@ -2884,35 +2884,49 @@ static inline JinxValue jinx_oracle_strtr_three_value(JinxValue value, JinxValue
     return jinx_oracle_string_value_len(out, len);
 }
 
-static inline JinxValue jinx_oracle_levenshtein_value(JinxValue left_value, JinxValue right_value) {
+static inline JinxValue jinx_oracle_levenshtein_value(
+    JinxValue left_value, JinxValue right_value,
+    int64_t insertion_cost, int64_t replacement_cost, int64_t deletion_cost,
+    int *ok
+) {
     const unsigned char *left = jinx_oracle_string_bytes(left_value);
     const unsigned char *right = jinx_oracle_string_bytes(right_value);
     uint32_t left_len = jinx_oracle_string_len(left_value);
     uint32_t right_len = jinx_oracle_string_len(right_value);
 
-    uint32_t *prev = (uint32_t *)malloc(((size_t)right_len + 1u) * sizeof(uint32_t));
-    uint32_t *curr = (uint32_t *)malloc(((size_t)right_len + 1u) * sizeof(uint32_t));
+    uint64_t max_edits = (uint64_t)left_len + (uint64_t)right_len;
+    int64_t cost_limit = max_edits == 0u ? INT64_MAX : INT64_MAX / (int64_t)max_edits;
+    *ok = 0;
+    if (insertion_cost > cost_limit || insertion_cost < -cost_limit ||
+        replacement_cost > cost_limit || replacement_cost < -cost_limit ||
+        deletion_cost > cost_limit || deletion_cost < -cost_limit) {
+        return jinx_oracle_zero_value();
+    }
+
+    int64_t *prev = (int64_t *)malloc(((size_t)right_len + 1u) * sizeof(int64_t));
+    int64_t *curr = (int64_t *)malloc(((size_t)right_len + 1u) * sizeof(int64_t));
     if (prev == NULL || curr == NULL) {
         free(prev); free(curr);
-        return jinx_oracle_bool_value(0);
+        return jinx_oracle_zero_value();
     }
 
-    for (uint32_t j = 0u; j <= right_len; j++) prev[j] = j;
+    for (uint32_t j = 0u; j <= right_len; j++) prev[j] = (int64_t)j * insertion_cost;
     for (uint32_t i = 1u; i <= left_len; i++) {
-        curr[0] = i;
+        curr[0] = (int64_t)i * deletion_cost;
         for (uint32_t j = 1u; j <= right_len; j++) {
-            uint32_t del = prev[j] + 1u;
-            uint32_t ins = curr[j - 1u] + 1u;
-            uint32_t sub = prev[j - 1u] + (left[i - 1u] == right[j - 1u] ? 0u : 1u);
-            uint32_t best = del < ins ? del : ins;
+            int64_t del = prev[j] + deletion_cost;
+            int64_t ins = curr[j - 1u] + insertion_cost;
+            int64_t sub = prev[j - 1u] + (left[i - 1u] == right[j - 1u] ? 0 : replacement_cost);
+            int64_t best = del < ins ? del : ins;
             curr[j] = best < sub ? best : sub;
         }
-        uint32_t *tmp = prev; prev = curr; curr = tmp;
+        int64_t *tmp = prev; prev = curr; curr = tmp;
     }
 
-    uint32_t result = prev[right_len];
+    int64_t result = prev[right_len];
     free(prev); free(curr);
-    return jinx_oracle_int_value((int64_t)result);
+    *ok = 1;
+    return jinx_oracle_int_value(result);
 }
 
 static inline int jinx_oracle_entity_at(const unsigned char *bytes, uint32_t len, uint32_t i) {
@@ -3976,8 +3990,7 @@ static inline double jinx_oracle_pi(void) {
 }
 
 static inline void jinx_oracle_return(JinxOracleAsmContext *ctx, JinxValue value) {
-    if (ctx != NULL) {
-        ctx->fault = NULL;
+    if (ctx != NULL && ctx->fault == NULL) {
         ctx->registers[JINX_ORA_RET] = value;
     }
 }
@@ -4024,7 +4037,7 @@ static inline void jinx_oracle_asm_frame_push(
     uint8_t kind,
     uint8_t source_index
 ) {
-    if (ctx == NULL) {
+    if (ctx == NULL || ctx->fault != NULL) {
         return;
     }
 
@@ -4061,10 +4074,12 @@ static inline void jinx_oracle_asm_push_arg_ref(JinxOracleAsmContext *ctx, uint3
     }
 }
 
-static inline void jinx_oracle_asm_push_arg_variadic(JinxOracleAsmContext *ctx, uint32_t reg) {
+static inline void jinx_oracle_asm_push_arg_variadic_kind(
+    JinxOracleAsmContext *ctx, uint32_t reg, uint8_t kind
+) {
     uint32_t start;
 
-    if (ctx == NULL || reg >= 64u || !ctx->register_valid[reg]) {
+    if (ctx == NULL || ctx->fault != NULL || reg >= 64u || !ctx->register_valid[reg]) {
         return;
     }
 
@@ -4077,7 +4092,7 @@ static inline void jinx_oracle_asm_push_arg_variadic(JinxOracleAsmContext *ctx, 
         jinx_oracle_asm_frame_push(
             ctx,
             ctx->argv[i],
-            2u,
+            kind,
             i < 255u ? (uint8_t)i : 255u
         );
         if (ctx->fault != NULL) {
@@ -4086,8 +4101,16 @@ static inline void jinx_oracle_asm_push_arg_variadic(JinxOracleAsmContext *ctx, 
     }
 }
 
+static inline void jinx_oracle_asm_push_arg_variadic(JinxOracleAsmContext *ctx, uint32_t reg) {
+    jinx_oracle_asm_push_arg_variadic_kind(ctx, reg, 2u);
+}
+
+static inline void jinx_oracle_asm_push_arg_variadic_ref(JinxOracleAsmContext *ctx, uint32_t reg) {
+    jinx_oracle_asm_push_arg_variadic_kind(ctx, reg, 1u);
+}
+
 static inline JinxValue jinx_oracle_call_arg(JinxOracleAsmContext *ctx, uint32_t index) {
-    if (ctx != NULL && index < ctx->call_argc) {
+    if (ctx != NULL && index < ctx->call_argc && index < 64u) {
         return ctx->call_args[index];
     }
     return jinx_oracle_zero_value();
@@ -6374,7 +6397,7 @@ static inline JinxValue jinx_oracle_mt_builtin(
 #define JINX_PHP_ZLIB_ENCODING_GZIP 31
 #define JINX_PHP_ZLIB_ENCODING_ANY 47
 
-static inline int jinx_oracle_zlib_valid_encoding(int encoding) {
+static inline int jinx_oracle_zlib_valid_encoding(int64_t encoding) {
     return encoding == JINX_PHP_ZLIB_ENCODING_RAW ||
         encoding == JINX_PHP_ZLIB_ENCODING_DEFLATE ||
         encoding == JINX_PHP_ZLIB_ENCODING_GZIP;
@@ -6995,7 +7018,11 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxValue arg0;
     JinxValue arg1;
 
-    if (ctx == NULL || name == NULL) {
+    if (ctx == NULL || name == NULL || ctx->fault != NULL) {
+        return ret;
+    }
+    if (ctx->argc > 64u || ctx->call_argc > 64u) {
+        ctx->fault = "Oracle ASM call frame overflow";
         return ret;
     }
 
@@ -7039,8 +7066,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in4(name, "gzcompress", "gzdeflate", "gzencode", "zlib_encode")) {
-        int encoding;
-        int level;
+        int64_t encoding;
+        int64_t level;
         int zlib_ok = 0;
 
         if (jinx_oracle_name_is(name, "zlib_encode")) {
@@ -7048,21 +7075,21 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
                 ctx->fault = "zlib_encode requires data and encoding";
                 return jinx_oracle_zero_value();
             }
-            encoding = (int)jinx_oracle_intish(arg1);
-            level = argc >= 3u ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)) : -1;
+            encoding = jinx_oracle_intish(arg1);
+            level = argc >= 3u ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)) : -1;
         } else {
-            level = argc >= 2u ? (int)jinx_oracle_intish(arg1) : -1;
+            level = argc >= 2u ? jinx_oracle_intish(arg1) : -1;
             if (jinx_oracle_name_is(name, "gzdeflate")) {
                 encoding = argc >= 3u
-                    ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
+                    ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
                     : JINX_PHP_ZLIB_ENCODING_RAW;
             } else if (jinx_oracle_name_is(name, "gzencode")) {
                 encoding = argc >= 3u
-                    ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
+                    ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
                     : JINX_PHP_ZLIB_ENCODING_GZIP;
             } else if (jinx_oracle_name_is(name, "gzcompress")) {
                 encoding = argc >= 3u
-                    ? (int)jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
+                    ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u))
                     : JINX_PHP_ZLIB_ENCODING_DEFLATE;
             } else {
                 ctx->fault = "Unhandled native zlib encode builtin";
@@ -7075,7 +7102,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             return jinx_oracle_zero_value();
         }
 
-        ret = jinx_oracle_zlib_encode_value(arg0, encoding, level, &zlib_ok);
+        ret = jinx_oracle_zlib_encode_value(arg0, (int)encoding, (int)level, &zlib_ok);
         if (!zlib_ok) ret = jinx_oracle_bool_value(0);
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -7498,6 +7525,14 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_in2(name, "str_replace", "str_ireplace")) {
+        if (arg0.type != 3u || arg1.type != 3u || jinx_oracle_call_arg(ctx, 2u).type != 3u) {
+            ctx->fault = "str_replace array/coercion overloads are not native yet";
+            return jinx_oracle_zero_value();
+        }
+        if (argc >= 4u) {
+            ctx->fault = "str_replace replacement count output is not native yet";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_str_replace_scalar(
             arg0, arg1, jinx_oracle_call_arg(ctx, 2u), jinx_oracle_name_is(name, "str_ireplace")
         );
@@ -7509,16 +7544,26 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (jinx_oracle_name_is(name, "strtr") && argc >= 3u) {
+    if (jinx_oracle_name_is(name, "strtr")) {
+        if (argc < 3u || arg0.type != 3u || arg1.type != 3u ||
+            jinx_oracle_call_arg(ctx, 2u).type != 3u) {
+            ctx->fault = "strtr requires the native three-string overload";
+            return jinx_oracle_zero_value();
+        }
         ret = jinx_oracle_strtr_three_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u));
         jinx_oracle_return(ctx, ret);
         return ret;
     }
 
     if (jinx_oracle_name_is(name, "levenshtein")) {
-        ret = jinx_oracle_levenshtein_value(arg0, arg1);
-        if (ret.type != 1u) {
-            ctx->fault = "levenshtein native calculation failed";
+        int distance_ok = 0;
+        ret = jinx_oracle_levenshtein_value(arg0, arg1,
+            argc >= 3u ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 2u)) : 1,
+            argc >= 4u ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 3u)) : 1,
+            argc >= 5u ? jinx_oracle_intish(jinx_oracle_call_arg(ctx, 4u)) : 1,
+            &distance_ok);
+        if (!distance_ok) {
+            ctx->fault = "levenshtein cost overflow/allocation is outside native subset";
             return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
@@ -7526,6 +7571,27 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     }
 
     if (jinx_oracle_name_is(name, "htmlspecialchars")) {
+        JinxValue encoding = jinx_oracle_call_arg(ctx, 2u);
+        int64_t flags = argc >= 2u ? jinx_oracle_intish(arg1) : 11;
+        uint32_t position = 0u;
+        uint32_t codepoint = 0u;
+
+        if (argc >= 3u && encoding.type != 0u &&
+            !jinx_oracle_string_equals_ci_literal(encoding, "UTF-8")) {
+            ctx->fault = "htmlspecialchars non-UTF-8 encodings are not native yet";
+            return jinx_oracle_zero_value();
+        }
+        if ((flags & ~INT64_C(11)) != 0) {
+            ctx->fault = "htmlspecialchars non-HTML401 document/invalid-byte flags are not native yet";
+            return jinx_oracle_zero_value();
+        }
+        while (position < jinx_oracle_string_len(arg0)) {
+            if (!jinx_oracle_utf8_next(jinx_oracle_string_bytes(arg0),
+                    jinx_oracle_string_len(arg0), &position, &codepoint)) {
+                ctx->fault = "htmlspecialchars invalid UTF-8 handling is not native yet";
+                return jinx_oracle_zero_value();
+            }
+        }
         ret = jinx_oracle_htmlspecialchars_value(
             arg0, arg1, jinx_oracle_call_arg(ctx, 3u), argc
         );
@@ -8079,12 +8145,6 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (jinx_oracle_name_in2(name, "getrandmax", "mt_getrandmax")) {
-        ret = jinx_oracle_int_value(INT64_C(2147483647));
-        jinx_oracle_return(ctx, ret);
-        return ret;
-    }
-
     if (jinx_oracle_name_is(name, "gettype")) {
         const char *type_name = "unknown type";
         int resource_state = jinx_oracle_native_resource_state(arg0);
@@ -8200,7 +8260,7 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         return ret;
     }
 
-    if (jinx_oracle_name_in3(name, "is_float", "is_double", "is_real")) {
+    if (jinx_oracle_name_in2(name, "is_float", "is_double")) {
         ret = jinx_oracle_bool_value(arg0.type == 5u);
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -8388,7 +8448,8 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         } else if (jinx_oracle_name_is(name, "ctype_xdigit")) {
             ret = jinx_oracle_bool_value(jinx_oracle_ctype_all(arg0, isxdigit));
         } else {
-            ret = jinx_oracle_bool_value(0);
+            ctx->fault = "Unhandled native ctype builtin";
+            return jinx_oracle_zero_value();
         }
         jinx_oracle_return(ctx, ret);
         return ret;
@@ -8434,7 +8495,13 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         } else if (jinx_oracle_name_is(name, "expm1")) {
             ret = jinx_oracle_float_value(expm1(x));
         } else if (jinx_oracle_name_is(name, "log")) {
-            ret = jinx_oracle_float_value(log(x));
+            if (argc >= 2u && y <= 0.0) {
+                ctx->fault = "log base must be greater than 0";
+                return jinx_oracle_zero_value();
+            }
+            ret = jinx_oracle_float_value(argc < 2u ? log(x)
+                : (y == 1.0 ? NAN : (y == 2.0 ? log2(x)
+                : (y == 10.0 ? log10(x) : log(x) / log(y)))));
         } else if (jinx_oracle_name_is(name, "log10")) {
             ret = jinx_oracle_float_value(log10(x));
         } else if (jinx_oracle_name_is(name, "log1p")) {
@@ -8508,6 +8575,8 @@ static inline JinxValue jinx_oracle_asm_mov(JinxOracleAsmContext *ctx, uint32_t 
     jinx_oracle_asm_push_arg_ref((ctx), (reg))
 #define JINX_ORA_PUSH_ARG_VARIADIC(ctx, reg) \
     jinx_oracle_asm_push_arg_variadic((ctx), (reg))
+#define JINX_ORA_PUSH_ARG_VARIADIC_REF(ctx, reg) \
+    jinx_oracle_asm_push_arg_variadic_ref((ctx), (reg))
 #define JINX_ORA_CALL_BUILTIN(ctx, name_literal, argc_literal) \
     jinx_oracle_asm_call_builtin((ctx), (name_literal), (argc_literal))
 #define JINX_ORA_CALL_METHOD_BUILTIN(ctx, name_literal, argc_literal) \
