@@ -298,6 +298,8 @@ $checks = [
     ['getservbyport', ['i:80', 's:tcp'], (($v = getservbyport(80, 'tcp')) === false ? 'bool:false' : 'string:' . $v)],
     ['fnmatch', ['s:*.md', 's:README.md'], 'bool:' . (fnmatch('*.md', 'README.md') ? 'true' : 'false')],
     ['escapeshellarg', ['s:a b'], 'string:' . escapeshellarg('a b')],
+    ['shell_exec', ['s:printf jinx-shell'], (($v = shell_exec('printf jinx-shell')) === false ? 'bool:false' : ($v === null ? 'null' : 'string:' . $v))],
+    ['shell_exec', ['s:true'], (($v = shell_exec('true')) === false ? 'bool:false' : ($v === null ? 'null' : 'string:' . $v))],
     ['flush', [], 'null'],
     ['openlog', ['s:jinx-parity', 'i:' . LOG_PID, 'i:' . LOG_USER], 'bool:' . (openlog('jinx-parity', LOG_PID, LOG_USER) ? 'true' : 'false')],
     ['syslog', ['i:' . LOG_INFO, 's:Jinx native parity smoke'], 'bool:' . (syslog(LOG_INFO, 'Jinx native parity smoke') ? 'true' : 'false')],
@@ -336,6 +338,22 @@ $checks = [
 ];
 
 array_push($checks, ...$posixChecks);
+
+if (function_exists('proc_nice')) {
+    $checks[] = [
+        'proc_nice',
+        ['i:0'],
+        'bool:' . (proc_nice(0) ? 'true' : 'false'),
+    ];
+}
+if (function_exists('nl_langinfo') && defined('CODESET')) {
+    $phpLanginfo = nl_langinfo(constant('CODESET'));
+    $checks[] = [
+        'nl_langinfo',
+        ['i:' . constant('CODESET')],
+        $phpLanginfo === false ? 'bool:false' : 'string:' . $phpLanginfo,
+    ];
+}
 
 if (function_exists('strftime')) {
     $phpStrftime = @strftime('%Y-%m-%d %H:%M:%S', 1704067200);
