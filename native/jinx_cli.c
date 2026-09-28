@@ -1438,6 +1438,31 @@ static int command_oracle_ini_smoke(void) {
     return 0;
 }
 
+static int command_oracle_strtok_smoke(void) {
+    const char *source = "alpha,beta;;gamma";
+    const char *delimiters = ",;";
+    JinxValue args[2];
+    JinxValue result;
+    int ok = 0;
+
+    args[0] = jinx_value_string(source, (uint32_t)strlen(source));
+    args[1] = jinx_value_string(delimiters, (uint32_t)strlen(delimiters));
+    result = jinx_call_builtin_through_oracle_checked("strtok", args, 2u, &ok);
+    if (!ok) return fail("strtok initial call failed");
+    printf("first="); print_value_line(result); release_cli_value(result);
+
+    args[0] = args[1];
+    for (int i = 0; i < 3; i++) {
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked("strtok", args, 1u, &ok);
+        if (!ok) return fail("strtok continuation failed");
+        printf("%s=", i == 0 ? "second" : (i == 1 ? "third" : "fourth"));
+        print_value_line(result);
+        release_cli_value(result);
+    }
+    return 0;
+}
+
 static int command_oracle_runtime_state_smoke(void) {
     JinxValue args[2];
     JinxValue result;
