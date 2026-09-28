@@ -27,10 +27,26 @@ if ($code !== 0 || trim($exact) !== 'int:6') {
     exit(1);
 }
 
+$constant = runCommand(
+    escapeshellarg($jinx) . ' oracle-call constant ' . escapeshellarg('s:PHP_VERSION_ID'),
+    $code
+);
+if ($code !== 0 || trim($constant) !== 'int:' . PHP_VERSION_ID) {
+    fwrite(STDERR, "FAIL: metadata-backed constant() did not match PHP: {$constant}\n");
+    exit(1);
+}
+
+$classExists = runCommand(
+    escapeshellarg($jinx) . ' oracle-call class_exists ' . escapeshellarg('s:stdClass'),
+    $code
+);
+if ($code !== 0 || trim($classExists) !== 'bool:true') {
+    fwrite(STDERR, "FAIL: metadata-backed class_exists() did not match PHP: {$classExists}\n");
+    exit(1);
+}
+
 foreach ([
     ['md5', 's:oracle'],
-    ['constant', 's:PHP_VERSION'],
-    ['class_exists', 's:stdClass'],
 ] as [$name, $arg]) {
     $output = runCommand(
         escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($name) . ' ' . escapeshellarg($arg),
