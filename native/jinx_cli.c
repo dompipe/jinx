@@ -16,6 +16,7 @@
 static void print_value(JinxValue value);
 static void print_value_hex_line(JinxValue value);
 static JinxValue make_zend_array_fixture(int deleted);
+static JinxValue make_zend_empty_array_fixture(void);
 static JinxValue make_zend_string_array_fixture(void);
 static JinxValue make_zend_walk_array_fixture(void);
 static void release_cli_value(JinxValue value);
@@ -48,6 +49,7 @@ static void usage(const char *argv0) {
     printf("  h:<hex>       binary string from hexadecimal bytes\n");
     printf("  a:<count>     array-count stand-in\n");
     printf("  za:sample     native Zend array [10, 20, \"name\" => 30, \"keep\" => 40]\n");
+    printf("  za:empty      native empty Zend array\n");
     printf("  za:deleted    same native Zend array with index 1 and key \"name\" tombstoned\n");
     printf("  za:strings    native Zend array [\"b\", \"a\", \"c\"]\n");
     printf("  za:walk       native Zend array keyed for array_walk(settype)\n");
@@ -409,6 +411,16 @@ static JinxValue make_zend_array_fixture(int deleted) {
     return value;
 }
 
+static JinxValue make_zend_empty_array_fixture(void) {
+    JinxZendArray *array = jinx_zend_array_new_packed(1u);
+    JinxValue value;
+
+    if (array == NULL) return jinx_value_null();
+    value = jinx_oracle_zend_array_value_retained(array);
+    jinx_zend_array_release(array);
+    return value;
+}
+
 static JinxValue make_zend_string_array_fixture(void) {
     JinxZendArray *array = jinx_zend_array_new_packed(3u);
     JinxZendString *b = NULL;
@@ -521,6 +533,10 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
 
     if (strcmp(text, "za:sample") == 0) {
         return make_zend_array_fixture(0);
+    }
+
+    if (strcmp(text, "za:empty") == 0) {
+        return make_zend_empty_array_fixture();
     }
 
     if (strcmp(text, "za:deleted") == 0) {
