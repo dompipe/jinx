@@ -8560,8 +8560,7 @@ static inline JinxValue jinx_oracle_asm_call_method_builtin(JinxOracleAsmContext
 
     if (ctx == NULL || name == NULL || ctx->fault != NULL) return ret;
     if (!ctx->method_receiver_valid) {
-        ctx->fault = "Native method call missing receiver";
-        return ret;
+        return jinx_oracle_asm_call_builtin(ctx, name, argc);
     }
 
     argc = ctx->call_argc;
