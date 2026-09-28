@@ -45,6 +45,20 @@ foreach ([$interfaces, $traits, $internalFunctions, $extensions, $enums] as &$li
 }
 unset($list);
 
+$cfgRows = [];
+foreach (array_keys(ini_get_all(null, false) ?: []) as $cfgName) {
+    $cfgValue = get_cfg_var((string)$cfgName);
+    if (is_string($cfgValue)) {
+        $cfgRows[] = [(string)$cfgName, $cfgValue];
+    }
+}
+usort($cfgRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
+
+$htmlTranslationRows = [];
+foreach (get_html_translation_table() as $from => $to) {
+    $htmlTranslationRows[] = [(string)$from, (string)$to];
+}
+
 $filterRows = [];
 if (function_exists('filter_list') && function_exists('filter_id')) {
     foreach (filter_list() as $filterName) {
@@ -74,6 +88,7 @@ foreach ($classes as $idx => $class) {
     $implements = array_values(class_implements($class, false) ?: []);
     $uses = array_values(class_uses($class, false) ?: []);
     $methods = array_values(get_class_methods($class) ?: []);
+    $classVars = get_class_vars($class) ?: [];
     foreach (['parents'=>$parents,'implements'=>$implements,'uses'=>$uses,'methods'=>$methods] as $kind=>$values) {
         $sym = 'jinx_meta_' . $idx . '_' . $kind;
         $arrays[] = 'static const char *const ' . $sym . '[] = {' .
@@ -87,6 +102,29 @@ foreach ($classes as $idx => $class) {
         $idx, count($uses),
         $idx, count($methods)
     );
+}
+
+$classVarMetaRows = [];
+foreach ($classes as $class) {
+    $vars = get_class_vars($class) ?: [];
+    $complete = true;
+    $items = [];
+    foreach ($vars as $name => $value) {
+        if (is_int($value)) {
+            $items[] = [$name, 1, cint64($value), '0.0', 'NULL'];
+        } elseif (is_bool($value)) {
+            $items[] = [$name, 2, $value ? '1LL' : '0LL', '0.0', 'NULL'];
+        } elseif (is_float($value) && is_finite($value)) {
+            $items[] = [$name, 5, '0LL', sprintf('%.17g', $value), 'NULL'];
+        } elseif (is_string($value)) {
+            $items[] = [$name, 3, '0LL', '0.0', cstr($value)];
+        } elseif ($value === null) {
+            $items[] = [$name, 0, '0LL', '0.0', 'NULL'];
+        } else {
+            $complete = false;
+        }
+    }
+    $classVarMetaRows[] = [$class, $items, $complete];
 }
 
 $constants = [];
@@ -116,6 +154,8 @@ $code[] = 'typedef struct JinxNativeClassMeta { const char *name; const char *co
 $code[] = 'typedef struct JinxNativeConstantMeta { const char *name; unsigned type; long long i64; double f64; const char *str; } JinxNativeConstantMeta;';
 $code[] = 'typedef struct JinxNativeExtensionMeta { const char *name; const char *const *functions; size_t function_count; } JinxNativeExtensionMeta;';
 $code[] = 'typedef struct JinxNativeFilterMeta { const char *name; int id; } JinxNativeFilterMeta;';
+$code[] = 'typedef struct JinxNativeStringPair { const char *name; const char *value; } JinxNativeStringPair;';
+$code[] = 'typedef struct JinxNativeClassVarsMeta { const char *class_name; const JinxNativeConstantMeta *vars; size_t var_count; int complete; } JinxNativeClassVarsMeta;';
 $code[] = '';
 array_push($code, ...$arrays);
 $code[] = '';
@@ -156,6 +196,40 @@ foreach ($filterRows as [$filterName, $filterId]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_filter_metadata_count = sizeof(jinx_native_filter_metadata) / sizeof(jinx_native_filter_metadata[0]);';
+$code[] = '';
+
+$code[] = 'static const JinxNativeStringPair jinx_native_cfg_metadata[] = {';
+foreach ($cfgRows as [$cfgName, $cfgValue]) {
+    $code[] = '    { ' . cstr($cfgName) . ', ' . cstr($cfgValue) . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_cfg_metadata_count = sizeof(jinx_native_cfg_metadata) / sizeof(jinx_native_cfg_metadata[0]);';
+$code[] = '';
+
+$code[] = 'static const JinxNativeStringPair jinx_native_html_translation_default[] = {';
+foreach ($htmlTranslationRows as [$from, $to]) {
+    $code[] = '    { ' . cstr($from) . ', ' . cstr($to) . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_html_translation_default_count = sizeof(jinx_native_html_translation_default) / sizeof(jinx_native_html_translation_default[0]);';
+$code[] = '';
+
+$classVarSymbols = [];
+foreach ($classVarMetaRows as $idx => [$className, $items, $complete]) {
+    $symbol = 'jinx_native_class_vars_' . $idx;
+    $classVarSymbols[] = [$className, $symbol, count($items), $complete];
+    $code[] = 'static const JinxNativeConstantMeta ' . $symbol . '[] = {';
+    foreach ($items as [$name, $type, $i64, $f64, $str]) {
+        $code[] = '    { ' . cstr((string)$name) . ', ' . (int)$type . ', ' . $i64 . ', ' . $f64 . ', ' . $str . ' },';
+    }
+    $code[] = '};';
+}
+$code[] = 'static const JinxNativeClassVarsMeta jinx_native_class_vars_metadata[] = {';
+foreach ($classVarSymbols as [$className, $symbol, $count, $complete]) {
+    $code[] = '    { ' . cstr($className) . ', ' . $symbol . ', ' . $count . 'u, ' . ($complete ? '1' : '0') . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_class_vars_metadata_count = sizeof(jinx_native_class_vars_metadata) / sizeof(jinx_native_class_vars_metadata[0]);';
 $code[] = '';
 
 $code[] = 'static const JinxNativeClassMeta jinx_native_class_metadata[] = {';
