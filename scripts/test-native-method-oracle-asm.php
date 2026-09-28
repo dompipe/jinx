@@ -121,6 +121,8 @@ checkMethod(
     'string:' . $phpInterval->format('%Y-%M-%D %H:%I:%S')
 );
 
+$validatedNewRoutes = 0;
+
 $throwableClasses = [
     ArgumentCountError::class,
     ArithmeticError::class,
@@ -260,6 +262,7 @@ foreach ($throwableClasses as $class) {
             [],
             $expected
         );
+        ++$validatedNewRoutes;
     }
 
     if ($class !== FiberError::class) {
@@ -287,6 +290,7 @@ foreach ($throwableClasses as $class) {
                 . "JINX:\n{$constructActual}"
             );
         }
+        ++$validatedNewRoutes;
     }
 }
 
@@ -328,6 +332,7 @@ foreach ($throwableInterfaceMethods as $method) {
         [],
         $expected
     );
+    ++$validatedNewRoutes;
 }
 
 $phpErrorException = new ErrorException('jinx-message', 73);
@@ -338,6 +343,7 @@ checkMethod(
     [],
     'int:' . $phpErrorException->getSeverity()
 );
+++$validatedNewRoutes;
 
 /*
  * Stateful DateTime method parity.  These probes verify the returned object's
@@ -408,6 +414,7 @@ foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
                 . "JINX:\n{$actual}"
             );
         }
+        ++$validatedNewRoutes;
     }
 }
 
@@ -492,6 +499,14 @@ foreach ($dateTimeExtraExpected as $route => $expected) {
             . "JINX:\n{$actual}"
         );
     }
+    ++$validatedNewRoutes;
 }
 
-echo "PASS: native Oracle method receiver proves 500 newly added callable routes\n";
+if ($validatedNewRoutes !== 500) {
+    failMethod(
+        "new native method route proof count mismatch: "
+        . "{$validatedNewRoutes} validated instead of 500"
+    );
+}
+
+echo "PASS: native Oracle method receiver proves {$validatedNewRoutes} newly added callable routes\n";
