@@ -11,6 +11,43 @@ function fail(string $message): never
     exit(1);
 }
 
+$options = [
+    'procedural' => false,
+    'methods' => false,
+    'family' => null,
+    'limit' => 100,
+    'names_only' => false,
+];
+
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--procedural') {
+        $options['procedural'] = true;
+        continue;
+    }
+    if ($arg === '--methods') {
+        $options['methods'] = true;
+        continue;
+    }
+    if ($arg === '--names-only') {
+        $options['names_only'] = true;
+        continue;
+    }
+    if (str_starts_with($arg, '--family=')) {
+        $options['family'] = substr($arg, strlen('--family='));
+        continue;
+    }
+    if (str_starts_with($arg, '--limit=')) {
+        $options['limit'] = max(1, (int) substr($arg, strlen('--limit=')));
+        continue;
+    }
+
+    fail("Unknown option {$arg}; use --procedural, --methods, --family=<text>, --limit=<n>, --names-only");
+}
+
+if ($options['procedural'] && $options['methods']) {
+    fail('Choose only one of --procedural or --methods');
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     fail('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
 }
@@ -99,17 +136,33 @@ function bucket(string $name): string
     };
 }
 
+function includeName(string $name, array $options): bool
+{
+    if ($options['procedural'] && str_contains($name, '::')) return false;
+    if ($options['methods'] && !str_contains($name, '::')) return false;
+
+    if ($options['family'] !== null) {
+        $needle = strtolower((string) $options['family']);
+        return str_contains(strtolower(bucket($name)), $needle) || str_contains(strtolower($name), $needle);
+    }
+
+    return true;
+}
+
 $functionsText = run(escapeshellarg($jinx) . ' functions', $code);
 if ($code !== 0) fail("./jinx functions failed:\n{$functionsText}");
 
 $names = [];
 foreach (preg_split('/\R/', $functionsText) as $line) {
     if (preg_match('/^\s*\d+\s+(.+)$/', $line, $m)) {
-        $names[] = trim($m[1]);
+        $name = trim($m[1]);
+        if (includeName($name, $options)) {
+            $names[] = $name;
+        }
     }
 }
 
-if ($names === []) fail('No function names parsed from ./jinx functions');
+if ($names === []) fail('No function names parsed from ./jinx functions after filters');
 
 $total = count($names);
 $concrete = [];
@@ -136,8 +189,18 @@ foreach ($names as $name) {
 
 uasort($groups, static fn (array $a, array $b): int => count($b) <=> count($a));
 
+if ($options['names_only']) {
+    echo implode(PHP_EOL, array_slice($unwired, 0, $options['limit'])) . PHP_EOL;
+    exit(0);
+}
+
 printf("Native Oracle callable audit\n");
-printf("Registered names: %d\n", $total);
+printf("Scope: %s%s%s\n",
+    $options['procedural'] ? 'procedural' : ($options['methods'] ? 'methods' : 'all'),
+    $options['family'] !== null ? ', family=' . $options['family'] : '',
+    ', first-unwired-limit=' . $options['limit']
+);
+printf("Registered names in scope: %d\n", $total);
 printf("Concrete with sample args: %d\n", count($concrete));
 printf("Null/fault or placeholder with sample args: %d\n", count($unwired));
 printf("\nLargest unwired sets:\n");
@@ -147,7 +210,7 @@ foreach ($groups as $group => $items) {
     printf("  examples: %s\n", implode(', ', array_slice($items, 0, 12)));
 }
 
-printf("\nFirst 100 unwired names:\n%s\n", implode(PHP_EOL, array_slice($unwired, 0, 100)));
+printf("\nFirst %d unwired names:\n%s\n", $options['limit'], implode(PHP_EOL, array_slice($unwired, 0, $options['limit'])));
 
 if (count($unwired) > 0) {
     exit(1);
