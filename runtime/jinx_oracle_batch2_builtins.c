@@ -5,6 +5,7 @@
 #include "jinx_native_core_metadata.generated.h"
 
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fnmatch.h>
 #include <grp.h>
@@ -225,6 +226,10 @@ typedef struct JinxOracleBatch2Stream {
     FILE *fp;
 } JinxOracleBatch2Stream;
 
+typedef struct JinxOracleBatch2Dir {
+    DIR *dir;
+} JinxOracleBatch2Dir;
+
 typedef struct JinxOracleBatch2Gzip {
     gzFile gz;
 } JinxOracleBatch2Gzip;
@@ -255,6 +260,32 @@ static void *b2_object_resource(
     slot = jinx_zend_array_find(object->properties, property, strlen(property));
     if (slot == NULL || slot->type != JINX_ZEND_RESOURCE) return NULL;
     return slot->value.ptr;
+}
+
+static JinxOracleBatch2Dir *b2_dir(JinxValue value) {
+    return (JinxOracleBatch2Dir *)b2_object_resource(
+        value, "directory-stream", "__dir"
+    );
+}
+
+static JinxValue b2_new_dir(DIR *dir) {
+    JinxOracleBatch2Dir *resource;
+    JinxZendObject *object;
+    if (dir == NULL) return jinx_oracle_zero_value();
+    resource = (JinxOracleBatch2Dir *)calloc(1u, sizeof(*resource));
+    if (resource == NULL) {
+        closedir(dir);
+        return jinx_oracle_zero_value();
+    }
+    resource->dir = dir;
+    object = jinx_zend_object_new("directory-stream");
+    if (object == NULL || !b2_object_set_resource(object, "__dir", resource)) {
+        closedir(dir);
+        free(resource);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
 }
 
 static JinxOracleBatch2Stream *b2_stream(JinxValue value) {
@@ -630,6 +661,10 @@ JinxValue jinx_oracle_batch2_fixture(const char *spec) {
         return jinx_oracle_finfo_builtin(
             "finfo_open", NULL, 0u, &finfo_handled
         );
+    }
+
+    if (strcmp(spec, "dir:tmp") == 0) {
+        return b2_new_dir(opendir("."));
     }
 
     return jinx_oracle_zero_value();
@@ -2376,6 +2411,50 @@ csv_fail:
             : jinx_oracle_bool_value(0);
     }
 #endif
+
+
+    if (strcmp(name, "opendir") == 0) {
+        char *path;
+        DIR *dir;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc >= 2u && args[1].type != 0u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL) return result;
+        dir = opendir(path);
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return dir != NULL ? b2_new_dir(dir) : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "closedir") == 0 ||
+        strcmp(name, "readdir") == 0 ||
+        strcmp(name, "rewinddir") == 0) {
+        JinxOracleBatch2Dir *resource;
+        if (args == NULL || argc < 1u) return result;
+        resource = b2_dir(args[0]);
+        if (resource == NULL || resource->dir == NULL) return result;
+
+        if (strcmp(name, "closedir") == 0) {
+            (void)closedir(resource->dir);
+            resource->dir = NULL;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        if (strcmp(name, "rewinddir") == 0) {
+            rewinddir(resource->dir);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        {
+            struct dirent *entry = readdir(resource->dir);
+            if (handled != NULL) *handled = 1;
+            return entry != NULL
+                ? b2_copy(entry->d_name, strlen(entry->d_name))
+                : jinx_oracle_bool_value(0);
+        }
+    }
 
     return result;
 }
