@@ -13,6 +13,7 @@ $limit = 25;
 $mode = 'parallel';
 $routeFilter = null;
 $nameFilter = null;
+$onlyNames = null;
 $timeout = 15;
 
 foreach (array_slice($argv, 1) as $arg) {
@@ -26,6 +27,15 @@ foreach (array_slice($argv, 1) as $arg) {
         $routeFilter = strtolower(substr($arg, 8));
     } elseif (str_starts_with($arg, '--name=')) {
         $nameFilter = strtolower(substr($arg, 7));
+    } elseif (str_starts_with($arg, '--only=')) {
+        $rawOnly = substr($arg, 7);
+        $onlyNames = array_fill_keys(
+            array_values(array_filter(array_map(
+                static fn(string $v): string => strtolower(trim($v)),
+                explode(',', $rawOnly)
+            ))),
+            true
+        );
     } elseif (str_starts_with($arg, '--timeout=')) {
         $timeout = max(1, (int) substr($arg, 10));
     } else {
@@ -227,6 +237,7 @@ foreach ($wiring['routes'] as $name => $route) {
     if ($route === 'intentional-native-fault' || str_contains($name, '::')) continue;
     if ($routeFilter !== null && !str_contains(strtolower($route), $routeFilter)) continue;
     if ($nameFilter !== null && !str_contains(strtolower($name), $nameFilter)) continue;
+    if ($onlyNames !== null && !isset($onlyNames[strtolower($name)])) continue;
     if (unsafeFunction($name) || !function_exists($name)) {
         ++$skipped;
         continue;
