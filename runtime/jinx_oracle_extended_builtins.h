@@ -8,6 +8,14 @@
 extern "C" {
 #endif
 
+JinxValue jinx_oracle_extended_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+);
+
 JinxValue jinx_oracle_extended_builtin(
     const char *name,
     JinxValue *args,
