@@ -2001,13 +2001,21 @@ JinxValue jinx_oracle_extended_builtin(
         if (strcmp(name, "fgets") == 0) {
             char *line = NULL;
             size_t cap = 0u;
-            ssize_t n = getline(&line, &cap, stream->fp);
+            ssize_t n;
+            int64_t length = 0;
+
+            if (argc >= 2u && args[1].type != 0u) {
+                length = jinx_oracle_intish(args[1]);
+                if (length < 2) {
+                    return result;
+                }
+            }
+
+            n = getline(&line, &cap, stream->fp);
             if (handled != NULL) *handled = 1;
             if (n < 0) { free(line); return jinx_oracle_bool_value(0); }
-            if (argc >= 2u) {
-                int64_t length = jinx_oracle_intish(args[1]);
-                if (length < 2) { free(line); return result; }
-                if ((int64_t)n >= length) n = length - 1;
+            if (length >= 2 && (int64_t)n >= length) {
+                n = length - 1;
             }
             result = jinx_oracle_ext_copy_string(line, (size_t)n);
             free(line);
@@ -2258,8 +2266,12 @@ JinxValue jinx_oracle_extended_builtin(
             return jinx_oracle_bool_value(meta != NULL);
         }
         free(constant_name);
+        if (meta == NULL) {
+            /* PHP 8+ constant() throws Error for an undefined constant. */
+            return result;
+        }
         if (handled != NULL) *handled = 1;
-        return meta != NULL ? jinx_oracle_ext_constant_value(meta) : jinx_oracle_zero_value();
+        return jinx_oracle_ext_constant_value(meta);
     }
 
     return result;
