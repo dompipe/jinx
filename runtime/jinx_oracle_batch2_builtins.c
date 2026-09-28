@@ -40,6 +40,7 @@
 #include <sys/times.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
 #include <syslog.h>
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -2167,6 +2168,65 @@ JinxValue jinx_oracle_batch2_builtin(
         if (handled != NULL) *handled = 1;
         return b2_copy(message != NULL ? message : "", message != NULL ? strlen(message) : 0u);
     }
+    if (strcmp(name, "pcntl_wifexited") == 0 ||
+        strcmp(name, "pcntl_wifstopped") == 0 ||
+        strcmp(name, "pcntl_wifsignaled") == 0 ||
+        strcmp(name, "pcntl_wifcontinued") == 0 ||
+        strcmp(name, "pcntl_wexitstatus") == 0 ||
+        strcmp(name, "pcntl_wtermsig") == 0 ||
+        strcmp(name, "pcntl_wstopsig") == 0) {
+        int status_word;
+        if (args == NULL || argc != 1u) return result;
+        status_word = (int)jinx_oracle_intish(args[0]);
+
+        if (strcmp(name, "pcntl_wifexited") == 0) {
+#ifdef WIFEXITED
+            result = jinx_oracle_bool_value(WIFEXITED(status_word) != 0);
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        } else if (strcmp(name, "pcntl_wifstopped") == 0) {
+#ifdef WIFSTOPPED
+            result = jinx_oracle_bool_value(WIFSTOPPED(status_word) != 0);
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        } else if (strcmp(name, "pcntl_wifsignaled") == 0) {
+#ifdef WIFSIGNALED
+            result = jinx_oracle_bool_value(WIFSIGNALED(status_word) != 0);
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        } else if (strcmp(name, "pcntl_wifcontinued") == 0) {
+#ifdef WIFCONTINUED
+            result = jinx_oracle_bool_value(WIFCONTINUED(status_word) != 0);
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        } else if (strcmp(name, "pcntl_wexitstatus") == 0) {
+#ifdef WEXITSTATUS
+            result = jinx_oracle_int_value((int64_t)WEXITSTATUS(status_word));
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        } else if (strcmp(name, "pcntl_wtermsig") == 0) {
+#ifdef WTERMSIG
+            result = jinx_oracle_int_value((int64_t)WTERMSIG(status_word));
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        } else {
+#ifdef WSTOPSIG
+            result = jinx_oracle_int_value((int64_t)WSTOPSIG(status_word));
+#else
+            result = jinx_oracle_bool_value(0);
+#endif
+        }
+
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "posix_eaccess") == 0) {
         char *path;
         int mode = 0;
