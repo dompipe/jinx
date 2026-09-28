@@ -26,6 +26,11 @@ if (!is_file($jinx) || !is_executable($jinx)) {
     fail('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
 }
 
+$out = run($jinxCommand . ' native-benchmark-id', $code);
+if ($code !== 0 || trim($out) !== 'native-root-jinx') {
+    fail("repository-root ./jinx did not identify as the compiled native benchmark executable:\n{$out}");
+}
+
 $nativeSource = (string) file_get_contents($root . '/native/jinx_cli.c');
 
 if (!str_contains($nativeSource, 'ends_with(argv[1], ".php")') ||
