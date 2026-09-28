@@ -1,0 +1,174 @@
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$jinx = $root . '/jinx';
+$jinxCommand = escapeshellarg($jinx);
+
+function fail(string $message): never
+{
+    fwrite(STDERR, "FAIL: {$message}" . PHP_EOL);
+    exit(1);
+}
+
+function run(string $cmd, ?int &$code = null): string
+{
+    $out = [];
+    $status = 0;
+    exec($cmd . ' 2>&1', $out, $status);
+    $code = $status;
+
+    return implode(PHP_EOL, $out) . (count($out) ? PHP_EOL : '');
+}
+
+if (!is_file($jinx) || !is_executable($jinx)) {
+    fail('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
+}
+
+$out = run($jinxCommand . ' native-benchmark-id', $code);
+if ($code !== 0 || trim($out) !== 'native-root-jinx') {
+    fail("repository-root ./jinx did not identify as the compiled native benchmark executable:\n{$out}");
+}
+
+$nativeSource = (string) file_get_contents($root . '/native/jinx_cli.c');
+
+if (!str_contains($nativeSource, 'ends_with(argv[1], ".php")') ||
+    !str_contains($nativeSource, 'execvp("php", php_argv)')) {
+    fail('native ./jinx source does not route .php script paths through PHP');
+}
+
+$tests = [
+    'scripts/test-oracle-program-compiler.php' => 'PASS: OracleProgramCompiler interprets PHP',
+    'scripts/test-zend-arbitrary-code-oracle.php' => 'PASS: Oracle records arbitrary Zend-shaped PHP constructs',
+    'scripts/test-zend-runtime-ops-oracle.php' => 'PASS: Oracle records Zend runtime body ops',
+    'scripts/test-zend-declaration-metadata-oracle.php' => 'PASS: Oracle records Zend declaration metadata',
+    'scripts/test-oracle-straightline-execution.php' => 'PASS: Oracle executes straight-line PHP subset',
+    'scripts/test-oracle-conditional-execution.php' => 'PASS: Oracle executes conditional PHP subset',
+    'scripts/test-oracle-loop-execution.php' => 'PASS: Oracle executes loop PHP subset',
+    'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
+    'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
+    'scripts/test-native-oracle-wiring.php' => 'PASS: native Oracle wiring inventory and intentional faults verified',
+    'scripts/test-native-error-parity-oracle-asm.php' => 'PASS: native Oracle ASM exceptional scalar/string paths reject where PHP rejects',
+    'scripts/test-native-no-fabricated-builtins.php' => 'PASS: promoted native builtins execute exactly while reviewed unsupported builtins still fault',
+    'scripts/test-native-return-contracts.php' => 'PASS: native Oracle return contracts reject invalid argument paths, preserve legitimate nulls, and classify stream resources correctly',
+    'scripts/test-native-math-core-oracle-asm.php' => 'PASS: native Oracle ASM math-core and cosine handlers match PHP',
+    'scripts/test-native-scalar-core-oracle-asm.php' => 'PASS: native Oracle ASM scalar-core builtins match PHP for covered JinxValue semantics',
+    'scripts/test-native-pure-core-oracle-asm.php' => 'PASS: native Oracle ASM pure scalar/string core matches PHP',
+    'scripts/test-native-zend-array-core-oracle-asm.php' => 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics',
+    'scripts/test-native-procedural-needed-100-oracle-asm.php' => 'PASS: first 100 needed procedural Oracle ASM targets execute without placeholders',
+    'scripts/test-native-procedural-needed-200-oracle-asm.php' => 'PASS: second-wave procedural Oracle handlers preserve deterministic PHP return contracts',
+    'scripts/test-native-method-oracle-asm.php' => 'PASS: native Oracle method receiver proves 500 newly added callable routes',
+    'scripts/test-native-zlib-oracle-asm.php' => 'PASS: native Oracle zlib helpers match PHP for covered one-shot semantics',
+    'scripts/test-native-string-transform-oracle-asm.php' => 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP',
+    'scripts/test-oracle-execution-families.php' => 'PASS: Oracle execution families expose',
+];
+
+foreach ($tests as $script => $expected) {
+    $out = run(sprintf('%s %s', $jinxCommand, escapeshellarg($script)), $code);
+
+    if ($code !== 0) {
+        fail("./jinx {$script} failed:\n{$out}");
+    }
+
+    if (!str_contains($out, $expected)) {
+        fail("./jinx {$script} did not run expected test:\n{$out}");
+    }
+}
+
+$out = run(sprintf(
+    '%s bench-call abs 3 %s',
+    $jinxCommand,
+    escapeshellarg('i:-42')
+), $code);
+
+if ($code !== 0 ||
+    !str_contains($out, 'Function: abs') ||
+    !str_contains($out, 'Per call ns:')) {
+    fail("bench-call did not execute a named native implementation:\n{$out}");
+}
+
+$out = run(sprintf(
+    '%s bench-method-call %s 3 %s %s',
+    $jinxCommand,
+    escapeshellarg('DateTime::format'),
+    escapeshellarg('dt:2024-01-02 03:04:05'),
+    escapeshellarg('s:Y-m-d')
+), $code);
+
+if ($code !== 0 ||
+    !str_contains($out, 'Method: DateTime::format') ||
+    !str_contains($out, 'Per call ns:')) {
+    fail("bench-method-call did not execute the parity-proven native method:\n{$out}");
+}
+
+$out = run(
+    'JINX_SKIP_BUILD=1 '
+    . escapeshellarg(PHP_BINARY)
+    . ' '
+    . escapeshellarg($root . '/scripts/benchmark-native-implemented-functions.php')
+    . ' 3 --limit=3',
+    $code
+);
+
+if ($code !== 0 ||
+    !str_contains($out, 'PHP vs native ./jinx implemented-function benchmark') ||
+    !str_contains($out, 'Benchmarked implementations: 3')) {
+    fail("implemented-function benchmark script did not complete its smoke run:\n{$out}");
+}
+
+$out = run(sprintf(
+    '%s web-plan %s',
+    $jinxCommand,
+    escapeshellarg($root . '/fixtures/simple-web-api-validated.php')
+), $code);
+
+if ($code !== 0) {
+    fail("web-plan failed:\n{$out}");
+}
+
+if (!str_contains($out, 'WEB_IF_MISSING_ARRAY_KEY')) {
+    fail("web-plan did not contain WEB_IF_MISSING_ARRAY_KEY:\n{$out}");
+}
+
+$outFile = $root . '/build/web-compiled/bin-jinx-test.compiled.php';
+
+$out = run(sprintf(
+    '%s web-compile %s %s',
+    $jinxCommand,
+    escapeshellarg($root . '/fixtures/simple-web-api-validated.php'),
+    escapeshellarg($outFile)
+), $code);
+
+if ($code !== 0) {
+    fail("web-compile failed:\n{$out}");
+}
+
+if (!is_file($outFile)) {
+    fail('web-compile did not write output');
+}
+
+$outJson = $root . '/build/web-statements/bin-jinx-test.web.json';
+
+$out = run(sprintf(
+    '%s web-statements %s %s',
+    $jinxCommand,
+    escapeshellarg($root . '/fixtures/oracle-post-curl-dynamic.php'),
+    escapeshellarg($outJson)
+), $code);
+
+if ($code !== 0) {
+    fail("web-statements failed:\n{$out}");
+}
+
+if (!is_file($outJson)) {
+    fail('web-statements did not write output');
+}
+
+$json = (string) file_get_contents($outJson);
+
+if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
+    fail('web-statements output missing JINX_WEB_PROGRAM');
+}
+
+echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle function execution, native Oracle ASM PHP parity checks, named implementation benchmarks, Oracle execution families, web-plan, web-compile, and web-statements\n";
