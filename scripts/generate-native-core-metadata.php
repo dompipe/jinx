@@ -71,6 +71,33 @@ foreach (array_keys(ini_get_all(null, false) ?: []) as $cfgName) {
 }
 usort($cfgRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
 
+$iniOwners = [];
+foreach ($extensions as $extension) {
+    $owned = ini_get_all($extension, false);
+    if (!is_array($owned)) {
+        continue;
+    }
+    foreach (array_keys($owned) as $iniName) {
+        $iniOwners[(string)$iniName] = (string)$extension;
+    }
+}
+$iniRows = [];
+foreach (ini_get_all(null, true) ?: [] as $iniName => $meta) {
+    if (!is_array($meta)) {
+        continue;
+    }
+    $globalValue = $meta['global_value'] ?? null;
+    $localValue = $meta['local_value'] ?? null;
+    $iniRows[] = [
+        (string)$iniName,
+        is_string($globalValue) ? $globalValue : null,
+        is_string($localValue) ? $localValue : null,
+        (int)($meta['access'] ?? 0),
+        $iniOwners[(string)$iniName] ?? '',
+    ];
+}
+usort($iniRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
+
 $htmlTranslationRows = [];
 foreach (get_html_translation_table() as $from => $to) {
     $htmlTranslationRows[] = [(string)$from, (string)$to];
@@ -196,6 +223,7 @@ $code[] = 'typedef struct JinxNativeConstantMeta { const char *name; unsigned ty
 $code[] = 'typedef struct JinxNativeExtensionMeta { const char *name; const char *const *functions; size_t function_count; } JinxNativeExtensionMeta;';
 $code[] = 'typedef struct JinxNativeFilterMeta { const char *name; int id; } JinxNativeFilterMeta;';
 $code[] = 'typedef struct JinxNativeStringPair { const char *name; const char *value; } JinxNativeStringPair;';
+$code[] = 'typedef struct JinxNativeIniMeta { const char *name; const char *global_value; const char *local_value; int access; const char *extension; } JinxNativeIniMeta;';
 $code[] = 'typedef struct JinxNativeClassVarsMeta { const char *class_name; const JinxNativeConstantMeta *vars; size_t var_count; int complete; } JinxNativeClassVarsMeta;';
 $code[] = '';
 array_push($code, ...$arrays);
@@ -250,6 +278,20 @@ foreach ($cfgRows as [$cfgName, $cfgValue]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_cfg_metadata_count = sizeof(jinx_native_cfg_metadata) / sizeof(jinx_native_cfg_metadata[0]);';
+$code[] = '';
+
+$code[] = 'static const JinxNativeIniMeta jinx_native_ini_metadata[] = {';
+foreach ($iniRows as [$iniName, $globalValue, $localValue, $access, $extension]) {
+    $code[] = '    { '
+        . cstr($iniName) . ', '
+        . ($globalValue === null ? 'NULL' : cstr($globalValue)) . ', '
+        . ($localValue === null ? 'NULL' : cstr($localValue)) . ', '
+        . (int)$access . ', '
+        . cstr($extension)
+        . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_ini_metadata_count = sizeof(jinx_native_ini_metadata) / sizeof(jinx_native_ini_metadata[0]);';
 $code[] = '';
 
 $code[] = 'static const JinxNativeStringPair jinx_native_html_translation_default[] = {';
