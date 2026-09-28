@@ -11,11 +11,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Set up PHP 8.4.23
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4.23'
+          coverage: none
+          tools: none
+      - name: Verify PHP contract version
+        run: |
+          php -r 'if (PHP_VERSION_ID < 80400 || PHP_VERSION_ID >= 80500) { fwrite(STDERR, "Expected PHP 8.4, got " . PHP_VERSION . PHP_EOL); exit(1); } echo PHP_VERSION, PHP_EOL;'
       - name: Install native dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential php-cli zlib1g-dev libssl-dev libmagic-dev \
+            build-essential zlib1g-dev libssl-dev libmagic-dev \
             libcrypt-dev libcurl4-openssl-dev libexif-dev
       - name: Build native Jinx
         run: ./scripts/build-native-jinx.sh
