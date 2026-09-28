@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$jinx = $root . '/jinx';
+
+function failReturn(string $message): never
+{
+    fwrite(STDERR, "FAIL: {$message}" . PHP_EOL);
+    exit(1);
+}
+
+function runReturn(array $parts, ?int &$code = null): string
+{
+    $cmd = implode(' ', array_map('escapeshellarg', $parts)) . ' 2>&1';
+    $out = [];
+    $status = 0;
+    exec($cmd, $out, $status);
+    $code = $status;
+    return trim(implode(PHP_EOL, $out));
+}
+
+if (!is_file($jinx) || !is_executable($jinx)) {
+    failReturn('native ./jinx is missing; run ./scripts/build-native-jinx.sh first');
+}
+
+/* PHP 8+ argument errors must not be flattened into successful false/null values. */
+$mustFault = [
+    ['array_chunk', 'za:sample', 'i:0'],
+    ['explode', 's:', 's:abc'],
+    ['str_split', 's:abc', 'i:0'],
+    ['count_chars', 's:abc', 'i:9'],
+    ['range', 'i:1', 'i:10', 'i:0'],
+    ['array_combine', 'za:sample', 'za:strings'],
+    ['array_rand', 'za:sample', 'i:0'],
+    ['array_fill', 'i:0', 'i:-1', 'i:9'],
+    ['count', 'za:sample', 'i:9'],
+];
+
+foreach ($mustFault as $case) {
+    $name = array_shift($case);
+    $out = runReturn(array_merge([$jinx, 'oracle-call', $name], $case), $code);
+    if ($code === 0 || !str_contains($out, 'null/fault: ' . $name)) {
+        failReturn("{$name} invalid-argument path was accepted as a successful return: {$out}");
+    }
+}
+
+/* Legitimate null return values remain successful calls. */
+$validNull = [
+    ['parse_url', 's:http://example.com/path', 'i:6'],
+    ['array_find', 'za:sample', 's:is_null'],
+    ['array_find_key', 'za:sample', 's:is_null'],
+];
+
+foreach ($validNull as $case) {
+    $name = array_shift($case);
+    $out = runReturn(array_merge([$jinx, 'oracle-call', $name], $case), $code);
+    if ($code !== 0 || $out !== 'null') {
+        failReturn("{$name} legitimate null return was misclassified: {$out}");
+    }
+}
+
+/* Native stream carriers must behave like PHP resources, not ordinary objects. */
+$resourceChecks = [
+    ['is_resource', 'bool:true'],
+    ['is_object', 'bool:false'],
+    ['gettype', 'string:resource'],
+    ['get_debug_type', 'string:resource (stream)'],
+];
+
+foreach ($resourceChecks as [$name, $expected]) {
+    $out = runReturn([$jinx, 'oracle-call', $name, 'fp:tmp'], $code);
+    if ($code !== 0 || $out !== $expected) {
+        failReturn("{$name}(stream) expected {$expected}, got {$out}");
+    }
+}
+
+/* class_alias is intentionally not claimed until the user-class registry is wired. */
+$out = runReturn([$jinx, 'oracle-call', 'class_alias', 's:stdClass', 's:JinxAliasProbe'], $code);
+if ($code === 0 || !str_contains($out, 'null/fault: class_alias')) {
+    failReturn("class_alias is still being counted as implemented via a fabricated false result: {$out}");
+}
+
+echo "PASS: native Oracle return contracts reject invalid argument paths, preserve legitimate nulls, and classify stream resources correctly" . PHP_EOL;
