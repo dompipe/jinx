@@ -377,6 +377,65 @@ $checks = [
 
 array_push($checks, ...$posixChecks);
 
+if (function_exists('mhash_count') &&
+    function_exists('mhash_get_hash_name') &&
+    function_exists('mhash_get_block_size') &&
+    function_exists('mhash') &&
+    defined('MHASH_MD5')) {
+    $mhashMd5 = constant('MHASH_MD5');
+    $checks[] = ['mhash_count', [], 'int:' . mhash_count()];
+    $checks[] = [
+        'mhash_get_hash_name',
+        ['i:' . $mhashMd5],
+        (($v = mhash_get_hash_name($mhashMd5)) === false ? 'bool:false' : 'string:' . $v),
+    ];
+    $checks[] = [
+        'mhash_get_block_size',
+        ['i:' . $mhashMd5],
+        (($v = mhash_get_block_size($mhashMd5)) === false ? 'bool:false' : 'int:' . $v),
+    ];
+    $checks[] = ['mhash_get_hash_name', ['i:4'], 'bool:false'];
+    $checks[] = ['mhash_get_block_size', ['i:4'], 'bool:false'];
+
+    $phpMhash = mhash($mhashMd5, 'jinx');
+    if (!is_string($phpMhash)) {
+        fail200('PHP mhash MD5 fixture failed');
+    }
+    expect200(
+        $jinx,
+        'mhash',
+        ['i:' . $mhashMd5, 's:jinx'],
+        'hex:' . bin2hex($phpMhash),
+        true
+    );
+
+    $phpMhashHmac = mhash($mhashMd5, 'jinx', 'key');
+    if (!is_string($phpMhashHmac)) {
+        fail200('PHP keyed mhash MD5 fixture failed');
+    }
+    expect200(
+        $jinx,
+        'mhash',
+        ['i:' . $mhashMd5, 's:jinx', 's:key'],
+        'hex:' . bin2hex($phpMhashHmac),
+        true
+    );
+
+    if (defined('MHASH_SHA1')) {
+        $mhashSha1 = constant('MHASH_SHA1');
+        $checks[] = [
+            'mhash_get_hash_name',
+            ['i:' . $mhashSha1],
+            (($v = mhash_get_hash_name($mhashSha1)) === false ? 'bool:false' : 'string:' . $v),
+        ];
+        $checks[] = [
+            'mhash_get_block_size',
+            ['i:' . $mhashSha1],
+            (($v = mhash_get_block_size($mhashSha1)) === false ? 'bool:false' : 'int:' . $v),
+        ];
+    }
+}
+
 if (function_exists('ini_parse_quantity')) {
     foreach (['128M', '2K', '1G', '0x10', '0o10', '0b10', '-1', ' 3 K '] as $quantity) {
         $checks[] = [
