@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 677,
-        "extended_native_route": 379,
+        "native_named_route": 678,
+        "extended_native_route": 380,
         "context_native_route": 3,
-        "intentional_native_fault": 2850
+        "intentional_native_fault": 2849
     },
     "routes": {
         "_": "extended",
@@ -3520,7 +3520,7 @@
         "var_dump": "intentional-native-fault",
         "var_export": "intentional-native-fault",
         "version_compare": "asm",
-        "vfprintf": "intentional-native-fault",
+        "vfprintf": "extended",
         "vprintf": "zend-container",
         "vsprintf": "zend-container",
         "weakmap::count": "intentional-native-fault",
