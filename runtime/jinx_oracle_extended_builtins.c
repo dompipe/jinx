@@ -2187,6 +2187,9 @@ JinxValue jinx_oracle_extended_builtin(
     }
 
     if (strcmp(name, "is_dir") == 0 || strcmp(name, "is_file") == 0 ||
+        strcmp(name, "is_link") == 0 || strcmp(name, "is_readable") == 0 ||
+        strcmp(name, "is_writable") == 0 || strcmp(name, "is_writeable") == 0 ||
+        strcmp(name, "is_executable") == 0 ||
         strcmp(name, "lstat") == 0 || strcmp(name, "stat") == 0 ||
         strcmp(name, "mkdir") == 0 || strcmp(name, "unlink") == 0 ||
         strcmp(name, "realpath") == 0 || strcmp(name, "scandir") == 0 ||
@@ -2254,6 +2257,26 @@ JinxValue jinx_oracle_extended_builtin(
             }
             globfree(&g);
             return jinx_oracle_zend_array_value_owned(array);
+        }
+
+        if(strcmp(name,"is_readable")==0 ||
+           strcmp(name,"is_writable")==0 ||
+           strcmp(name,"is_writeable")==0 ||
+           strcmp(name,"is_executable")==0){
+            int mode = strcmp(name,"is_readable")==0 ? R_OK :
+                (strcmp(name,"is_executable")==0 ? X_OK : W_OK);
+            ok=access(path,mode)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_bool_value(ok);
+        }
+
+        if(strcmp(name,"is_link")==0){
+            struct stat st;
+            ok=lstat(path,&st)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_bool_value(ok && S_ISLNK(st.st_mode));
         }
 
         if(strcmp(name,"lstat")==0){
