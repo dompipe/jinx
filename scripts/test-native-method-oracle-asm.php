@@ -160,7 +160,6 @@ $throwableClasses = [
     Random\RandomException::class,
     RangeException::class,
     ReflectionException::class,
-    RequestParseBodyException::class,
     RuntimeException::class,
     SodiumException::class,
     PharException::class,
@@ -423,6 +422,79 @@ foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
         [],
         'int:' . $phpObject->getMicrosecond()
     );
+}
+
+
+/* Ten replacement routes available on the CI PHP runtime. */
+$dateTimeExtraExpected = [];
+
+$dateTimeExtraExpected['DateTime::__construct'] =
+    'result=string:' . (new DateTime('2025-06-07 11:22:33'))
+        ->format('Y-m-d H:i:s');
+
+$dateTimeExtraExpected['DateTimeImmutable::__construct'] =
+    'result=string:' . (new DateTimeImmutable('2025-06-07 11:22:33'))
+        ->format('Y-m-d H:i:s');
+
+$dateTimeExtraExpected['DateTimeZone::__construct'] =
+    'result=string:' . (new DateTimeZone('America/New_York'))->getName();
+
+$dateTimeExtraExpected['DateInterval::__construct'] =
+    'result=string:' . (new DateInterval('P2Y3M4DT5H6M7S'))
+        ->format('%Y-%M-%D %H:%I:%S');
+
+$dateTimeExtraExpected['DateTime::createFromFormat'] =
+    'result=string:' . DateTime::createFromFormat(
+        '!Y-m-d H:i:s',
+        '2025-06-07 11:22:33'
+    )->format('Y-m-d H:i:s');
+
+$dateTimeExtraExpected['DateTimeImmutable::createFromFormat'] =
+    'result=string:' . DateTimeImmutable::createFromFormat(
+        '!Y-m-d H:i:s',
+        '2025-06-07 11:22:33'
+    )->format('Y-m-d H:i:s');
+
+/* Successful parses make getLastErrors() return false. */
+DateTime::createFromFormat('!Y-m-d', '2025-06-07');
+$dateTimeExtraExpected['DateTime::getLastErrors'] =
+    'result=' . (DateTime::getLastErrors() === false
+        ? 'bool:false'
+        : 'non-false');
+
+DateTimeImmutable::createFromFormat('!Y-m-d', '2025-06-07');
+$dateTimeExtraExpected['DateTimeImmutable::getLastErrors'] =
+    'result=' . (DateTimeImmutable::getLastErrors() === false
+        ? 'bool:false'
+        : 'non-false');
+
+$dateTimeExtraExpected['DateInterval::createFromDateString'] =
+    'result=string:' . DateInterval::createFromDateString('2 days')
+        ->format('%Y-%M-%D %H:%I:%S');
+
+$dateInterfaceSource = new DateTimeImmutable('2024-02-03 04:05:06');
+$dateTimeExtraExpected['DateTime::createFromInterface'] =
+    'result=string:' . DateTime::createFromInterface($dateInterfaceSource)
+        ->format('Y-m-d H:i:s');
+
+foreach ($dateTimeExtraExpected as $route => $expected) {
+    if (!method_exists(strtok($route, ':'), substr($route, strpos($route, '::') + 2))) {
+        failMethod("required replacement method missing from PHP runtime: {$route}");
+    }
+
+    $actual = runMethod(
+        escapeshellarg($jinx)
+        . ' oracle-datetime-extra-smoke '
+        . escapeshellarg($route),
+        $extraCode
+    );
+    if ($extraCode !== 0 || $actual !== $expected) {
+        failMethod(
+            "{$route} replacement parity mismatch\n"
+            . "PHP:\n{$expected}\n"
+            . "JINX:\n{$actual}"
+        );
+    }
 }
 
 echo "PASS: native Oracle method receiver proves 500 newly added callable routes\n";
