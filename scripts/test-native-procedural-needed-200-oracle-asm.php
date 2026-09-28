@@ -197,6 +197,7 @@ $checks = [
     ['setlocale', ['i:' . LC_ALL, 's:C'], 'string:C'],
     ['textdomain', ['s:messages'], (($v = textdomain('messages')) === false ? 'bool:false' : 'string:' . $v)],
     ['ngettext', ['s:one', 's:many', 'i:2'], 'string:' . ngettext('one', 'many', 2)],
+    ['strtok', ['s:alpha,beta', 's:,'], 'string:' . strtok('alpha,beta', ',')],
     ['getprotobyname', ['s:tcp'], (($v = getprotobyname('tcp')) === false ? 'bool:false' : 'int:' . $v)],
     ['getprotobynumber', ['i:6'], (($v = getprotobynumber(6)) === false ? 'bool:false' : 'string:' . $v)],
     ['getservbyname', ['s:http', 's:tcp'], (($v = getservbyname('http', 'tcp')) === false ? 'bool:false' : 'int:' . $v)],
@@ -506,6 +507,33 @@ if ($runtimeStateCode !== 0 || $runtimeStateSmoke !== $runtimeStateExpected) {
         . $runtimeStateExpected
         . "\nJINX:\n"
         . $runtimeStateSmoke
+    );
+}
+
+$strtokSource = 'alpha,beta;;gamma';
+$strtokDelimiters = ',;';
+$phpStrtok = [
+    strtok($strtokSource, $strtokDelimiters),
+    strtok($strtokDelimiters),
+    strtok($strtokDelimiters),
+    strtok($strtokDelimiters),
+];
+$strtokSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-strtok-smoke',
+    $strtokSmokeCode
+);
+$strtokExpected = implode(PHP_EOL, [
+    'first=' . ($phpStrtok[0] === false ? 'bool:false' : 'string:' . $phpStrtok[0]),
+    'second=' . ($phpStrtok[1] === false ? 'bool:false' : 'string:' . $phpStrtok[1]),
+    'third=' . ($phpStrtok[2] === false ? 'bool:false' : 'string:' . $phpStrtok[2]),
+    'fourth=' . ($phpStrtok[3] === false ? 'bool:false' : 'string:' . $phpStrtok[3]),
+]);
+if ($strtokSmokeCode !== 0 || $strtokSmoke !== $strtokExpected) {
+    fail200(
+        "native strtok state smoke mismatch\nExpected:\n"
+        . $strtokExpected
+        . "\nJINX:\n"
+        . $strtokSmoke
     );
 }
 
