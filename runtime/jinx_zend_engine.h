@@ -102,8 +102,8 @@ typedef struct JinxZendCallFrame {
 
 typedef struct JinxZendExecutor {
     JinxZendCallFrame *current_frame;
-    const char *last_error;
-    const char *last_error_file;
+    char *last_error;
+    char *last_error_file;
     uint32_t last_error_line;
     uint32_t error_level;
     uint64_t executed_ops;
@@ -169,6 +169,14 @@ JinxZendArray *jinx_zend_array_values_builtin(const JinxZendArray *array);
 JinxZendArray *jinx_zend_array_keys_builtin(const JinxZendArray *array);
 
 void jinx_zend_executor_init(JinxZendExecutor *executor);
+int jinx_zend_executor_set_last_error(
+    JinxZendExecutor *executor,
+    uint32_t error_level,
+    const char *message,
+    const char *file,
+    uint32_t line
+);
+void jinx_zend_executor_clear_last_error(JinxZendExecutor *executor);
 void jinx_zend_frame_enter(JinxZendExecutor *executor, JinxZendCallFrame *frame, const char *function_name, JinxZendValue *args, size_t argc);
 int jinx_zend_frame_set_local(JinxZendCallFrame *frame, const char *name, JinxZendValue value);
 JinxZendValue *jinx_zend_frame_get_local(JinxZendCallFrame *frame, const char *name);
