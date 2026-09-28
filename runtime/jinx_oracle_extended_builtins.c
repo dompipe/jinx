@@ -45,6 +45,10 @@ typedef struct JinxOracleExtTzScope {
 
 static char jinx_oracle_ext_default_timezone[128] = JINX_NATIVE_PHP_DEFAULT_TIMEZONE;
 static int jinx_oracle_ext_date_error = 0;
+
+const char *jinx_oracle_extended_default_timezone(void) {
+    return jinx_oracle_ext_default_timezone;
+}
 static char jinx_oracle_ext_date_error_message[160] = "";
 
 #define JINX_ORACLE_EXT_MAX_ALIASES 64u
