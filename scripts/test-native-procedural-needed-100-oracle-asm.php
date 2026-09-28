@@ -254,6 +254,8 @@ if (!mkdir($removeDir, 0700)) {
     fail100('could not create filesystem parity removable directory');
 }
 if (!symlink($source, $link)) {
+    @rmdir($removeDir);
+    @unlink($renameSource);
     @unlink($source);
     @rmdir($tmp);
     fail100('could not create filesystem parity symlink');
@@ -327,28 +329,29 @@ $actual = jinx100($jinx, 'touch', [$typedTouched, 'i:1700000000', 'i:1700000001'
 clearstatcache(true, $touched);
 if ($code !== 0 || $actual !== 'bool:true' ||
     filemtime($touched) !== 1700000000 || fileatime($touched) !== 1700000001) {
+    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("touch filesystem parity mismatch\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'file_get_contents', [$typedSource], true, $code);
 $expected = 'hex:' . bin2hex((string)file_get_contents($source));
 if ($code !== 0 || $actual !== $expected) {
+    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("file_get_contents parity mismatch\nExpected: {$expected}\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'file_put_contents', [$typedWritten, 's:xyz'], false, $code);
 if ($code !== 0 || $actual !== 'int:3' || file_get_contents($written) !== 'xyz') {
+    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("file_put_contents parity mismatch\nJINX: {$actual}");
 }
 
 $actual = jinx100($jinx, 'fgets', ['fp:tmp'], true, $code);
 if ($code !== 0 || $actual !== 'hex:' . bin2hex("a,b\n")) {
+    @unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
     fail100("fgets parity mismatch\nJINX: {$actual}");
 }
 
-@unlink($source);
-@unlink($copy);
-@unlink($written);
-@rmdir($tmp);
+@unlink($nativeSymlink); @unlink($nativeHardlink); @unlink($link); @unlink($renameSource); @unlink($renameDest); @unlink($touched); @rmdir($removeDir); @unlink($source); @unlink($copy); @unlink($written); @rmdir($tmp);
 
 echo 'PASS: first 100 needed procedural Oracle ASM targets execute without placeholders; existing array/calendar parity and extended callable/date/filesystem/introspection checks pass' . PHP_EOL;
