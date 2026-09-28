@@ -306,6 +306,7 @@ foreach ($wiring['routes'] as $name => $route) {
     $rows[] = [
         'name' => $name,
         'route' => $route,
+        'ledger' => $route,
         'proof' => benchProofForRoute($route),
         'php_ns' => $phpNs,
         'jinx_ns' => $nativeNs,
@@ -448,9 +449,11 @@ foreach ($wiring['routes'] as $ledgerName => $ledgerRoute) {
 if ($limit === 0 || count($rows) < $limit) {
     foreach ($methodCases as $case) {
         $ledgerRoute = (string) ($wiring['routes'][strtolower($case['name'])] ?? 'unlisted');
-        $caseRoute = $ledgerRoute . '+method-dispatch';
+        $caseRoute = 'method-dispatch';
 
-        if ($routeFilter !== null && !str_contains(strtolower($caseRoute), $routeFilter)) {
+        if ($routeFilter !== null &&
+            !str_contains(strtolower($caseRoute), $routeFilter) &&
+            !str_contains(strtolower($ledgerRoute), $routeFilter)) {
             continue;
         }
         if ($nameFilter !== null && !str_contains(strtolower($case['name']), $nameFilter)) {
@@ -502,6 +505,7 @@ if ($limit === 0 || count($rows) < $limit) {
         $rows[] = [
             'name' => $case['name'],
             'route' => $caseRoute,
+            'ledger' => $ledgerRoute,
             'proof' => 'test-native-method-oracle-asm.php',
             'php_ns' => $phpNs,
             'jinx_ns' => $nativeNs,
@@ -523,20 +527,21 @@ $totalPhpNs = array_sum(array_column($rows, 'php_ns'));
 $totalJinxNs = array_sum(array_column($rows, 'jinx_ns'));
 
 printf("PHP vs native ./jinx implemented-function benchmark\n");
-printf("Association source: spec/native-oracle-wiring.json + current parity-proven method cases\n");
+printf("Association source: builtin wiring ledger + parity-proven method dispatcher cases\n");
 printf("Shared fixture source: scripts/native-oracle-sample-args.php\n");
 printf("Iterations per implementation: %d\n", $iterations);
 printf("Benchmarked implementations: %d\n", count($rows));
 printf("Skipped unsafe/untranslatable/rejected cases: %d\n", count($skipped));
 printf("\n");
-printf("%-38s %-20s %12s %12s %9s  %s\n", 'implementation', 'route', 'php ns/op', 'jinx ns/op', 'ratio', 'proof');
-printf("%'-118s\n", '');
+printf("%-38s %-18s %-24s %12s %12s %9s  %s\n", 'implementation', 'actual route', 'ledger route', 'php ns/op', 'jinx ns/op', 'ratio', 'proof');
+printf("%'-145s\n", '');
 
 foreach ($rows as $row) {
     printf(
-        "%-38s %-20s %12.1f %12.1f %8.2fx  %s\n",
+        "%-38s %-18s %-24s %12.1f %12.1f %8.2fx  %s\n",
         $row['name'],
         $row['route'],
+        $row['ledger'],
         $row['php_ns'],
         $row['jinx_ns'],
         $row['ratio'],
@@ -544,10 +549,11 @@ foreach ($rows as $row) {
     );
 }
 
-printf("%'-118s\n", '');
+printf("%'-145s\n", '');
 printf(
-    "%-38s %-20s %12.1f %12.1f %8.2fx\n",
+    "%-38s %-18s %-24s %12.1f %12.1f %8.2fx\n",
     'MEAN',
+    '',
     '',
     $totalPhpNs / count($rows),
     $totalJinxNs / count($rows),
