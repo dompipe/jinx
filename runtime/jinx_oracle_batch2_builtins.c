@@ -10,6 +10,7 @@
 #include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_exif_builtins.h"
 #include "jinx_oracle_frame_context.h"
+#include "jinx_oracle_script_context.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -3539,6 +3540,48 @@ csv_fail:
         jinx_zend_string_release(file);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "get_included_files") == 0 ||
+        strcmp(name, "get_required_files") == 0) {
+        size_t count = jinx_oracle_script_context_count();
+        JinxZendArray *array;
+
+        if (jinx_oracle_script_context_main() == NULL) {
+            return result;
+        }
+
+        array = jinx_zend_array_new_packed(count == 0u ? 1u : count);
+        if (array == NULL) return result;
+
+        for (size_t i = 0u; i < count; i++) {
+            const char *path = jinx_oracle_script_context_at(i);
+            if (path == NULL || !b2_append_string(array, path)) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "getlastmod") == 0 ||
+        strcmp(name, "getmyinode") == 0) {
+        const char *path = jinx_oracle_script_context_main();
+        struct stat st;
+
+        if (path == NULL) return result;
+
+        if (stat(path, &st) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return strcmp(name, "getlastmod") == 0
+            ? jinx_oracle_int_value((int64_t)st.st_mtime)
+            : jinx_oracle_int_value((int64_t)st.st_ino);
     }
 
     return result;
