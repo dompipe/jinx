@@ -10,6 +10,16 @@ ZEND_SMOKE_OUT="${OUT_DIR}/jinx-zend-smoke"
 
 mkdir -p "$OUT_DIR"
 
+CRYPTO_DEFINE=""
+CRYPTO_LIBS=""
+CRYPTO_PROBE="${OUT_DIR}/jinx-openssl-probe"
+if printf '%s\n' '#include <openssl/evp.h>' 'int main(void){return EVP_sha256()==0;}' | \
+    "$CC_BIN" -x c - -lcrypto -o "$CRYPTO_PROBE" >/dev/null 2>&1; then
+    CRYPTO_DEFINE="-DJINX_HAVE_OPENSSL=1"
+    CRYPTO_LIBS="-lcrypto"
+fi
+rm -f "$CRYPTO_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -24,6 +34,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -std=c11 \
     -D_POSIX_C_SOURCE=200809L \
     -D_DEFAULT_SOURCE \
+    ${CRYPTO_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -35,10 +46,12 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_extended_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_batch2_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_hash_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
     -lz \
+    ${CRYPTO_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -104,6 +117,11 @@ echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Native class/constant metadata regenerated: runtime/jinx_native_core_metadata.generated.h"
 echo "Extended procedural Oracle backend compiled: runtime/jinx_oracle_extended_builtins.c"
 echo "Second-wave Oracle backend compiled: runtime/jinx_oracle_batch2_builtins.c"
+if [ -n "$CRYPTO_DEFINE" ]; then
+    echo "Native OpenSSL hash backend: enabled"
+else
+    echo "Native OpenSSL hash backend: unavailable; hash family remains faulting"
+fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
 echo "Extended Oracle smoke: call_user_func/class_exists/date_format PASS"
