@@ -1475,6 +1475,36 @@ JinxValue jinx_oracle_batch2_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    if (strcmp(name, "stream_get_wrappers") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_stream_wrappers,
+            jinx_native_stream_wrappers_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "stream_get_transports") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_stream_transports,
+            jinx_native_stream_transports_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "stream_get_filters") == 0) {
+        if (argc != 0u) return result;
+        result = b2_string_list(
+            jinx_native_stream_filters,
+            jinx_native_stream_filters_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "hash_algos") == 0) {
         if (argc != 0u) return result;
         result = b2_string_list(
@@ -2656,6 +2686,316 @@ JinxValue jinx_oracle_batch2_builtin(
         free(host);
         if (handled != NULL) *handled = 1;
         return fp != NULL ? b2_new_stream(fp) : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "stream_get_contents") == 0) {
+        JinxOracleBatch2Stream *stream;
+        int64_t maxlen = -1;
+        int64_t desired = -1;
+        unsigned char *buffer = NULL;
+        size_t capacity = 0u;
+        size_t length = 0u;
+        if (args == NULL || argc < 1u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        if (argc >= 2u && args[1].type != 0u) {
+            maxlen = jinx_oracle_intish(args[1]);
+            if (maxlen < -1) return result;
+        }
+        if (argc >= 3u) {
+            desired = jinx_oracle_intish(args[2]);
+            if (desired >= 0) {
+                long current = ftell(stream->fp);
+                int seek_result;
+                if (current >= 0 && desired > (int64_t)current) {
+                    seek_result = fseek(
+                        stream->fp,
+                        (long)(desired - (int64_t)current),
+                        SEEK_CUR
+                    );
+                } else if (current >= 0 && desired < (int64_t)current) {
+                    seek_result = fseek(stream->fp, (long)desired, SEEK_SET);
+                } else {
+                    seek_result = current < 0
+                        ? fseek(stream->fp, (long)desired, SEEK_SET)
+                        : 0;
+                }
+                if (seek_result != 0) {
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+            }
+        }
+        capacity = maxlen >= 0 && maxlen < 8192 ? (size_t)maxlen : 8192u;
+        if (capacity == 0u) {
+            if (handled != NULL) *handled = 1;
+            return b2_copy("", 0u);
+        }
+        buffer = (unsigned char *)malloc(capacity);
+        if (buffer == NULL) return result;
+        while (maxlen < 0 || (int64_t)length < maxlen) {
+            size_t wanted = capacity - length;
+            size_t n;
+            if (wanted == 0u) {
+                size_t next = capacity < 1048576u ? capacity * 2u : capacity + 1048576u;
+                if (next <= capacity || next > UINT32_MAX ||
+                    (maxlen >= 0 && (uint64_t)next > (uint64_t)maxlen)) {
+                    next = maxlen >= 0 ? (size_t)maxlen : (size_t)UINT32_MAX;
+                }
+                if (next <= capacity) break;
+                {
+                    unsigned char *grown = (unsigned char *)realloc(buffer, next);
+                    if (grown == NULL) {
+                        free(buffer);
+                        return result;
+                    }
+                    buffer = grown;
+                    capacity = next;
+                    wanted = capacity - length;
+                }
+            }
+            if (maxlen >= 0 && (uint64_t)wanted > (uint64_t)(maxlen - (int64_t)length)) {
+                wanted = (size_t)(maxlen - (int64_t)length);
+            }
+            if (wanted == 0u) break;
+            n = fread(buffer + length, 1u, wanted, stream->fp);
+            length += n;
+            if (n < wanted) break;
+        }
+        if (ferror(stream->fp)) {
+            free(buffer);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        result = b2_copy((const char *)buffer, length);
+        free(buffer);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "stream_get_line") == 0) {
+        JinxOracleBatch2Stream *stream;
+        int64_t maximum;
+        char *delimiter;
+        size_t delimiter_len;
+        unsigned char *buffer;
+        size_t length = 0u;
+        if (args == NULL || argc < 3u || args[2].type != 3u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        maximum = jinx_oracle_intish(args[1]);
+        if (maximum < 0) return result;
+        if (maximum == 0) maximum = 8192;
+        if ((uint64_t)maximum > UINT32_MAX) return result;
+        delimiter = b2_dup(args[2]);
+        if (delimiter == NULL) return result;
+        delimiter_len = strlen(delimiter);
+        if (delimiter_len == 0u) {
+            free(delimiter);
+            return result;
+        }
+        buffer = (unsigned char *)malloc((size_t)maximum);
+        if (buffer == NULL) {
+            free(delimiter);
+            return result;
+        }
+        while (length < (size_t)maximum) {
+            int ch = fgetc(stream->fp);
+            if (ch == EOF) break;
+            buffer[length++] = (unsigned char)ch;
+            if (length >= delimiter_len &&
+                memcmp(
+                    buffer + length - delimiter_len,
+                    delimiter,
+                    delimiter_len
+                ) == 0) {
+                length -= delimiter_len;
+                break;
+            }
+        }
+        free(delimiter);
+        if (ferror(stream->fp)) {
+            free(buffer);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (length == 0u && feof(stream->fp)) {
+            free(buffer);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        result = b2_copy((const char *)buffer, length);
+        free(buffer);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "stream_copy_to_stream") == 0) {
+        JinxOracleBatch2Stream *source;
+        JinxOracleBatch2Stream *destination;
+        int64_t maximum = -1;
+        int64_t position = 0;
+        unsigned char buffer[16384];
+        size_t total = 0u;
+        if (args == NULL || argc < 2u) return result;
+        source = b2_stream(args[0]);
+        destination = b2_stream(args[1]);
+        if (source == NULL || destination == NULL ||
+            source->fp == NULL || destination->fp == NULL) return result;
+        if (argc >= 3u && args[2].type != 0u) {
+            maximum = jinx_oracle_intish(args[2]);
+            if (maximum < -1) return result;
+        }
+        if (argc >= 4u) position = jinx_oracle_intish(args[3]);
+        if (position > 0 && fseek(source->fp, (long)position, SEEK_SET) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        while (maximum < 0 || (int64_t)total < maximum) {
+            size_t wanted = sizeof(buffer);
+            size_t n;
+            if (maximum >= 0 &&
+                (uint64_t)wanted > (uint64_t)(maximum - (int64_t)total)) {
+                wanted = (size_t)(maximum - (int64_t)total);
+            }
+            if (wanted == 0u) break;
+            n = fread(buffer, 1u, wanted, source->fp);
+            if (n == 0u) break;
+            if (fwrite(buffer, 1u, n, destination->fp) != n) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            total += n;
+            if (n < wanted) break;
+        }
+        if (ferror(source->fp)) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)total);
+    }
+
+    if (strcmp(name, "stream_isatty") == 0 ||
+        strcmp(name, "stream_supports_lock") == 0 ||
+        strcmp(name, "stream_set_blocking") == 0 ||
+        strcmp(name, "stream_set_read_buffer") == 0 ||
+        strcmp(name, "stream_set_write_buffer") == 0) {
+        JinxOracleBatch2Stream *stream;
+        int fd;
+        if (args == NULL || argc < 1u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        fd = fileno(stream->fp);
+        if (fd < 0) return result;
+
+        if (strcmp(name, "stream_isatty") == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(isatty(fd) == 1);
+        }
+
+        if (strcmp(name, "stream_supports_lock") == 0) {
+            struct stat st;
+            int supported = fstat(fd, &st) == 0 && S_ISREG(st.st_mode);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(supported);
+        }
+
+        if (strcmp(name, "stream_set_blocking") == 0) {
+            int flags;
+            int block;
+            if (argc != 2u) return result;
+            block = jinx_oracle_boolish(args[1]);
+            flags = fcntl(fd, F_GETFL, 0);
+            if (flags < 0) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            if (block) flags &= ~O_NONBLOCK;
+            else flags |= O_NONBLOCK;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(fcntl(fd, F_SETFL, flags) == 0);
+        }
+
+        {
+            int64_t size;
+            int rc;
+            if (argc != 2u) return result;
+            size = jinx_oracle_intish(args[1]);
+            if (size < 0 || (uint64_t)size > SIZE_MAX) return result;
+            rc = setvbuf(
+                stream->fp,
+                NULL,
+                size == 0 ? _IONBF : _IOFBF,
+                (size_t)size
+            );
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(rc == 0 ? 0 : EOF);
+        }
+    }
+
+    if (strcmp(name, "stream_is_local") == 0) {
+        if (args == NULL || argc != 1u) return result;
+        if (args[0].type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            JinxOracleBatch2Stream *stream = b2_stream(args[0]);
+            struct stat st;
+            int local;
+            if (stream == NULL || stream->fp == NULL) return result;
+            local = fstat(fileno(stream->fp), &st) == 0 &&
+                !S_ISSOCK(st.st_mode);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(local);
+        }
+        if (args[0].type == 3u) {
+            char *target = b2_dup(args[0]);
+            char *scheme;
+            int local;
+            if (target == NULL) return result;
+            scheme = strstr(target, "://");
+            local = scheme == NULL ||
+                strncasecmp(target, "file://", 7u) == 0;
+            free(target);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(local);
+        }
+        return result;
+    }
+
+    if (strcmp(name, "stream_resolve_include_path") == 0) {
+        char *filename;
+        char resolved[PATH_MAX];
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        filename = b2_dup(args[0]);
+        if (filename == NULL) return result;
+        if (realpath(filename, resolved) != NULL) {
+            free(filename);
+            if (handled != NULL) *handled = 1;
+            return b2_copy(resolved, strlen(resolved));
+        }
+        {
+            char *paths = b2_strdup(JINX_NATIVE_PHP_INCLUDE_PATH);
+            char *save = NULL;
+            char *entry = paths != NULL ? strtok_r(paths, ":", &save) : NULL;
+            while (entry != NULL) {
+                char candidate[PATH_MAX];
+                const char *dir = entry[0] == '\0' ? "." : entry;
+                int written = snprintf(
+                    candidate, sizeof(candidate), "%s/%s", dir, filename
+                );
+                if (written > 0 && (size_t)written < sizeof(candidate) &&
+                    realpath(candidate, resolved) != NULL) {
+                    free(paths);
+                    free(filename);
+                    if (handled != NULL) *handled = 1;
+                    return b2_copy(resolved, strlen(resolved));
+                }
+                entry = strtok_r(NULL, ":", &save);
+            }
+            free(paths);
+        }
+        free(filename);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
     }
 
     if (strcmp(name, "ftruncate") == 0) {
