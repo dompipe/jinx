@@ -35,5 +35,9 @@ jobs:
           test "$(./jinx native-benchmark-id)" = "native-root-jinx"
           JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 3 --limit=3
           JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 3 --limit=1 '--name=Exception::getMessage'
+      - name: Run paired PHP vs native benchmark
+        run: |
+          php scripts/benchmark-php-vs-native-paired.php 100000 --limit=20 --mode=parallel
+          php scripts/benchmark-php-vs-native-paired.php 100000 --limit=20 --mode=serial
       - name: Run registered Jinx parity suite
         run: php scripts/test-native-jinx.php
