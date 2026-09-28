@@ -343,8 +343,10 @@ $fsChecks = [
     ['flock', ['fp:tmp', 'i:1'], 'bool:true'],
     ['chdir', ['s:.'], 'bool:true'],
     ['chgrp', ['s:/__jinx_oracle_missing__', 'i:0'], 'bool:false'],
+    ['lchgrp', ['s:/__jinx_oracle_missing__', 'i:0'], 'bool:false'],
     ['chmod', ['s:/__jinx_oracle_missing__', 'i:0'], 'bool:false'],
     ['chown', ['s:/__jinx_oracle_missing__', 'i:0'], 'bool:false'],
+    ['lchown', ['s:/__jinx_oracle_missing__', 'i:0'], 'bool:false'],
     ['clearstatcache', [], 'null'],
 ];
 
