@@ -1646,9 +1646,15 @@ JinxValue jinx_oracle_extended_builtin(
         );
     }
 
-    if (strcmp(name, "DateTime::createFromInterface") == 0) {
+    if (strcmp(name, "DateTime::createFromInterface") == 0 ||
+        strcmp(name, "DateTimeImmutable::createFromInterface") == 0 ||
+        strcmp(name, "DateTime::createFromImmutable") == 0) {
         int64_t timestamp;
         const char *timezone;
+        const char *target_class =
+            strcmp(name, "DateTimeImmutable::createFromInterface") == 0
+                ? "DateTimeImmutable"
+                : "DateTime";
         if (args == NULL || argc != 2u ||
             !jinx_oracle_ext_datetime_parts(
                 args[1], NULL, &timestamp, &timezone
@@ -1657,7 +1663,7 @@ JinxValue jinx_oracle_extended_builtin(
         }
         if (handled != NULL) *handled = 1;
         return jinx_oracle_ext_new_datetime(
-            "DateTime", timestamp, timezone
+            target_class, timestamp, timezone
         );
     }
 
