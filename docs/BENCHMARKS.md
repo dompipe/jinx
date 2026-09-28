@@ -71,6 +71,7 @@ Command:
 
 ```bash
 php scripts/benchmark-native-jinx-vs-php.php 1000
+php scripts/benchmark-native-implemented-functions.php 1000
 ```
 
 Fast rerun after the native binary is already built:
@@ -87,6 +88,59 @@ The comparison script builds `./jinx` unless `JINX_SKIP_BUILD=1` is set, validat
 ```
 
 It does **not** use `php bin/jinx` for the native JINX timing path.
+
+## Implemented-Function PHP vs Native Benchmark
+
+Use this benchmark when you want timings attached to the functions that now have
+real native routes instead of folding them into the all-functions average.
+
+Command:
+
+```bash
+php scripts/benchmark-native-implemented-functions.php 1000
+```
+
+Fast rerun after `./jinx` is already built:
+
+```bash
+JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000
+```
+
+Useful filters:
+
+```bash
+JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --route=asm
+JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --route=extended
+JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --name=str
+JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --limit=100
+```
+
+The benchmark associates each measured row with:
+
+- the function or method name;
+- the native implementation route from `spec/native-oracle-wiring.json`;
+- the parity-proof family that covers that route;
+- direct PHP nanoseconds per call;
+- native `./jinx` nanoseconds per call;
+- the JINX/PHP timing ratio.
+
+It reuses `scripts/native-oracle-sample-args.php`, the same deterministic typed
+fixtures used by the native placeholder audit, so audit and benchmark
+parameterization stay synchronized. Unsafe/state-changing calls and fixture
+types that cannot be translated faithfully to direct PHP are skipped rather
+than timed with made-up inputs.
+
+The native half is timed inside the GCC-built executable, not by launching one
+`./jinx` process per measured call:
+
+```bash
+./jinx bench-call abs 1000000 i:-42
+./jinx bench-method-call 'DateTime::format' 100000 'dt:2024-01-02 03:04:05' 's:Y-m-d'
+```
+
+The current parity-proven DateTime formatting methods are included explicitly
+as `method-dispatch` rows while the generated method wiring inventory catches
+up with the new method dispatcher.
 
 ## Native First-100 Benchmark
 
@@ -278,6 +332,8 @@ Native timing path:
 ./jinx oracle-smoke
 ./jinx functions-smoke
 ./jinx bench-oracle 1000000
+./jinx bench-call abs 1000000 i:-42
+./jinx bench-method-call 'DateTime::format' 100000 'dt:2024-01-02 03:04:05' 's:Y-m-d'
 ./jinx bench-first100 100000
 ./jinx bench-all-functions 1000
 php scripts/benchmark-native-jinx-vs-php.php 1000
