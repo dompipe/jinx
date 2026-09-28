@@ -473,9 +473,19 @@ $phpStreamLocal = stream_is_local($phpStream);
 $phpStreamTty = stream_isatty($phpStream);
 $phpStreamLocks = stream_supports_lock($phpStream);
 $phpStreamBlocking = stream_set_blocking($phpStream, true);
-$phpStreamReadBuffer = stream_set_read_buffer($phpStream, 0);
-$phpStreamWriteBuffer = stream_set_write_buffer($phpStream, 0);
 fclose($phpStream);
+
+$phpReadBufferStream = tmpfile();
+$phpWriteBufferStream = tmpfile();
+if ($phpReadBufferStream === false || $phpWriteBufferStream === false) {
+    if (is_resource($phpReadBufferStream)) fclose($phpReadBufferStream);
+    if (is_resource($phpWriteBufferStream)) fclose($phpWriteBufferStream);
+    fail200('PHP buffer-control stream fixture failed');
+}
+$phpStreamReadBuffer = stream_set_read_buffer($phpReadBufferStream, 0);
+$phpStreamWriteBuffer = stream_set_write_buffer($phpWriteBufferStream, 0);
+fclose($phpReadBufferStream);
+fclose($phpWriteBufferStream);
 
 expect200($jinx, 'stream_get_wrappers', [], 'zend-array:' . count(stream_get_wrappers()));
 expect200($jinx, 'stream_get_transports', [], 'zend-array:' . count(stream_get_transports()));
