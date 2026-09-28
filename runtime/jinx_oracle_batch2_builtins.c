@@ -9,6 +9,7 @@
 #include "jinx_oracle_http_meta_builtins.h"
 #include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_exif_builtins.h"
+#include "jinx_oracle_frame_context.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -149,6 +150,19 @@ static const char *b2_process_title_current(void) {
     }
 #endif
     return NULL;
+}
+
+static int b2_frame_value_to_jinx(
+    JinxZendValue value,
+    JinxValue *out
+) {
+    if (out == NULL) return 0;
+    if (jinx_oracle_zend_to_jinx_borrowed(value, out)) return 1;
+    if (value.type == JINX_ZEND_OBJECT && value.value.object != NULL) {
+        *out = jinx_oracle_zend_object_value_borrowed(value.value.object);
+        return 1;
+    }
+    return 0;
 }
 
 static char *b2_dup(JinxValue value) {
@@ -3066,6 +3080,68 @@ csv_fail:
         if (exif_handled) {
             if (handled != NULL) *handled = 1;
             return exif_result;
+        }
+    }
+
+    if (strcmp(name, "func_num_args") == 0 ||
+        strcmp(name, "func_get_arg") == 0 ||
+        strcmp(name, "func_get_args") == 0 ||
+        strcmp(name, "get_called_class") == 0) {
+        JinxZendCallFrame *frame = jinx_oracle_get_caller_frame();
+
+        if (frame == NULL) {
+            /* PHP throws when these are used outside their required context. */
+            return result;
+        }
+
+        if (strcmp(name, "func_num_args") == 0) {
+            if (argc != 0u) return result;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value((int64_t)frame->argc);
+        }
+
+        if (strcmp(name, "func_get_arg") == 0) {
+            int64_t offset;
+            JinxValue value;
+            if (args == NULL || argc != 1u) return result;
+            offset = jinx_oracle_intish(args[0]);
+            if (offset < 0 || (uint64_t)offset >= (uint64_t)frame->argc) {
+                /* Current PHP raises ValueError for either invalid range. */
+                return result;
+            }
+            if (!b2_frame_value_to_jinx(
+                    frame->args[(size_t)offset], &value
+                )) {
+                return result;
+            }
+            if (handled != NULL) *handled = 1;
+            return value;
+        }
+
+        if (strcmp(name, "func_get_args") == 0) {
+            JinxZendArray *array;
+            if (argc != 0u) return result;
+            array = jinx_zend_array_new_packed(
+                frame->argc == 0u ? 1u : frame->argc
+            );
+            if (array == NULL) return result;
+            for (size_t i = 0u; i < frame->argc; i++) {
+                if (!jinx_zend_array_append(array, frame->args[i])) {
+                    jinx_zend_array_release(array);
+                    return result;
+                }
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zend_array_value_owned(array);
+        }
+
+        if (strcmp(name, "get_called_class") == 0) {
+            if (argc != 0u || frame->scope_name == NULL ||
+                frame->scope_name[0] == '\0') {
+                return result;
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_string_value(frame->scope_name);
         }
     }
 
