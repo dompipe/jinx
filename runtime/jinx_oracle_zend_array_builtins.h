@@ -806,7 +806,7 @@ static inline JinxValue jinx_oracle_zend_array_chunk_special(const JinxValue *ar
     JinxZendArray *array = jinx_oracle_zend_array_ptr(args[0]);
     int64_t length = jinx_oracle_intish(args[1]);
     int preserve = argc >= 3u && jinx_oracle_boolish(args[2]);
-    if (array == 0 || length < 1) return jinx_oracle_bool_value(0);
+    if (array == 0 || length < 1) return jinx_oracle_zero_value();
 
     size_t live = jinx_zend_array_live_count(array);
     size_t chunks = live == 0u ? 0u : (live + (size_t)length - 1u) / (size_t)length;
