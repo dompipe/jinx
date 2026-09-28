@@ -121,6 +121,22 @@ $streamWrappers = function_exists('stream_get_wrappers') ? stream_get_wrappers()
 $streamTransports = function_exists('stream_get_transports') ? stream_get_transports() : [];
 $streamFilters = function_exists('stream_get_filters') ? stream_get_filters() : [];
 
+$passwordAlgos = function_exists('password_algos') ? password_algos() : [];
+$timezoneIdentifiers = function_exists('timezone_identifiers_list')
+    ? timezone_identifiers_list()
+    : [];
+$timezoneVersion = function_exists('timezone_version_get')
+    ? timezone_version_get()
+    : '';
+$splClassRows = [];
+if (function_exists('spl_classes')) {
+    foreach (spl_classes() as $classKey => $classValue) {
+        if (is_string($classKey) && is_string($classValue)) {
+            $splClassRows[] = [$classKey, $classValue];
+        }
+    }
+}
+
 $extensionFunctionRows = [];
 foreach ($extensions as $extension) {
     $funcs = get_extension_funcs($extension);
@@ -202,6 +218,7 @@ $code[] = '#define JINX_NATIVE_PHP_SYS_TEMP_DIR ' . cstr($systemTempDirectory);
 $code[] = '#define JINX_NATIVE_PHP_SAPI_NAME ' . cstr($phpSapiName);
 $code[] = '#define JINX_NATIVE_PHP_VERSION ' . cstr($phpVersion);
 $code[] = '#define JINX_NATIVE_ZEND_VERSION ' . cstr($zendVersion);
+$code[] = '#define JINX_NATIVE_TIMEZONE_VERSION ' . cstr((string)$timezoneVersion);
 $code[] = '#define JINX_NATIVE_PHP_INI_LOADED_FILE_AVAILABLE ' . ($phpIniLoadedFile === false ? '0' : '1');
 $code[] = '#define JINX_NATIVE_PHP_INI_LOADED_FILE ' . cstr($phpIniLoadedFile === false ? '' : $phpIniLoadedFile);
 $code[] = '#define JINX_NATIVE_PHP_INI_SCANNED_FILES_AVAILABLE ' . ($phpIniScannedFiles === false ? '0' : '1');
@@ -249,6 +266,8 @@ $emitStringArray('jinx_native_hash_hmac_algos', $hashHmacAlgos);
 $emitStringArray('jinx_native_stream_wrappers', $streamWrappers);
 $emitStringArray('jinx_native_stream_transports', $streamTransports);
 $emitStringArray('jinx_native_stream_filters', $streamFilters);
+$emitStringArray('jinx_native_password_algos', $passwordAlgos);
+$emitStringArray('jinx_native_timezone_identifiers', $timezoneIdentifiers);
 
 $extensionSymbols = [];
 foreach ($extensionFunctionRows as $extension => $funcs) {
@@ -278,6 +297,14 @@ foreach ($cfgRows as [$cfgName, $cfgValue]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_cfg_metadata_count = sizeof(jinx_native_cfg_metadata) / sizeof(jinx_native_cfg_metadata[0]);';
+$code[] = '';
+
+$code[] = 'static const JinxNativeStringPair jinx_native_spl_classes[] = {';
+foreach ($splClassRows as [$classKey, $classValue]) {
+    $code[] = '    { ' . cstr($classKey) . ', ' . cstr($classValue) . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_spl_classes_count = sizeof(jinx_native_spl_classes) / sizeof(jinx_native_spl_classes[0]);';
 $code[] = '';
 
 $code[] = 'static const JinxNativeIniMeta jinx_native_ini_metadata[] = {';
