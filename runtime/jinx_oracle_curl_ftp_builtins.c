@@ -236,7 +236,9 @@ static size_t ftp_file_write(
     void *userdata
 ) {
     FILE *fp = (FILE *)userdata;
-    return fp != NULL ? fwrite(ptr, size, nmemb, fp) : 0u;
+    size_t bytes = size * nmemb;
+    if (fp == NULL || bytes == 0u) return 0u;
+    return fwrite(ptr, 1u, bytes, fp);
 }
 
 static size_t ftp_file_read(
@@ -246,7 +248,9 @@ static size_t ftp_file_read(
     void *userdata
 ) {
     FILE *fp = (FILE *)userdata;
-    return fp != NULL ? fread(ptr, size, nmemb, fp) : 0u;
+    size_t bytes = size * nmemb;
+    if (fp == NULL || bytes == 0u) return 0u;
+    return fread(ptr, 1u, bytes, fp);
 }
 
 static char *ftp_join_path(
@@ -1337,27 +1341,59 @@ JinxValue jinx_oracle_curl_ftp_builtin(
             }
 
             if (strcmp(name, "ftp_size") == 0) {
-                curl_off_t length = -1;
-                if (curl_easy_getinfo(
-                        curl,
-                        CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
-                        &length
-                    ) != CURLE_OK) {
-                    length = -1;
+                int64_t length = -1;
+#if LIBCURL_VERSION_NUM >= 0x073700
+                {
+                    curl_off_t value = -1;
+                    if (curl_easy_getinfo(
+                            curl,
+                            CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
+                            &value
+                        ) == CURLE_OK) {
+                        length = (int64_t)value;
+                    }
                 }
+#else
+                {
+                    double value = -1.0;
+                    if (curl_easy_getinfo(
+                            curl,
+                            CURLINFO_CONTENT_LENGTH_DOWNLOAD,
+                            &value
+                        ) == CURLE_OK) {
+                        length = (int64_t)value;
+                    }
+                }
+#endif
                 curl_easy_cleanup(curl);
-                return jinx_oracle_int_value((int64_t)length);
+                return jinx_oracle_int_value(length);
             } else {
-                curl_off_t filetime = -1;
-                if (curl_easy_getinfo(
-                        curl,
-                        CURLINFO_FILETIME_T,
-                        &filetime
-                    ) != CURLE_OK) {
-                    filetime = -1;
+                int64_t filetime = -1;
+#if LIBCURL_VERSION_NUM >= 0x073b00
+                {
+                    curl_off_t value = -1;
+                    if (curl_easy_getinfo(
+                            curl,
+                            CURLINFO_FILETIME_T,
+                            &value
+                        ) == CURLE_OK) {
+                        filetime = (int64_t)value;
+                    }
                 }
+#else
+                {
+                    long value = -1;
+                    if (curl_easy_getinfo(
+                            curl,
+                            CURLINFO_FILETIME,
+                            &value
+                        ) == CURLE_OK) {
+                        filetime = (int64_t)value;
+                    }
+                }
+#endif
                 curl_easy_cleanup(curl);
-                return jinx_oracle_int_value((int64_t)filetime);
+                return jinx_oracle_int_value(filetime);
             }
         }
 
