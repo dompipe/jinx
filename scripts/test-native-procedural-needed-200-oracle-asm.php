@@ -148,6 +148,27 @@ foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
 }
 
+/* PHP debug_backtrace contract fixture: first frame includes function
+ * and args unless DEBUG_BACKTRACE_IGNORE_ARGS is requested. */
+$phpTraceProbe = (static function (): array {
+    return debug_backtrace(0, 1);
+})();
+if (!isset($phpTraceProbe[0]['function'], $phpTraceProbe[0]['args']) ||
+    !is_array($phpTraceProbe[0]['args'])) {
+    fail200('PHP debug_backtrace contract fixture did not expose function/args');
+}
+
+/* Native frame smoke verifies function/class/type/file/line/args from the
+ * real JinxZendCallFrame chain. */
+$frameSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-frame-smoke',
+    $frameSmokeCode
+);
+if ($frameSmokeCode !== 0 ||
+    !str_contains($frameSmoke, 'debug_backtrace')) {
+    fail200("native frame/debug_backtrace smoke failed\n{$frameSmoke}");
+}
+
 $errorSmoke = run200(
     escapeshellarg($jinx) . ' oracle-error-smoke',
     $errorSmokeCode
