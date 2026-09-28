@@ -45,18 +45,63 @@ if ($code !== 0 || trim($classExists) !== 'bool:true') {
     exit(1);
 }
 
-foreach ([
-    ['md5', 's:oracle'],
-] as [$name, $arg]) {
-    $output = runCommand(
-        escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($name) . ' ' . escapeshellarg($arg),
-        $code
-    );
-
-    if ($code === 0 || !str_contains($output, 'null/fault: ' . $name)) {
-        fwrite(STDERR, "FAIL: {$name} still returned a fabricated native value: {$output}\n");
-        exit(1);
-    }
+$md5 = runCommand(
+    escapeshellarg($jinx) . ' oracle-call md5 ' . escapeshellarg('s:oracle'),
+    $code
+);
+if ($code !== 0 || trim($md5) !== 'string:' . md5('oracle')) {
+    fwrite(STDERR, "FAIL: newly promoted native md5 did not match PHP: {$md5}\n");
+    exit(1);
 }
 
-echo "PASS: unsupported native builtins fault instead of returning fabricated values\n";
+$ledger = json_decode(
+    (string) file_get_contents($root . '/spec/native-oracle-wiring.json'),
+    true,
+    512,
+    JSON_THROW_ON_ERROR
+);
+$manifest = json_decode(
+    (string) file_get_contents($root . '/spec/php-functions.from-runtime.json'),
+    true,
+    512,
+    JSON_THROW_ON_ERROR
+);
+
+$metadata = [];
+foreach ($manifest['functions'] as $row) {
+    $metadata[strtolower((string) $row['name'])] = $row;
+}
+
+$unsupportedName = null;
+$unsupportedArgs = [];
+foreach ($ledger['routes'] as $name => $route) {
+    if ($route !== 'intentional-native-fault') continue;
+    $row = $metadata[$name] ?? null;
+    if (!is_array($row) || ($row['kind'] ?? null) !== 'builtin') continue;
+
+    $required = (int) ($row['arity']['required'] ?? 0);
+    $unsupportedName = (string) $row['name'];
+    $unsupportedArgs = array_fill(0, $required, 's:oracle');
+    break;
+}
+
+if ($unsupportedName === null) {
+    fwrite(STDERR, "FAIL: could not select a reviewed unsupported builtin fixture\n");
+    exit(1);
+}
+
+$command = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($unsupportedName);
+foreach ($unsupportedArgs as $arg) {
+    $command .= ' ' . escapeshellarg($arg);
+}
+$output = runCommand($command, $code);
+
+if ($code === 0 || !str_contains($output, 'null/fault: ' . $unsupportedName)) {
+    fwrite(
+        STDERR,
+        "FAIL: reviewed unsupported {$unsupportedName} returned a fabricated native value: {$output}\n"
+    );
+    exit(1);
+}
+
+echo "PASS: promoted native builtins execute exactly while reviewed unsupported builtins still fault\n";
