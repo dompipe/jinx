@@ -100,6 +100,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_method_dispatch.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_extended_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_batch2_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_hash_builtins.c" \
