@@ -208,7 +208,7 @@ $checks = [
     ['openlog', ['s:jinx-parity', 'i:' . LOG_PID, 'i:' . LOG_USER], 'bool:' . (openlog('jinx-parity', LOG_PID, LOG_USER) ? 'true' : 'false')],
     ['syslog', ['i:' . LOG_INFO, 's:Jinx native parity smoke'], 'bool:' . (syslog(LOG_INFO, 'Jinx native parity smoke') ? 'true' : 'false')],
     ['closelog', [], 'bool:' . (closelog() ? 'true' : 'false')],
-    ['chroot', ['s:/__jinx_oracle_missing__',], 'bool:false'],
+    ['chroot', ['s:/__jinx_oracle_missing__'], 'bool:false'],
     ['getdate', ['i:1704067200'], 'zend-array:' . count(getdate(1704067200))],
     ['gmmktime', ['i:0', 'i:0', 'i:0', 'i:1', 'i:1', 'i:2024'], 'int:' . gmmktime(0, 0, 0, 1, 1, 2024)],
     ['hash_equals', ['s:abc', 's:abc'], 'bool:true'],
