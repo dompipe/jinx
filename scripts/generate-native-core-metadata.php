@@ -4,12 +4,20 @@ declare(strict_types=1);
 $out = $argv[1] ?? dirname(__DIR__) . '/runtime/jinx_native_core_metadata.generated.h';
 
 function cstr(string $s): string {
-    return '"' . addcslashes($s, "\\\"\n\r\t") . '"';
-}
-function cid(string $s): string {
-    $id = preg_replace('/[^A-Za-z0-9_]+/', '_', $s) ?? 'x';
-    if ($id === '' || ctype_digit($id[0])) $id = '_' . $id;
-    return $id;
+    $out = '"';
+    $len = strlen($s);
+    for ($i = 0; $i < $len; $i++) {
+        $ord = ord($s[$i]);
+        if ($s[$i] === '\\' || $s[$i] === '"') {
+            $out .= '\\' . $s[$i];
+        } elseif ($ord >= 32 && $ord <= 126) {
+            $out .= $s[$i];
+        } else {
+            /* Fixed-width octal avoids C's variable-width \\xNN escape. */
+            $out .= sprintf('\\%03o', $ord);
+        }
+    }
+    return $out . '"';
 }
 
 $classes = get_declared_classes();
