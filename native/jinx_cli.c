@@ -1007,6 +1007,12 @@ static int command_oracle_frame_smoke(void) {
         3u
     );
     frame.scope_name = "JinxFrameScope";
+    jinx_zend_frame_set_callsite(
+        &frame,
+        "/tmp/jinx-frame-smoke.php",
+        41u,
+        "::"
+    );
 
     if (!jinx_zend_frame_set_local(
             &frame, "alpha", jinx_zend_long(11)
@@ -1076,6 +1082,83 @@ static int command_oracle_frame_smoke(void) {
         return fail("get_called_class did not read frame scope");
     }
     release_cli_value(result);
+
+    {
+        JinxValue backtrace_args[2];
+        JinxZendArray *trace;
+        JinxZendValue *record_value;
+        JinxZendArray *record;
+        JinxZendValue *function;
+        JinxZendValue *class_name;
+        JinxZendValue *type;
+        JinxZendValue *file;
+        JinxZendValue *line;
+        JinxZendValue *trace_args;
+
+        backtrace_args[0] = jinx_value_int(0);
+        backtrace_args[1] = jinx_value_int(1);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "debug_backtrace", backtrace_args, 2u, &ok
+        );
+        if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+            release_cli_value(result);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("debug_backtrace did not return native frame array");
+        }
+
+        trace = jinx_oracle_zend_array_ptr(result);
+        if (jinx_zend_array_live_count(trace) != 1u) {
+            release_cli_value(result);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("debug_backtrace limit did not cap native frame count");
+        }
+
+        record_value = jinx_zend_array_index(trace, 0u);
+        if (record_value == NULL ||
+            record_value->type != JINX_ZEND_ARRAY ||
+            record_value->value.array == NULL) {
+            release_cli_value(result);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("debug_backtrace frame record is not a Zend array");
+        }
+
+        record = record_value->value.array;
+        function = jinx_zend_array_find(record, "function", 8u);
+        class_name = jinx_zend_array_find(record, "class", 5u);
+        type = jinx_zend_array_find(record, "type", 4u);
+        file = jinx_zend_array_find(record, "file", 4u);
+        line = jinx_zend_array_find(record, "line", 4u);
+        trace_args = jinx_zend_array_find(record, "args", 4u);
+
+        if (function == NULL || function->type != JINX_ZEND_STRING ||
+            function->value.str == NULL ||
+            strcmp(function->value.str->bytes, "jinx_frame_smoke") != 0 ||
+            class_name == NULL || class_name->type != JINX_ZEND_STRING ||
+            class_name->value.str == NULL ||
+            strcmp(class_name->value.str->bytes, "JinxFrameScope") != 0 ||
+            type == NULL || type->type != JINX_ZEND_STRING ||
+            type->value.str == NULL ||
+            strcmp(type->value.str->bytes, "::") != 0 ||
+            file == NULL || file->type != JINX_ZEND_STRING ||
+            file->value.str == NULL ||
+            strcmp(file->value.str->bytes, "/tmp/jinx-frame-smoke.php") != 0 ||
+            line == NULL || line->type != JINX_ZEND_LONG ||
+            line->value.lval != 41 ||
+            trace_args == NULL || trace_args->type != JINX_ZEND_ARRAY ||
+            trace_args->value.array == NULL ||
+            jinx_zend_array_live_count(trace_args->value.array) != 3u) {
+            release_cli_value(result);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("debug_backtrace native frame fields mismatch");
+        }
+
+        release_cli_value(result);
+    }
 
     ok = 0;
     result = jinx_call_builtin_through_oracle_checked(
@@ -1172,7 +1255,7 @@ static int command_oracle_frame_smoke(void) {
         return fail("func_num_args must fault outside function context");
     }
 
-    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract and clears on frame leave\n");
+    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract/debug_backtrace and clears on frame leave\n");
     return 0;
 }
 
