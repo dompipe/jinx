@@ -148,6 +148,21 @@ foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
 }
 
+$errorSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-error-smoke',
+    $errorSmokeCode
+);
+if ($errorSmokeCode !== 0 ||
+    !str_contains(
+        $errorSmoke,
+        'PASS: native Zend executor last-error state drives error_get_last/error_clear_last'
+    )) {
+    fail200("native Zend last-error smoke failed\n{$errorSmoke}");
+}
+
+expect200($jinx, 'error_get_last', [], 'null');
+expect200($jinx, 'error_clear_last', [], 'null');
+
 expectType200($jinx, 'gettimeofday', ['b:true'], 'float:');
 expect200($jinx, 'getrusage', [], 'zend-array:' . count(getrusage()));
 expectType200($jinx, 'disk_free_space', ['s:.'], 'float:');
