@@ -250,17 +250,6 @@ foreach ($rows as $row) {
 $code[] = '    { NULL, NULL }';
 $code[] = '};';
 $code[] = '';
-$code[] = 'static _Thread_local JinxZendCallFrame *jinx_oracle_caller_frame = NULL;';
-$code[] = '';
-$code[] = 'void jinx_oracle_set_caller_frame(JinxZendCallFrame *frame) {';
-$code[] = '    jinx_oracle_caller_frame = frame;';
-$code[] = '}';
-$code[] = '';
-$code[] = 'JinxZendCallFrame *jinx_oracle_get_caller_frame(void) {';
-$code[] = '    return jinx_oracle_caller_frame;';
-$code[] = '';
-$code[] = '}';
-$code[] = '';
 $code[] = 'JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name) {';
 $code[] = '    for (size_t i = 0; oracle_dispatch_table[i].name != NULL; i++) {';
 $code[] = '        if (strcmp(oracle_dispatch_table[i].name, name) == 0) {';
