@@ -292,7 +292,7 @@ $code[] = '';
 $code[] = '    if (argc >= 1 && args != NULL && jinx_oracle_name_is_zend_array_builtin(name) &&';
 $code[] = '        jinx_oracle_value_is_zend_array(args[0])) {';
 $code[] = '        JinxValue result = jinx_oracle_zend_array_dispatch_builtin(name, args, argc);';
-$code[] = '        if (ok != NULL) *ok = jinx_oracle_zend_dispatch_result_ok(name, result);';
+$code[] = '        if (ok != NULL) *ok = jinx_oracle_zend_dispatch_result_ok(name, args, argc, result);';
 $code[] = '        return result;';
 $code[] = '    }';
 $code[] = '';
