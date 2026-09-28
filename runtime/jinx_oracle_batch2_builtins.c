@@ -2164,6 +2164,137 @@ JinxValue jinx_oracle_batch2_builtin(
         if (handled != NULL) *handled = 1;
         return b2_copy(message != NULL ? message : "", message != NULL ? strlen(message) : 0u);
     }
+    if (strcmp(name, "posix_eaccess") == 0) {
+        char *path;
+        int mode = 0;
+        int rc;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL || path[0] == '\0') {
+            free(path);
+            return result;
+        }
+        if (argc >= 2u) mode = (int)jinx_oracle_intish(args[1]);
+#if defined(__GLIBC__) || defined(__linux__)
+        rc = eaccess(path, mode);
+#else
+        rc = access(path, mode);
+#endif
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+    if (strcmp(name, "posix_kill") == 0) {
+        int rc;
+        if (args == NULL || argc != 2u) return result;
+        rc = kill(
+            (pid_t)jinx_oracle_intish(args[0]),
+            (int)jinx_oracle_intish(args[1])
+        );
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+    if (strcmp(name, "posix_mkfifo") == 0) {
+        char *path;
+        int rc;
+        if (args == NULL || argc != 2u || args[0].type != 3u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL) return result;
+        rc = mkfifo(path, (mode_t)jinx_oracle_intish(args[1]));
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+    if (strcmp(name, "posix_setuid") == 0 ||
+        strcmp(name, "posix_setgid") == 0 ||
+        strcmp(name, "posix_seteuid") == 0 ||
+        strcmp(name, "posix_setegid") == 0) {
+        int rc;
+        if (args == NULL || argc != 1u) return result;
+        if (strcmp(name, "posix_setuid") == 0) {
+            rc = setuid((uid_t)jinx_oracle_intish(args[0]));
+        } else if (strcmp(name, "posix_setgid") == 0) {
+            rc = setgid((gid_t)jinx_oracle_intish(args[0]));
+        } else if (strcmp(name, "posix_seteuid") == 0) {
+            rc = seteuid((uid_t)jinx_oracle_intish(args[0]));
+        } else {
+            rc = setegid((gid_t)jinx_oracle_intish(args[0]));
+        }
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+    if (strcmp(name, "posix_setpgid") == 0) {
+        int rc;
+        if (args == NULL || argc != 2u) return result;
+        rc = setpgid(
+            (pid_t)jinx_oracle_intish(args[0]),
+            (pid_t)jinx_oracle_intish(args[1])
+        );
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+    if (strcmp(name, "posix_setsid") == 0) {
+        pid_t sid;
+        if (argc != 0u) return result;
+        sid = setsid();
+        if (sid < 0) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)sid);
+    }
+    if (strcmp(name, "posix_getrlimit") == 0) {
+        struct rlimit rl;
+        int resource;
+        JinxZendArray *array;
+        if (args == NULL || argc != 1u || args[0].type == 0u) return result;
+        resource = (int)jinx_oracle_intish(args[0]);
+        if (getrlimit(resource, &rl) != 0) {
+            jinx_oracle_batch2_posix_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        array = jinx_zend_array_new_packed(2u);
+        if (array == NULL) return result;
+        if (rl.rlim_cur == RLIM_INFINITY) {
+            if (!b2_append_string(array, "unlimited")) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        } else if (!jinx_zend_array_append(array, jinx_zend_long((int64_t)rl.rlim_cur))) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+        if (rl.rlim_max == RLIM_INFINITY) {
+            if (!b2_append_string(array, "unlimited")) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        } else if (!jinx_zend_array_append(array, jinx_zend_long((int64_t)rl.rlim_max))) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+    if (strcmp(name, "posix_setrlimit") == 0) {
+        struct rlimit rl;
+        int rc;
+        if (args == NULL || argc != 3u) return result;
+        rl.rlim_cur = (rlim_t)jinx_oracle_intish(args[1]);
+        rl.rlim_max = (rlim_t)jinx_oracle_intish(args[2]);
+        rc = setrlimit((int)jinx_oracle_intish(args[0]), &rl);
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
     if (strcmp(name, "posix_access") == 0) {
         char *path;
         int mode = 0;
