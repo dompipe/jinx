@@ -110,6 +110,9 @@ $checks = [
     ['hash_equals', ['s:abc', 's:abc'], 'bool:true'],
     ['hash_equals', ['s:abc', 's:abd'], 'bool:false'],
     ['closedir', ['dir:tmp'], 'null'],
+    ['get_resource_type', ['fp:tmp'], 'string:stream'],
+    ['get_resource_id', ['fp:tmp'], 'int:1'],
+    ['get_resources', [], 'zend-array:0'],
 ];
 
 if (function_exists('gmstrftime')) {
