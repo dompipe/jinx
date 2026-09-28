@@ -378,6 +378,7 @@ $contextBacked = [
     'get_defined_vars' => 'frame',
     'compact' => 'frame',
     'extract' => 'frame',
+    'debug_backtrace' => 'frame',
     'error_get_last' => 'error',
     'error_clear_last' => 'error',
     'get_included_files' => 'script',
