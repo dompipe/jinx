@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$jinx = $root . '/bin/jinx';
+$webTools = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/scripts/jinx-web-tools.php');
 
 function fail(string $message): never
 {
@@ -90,7 +90,7 @@ $log = $root . '/build/test-jinx-worker-keepalive.log';
 
 $cmd = sprintf(
     '%s worker %s %s > %s 2>&1',
-    escapeshellarg($jinx),
+    $webTools,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php'),
     escapeshellarg("{$host}:{$port}"),
     escapeshellarg($log)
@@ -144,4 +144,4 @@ try {
     proc_close($proc);
 }
 
-echo "PASS: bin/jinx worker supports keep-alive multiple requests per connection\n";
+echo "PASS: JINX web helper worker supports keep-alive multiple requests per connection\n";
