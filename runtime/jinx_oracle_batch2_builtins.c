@@ -4,6 +4,7 @@
 #include "jinx_oracle_resource_registry.h"
 #include "jinx_oracle_solar_builtins.h"
 #include "jinx_oracle_dns_builtins.h"
+#include "jinx_oracle_ftp_builtins.h"
 #include "jinx_oracle_curl_ftp_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
@@ -968,6 +969,17 @@ JinxValue jinx_oracle_batch2_builtin_with_context(
         return jinx_oracle_bool_value(found != 0u);
     }
 #endif
+
+    {
+        int ftp_handled = 0;
+        JinxValue ftp_result = jinx_oracle_ftp_builtin_with_context(
+            ctx, name, args, argc, &ftp_handled
+        );
+        if (ftp_handled) {
+            if (handled != NULL) *handled = 1;
+            return ftp_result;
+        }
+    }
 
     return result;
 }
@@ -2958,6 +2970,17 @@ csv_fail:
     {
         int ftp_handled = 0;
         JinxValue ftp_result = jinx_oracle_curl_ftp_builtin(
+            name, args, argc, &ftp_handled
+        );
+        if (ftp_handled) {
+            if (handled != NULL) *handled = 1;
+            return ftp_result;
+        }
+    }
+
+    {
+        int ftp_handled = 0;
+        JinxValue ftp_result = jinx_oracle_ftp_builtin(
             name, args, argc, &ftp_handled
         );
         if (ftp_handled) {
