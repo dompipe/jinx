@@ -191,15 +191,46 @@ foreach ($throwableClasses as $class) {
         failMethod("expected Throwable class is not Throwable: {$class}");
     }
 
-    $phpThrowable = new $class('jinx-message', 73);
-    (new ReflectionProperty($class, 'file'))->setValue(
-        $phpThrowable,
-        'jinx-fixture.php'
-    );
-    (new ReflectionProperty($class, 'line'))->setValue(
-        $phpThrowable,
-        123
-    );
+    if ($class === FiberError::class) {
+        $fiber = new Fiber(static function (): void {});
+        $fiber->start();
+        try {
+            $fiber->start();
+            failMethod('expected engine-thrown FiberError was not produced');
+        } catch (FiberError $error) {
+            $phpThrowable = $error;
+        }
+
+        foreach ([
+            'message' => 'jinx-message',
+            'code' => 73,
+            'file' => 'jinx-fixture.php',
+            'line' => 123,
+        ] as $property => $value) {
+            (new ReflectionProperty(Error::class, $property))->setValue(
+                $phpThrowable,
+                $value
+            );
+        }
+        (new ReflectionProperty(Error::class, 'trace'))->setValue(
+            $phpThrowable,
+            []
+        );
+        (new ReflectionProperty(Error::class, 'previous'))->setValue(
+            $phpThrowable,
+            null
+        );
+    } else {
+        $phpThrowable = new $class('jinx-message', 73);
+        (new ReflectionProperty($class, 'file'))->setValue(
+            $phpThrowable,
+            'jinx-fixture.php'
+        );
+        (new ReflectionProperty($class, 'line'))->setValue(
+            $phpThrowable,
+            123
+        );
+    }
     $fixture = 'ex:' . $class;
 
     foreach ($throwableMethods as $method) {
@@ -232,29 +263,31 @@ foreach ($throwableClasses as $class) {
         );
     }
 
-    $phpConstructed = new $class('jinx-message', 73);
-    $phpConstructReturn = $phpConstructed->__construct(
-        'reset-message',
-        91
-    );
-    $constructExpected = implode(PHP_EOL, [
-        'return=' . ($phpConstructReturn === null ? 'null' : 'non-null'),
-        'message=string:' . $phpConstructed->getMessage(),
-        'code=int:' . $phpConstructed->getCode(),
-    ]);
-    $constructActual = runMethod(
-        escapeshellarg($jinx)
-        . ' oracle-throwable-construct-smoke '
-        . escapeshellarg($class),
-        $constructCode
-    );
-    if ($constructCode !== 0 ||
-        $constructActual !== $constructExpected) {
-        failMethod(
-            "{$class}::__construct state parity mismatch\n"
-            . "PHP:\n{$constructExpected}\n"
-            . "JINX:\n{$constructActual}"
+    if ($class !== FiberError::class) {
+        $phpConstructed = new $class('jinx-message', 73);
+        $phpConstructReturn = $phpConstructed->__construct(
+            'reset-message',
+            91
         );
+        $constructExpected = implode(PHP_EOL, [
+            'return=' . ($phpConstructReturn === null ? 'null' : 'non-null'),
+            'message=string:' . $phpConstructed->getMessage(),
+            'code=int:' . $phpConstructed->getCode(),
+        ]);
+        $constructActual = runMethod(
+            escapeshellarg($jinx)
+            . ' oracle-throwable-construct-smoke '
+            . escapeshellarg($class),
+            $constructCode
+        );
+        if ($constructCode !== 0 ||
+            $constructActual !== $constructExpected) {
+            failMethod(
+                "{$class}::__construct state parity mismatch\n"
+                . "PHP:\n{$constructExpected}\n"
+                . "JINX:\n{$constructActual}"
+            );
+        }
     }
 }
 
@@ -392,4 +425,4 @@ foreach ([DateTime::class, DateTimeImmutable::class] as $dateClass) {
     );
 }
 
-echo "PASS: native Oracle method receiver proves 501 newly added callable routes\n";
+echo "PASS: native Oracle method receiver proves 500 newly added callable routes\n";
