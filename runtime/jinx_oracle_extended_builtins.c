@@ -2089,6 +2089,44 @@ JinxValue jinx_oracle_extended_builtin(
         return jinx_oracle_zend_object_value_retained(object);
     }
 
+    if (strcmp(name, "timezone_open") == 0) {
+        char *timezone;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        timezone = jinx_oracle_ext_dup_string_value(args[0]);
+        if (timezone == NULL) return result;
+        if (!jinx_oracle_ext_timezone_valid(timezone)) {
+            free(timezone);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        result = jinx_oracle_ext_new_timezone(timezone);
+        free(timezone);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "timezone_name_get") == 0) {
+        const char *timezone = NULL;
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_ext_timezone_from_value(args[0], &timezone)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_ext_copy_string(timezone, strlen(timezone));
+    }
+
+    if (strcmp(name, "timezone_offset_get") == 0) {
+        const char *timezone = NULL;
+        int64_t timestamp = 0;
+        if (args == NULL || argc != 2u ||
+            !jinx_oracle_ext_timezone_from_value(args[0], &timezone) ||
+            !jinx_oracle_ext_datetime_parts(args[1], NULL, &timestamp, NULL)) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(
+            jinx_oracle_ext_timezone_offset_seconds(timestamp, timezone)
+        );
+    }
+
     if (strcmp(name, "date_diff") == 0) {
         int64_t left, right;
         const char *tz1 = NULL;
