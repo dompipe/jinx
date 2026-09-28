@@ -31,6 +31,10 @@
 #ifdef JINX_HAVE_CRYPT
 #include <crypt.h>
 #endif
+#ifdef JINX_HAVE_RESOLV
+#include <arpa/nameser.h>
+#include <resolv.h>
+#endif
 
 extern char **environ;
 
@@ -2455,6 +2459,59 @@ csv_fail:
                 : jinx_oracle_bool_value(0);
         }
     }
+
+
+#ifdef JINX_HAVE_RESOLV
+    if (strcmp(name, "checkdnsrr") == 0 ||
+        strcmp(name, "dns_check_record") == 0) {
+        char *host;
+        char *type_name = NULL;
+        int type = ns_t_mx;
+        unsigned char answer[65536];
+        int rc;
+
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        host = b2_dup(args[0]);
+        if (host == NULL) return result;
+
+        if (argc >= 2u && args[1].type != 0u) {
+            if (args[1].type != 3u) {
+                free(host);
+                return result;
+            }
+            type_name = b2_dup(args[1]);
+            if (type_name == NULL) {
+                free(host);
+                return result;
+            }
+
+            if (strcasecmp(type_name, "A") == 0) type = ns_t_a;
+            else if (strcasecmp(type_name, "AAAA") == 0) type = ns_t_aaaa;
+            else if (strcasecmp(type_name, "MX") == 0) type = ns_t_mx;
+            else if (strcasecmp(type_name, "NS") == 0) type = ns_t_ns;
+            else if (strcasecmp(type_name, "SOA") == 0) type = ns_t_soa;
+            else if (strcasecmp(type_name, "PTR") == 0) type = ns_t_ptr;
+            else if (strcasecmp(type_name, "CNAME") == 0) type = ns_t_cname;
+            else if (strcasecmp(type_name, "TXT") == 0) type = ns_t_txt;
+            else if (strcasecmp(type_name, "SRV") == 0) type = ns_t_srv;
+#ifdef ns_t_caa
+            else if (strcasecmp(type_name, "CAA") == 0) type = ns_t_caa;
+#endif
+            else if (strcasecmp(type_name, "ANY") == 0) type = ns_t_any;
+            else {
+                free(type_name);
+                free(host);
+                return result;
+            }
+        }
+
+        rc = res_query(host, ns_c_in, type, answer, sizeof(answer));
+        free(type_name);
+        free(host);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc >= 0);
+    }
+#endif
 
     return result;
 }
