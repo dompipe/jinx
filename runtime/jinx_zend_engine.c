@@ -791,6 +791,9 @@ void jinx_zend_frame_enter(
 
     frame->function_name = function_name;
     frame->scope_name = 0;
+    frame->call_file = 0;
+    frame->call_type = 0;
+    frame->call_line = 0u;
     frame->args = args;
     frame->argc = argc;
     frame->locals = jinx_zend_array_new_packed(argc + 4u);
@@ -799,6 +802,18 @@ void jinx_zend_frame_enter(
     executor->current_frame = frame;
     jinx_oracle_set_caller_frame(frame);
     executor->executed_ops++;
+}
+
+void jinx_zend_frame_set_callsite(
+    JinxZendCallFrame *frame,
+    const char *file,
+    uint32_t line,
+    const char *call_type
+) {
+    if (frame == 0) return;
+    frame->call_file = file;
+    frame->call_line = line;
+    frame->call_type = call_type;
 }
 
 int jinx_zend_frame_set_local(
