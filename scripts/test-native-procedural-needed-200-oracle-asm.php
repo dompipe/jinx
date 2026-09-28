@@ -224,6 +224,12 @@ foreach (['dns_get_mx', 'getmxrr'] as $mxName) {
     }
 }
 
+/* get_browser unconfigured parity: configured browscap still fails closed. */
+$browscap = get_cfg_var('browscap');
+if ($browscap === false || $browscap === '') {
+    expect200($jinx, 'get_browser', ['s:JinxAudit'], 'bool:false');
+}
+
 /* Stream behavior uses the deterministic fp:tmp fixture ("a,b\nsecond line\n"). */
 expect200($jinx, 'ftruncate', ['fp:tmp', 'i:2'], 'bool:true');
 expect200($jinx, 'fputs', ['fp:tmp', 's:x'], 'int:1');
