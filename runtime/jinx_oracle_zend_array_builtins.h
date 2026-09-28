@@ -362,7 +362,7 @@ static inline JinxValue jinx_oracle_zend_vsprintf_special(const JinxValue *args,
     if (values_array == 0) return jinx_oracle_zero_value();
 
     size_t count = jinx_zend_array_live_count(values_array);
-    if (count > UINT32_MAX) return jinx_oracle_bool_value(0);
+    if (count > UINT32_MAX) return jinx_oracle_zero_value();
 
     JinxValue *values = count == 0u ? NULL : (JinxValue *)calloc(count, sizeof(JinxValue));
     if (count != 0u && values == NULL) return jinx_oracle_zero_value();
@@ -418,7 +418,7 @@ static inline JinxValue jinx_oracle_zend_implode_special(const JinxValue *args, 
         if (n > 0) needed += (uint64_t)n;
     }
 
-    if (needed > UINT32_MAX) return jinx_oracle_bool_value(0);
+    if (needed > UINT32_MAX) return jinx_oracle_zero_value();
     char *out = jinx_oracle_scratch_string((uint32_t)needed);
     uint32_t pos = 0u;
 
@@ -656,7 +656,7 @@ static inline JinxValue jinx_oracle_zend_array_fill_keys_special(const JinxValue
 
     JinxZendValue fill;
     JinxZendString *owned_string = 0;
-    if (!jinx_oracle_jinx_value_to_zend(args[1], &fill, &owned_string)) return jinx_oracle_bool_value(0);
+    if (!jinx_oracle_jinx_value_to_zend(args[1], &fill, &owned_string)) return jinx_oracle_zero_value();
 
     JinxZendArray *result = jinx_zend_array_new_packed(jinx_zend_array_live_count(keys) + 1u);
     if (result == 0) { jinx_zend_string_release(owned_string); return jinx_oracle_zero_value(); }
@@ -669,7 +669,7 @@ static inline JinxValue jinx_oracle_zend_array_fill_keys_special(const JinxValue
         if (!ok) {
             jinx_zend_string_release(owned_string);
             jinx_zend_array_release(result);
-            return jinx_oracle_bool_value(0);
+            return jinx_oracle_zero_value();
         }
     }
 
@@ -868,7 +868,7 @@ static inline JinxValue jinx_oracle_zend_array_pad_special(const JinxValue *args
 
     JinxZendValue pad;
     JinxZendString *owned_string = 0;
-    if (!jinx_oracle_jinx_value_to_zend(args[2], &pad, &owned_string)) return jinx_oracle_bool_value(0);
+    if (!jinx_oracle_jinx_value_to_zend(args[2], &pad, &owned_string)) return jinx_oracle_zero_value();
 
     JinxZendArray *result = jinx_zend_array_new_packed(target > live ? (size_t)target : live + 1u);
     if (result == 0) {
