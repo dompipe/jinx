@@ -122,6 +122,12 @@ if (function_exists('posix_getuid')) {
         ['posix_strerror', ['i:2'], 'string:' . posix_strerror(2)],
         ['posix_access', ['s:' . $root . '/README.md'], 'bool:' . (posix_access($root . '/README.md') ? 'true' : 'false')],
         ['posix_access', ['s:' . $root . '/__jinx_missing_posix__'], 'bool:' . (posix_access($root . '/__jinx_missing_posix__') ? 'true' : 'false')],
+        ['posix_eaccess', ['s:' . $root . '/README.md'], 'bool:' . (posix_eaccess($root . '/README.md') ? 'true' : 'false')],
+        ['posix_kill', ['i:' . getmypid(), 'i:0'], 'bool:' . (posix_kill(getmypid(), 0) ? 'true' : 'false')],
+        ['posix_setuid', ['i:' . posix_getuid()], 'bool:' . (posix_setuid(posix_getuid()) ? 'true' : 'false')],
+        ['posix_setgid', ['i:' . posix_getgid()], 'bool:' . (posix_setgid(posix_getgid()) ? 'true' : 'false')],
+        ['posix_seteuid', ['i:' . posix_geteuid()], 'bool:' . (posix_seteuid(posix_geteuid()) ? 'true' : 'false')],
+        ['posix_setegid', ['i:' . posix_getegid()], 'bool:' . (posix_setegid(posix_getegid()) ? 'true' : 'false')],
         ['posix_ctermid', [], (($v = posix_ctermid()) === false ? 'bool:false' : 'string:' . $v)],
         ['posix_isatty', ['i:1'], 'bool:' . (posix_isatty(1) ? 'true' : 'false')],
         ['posix_ttyname', ['i:1'], (($v = posix_ttyname(1)) === false ? 'bool:false' : 'string:' . $v)],
@@ -143,6 +149,26 @@ if (function_exists('posix_getuid')) {
             ['s:' . $posixPath, 'i:' . constant('POSIX_PC_PATH_MAX')],
             $phpPathConf === false ? 'bool:false' : 'int:' . $phpPathConf,
         ];
+    }
+    if (function_exists('posix_getrlimit') && defined('POSIX_RLIMIT_NOFILE')) {
+        $phpRlimit = posix_getrlimit(constant('POSIX_RLIMIT_NOFILE'));
+        $posixChecks[] = [
+            'posix_getrlimit',
+            ['i:' . constant('POSIX_RLIMIT_NOFILE')],
+            $phpRlimit === false ? 'bool:false' : 'zend-array:' . count($phpRlimit),
+        ];
+        if (is_array($phpRlimit) && count($phpRlimit) === 2 &&
+            is_int($phpRlimit[0]) && is_int($phpRlimit[1])) {
+            $posixChecks[] = [
+                'posix_setrlimit',
+                [
+                    'i:' . constant('POSIX_RLIMIT_NOFILE'),
+                    'i:' . $phpRlimit[0],
+                    'i:' . $phpRlimit[1],
+                ],
+                'bool:true',
+            ];
+        }
     }
     if (function_exists('posix_fpathconf') && defined('POSIX_PC_PIPE_BUF')) {
         $phpFdConf = posix_fpathconf(1, constant('POSIX_PC_PIPE_BUF'));
