@@ -5,6 +5,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "../runtime/jinx_function_list.generated.h"
 #include "../runtime/jinx_oracle_zend_array_carrier.h"
@@ -33,6 +34,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
+    printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
     printf("  %s oracle-strtok-smoke\n", argv0);
@@ -1653,6 +1655,68 @@ static int command_oracle_posix_error_smoke(void) {
     return 0;
 }
 
+
+static int command_oracle_posix_state_smoke(void) {
+    pid_t child;
+    int status = 0;
+
+    child = fork();
+    if (child < 0) return fail("fork for posix_setpgid smoke failed");
+    if (child == 0) {
+        JinxValue args[2];
+        JinxValue result;
+        int ok = 0;
+
+        args[0] = jinx_value_int(0);
+        args[1] = jinx_value_int(0);
+        result = jinx_call_builtin_through_oracle_checked(
+            "posix_setpgid", args, 2u, &ok
+        );
+        if (!ok || result.type != 2u || result.as.i64 == 0) {
+            release_cli_value(result);
+            _exit(10);
+        }
+        release_cli_value(result);
+        if (getpgrp() != getpid()) _exit(11);
+        _exit(0);
+    }
+    if (waitpid(child, &status, 0) != child ||
+        !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return fail("isolated posix_setpgid smoke failed");
+    }
+
+    child = fork();
+    if (child < 0) return fail("fork for posix_setsid smoke failed");
+    if (child == 0) {
+        JinxValue result;
+        pid_t sid;
+        int ok = 0;
+
+        result = jinx_call_builtin_through_oracle_checked(
+            "posix_setsid", NULL, 0u, &ok
+        );
+        if (!ok || result.type != 1u || result.as.i64 <= 0) {
+            release_cli_value(result);
+            _exit(20);
+        }
+        sid = getsid(0);
+        if (sid < 0 || (int64_t)sid != result.as.i64 ||
+            sid != getpid()) {
+            release_cli_value(result);
+            _exit(21);
+        }
+        release_cli_value(result);
+        _exit(0);
+    }
+    if (waitpid(child, &status, 0) != child ||
+        !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return fail("isolated posix_setsid smoke failed");
+    }
+
+    printf("setpgid=bool:true\nsetsid=bool:true\n");
+    return 0;
+}
+
 static int command_oracle_script_context_smoke(
     int argc,
     char **argv
@@ -1962,6 +2026,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-posix-error-smoke") == 0) {
         return command_oracle_posix_error_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
+        return command_oracle_posix_state_smoke();
     }
 
     if (strcmp(argv[1], "oracle-ini-smoke") == 0) {
