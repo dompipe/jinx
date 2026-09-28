@@ -175,6 +175,22 @@ expect200(
     'zend-array:' . count($phpSunInfo)
 );
 
+/* dns_get_record() no-byref path: reserved .invalid produces an empty array,
+ * not a fabricated DNS record. */
+$dnsRecordProbe = jinx200(
+    $jinx,
+    'dns_get_record',
+    ['s:__jinx_oracle_no_dns__.invalid'],
+    false,
+    $dnsRecordCode
+);
+if ($dnsRecordCode === 0 && !str_starts_with($dnsRecordProbe, 'null/fault:')) {
+    $phpDnsRecord = @dns_get_record('__jinx_oracle_no_dns__.invalid');
+    if (!is_array($phpDnsRecord) || $dnsRecordProbe !== 'zend-array:' . count($phpDnsRecord)) {
+        fail200("dns_get_record parity mismatch\nPHP count: " . (is_array($phpDnsRecord) ? count($phpDnsRecord) : -1) . "\nJINX: {$dnsRecordProbe}");
+    }
+}
+
 /* Context-aware by-reference DNS path: .invalid must not resolve, but PHP/Jinx
  * both initialize host/weight outputs to arrays before returning false. */
 foreach (['dns_get_mx', 'getmxrr'] as $mxName) {
