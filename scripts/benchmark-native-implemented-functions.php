@@ -198,7 +198,7 @@ function benchPhpCase(string $name, array $args, int $iterations): array
 
     $start = hrtime(true);
     for ($i = 0; $i < $iterations; $i++) {
-        benchQuiet(static fn (): mixed => $name(...$args));
+        $name(...$args);
     }
     $elapsed = hrtime(true) - $start;
 
@@ -448,7 +448,7 @@ if ($limit === 0 || count($rows) < $limit) {
         benchQuiet(static fn (): mixed => $object->{$method}(...$phpArgs));
         $start = hrtime(true);
         for ($i = 0; $i < $iterations; $i++) {
-            benchQuiet(static fn (): mixed => $object->{$method}(...$phpArgs));
+            $object->{$method}(...$phpArgs);
         }
         $phpNs = (hrtime(true) - $start) / $iterations;
 
