@@ -1160,6 +1160,23 @@ static int command_oracle_frame_smoke(void) {
         release_cli_value(result);
     }
 
+    {
+        JinxValue print_args[2];
+        print_args[0] = jinx_value_int(2); /* DEBUG_BACKTRACE_IGNORE_ARGS */
+        print_args[1] = jinx_value_int(1);
+        ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            "debug_print_backtrace", print_args, 2u, &ok
+        );
+        if (!ok || result.type != 0u) {
+            release_cli_value(result);
+            (void)jinx_zend_frame_leave(&executor, jinx_zend_null());
+            jinx_zend_string_release(text_arg);
+            return fail("debug_print_backtrace did not return null");
+        }
+        release_cli_value(result);
+    }
+
     ok = 0;
     result = jinx_call_builtin_through_oracle_checked(
         "get_defined_vars", NULL, 0u, &ok
@@ -1255,7 +1272,7 @@ static int command_oracle_frame_smoke(void) {
         return fail("func_num_args must fault outside function context");
     }
 
-    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract/debug_backtrace and clears on frame leave\n");
+    printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract/debug_backtrace/debug_print_backtrace and clears on frame leave\n");
     return 0;
 }
 
