@@ -95,6 +95,25 @@ static const JinxNativeExtensionMeta *b2_extension(const char *name) {
     return NULL;
 }
 
+static int b2_filter_id(const char *name) {
+    if (name == NULL) return -1;
+    for (size_t i = 0u; i < jinx_native_filter_metadata_count; i++) {
+        if (strcasecmp(name, jinx_native_filter_metadata[i].name) == 0) {
+            return jinx_native_filter_metadata[i].id;
+        }
+    }
+    return -1;
+}
+
+static const JinxNativeFilterMeta *b2_filter_by_id(int id) {
+    for (size_t i = 0u; i < jinx_native_filter_metadata_count; i++) {
+        if (jinx_native_filter_metadata[i].id == id) {
+            return &jinx_native_filter_metadata[i];
+        }
+    }
+    return NULL;
+}
+
 static const JinxNativeClassMeta *b2_class(const char *name) {
     if (name == NULL) return NULL;
     while (*name == '\\') name++;
@@ -1462,6 +1481,301 @@ JinxValue jinx_oracle_batch2_builtin(
         for (uint32_t i = 0u; i < known_len; i++) diff |= known[i] ^ user[i];
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(diff == 0u);
+    }
+
+
+    if (strcmp(name, "get_class_methods") == 0) {
+        const JinxNativeClassMeta *meta = NULL;
+        char *class_name = NULL;
+        if (args == NULL || argc < 1u) return result;
+        if (args[0].type == 3u) {
+            class_name = b2_dup(args[0]);
+            if (class_name == NULL) return result;
+            meta = b2_class(class_name);
+            free(class_name);
+        } else if (args[0].type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            JinxZendObject *object = jinx_oracle_zend_object_ptr(args[0]);
+            if (object != NULL && object->class_name != NULL) {
+                meta = b2_class(object->class_name);
+            }
+        } else {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return meta != NULL
+            ? b2_string_list(meta->methods, meta->method_count)
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "filter_list") == 0) {
+        JinxZendArray *array = jinx_zend_array_new_packed(
+            jinx_native_filter_metadata_count == 0u ? 1u : jinx_native_filter_metadata_count
+        );
+        if (array == NULL) return result;
+        for (size_t i = 0u; i < jinx_native_filter_metadata_count; i++) {
+            if (!b2_append_string(array, jinx_native_filter_metadata[i].name)) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "filter_id") == 0) {
+        char *filter_name;
+        int id;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        filter_name = b2_dup(args[0]);
+        if (filter_name == NULL) return result;
+        id = b2_filter_id(filter_name);
+        free(filter_name);
+        if (handled != NULL) *handled = 1;
+        return id >= 0 ? jinx_oracle_int_value(id) : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "filter_var") == 0) {
+        int filter = 516;
+        const JinxNativeFilterMeta *meta;
+        if (args == NULL || argc < 1u) return result;
+        if (argc >= 2u && args[1].type != 0u) filter = (int)jinx_oracle_intish(args[1]);
+        if (argc >= 3u && args[2].type != 0u) return result;
+        meta = b2_filter_by_id(filter);
+        if (meta == NULL) return result;
+
+        if (strcasecmp(meta->name, "unsafe_raw") == 0 ||
+            strcasecmp(meta->name, "string") == 0) {
+            result = jinx_oracle_strval_value(args[0]);
+            if (result.type != 0u && handled != NULL) *handled = 1;
+            return result;
+        }
+
+        if (strcasecmp(meta->name, "int") == 0) {
+            if (args[0].type == 1u) {
+                if (handled != NULL) *handled = 1;
+                return args[0];
+            }
+            if (args[0].type == 3u) {
+                char *text = b2_dup(args[0]);
+                char *end = NULL;
+                long long value;
+                if (text == NULL) return result;
+                errno = 0;
+                value = strtoll(text, &end, 10);
+                ok = errno == 0 && end != text && *end == '\0';
+                free(text);
+                if (handled != NULL) *handled = 1;
+                return ok
+                    ? jinx_oracle_int_value((int64_t)value)
+                    : jinx_oracle_bool_value(0);
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (strcasecmp(meta->name, "boolean") == 0) {
+            if (args[0].type == 2u) {
+                if (handled != NULL) *handled = 1;
+                return args[0];
+            }
+            if (args[0].type == 1u) {
+                if (handled != NULL) *handled = 1;
+                return args[0].as.i64 == 0
+                    ? jinx_oracle_bool_value(0)
+                    : (args[0].as.i64 == 1
+                        ? jinx_oracle_bool_value(1)
+                        : jinx_oracle_bool_value(0));
+            }
+            if (args[0].type == 3u) {
+                char *text = b2_dup(args[0]);
+                int truth = 0;
+                int recognized = 1;
+                if (text == NULL) return result;
+                if (strcasecmp(text, "1") == 0 ||
+                    strcasecmp(text, "true") == 0 ||
+                    strcasecmp(text, "on") == 0 ||
+                    strcasecmp(text, "yes") == 0) {
+                    truth = 1;
+                } else if (text[0] == '\0' ||
+                    strcasecmp(text, "0") == 0 ||
+                    strcasecmp(text, "false") == 0 ||
+                    strcasecmp(text, "off") == 0 ||
+                    strcasecmp(text, "no") == 0) {
+                    truth = 0;
+                } else {
+                    recognized = 0;
+                }
+                free(text);
+                if (handled != NULL) *handled = 1;
+                return recognized
+                    ? jinx_oracle_bool_value(truth)
+                    : jinx_oracle_bool_value(0);
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (strcasecmp(meta->name, "float") == 0) {
+            if (args[0].type == 1u || args[0].type == 5u) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_float_value(jinx_oracle_floatish(args[0]));
+            }
+            if (args[0].type == 3u) {
+                char *text = b2_dup(args[0]);
+                char *end = NULL;
+                double value;
+                if (text == NULL) return result;
+                errno = 0;
+                value = strtod(text, &end);
+                ok = errno == 0 && end != text && *end == '\0';
+                free(text);
+                if (handled != NULL) *handled = 1;
+                return ok ? jinx_oracle_float_value(value) : jinx_oracle_bool_value(0);
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        return result;
+    }
+
+    if (strcmp(name, "get_include_path") == 0) {
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_string_value(JINX_NATIVE_PHP_INCLUDE_PATH);
+    }
+
+    if (strcmp(name, "get_resource_type") == 0) {
+        JinxZendObject *object;
+        if (args == NULL || argc < 1u ||
+            args[0].type != JINX_ORACLE_VALUE_ZEND_OBJECT) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL || object->class_name == NULL) return result;
+        if (strcmp(object->class_name, "stream") == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_string_value("stream");
+        }
+        if (strcmp(object->class_name, "gzip-stream") == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_string_value("stream");
+        }
+        if (strcmp(object->class_name, "closed-resource") == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_string_value("Unknown");
+        }
+        return result;
+    }
+
+    if (strcmp(name, "exec") == 0) {
+        char *command;
+        FILE *pipe;
+        char line[4096];
+        char last[4096] = "";
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        command = b2_dup(args[0]);
+        if (command == NULL) return result;
+        pipe = popen(command, "r");
+        free(command);
+        if (pipe == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        while (fgets(line, sizeof(line), pipe) != NULL) {
+            size_t n = strlen(line);
+            while (n != 0u && (line[n - 1u] == '\n' || line[n - 1u] == '\r')) {
+                line[--n] = '\0';
+            }
+            snprintf(last, sizeof(last), "%s", line);
+        }
+        (void)pclose(pipe);
+        if (handled != NULL) *handled = 1;
+        return b2_copy(last, strlen(last));
+    }
+
+    if (strcmp(name, "fputcsv") == 0) {
+        JinxOracleBatch2Stream *stream;
+        JinxZendArray *array;
+        char delimiter = ',';
+        char enclosure = '"';
+        char escape = '\\';
+        const char *eol = "\n";
+        size_t live;
+        size_t total = 0u;
+        if (args == NULL || argc < 2u ||
+            !jinx_oracle_value_is_zend_array(args[1])) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        array = jinx_oracle_zend_array_ptr(args[1]);
+        if (argc >= 3u && args[2].type == 3u && args[2].flags == 1u) delimiter = ((char *)args[2].as.ptr)[0];
+        if (argc >= 4u && args[3].type == 3u && args[3].flags == 1u) enclosure = ((char *)args[3].as.ptr)[0];
+        if (argc >= 5u && args[4].type == 3u && args[4].flags <= 1u) escape = args[4].flags == 0u ? '\0' : ((char *)args[4].as.ptr)[0];
+        if (argc >= 6u && args[5].type == 3u) {
+            char *tmp = b2_dup(args[5]);
+            if (tmp == NULL) return result;
+            eol = tmp;
+        }
+
+        live = jinx_zend_array_live_count(array);
+        for (size_t i = 0u; i < live; i++) {
+            const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+            JinxValue jv;
+            JinxValue sv;
+            const unsigned char *bytes;
+            uint32_t len;
+            int quote = 0;
+            if (i != 0u) {
+                if (fputc(delimiter, stream->fp) == EOF) goto csv_fail;
+                total++;
+            }
+            if (bucket == NULL ||
+                !jinx_oracle_zend_to_jinx_borrowed(bucket->value, &jv)) goto csv_fail;
+            if (jv.type == 0u) {
+                bytes = (const unsigned char *)"";
+                len = 0u;
+            } else {
+                sv = jinx_oracle_strval_value(jv);
+                if (sv.type != 3u) goto csv_fail;
+                bytes = jinx_oracle_string_bytes(sv);
+                len = jinx_oracle_string_len(sv);
+            }
+            for (uint32_t p = 0u; p < len; p++) {
+                if (bytes[p] == (unsigned char)delimiter ||
+                    bytes[p] == (unsigned char)enclosure ||
+                    bytes[p] == '\n' || bytes[p] == '\r' ||
+                    bytes[p] == ' ' || bytes[p] == '\t') {
+                    quote = 1;
+                    break;
+                }
+            }
+            if (quote) {
+                if (fputc(enclosure, stream->fp) == EOF) goto csv_fail;
+                total++;
+            }
+            for (uint32_t p = 0u; p < len; p++) {
+                if (bytes[p] == (unsigned char)enclosure) {
+                    if (fputc(enclosure, stream->fp) == EOF) goto csv_fail;
+                    total++;
+                } else if (escape != '\0' && bytes[p] == (unsigned char)escape) {
+                    if (fputc(escape, stream->fp) == EOF) goto csv_fail;
+                    total++;
+                }
+                if (fputc(bytes[p], stream->fp) == EOF) goto csv_fail;
+                total++;
+            }
+            if (quote) {
+                if (fputc(enclosure, stream->fp) == EOF) goto csv_fail;
+                total++;
+            }
+        }
+        if (fwrite(eol, 1u, strlen(eol), stream->fp) != strlen(eol)) goto csv_fail;
+        total += strlen(eol);
+        if (argc >= 6u && args[5].type == 3u) free((void *)eol);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)total);
+
+csv_fail:
+        if (argc >= 6u && args[5].type == 3u) free((void *)eol);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
     }
 
     return result;
