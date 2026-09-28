@@ -43,6 +43,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-method-call <Class::method> <receiver-fixture> [typed-args...]\n", argv0);
+    printf("  %s oracle-throwable-construct-smoke <Class>\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
@@ -2177,6 +2178,84 @@ static int command_oracle_method_call(int argc, char **argv) {
     return exit_code;
 }
 
+static int command_oracle_throwable_construct_smoke(int argc, char **argv) {
+    char fixture_spec[384];
+    char constructor_name[384];
+    char message_name[384];
+    char code_name[384];
+    JinxValue receiver = jinx_value_null();
+    JinxValue ctor_args[2];
+    JinxValue ctor_result = jinx_value_null();
+    JinxValue message_result = jinx_value_null();
+    JinxValue code_result = jinx_value_null();
+    int ctor_ok = 0;
+    int message_ok = 0;
+    int code_ok = 0;
+
+    if (argc != 3) {
+        return fail("oracle-throwable-construct-smoke requires exactly one class name");
+    }
+
+    if (snprintf(fixture_spec, sizeof(fixture_spec), "ex:%s", argv[2]) < 0 ||
+        snprintf(constructor_name, sizeof(constructor_name), "%s::__construct", argv[2]) < 0 ||
+        snprintf(message_name, sizeof(message_name), "%s::getMessage", argv[2]) < 0 ||
+        snprintf(code_name, sizeof(code_name), "%s::getCode", argv[2]) < 0 ||
+        strlen(fixture_spec) >= sizeof(fixture_spec) ||
+        strlen(constructor_name) >= sizeof(constructor_name) ||
+        strlen(message_name) >= sizeof(message_name) ||
+        strlen(code_name) >= sizeof(code_name)) {
+        return fail("Throwable class name too long");
+    }
+
+    receiver = jinx_oracle_extended_fixture(fixture_spec);
+    if (receiver.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        release_cli_value(receiver);
+        return fail("could not create Throwable receiver fixture");
+    }
+
+    ctor_args[0] = jinx_value_string("reset-message", 13u);
+    ctor_args[1] = jinx_value_int(91);
+
+    ctor_result = jinx_call_method_through_oracle_checked(
+        constructor_name, receiver, ctor_args, 2u, &ctor_ok
+    );
+    if (!ctor_ok || ctor_result.type != 0u) {
+        release_cli_value(ctor_result);
+        release_cli_value(receiver);
+        return fail("Throwable constructor did not return null successfully");
+    }
+
+    message_result = jinx_call_method_through_oracle_checked(
+        message_name, receiver, NULL, 0u, &message_ok
+    );
+    code_result = jinx_call_method_through_oracle_checked(
+        code_name, receiver, NULL, 0u, &code_ok
+    );
+
+    if (!message_ok || !code_ok ||
+        message_result.type != 3u ||
+        code_result.type != 1u) {
+        release_cli_value(ctor_result);
+        release_cli_value(message_result);
+        release_cli_value(code_result);
+        release_cli_value(receiver);
+        return fail("Throwable constructor post-state getters failed");
+    }
+
+    fputs("return=", stdout);
+    print_value_line(ctor_result);
+    fputs("message=", stdout);
+    print_value_line(message_result);
+    fputs("code=", stdout);
+    print_value_line(code_result);
+
+    release_cli_value(ctor_result);
+    release_cli_value(message_result);
+    release_cli_value(code_result);
+    release_cli_value(receiver);
+    return 0;
+}
+
 static int command_bench_method_call(int argc, char **argv) {
     const char *name;
     long iterations;
@@ -2388,6 +2467,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-method-call") == 0) {
         return command_oracle_method_call(argc, argv);
+    }
+
+    if (strcmp(argv[1], "oracle-throwable-construct-smoke") == 0) {
+        return command_oracle_throwable_construct_smoke(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-call-hex") == 0) {
