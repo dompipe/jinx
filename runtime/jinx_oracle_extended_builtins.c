@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <utime.h>
 
 typedef struct JinxOracleExtStream {
     FILE *fp;
@@ -2184,6 +2185,87 @@ JinxValue jinx_oracle_extended_builtin(
             if (handled != NULL) *handled = 1;
             return jinx_oracle_bool_value(ok);
         }
+    }
+
+    if (strcmp(name, "umask") == 0) {
+        mode_t previous = umask(077);
+        if (argc >= 1u && args != NULL && args[0].type != 0u) {
+            umask((mode_t)jinx_oracle_intish(args[0]));
+        } else {
+            umask(previous);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)previous);
+    }
+
+    if (strcmp(name, "rename") == 0) {
+        char *from;
+        char *to;
+        int rc;
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        if (argc >= 3u && args[2].type != 0u) return result;
+        from = jinx_oracle_ext_dup_string_value(args[0]);
+        to = jinx_oracle_ext_dup_string_value(args[1]);
+        if (from == NULL || to == NULL) {
+            free(from);
+            free(to);
+            return result;
+        }
+        rc = rename(from, to);
+        free(from);
+        free(to);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+
+    if (strcmp(name, "rmdir") == 0) {
+        char *path;
+        int rc;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc >= 2u && args[1].type != 0u) return result;
+        path = jinx_oracle_ext_dup_string_value(args[0]);
+        if (path == NULL) return result;
+        rc = rmdir(path);
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+
+    if (strcmp(name, "touch") == 0) {
+        char *path;
+        struct utimbuf times;
+        struct utimbuf *times_ptr = NULL;
+        int rc;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc >= 3u && args[1].type == 0u && args[2].type != 0u) return result;
+        path = jinx_oracle_ext_dup_string_value(args[0]);
+        if (path == NULL || path[0] == '\0') {
+            free(path);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (access(path, F_OK) != 0) {
+            FILE *created = fopen(path, "wb");
+            if (created == NULL) {
+                free(path);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            fclose(created);
+        }
+        if (argc >= 2u && args[1].type != 0u) {
+            time_t modified = (time_t)jinx_oracle_intish(args[1]);
+            times.modtime = modified;
+            times.actime = argc >= 3u && args[2].type != 0u
+                ? (time_t)jinx_oracle_intish(args[2])
+                : modified;
+            times_ptr = &times;
+        }
+        rc = utime(path, times_ptr);
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
     }
 
     if (strcmp(name, "readlink") == 0 || strcmp(name, "linkinfo") == 0) {
