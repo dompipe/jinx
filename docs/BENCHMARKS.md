@@ -120,6 +120,11 @@ JINX_SKIP_BUILD=1 php scripts/benchmark-native-implemented-functions.php 1000 --
 php scripts/benchmark-native-implemented-functions.php 1000 --no-build --case-timeout=10
 ```
 
+Before timing, the benchmark runs `./jinx native-benchmark-id` and requires
+the exact native identity `native-root-jinx`. This prevents the benchmark
+from silently falling through the native CLI's unrelated `bin/jinx` PHP
+frontend compatibility path.
+
 The benchmark prints progress before every implementation. A native case that
 does not return within the per-case timeout is marked `SKIP` and the run
 continues. Slow/network/stateful PHP families are rejected before native timing
