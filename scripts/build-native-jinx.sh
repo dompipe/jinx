@@ -60,6 +60,16 @@ if printf '%s\n' '#include <curl/curl.h>' 'int main(void){CURL *c=curl_easy_init
 fi
 rm -f "$CURL_PROBE"
 
+EXIF_DEFINE=""
+EXIF_LIBS=""
+EXIF_PROBE="${OUT_DIR}/jinx-libexif-probe"
+if printf '%s\n' '#include <libexif/exif-data.h>' 'int main(void){ExifData *d=exif_data_new(); if(d) exif_data_unref(d); return 0;}' | \
+    "$CC_BIN" -x c - -lexif -o "$EXIF_PROBE" >/dev/null 2>&1; then
+    EXIF_DEFINE="-DJINX_HAVE_LIBEXIF=1"
+    EXIF_LIBS="-lexif"
+fi
+rm -f "$EXIF_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -79,6 +89,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CRYPT_DEFINE} \
     ${RESOLV_DEFINE} \
     ${CURL_DEFINE} \
+    ${EXIF_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -99,6 +110,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_ftp_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_curl_ftp_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_http_meta_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_exif_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
@@ -108,6 +120,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CRYPT_LIBS} \
     ${RESOLV_LIBS} \
     ${CURL_LIBS} \
+    ${EXIF_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -188,6 +201,7 @@ echo "Native solar backend compiled: runtime/jinx_oracle_solar_builtins.c"
 echo "Native DNS decoder compiled: runtime/jinx_oracle_dns_builtins.c"
 echo "Native FTP backend compiled: runtime/jinx_oracle_curl_ftp_builtins.c"
 echo "Native HTTP/meta backend compiled: runtime/jinx_oracle_http_meta_builtins.c"
+echo "Native EXIF backend compiled: runtime/jinx_oracle_exif_builtins.c"
 if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
@@ -212,6 +226,11 @@ if [ -n "$CURL_DEFINE" ]; then
     echo "Native libcurl FTP backend: enabled"
 else
     echo "Native libcurl FTP backend: unavailable; FTP family remains faulting"
+fi
+if [ -n "$EXIF_DEFINE" ]; then
+    echo "Native libexif backend: enabled"
+else
+    echo "Native libexif backend: unavailable; EXIF thumbnail remains faulting"
 fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
