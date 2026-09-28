@@ -1342,6 +1342,11 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
         return jinx_oracle_ext_new_stream(fp);
     }
 
+    {
+        JinxValue batch2 = jinx_oracle_batch2_fixture(spec);
+        if (batch2.type != 0u) return batch2;
+    }
+
     return jinx_oracle_zero_value();
 }
 
