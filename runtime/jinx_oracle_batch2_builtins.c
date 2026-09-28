@@ -913,5 +913,518 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_bool_value(ok);
     }
 
+
+    if (strcmp(name, "gethostbyname") == 0 ||
+        strcmp(name, "gethostbynamel") == 0) {
+        char *host;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        host = b2_dup(args[0]);
+        if (host == NULL) return result;
+        result = b2_hostbyname_value(
+            host, strcmp(name, "gethostbynamel") == 0
+        );
+        free(host);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "gethostbyaddr") == 0) {
+        char *ip;
+        struct sockaddr_storage storage;
+        socklen_t length;
+        char host[NI_MAXHOST];
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        ip = b2_dup(args[0]);
+        if (ip == NULL) return result;
+        memset(&storage, 0, sizeof(storage));
+        if (inet_pton(AF_INET, ip, &((struct sockaddr_in *)&storage)->sin_addr) == 1) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)&storage;
+            sin->sin_family = AF_INET;
+            length = sizeof(*sin);
+        } else if (inet_pton(AF_INET6, ip, &((struct sockaddr_in6 *)&storage)->sin6_addr) == 1) {
+            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&storage;
+            sin6->sin6_family = AF_INET6;
+            length = sizeof(*sin6);
+        } else {
+            free(ip);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (getnameinfo(
+            (struct sockaddr *)&storage,
+            length,
+            host,
+            sizeof(host),
+            NULL,
+            0,
+            NI_NAMEREQD
+        ) != 0) {
+            result = b2_copy(ip, strlen(ip));
+        } else {
+            result = b2_copy(host, strlen(host));
+        }
+        free(ip);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "fsockopen") == 0) {
+        char *host;
+        char port_text[16];
+        struct addrinfo hints;
+        struct addrinfo *results = NULL;
+        struct addrinfo *it;
+        FILE *fp = NULL;
+        int port;
+        if (args == NULL || argc < 2u || args[0].type != 3u) return result;
+        if (argc > 2u) return result;
+        host = b2_dup(args[0]);
+        if (host == NULL) return result;
+        port = (int)jinx_oracle_intish(args[1]);
+        snprintf(port_text, sizeof(port_text), "%d", port);
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        if (getaddrinfo(host, port_text, &hints, &results) == 0) {
+            for (it = results; it != NULL; it = it->ai_next) {
+                int fd = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
+                if (fd < 0) continue;
+                if (connect(fd, it->ai_addr, it->ai_addrlen) == 0) {
+                    fp = fdopen(fd, "r+");
+                    if (fp == NULL) close(fd);
+                    break;
+                }
+                close(fd);
+            }
+        }
+        if (results != NULL) freeaddrinfo(results);
+        free(host);
+        if (handled != NULL) *handled = 1;
+        return fp != NULL ? b2_new_stream(fp) : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "ftruncate") == 0) {
+        JinxOracleBatch2Stream *stream;
+        if (args == NULL || argc < 2u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(
+            ftruncate(
+                fileno(stream->fp),
+                (off_t)jinx_oracle_intish(args[1])
+            ) == 0
+        );
+    }
+
+    if (strcmp(name, "fputs") == 0) {
+        JinxOracleBatch2Stream *stream;
+        const unsigned char *bytes;
+        uint32_t len;
+        size_t take;
+        size_t written;
+        if (args == NULL || argc < 2u || args[1].type != 3u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        bytes = jinx_oracle_string_bytes(args[1]);
+        len = jinx_oracle_string_len(args[1]);
+        take = len;
+        if (argc >= 3u && args[2].type != 0u) {
+            int64_t limit = jinx_oracle_intish(args[2]);
+            if (limit < 0) return result;
+            if ((uint64_t)limit < (uint64_t)take) take = (size_t)limit;
+        }
+        written = take == 0u ? 0u : fwrite(bytes, 1u, take, stream->fp);
+        if (handled != NULL) *handled = 1;
+        return written == 0u && take != 0u && ferror(stream->fp)
+            ? jinx_oracle_bool_value(0)
+            : jinx_oracle_int_value((int64_t)written);
+    }
+
+    if (strcmp(name, "fprintf") == 0) {
+        JinxOracleBatch2Stream *stream;
+        JinxValue formatted;
+        int format_ok = 0;
+        size_t written;
+        if (args == NULL || argc < 2u || args[1].type != 3u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        formatted = jinx_oracle_sprintf_values(
+            args[1],
+            argc > 2u ? args + 2u : NULL,
+            argc > 2u ? (uint32_t)(argc - 2u) : 0u,
+            &format_ok
+        );
+        if (!format_ok || formatted.type != 3u) return result;
+        written = formatted.flags == 0u
+            ? 0u
+            : fwrite(formatted.as.ptr, 1u, formatted.flags, stream->fp);
+        if (handled != NULL) *handled = 1;
+        return written == formatted.flags
+            ? jinx_oracle_int_value((int64_t)written)
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "fpassthru") == 0) {
+        JinxOracleBatch2Stream *stream;
+        unsigned char buffer[8192];
+        size_t total = 0u;
+        size_t n;
+        if (args == NULL || argc < 1u) return result;
+        stream = b2_stream(args[0]);
+        if (stream == NULL || stream->fp == NULL) return result;
+        while ((n = fread(buffer, 1u, sizeof(buffer), stream->fp)) != 0u) {
+            if (fwrite(buffer, 1u, n, stdout) != n) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            total += n;
+        }
+        if (handled != NULL) *handled = 1;
+        return ferror(stream->fp)
+            ? jinx_oracle_bool_value(0)
+            : jinx_oracle_int_value((int64_t)total);
+    }
+
+    if (strcmp(name, "getdate") == 0) {
+        time_t raw = args != NULL && argc >= 1u && args[0].type != 0u
+            ? (time_t)jinx_oracle_intish(args[0])
+            : time(NULL);
+        struct tm tmv;
+        JinxZendArray *array;
+        if (localtime_r(&raw, &tmv) == NULL) return result;
+        array = jinx_zend_array_new_packed(11u);
+        if (array == NULL) return result;
+        jinx_zend_array_add_assoc(array, "seconds", 7u, jinx_zend_long(tmv.tm_sec));
+        jinx_zend_array_add_assoc(array, "minutes", 7u, jinx_zend_long(tmv.tm_min));
+        jinx_zend_array_add_assoc(array, "hours", 5u, jinx_zend_long(tmv.tm_hour));
+        jinx_zend_array_add_assoc(array, "mday", 4u, jinx_zend_long(tmv.tm_mday));
+        jinx_zend_array_add_assoc(array, "wday", 4u, jinx_zend_long(tmv.tm_wday));
+        jinx_zend_array_add_assoc(array, "mon", 3u, jinx_zend_long(tmv.tm_mon + 1));
+        jinx_zend_array_add_assoc(array, "year", 4u, jinx_zend_long(tmv.tm_year + 1900));
+        jinx_zend_array_add_assoc(array, "yday", 4u, jinx_zend_long(tmv.tm_yday));
+        {
+            char weekday[32];
+            char month[32];
+            JinxZendString *s;
+            strftime(weekday, sizeof(weekday), "%A", &tmv);
+            strftime(month, sizeof(month), "%B", &tmv);
+            s = jinx_zend_string_new(weekday, strlen(weekday));
+            if (s == NULL || !jinx_zend_array_add_assoc(
+                array, "weekday", 7u, jinx_zend_string_value(s)
+            )) {
+                jinx_zend_string_release(s);
+                jinx_zend_array_release(array);
+                return result;
+            }
+            jinx_zend_string_release(s);
+            s = jinx_zend_string_new(month, strlen(month));
+            if (s == NULL || !jinx_zend_array_add_assoc(
+                array, "month", 5u, jinx_zend_string_value(s)
+            )) {
+                jinx_zend_string_release(s);
+                jinx_zend_array_release(array);
+                return result;
+            }
+            jinx_zend_string_release(s);
+        }
+        jinx_zend_array_add_index(array, 0u, jinx_zend_long((int64_t)raw));
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "gmmktime") == 0) {
+        time_t now = time(NULL);
+        struct tm tmv;
+        time_t out;
+        if (gmtime_r(&now, &tmv) == NULL) return result;
+        if (args != NULL && argc >= 1u) tmv.tm_hour = (int)jinx_oracle_intish(args[0]);
+        if (args != NULL && argc >= 2u) tmv.tm_min = (int)jinx_oracle_intish(args[1]);
+        if (args != NULL && argc >= 3u) tmv.tm_sec = (int)jinx_oracle_intish(args[2]);
+        if (args != NULL && argc >= 4u) tmv.tm_mon = (int)jinx_oracle_intish(args[3]) - 1;
+        if (args != NULL && argc >= 5u) tmv.tm_mday = (int)jinx_oracle_intish(args[4]);
+        if (args != NULL && argc >= 6u) tmv.tm_year = (int)jinx_oracle_intish(args[5]) - 1900;
+        tmv.tm_isdst = 0;
+        out = timegm(&tmv);
+        if (handled != NULL) *handled = 1;
+        return out == (time_t)-1
+            ? jinx_oracle_bool_value(0)
+            : jinx_oracle_int_value((int64_t)out);
+    }
+
+    if (strcmp(name, "gmstrftime") == 0) {
+        char *format;
+        time_t raw;
+        struct tm tmv;
+        char buffer[4096];
+        size_t len;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        format = b2_dup(args[0]);
+        if (format == NULL) return result;
+        raw = argc >= 2u && args[1].type != 0u
+            ? (time_t)jinx_oracle_intish(args[1])
+            : time(NULL);
+        if (gmtime_r(&raw, &tmv) == NULL) {
+            free(format);
+            return result;
+        }
+        len = strftime(buffer, sizeof(buffer), format, &tmv);
+        free(format);
+        if (handled != NULL) *handled = 1;
+        return b2_copy(buffer, len);
+    }
+
+    if (strcmp(name, "gzopen") == 0) {
+        char *path;
+        char *mode;
+        gzFile gz;
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        path = b2_dup(args[0]);
+        mode = b2_dup(args[1]);
+        if (path == NULL || mode == NULL) {
+            free(path); free(mode); return result;
+        }
+        gz = gzopen(path, mode);
+        free(path); free(mode);
+        if (handled != NULL) *handled = 1;
+        return gz != NULL ? b2_new_gzip(gz) : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "gzclose") == 0 ||
+        strcmp(name, "gzeof") == 0 ||
+        strcmp(name, "gzgetc") == 0 ||
+        strcmp(name, "gzgets") == 0 ||
+        strcmp(name, "gzpassthru") == 0 ||
+        strcmp(name, "gzputs") == 0 ||
+        strcmp(name, "gzread") == 0 ||
+        strcmp(name, "gzrewind") == 0 ||
+        strcmp(name, "gzseek") == 0 ||
+        strcmp(name, "gztell") == 0 ||
+        strcmp(name, "gzwrite") == 0) {
+        JinxOracleBatch2Gzip *stream;
+        if (args == NULL || argc < 1u) return result;
+        stream = b2_gzip(args[0]);
+        if (stream == NULL || stream->gz == NULL) return result;
+
+        if (strcmp(name, "gzeof") == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(gzeof(stream->gz));
+        }
+
+        if (strcmp(name, "gzgetc") == 0) {
+            int ch = gzgetc(stream->gz);
+            if (handled != NULL) *handled = 1;
+            if (ch == -1) return jinx_oracle_bool_value(0);
+            {
+                char *out = jinx_oracle_scratch_string(1u);
+                out[0] = (char)ch;
+                return jinx_oracle_string_value_len(out, 1u);
+            }
+        }
+
+        if (strcmp(name, "gzgets") == 0) {
+            int length = argc >= 2u ? (int)jinx_oracle_intish(args[1]) : 1024;
+            char *buffer;
+            char *got;
+            if (length < 2) return result;
+            buffer = (char *)malloc((size_t)length);
+            if (buffer == NULL) return result;
+            got = gzgets(stream->gz, buffer, length);
+            if (handled != NULL) *handled = 1;
+            if (got == NULL) {
+                free(buffer);
+                return jinx_oracle_bool_value(0);
+            }
+            result = b2_copy(buffer, strlen(buffer));
+            free(buffer);
+            return result;
+        }
+
+        if (strcmp(name, "gzread") == 0) {
+            int length;
+            char *buffer;
+            int got;
+            if (argc < 2u) return result;
+            length = (int)jinx_oracle_intish(args[1]);
+            if (length <= 0) return result;
+            buffer = (char *)malloc((size_t)length);
+            if (buffer == NULL) return result;
+            got = gzread(stream->gz, buffer, (unsigned int)length);
+            if (handled != NULL) *handled = 1;
+            if (got < 0) {
+                free(buffer);
+                return jinx_oracle_bool_value(0);
+            }
+            result = b2_copy(buffer, (size_t)got);
+            free(buffer);
+            return result;
+        }
+
+        if (strcmp(name, "gzwrite") == 0 || strcmp(name, "gzputs") == 0) {
+            const unsigned char *bytes;
+            uint32_t len;
+            uint32_t take;
+            int written;
+            if (argc < 2u || args[1].type != 3u) return result;
+            bytes = jinx_oracle_string_bytes(args[1]);
+            len = jinx_oracle_string_len(args[1]);
+            take = len;
+            if (argc >= 3u && args[2].type != 0u) {
+                int64_t limit = jinx_oracle_intish(args[2]);
+                if (limit < 0) return result;
+                if ((uint64_t)limit < (uint64_t)take) take = (uint32_t)limit;
+            }
+            written = gzwrite(stream->gz, bytes, take);
+            if (handled != NULL) *handled = 1;
+            return written < 0
+                ? jinx_oracle_bool_value(0)
+                : jinx_oracle_int_value((int64_t)written);
+        }
+
+        if (strcmp(name, "gzrewind") == 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(gzrewind(stream->gz) == 0);
+        }
+
+        if (strcmp(name, "gzseek") == 0) {
+            z_off_t pos;
+            int whence = argc >= 3u ? (int)jinx_oracle_intish(args[2]) : SEEK_SET;
+            if (argc < 2u) return result;
+            pos = gzseek(stream->gz, (z_off_t)jinx_oracle_intish(args[1]), whence);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(pos < 0 ? -1 : 0);
+        }
+
+        if (strcmp(name, "gztell") == 0) {
+            z_off_t pos = gztell(stream->gz);
+            if (handled != NULL) *handled = 1;
+            return pos < 0
+                ? jinx_oracle_bool_value(0)
+                : jinx_oracle_int_value((int64_t)pos);
+        }
+
+        if (strcmp(name, "gzpassthru") == 0) {
+            unsigned char buffer[8192];
+            int n;
+            int64_t total = 0;
+            while ((n = gzread(stream->gz, buffer, sizeof(buffer))) > 0) {
+                if (fwrite(buffer, 1u, (size_t)n, stdout) != (size_t)n) {
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+                total += n;
+            }
+            if (handled != NULL) *handled = 1;
+            return n < 0
+                ? jinx_oracle_bool_value(0)
+                : jinx_oracle_int_value(total);
+        }
+
+        if (strcmp(name, "gzclose") == 0) {
+            int rc = gzclose(stream->gz);
+            stream->gz = NULL;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(rc == Z_OK);
+        }
+    }
+
+    if (strcmp(name, "gzfile") == 0) {
+        char *path;
+        gzFile gz;
+        JinxZendArray *array;
+        char buffer[8192];
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL) return result;
+        gz = gzopen(path, "rb");
+        free(path);
+        if (gz == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        array = jinx_zend_array_new_packed(16u);
+        if (array == NULL) {
+            gzclose(gz);
+            return result;
+        }
+        while (gzgets(gz, buffer, sizeof(buffer)) != NULL) {
+            if (!b2_append_string(array, buffer)) {
+                jinx_zend_array_release(array);
+                gzclose(gz);
+                return result;
+            }
+        }
+        gzclose(gz);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "deflate_init") == 0) {
+        int encoding;
+        if (args == NULL || argc < 1u) return result;
+        if (argc >= 2u && args[1].type != 0u) return result;
+        encoding = (int)jinx_oracle_intish(args[0]);
+        result = b2_new_deflate(encoding);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "deflate_add") == 0) {
+        JinxOracleBatch2Deflate *ctx;
+        const unsigned char *input;
+        uint32_t input_len;
+        int flush_mode = Z_SYNC_FLUSH;
+        size_t capacity;
+        unsigned char *buffer;
+        int rc;
+        size_t produced;
+        if (args == NULL || argc < 2u || args[1].type != 3u) return result;
+        ctx = b2_deflate(args[0]);
+        if (ctx == NULL || !ctx->initialized) return result;
+        if (argc >= 3u) flush_mode = (int)jinx_oracle_intish(args[2]);
+        input = jinx_oracle_string_bytes(args[1]);
+        input_len = jinx_oracle_string_len(args[1]);
+        capacity = (size_t)compressBound(input_len) + 64u;
+        buffer = (unsigned char *)malloc(capacity);
+        if (buffer == NULL) return result;
+        ctx->stream.next_in = (Bytef *)input;
+        ctx->stream.avail_in = input_len;
+        ctx->stream.next_out = buffer;
+        ctx->stream.avail_out = (uInt)capacity;
+        rc = deflate(&ctx->stream, flush_mode);
+        if (rc != Z_OK && rc != Z_STREAM_END) {
+            free(buffer);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        produced = capacity - ctx->stream.avail_out;
+        result = b2_copy((const char *)buffer, produced);
+        free(buffer);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "hash_equals") == 0) {
+        const unsigned char *known;
+        const unsigned char *user;
+        uint32_t known_len;
+        uint32_t user_len;
+        unsigned char diff = 0u;
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        known = jinx_oracle_string_bytes(args[0]);
+        user = jinx_oracle_string_bytes(args[1]);
+        known_len = jinx_oracle_string_len(args[0]);
+        user_len = jinx_oracle_string_len(args[1]);
+        if (known_len != user_len) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        for (uint32_t i = 0u; i < known_len; i++) diff |= known[i] ^ user[i];
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(diff == 0u);
+    }
+
     return result;
 }
