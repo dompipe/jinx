@@ -89,6 +89,7 @@ $scriptTests = [
     'text builtin batch two families' => ['scripts/test-oracle-text-builtin-two-execution.php', 'PASS: Oracle executes text builtin batch two PHP families'],
     'native string transform oracle asm' => ['scripts/test-native-string-transform-oracle-asm.php', 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP for covered scalar cases'],
     'native scalar core oracle asm' => ['scripts/test-native-scalar-core-oracle-asm.php', 'PASS: native Oracle ASM scalar-core builtins execute'],
+    'native return contracts' => ['scripts/test-native-return-contracts.php', 'PASS: native Oracle return contracts reject invalid argument paths, preserve legitimate nulls, and classify stream resources correctly'],
     'native math core oracle asm' => ['scripts/test-native-math-core-oracle-asm.php', 'PASS: native Oracle ASM math-core builtins execute'],
     'first 100 procedural oracle asm' => ['scripts/test-native-procedural-needed-100-oracle-asm.php', 'PASS: first 100 needed procedural Oracle ASM targets execute without placeholders'],
     'regex string builtin families' => ['scripts/test-oracle-regex-string-builtin-execution.php', 'PASS: Oracle executes regex/string builtin PHP families'],
