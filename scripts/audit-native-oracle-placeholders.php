@@ -250,6 +250,7 @@ function sampleArgs(string $name): array
     if ($name === 'dns_get_mx' || $name === 'getmxrr') {
         return ['s:__jinx_oracle_no_mx__.invalid', 'null', 'null'];
     }
+    if ($name === 'dns_get_record') return ['s:localhost', 'i:1'];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
