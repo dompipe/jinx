@@ -1411,7 +1411,14 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
             !jinx_oracle_ext_object_set_string(
                 object, "message", "jinx-message"
             ) ||
-            !jinx_oracle_ext_object_set_long(object, "code", 73)) {
+            !jinx_oracle_ext_object_set_long(object, "code", 73) ||
+            !jinx_oracle_ext_object_set_string(
+                object, "file", "jinx-fixture.php"
+            ) ||
+            !jinx_oracle_ext_object_set_long(object, "line", 123) ||
+            !jinx_oracle_ext_object_set_string(
+                object, "trace_string", "#0 {main}"
+            )) {
             jinx_zend_object_release(object);
             return jinx_oracle_zero_value();
         }
@@ -1600,8 +1607,88 @@ JinxValue jinx_oracle_extended_builtin(
 
                     if (strcasecmp(method, "getTraceAsString") == 0 &&
                         argc == 1u) {
+                        const char *trace_string =
+                            jinx_oracle_ext_object_string(
+                                object, "trace_string", ""
+                            );
                         if (handled != NULL) *handled = 1;
-                        return jinx_oracle_ext_copy_string("", 0u);
+                        return jinx_oracle_ext_copy_string(
+                            trace_string, strlen(trace_string)
+                        );
+                    }
+
+                    if (strcasecmp(method, "getFile") == 0 &&
+                        argc == 1u) {
+                        const char *file =
+                            jinx_oracle_ext_object_string(
+                                object, "file", ""
+                            );
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_ext_copy_string(
+                            file, strlen(file)
+                        );
+                    }
+
+                    if (strcasecmp(method, "getLine") == 0 &&
+                        argc == 1u) {
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_int_value(
+                            jinx_oracle_ext_object_long(
+                                object, "line", 0
+                            )
+                        );
+                    }
+
+                    if (strcasecmp(method, "__toString") == 0 &&
+                        argc == 1u) {
+                        const char *message =
+                            jinx_oracle_ext_object_string(
+                                object, "message", ""
+                            );
+                        const char *file =
+                            jinx_oracle_ext_object_string(
+                                object, "file", ""
+                            );
+                        const char *trace_string =
+                            jinx_oracle_ext_object_string(
+                                object, "trace_string", ""
+                            );
+                        long long line = (long long)
+                            jinx_oracle_ext_object_long(
+                                object, "line", 0
+                            );
+                        int needed = snprintf(
+                            NULL, 0,
+                            "%s: %s in %s:%lld\nStack trace:\n%s",
+                            object->class_name,
+                            message,
+                            file,
+                            line,
+                            trace_string
+                        );
+                        char *text;
+
+                        if (needed < 0) return result;
+                        text = (char *)malloc((size_t)needed + 1u);
+                        if (text == NULL) return result;
+                        snprintf(
+                            text, (size_t)needed + 1u,
+                            "%s: %s in %s:%lld\nStack trace:\n%s",
+                            object->class_name,
+                            message,
+                            file,
+                            line,
+                            trace_string
+                        );
+                        result = jinx_oracle_ext_copy_string(
+                            text, (size_t)needed
+                        );
+                        free(text);
+                        if (result.type != 0u &&
+                            handled != NULL) {
+                            *handled = 1;
+                        }
+                        return result;
                     }
                 }
             }
