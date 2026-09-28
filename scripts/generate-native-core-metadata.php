@@ -20,6 +20,13 @@ function cstr(string $s): string {
     return $out . '"';
 }
 
+function cint64(int $value): string {
+    if ($value === PHP_INT_MIN) {
+        return '(-9223372036854775807LL - 1LL)';
+    }
+    return (string)$value . 'LL';
+}
+
 $classes = get_declared_classes();
 sort($classes, SORT_STRING);
 $rows = [];
@@ -43,9 +50,9 @@ $constants = [];
 foreach (get_defined_constants(true) as $group => $items) {
     foreach ($items as $name => $value) {
         if (is_int($value)) {
-            $constants[] = [strtoupper($name), $name, 1, (string)$value, '0.0', 'NULL'];
+            $constants[] = [strtoupper($name), $name, 1, cint64($value), '0.0', 'NULL'];
         } elseif (is_bool($value)) {
-            $constants[] = [strtoupper($name), $name, 2, $value ? '1' : '0', '0.0', 'NULL'];
+            $constants[] = [strtoupper($name), $name, 2, $value ? '1LL' : '0LL', '0.0', 'NULL'];
         } elseif (is_float($value) && is_finite($value)) {
             $constants[] = [strtoupper($name), $name, 5, '0', sprintf('%.17g', $value), 'NULL'];
         } elseif (is_string($value)) {
