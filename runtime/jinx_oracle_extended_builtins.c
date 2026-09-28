@@ -1568,6 +1568,39 @@ JinxValue jinx_oracle_extended_builtin(
                     ) && known) {
                     const char *method = separator + 2u;
 
+                    if (strcasecmp(method, "__wakeup") == 0 &&
+                        argc == 1u) {
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_zero_value();
+                    }
+
+                    if (strcasecmp(method, "__construct") == 0 &&
+                        argc >= 1u && argc <= 4u) {
+                        const char *message = "";
+                        int64_t code = 0;
+
+                        if (argc >= 2u) {
+                            if (args[1].type != 3u) return result;
+                            message = (const char *)
+                                jinx_oracle_string_bytes(args[1]);
+                        }
+                        if (argc >= 3u) {
+                            code = jinx_oracle_intish(args[2]);
+                        }
+
+                        if (!jinx_oracle_ext_object_set_string(
+                                object, "message", message
+                            ) ||
+                            !jinx_oracle_ext_object_set_long(
+                                object, "code", code
+                            )) {
+                            return result;
+                        }
+
+                        if (handled != NULL) *handled = 1;
+                        return jinx_oracle_zero_value();
+                    }
+
                     if (strcasecmp(method, "getMessage") == 0 &&
                         argc == 1u) {
                         const char *message =
