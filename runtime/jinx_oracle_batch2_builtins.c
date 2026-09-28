@@ -165,6 +165,252 @@ static int b2_frame_value_to_jinx(
     return 0;
 }
 
+
+static int64_t b2_constant_int(const char *name, int64_t fallback) {
+    const JinxNativeConstantMeta *meta = b2_constant_meta(name);
+    return meta != NULL && meta->type == 1u ? meta->i64 : fallback;
+}
+
+static int b2_valid_var_name(const char *name, size_t len) {
+    const unsigned char *p = (const unsigned char *)name;
+    if (name == NULL || len == 0u) return 0;
+    if (!((p[0] >= 'a' && p[0] <= 'z') ||
+          (p[0] >= 'A' && p[0] <= 'Z') ||
+          p[0] == '_' || p[0] >= 0x80u)) {
+        return 0;
+    }
+    for (size_t i = 1u; i < len; i++) {
+        if (!((p[i] >= 'a' && p[i] <= 'z') ||
+              (p[i] >= 'A' && p[i] <= 'Z') ||
+              (p[i] >= '0' && p[i] <= '9') ||
+              p[i] == '_' || p[i] >= 0x80u)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static char *b2_prefixed_var_name(
+    const char *prefix,
+    size_t prefix_len,
+    const char *name,
+    size_t name_len
+) {
+    char *out = (char *)malloc(prefix_len + name_len + 2u);
+    if (out == NULL) return NULL;
+    if (prefix_len != 0u) memcpy(out, prefix, prefix_len);
+    out[prefix_len] = '_';
+    if (name_len != 0u) memcpy(out + prefix_len + 1u, name, name_len);
+    out[prefix_len + 1u + name_len] = '\0';
+    return out;
+}
+
+static int b2_compact_one(
+    JinxZendCallFrame *frame,
+    JinxZendArray *out,
+    JinxValue request,
+    unsigned depth
+) {
+    if (frame == NULL || frame->locals == NULL || out == NULL || depth > 64u) {
+        return 0;
+    }
+
+    if (request.type == 3u) {
+        const char *name = (const char *)jinx_oracle_string_bytes(request);
+        size_t len = jinx_oracle_string_len(request);
+        JinxZendValue *value;
+        if (memchr(name, '\0', len) != NULL) return 1;
+        value = jinx_zend_array_find(frame->locals, name, len);
+        if (value != NULL &&
+            !jinx_zend_array_add_assoc(out, name, len, *value)) {
+            return 0;
+        }
+        return 1;
+    }
+
+    if (jinx_oracle_value_is_zend_array(request)) {
+        JinxZendArray *array = jinx_oracle_zend_array_ptr(request);
+        size_t live = jinx_zend_array_live_count(array);
+        for (size_t i = 0u; i < live; i++) {
+            const JinxZendBucket *bucket =
+                jinx_zend_array_live_iter_at(array, i);
+            JinxValue nested;
+            if (bucket == NULL) return 0;
+            if (!b2_frame_value_to_jinx(bucket->value, &nested)) {
+                /* PHP warns for non-string/non-array compact entries and
+                 * continues unless a user handler throws. */
+                continue;
+            }
+            if (!b2_compact_one(frame, out, nested, depth + 1u)) return 0;
+        }
+        return 1;
+    }
+
+    return 1;
+}
+
+static int b2_extract_nonref(
+    JinxZendCallFrame *frame,
+    JinxZendArray *input,
+    int mode,
+    const char *prefix,
+    size_t prefix_len,
+    int64_t *count_out
+) {
+    size_t live;
+    int64_t count = 0;
+
+    if (frame == NULL || frame->locals == NULL ||
+        input == NULL || count_out == NULL) {
+        return 0;
+    }
+
+    live = jinx_zend_array_live_count(input);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket =
+            jinx_zend_array_live_iter_at(input, i);
+        const char *raw_name = NULL;
+        size_t raw_len = 0u;
+        char numeric_name[64];
+        char *owned_final = NULL;
+        const char *final_name = NULL;
+        size_t final_len = 0u;
+        int raw_valid = 0;
+        int raw_this = 0;
+        int raw_globals = 0;
+        JinxZendValue *existing = NULL;
+
+        if (bucket == NULL) return 0;
+
+        if (bucket->key != NULL) {
+            raw_name = bucket->key->bytes;
+            raw_len = bucket->key->len;
+            raw_valid = b2_valid_var_name(raw_name, raw_len);
+            raw_this = raw_len == 4u &&
+                memcmp(raw_name, "this", 4u) == 0;
+            raw_globals = raw_len == 7u &&
+                memcmp(raw_name, "GLOBALS", 7u) == 0;
+            existing = jinx_zend_array_find(
+                frame->locals, raw_name, raw_len
+            );
+        } else {
+            int n = snprintf(
+                numeric_name, sizeof(numeric_name),
+                "%lld", (long long)(int64_t)bucket->h
+            );
+            if (n < 0 || (size_t)n >= sizeof(numeric_name)) return 0;
+            raw_name = numeric_name;
+            raw_len = (size_t)n;
+        }
+
+        switch (mode) {
+            case 0: /* EXTR_OVERWRITE */
+                if (bucket->key == NULL || !raw_valid ||
+                    raw_this || raw_globals) continue;
+                final_name = raw_name;
+                final_len = raw_len;
+                break;
+
+            case 1: /* EXTR_SKIP */
+                if (bucket->key == NULL || !raw_valid ||
+                    raw_this || existing != NULL) continue;
+                final_name = raw_name;
+                final_len = raw_len;
+                break;
+
+            case 2: /* EXTR_PREFIX_SAME */
+                if (bucket->key == NULL || raw_len == 0u) continue;
+                if (existing != NULL || raw_this) {
+                    owned_final = b2_prefixed_var_name(
+                        prefix, prefix_len, raw_name, raw_len
+                    );
+                    if (owned_final == NULL) return 0;
+                    final_name = owned_final;
+                    final_len = strlen(owned_final);
+                    if (!b2_valid_var_name(final_name, final_len)) {
+                        free(owned_final);
+                        continue;
+                    }
+                } else {
+                    if (!raw_valid) continue;
+                    final_name = raw_name;
+                    final_len = raw_len;
+                }
+                break;
+
+            case 3: /* EXTR_PREFIX_ALL */
+                owned_final = b2_prefixed_var_name(
+                    prefix, prefix_len, raw_name, raw_len
+                );
+                if (owned_final == NULL) return 0;
+                final_name = owned_final;
+                final_len = strlen(owned_final);
+                if (!b2_valid_var_name(final_name, final_len)) {
+                    free(owned_final);
+                    continue;
+                }
+                break;
+
+            case 4: /* EXTR_PREFIX_INVALID */
+                if (bucket->key != NULL && raw_valid && !raw_this) {
+                    final_name = raw_name;
+                    final_len = raw_len;
+                } else {
+                    owned_final = b2_prefixed_var_name(
+                        prefix, prefix_len, raw_name, raw_len
+                    );
+                    if (owned_final == NULL) return 0;
+                    final_name = owned_final;
+                    final_len = strlen(owned_final);
+                    if (!b2_valid_var_name(final_name, final_len)) {
+                        free(owned_final);
+                        continue;
+                    }
+                }
+                break;
+
+            case 5: /* EXTR_PREFIX_IF_EXISTS */
+                if (bucket->key == NULL || existing == NULL) continue;
+                owned_final = b2_prefixed_var_name(
+                    prefix, prefix_len, raw_name, raw_len
+                );
+                if (owned_final == NULL) return 0;
+                final_name = owned_final;
+                final_len = strlen(owned_final);
+                if (!b2_valid_var_name(final_name, final_len)) {
+                    free(owned_final);
+                    continue;
+                }
+                break;
+
+            case 6: /* EXTR_IF_EXISTS */
+                if (bucket->key == NULL || existing == NULL ||
+                    !raw_valid || raw_this || raw_globals) continue;
+                final_name = raw_name;
+                final_len = raw_len;
+                break;
+
+            default:
+                return 0;
+        }
+
+        if (!jinx_zend_array_add_assoc(
+                frame->locals,
+                final_name,
+                final_len,
+                bucket->value
+            )) {
+            free(owned_final);
+            return 0;
+        }
+        free(owned_final);
+        count++;
+    }
+
+    *count_out = count;
+    return 1;
+}
+
 static char *b2_dup(JinxValue value) {
     uint32_t len;
     char *out;
@@ -3142,6 +3388,92 @@ csv_fail:
             }
             if (handled != NULL) *handled = 1;
             return jinx_oracle_string_value(frame->scope_name);
+        }
+    }
+
+    if (strcmp(name, "get_defined_vars") == 0 ||
+        strcmp(name, "compact") == 0 ||
+        strcmp(name, "extract") == 0) {
+        JinxZendCallFrame *frame = jinx_oracle_get_caller_frame();
+        if (frame == NULL || frame->locals == NULL) return result;
+
+        if (strcmp(name, "get_defined_vars") == 0) {
+            JinxZendArray *copy;
+            if (argc != 0u) return result;
+            copy = jinx_zend_array_clone(frame->locals);
+            if (copy == NULL) return result;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zend_array_value_owned(copy);
+        }
+
+        if (strcmp(name, "compact") == 0) {
+            JinxZendArray *out;
+            if (args == NULL || argc < 1u) return result;
+            out = jinx_zend_array_new_packed(argc);
+            if (out == NULL) return result;
+            for (size_t i = 0u; i < argc; i++) {
+                if (!b2_compact_one(frame, out, args[i], 0u)) {
+                    jinx_zend_array_release(out);
+                    return result;
+                }
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zend_array_value_owned(out);
+        }
+
+        if (strcmp(name, "extract") == 0) {
+            JinxZendArray *input;
+            int64_t flags = 0;
+            int mode;
+            char *prefix = NULL;
+            size_t prefix_len = 0u;
+            int64_t count = 0;
+            int ok_extract;
+
+            if (args == NULL || argc < 1u || argc > 3u ||
+                !jinx_oracle_value_is_zend_array(args[0])) {
+                return result;
+            }
+            input = jinx_oracle_zend_array_ptr(args[0]);
+            if (argc >= 2u && args[1].type != 0u) {
+                flags = jinx_oracle_intish(args[1]);
+            }
+            if ((flags & b2_constant_int("EXTR_REFS", 256)) != 0) {
+                /* Native reference carriers are not wired to frame locals yet. */
+                return result;
+            }
+            mode = (int)(flags & 0xff);
+            if (mode < 0 || mode > 6) return result;
+
+            if (argc >= 3u && args[2].type != 0u) {
+                if (args[2].type != 3u) return result;
+                prefix = b2_dup(args[2]);
+                if (prefix == NULL) return result;
+                prefix_len = strlen(prefix);
+                if (prefix_len != 0u &&
+                    !b2_valid_var_name(prefix, prefix_len)) {
+                    free(prefix);
+                    return result;
+                }
+            }
+
+            if (mode > 1 && mode <= 5 && argc < 3u) {
+                free(prefix);
+                return result;
+            }
+
+            ok_extract = b2_extract_nonref(
+                frame,
+                input,
+                mode,
+                prefix != NULL ? prefix : "",
+                prefix_len,
+                &count
+            );
+            free(prefix);
+            if (!ok_extract) return result;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(count);
         }
     }
 
