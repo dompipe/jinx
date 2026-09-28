@@ -2468,6 +2468,58 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
+    if (strcmp(name, "ngettext") == 0) {
+        char *one;
+        char *many;
+        unsigned long n;
+        const char *translated;
+        if (args == NULL || argc != 3u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        one = b2_dup(args[0]);
+        many = b2_dup(args[1]);
+        n = (unsigned long)jinx_oracle_intish(args[2]);
+        if (one == NULL || many == NULL) {
+            free(one); free(many); return result;
+        }
+        translated = ngettext(one, many, n);
+        if (translated == NULL) translated = n == 1u ? one : many;
+        result = b2_copy(translated, strlen(translated));
+        free(one); free(many);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "textdomain") == 0) {
+        char *domain;
+        char *selected;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        domain = b2_dup(args[0]);
+        if (domain == NULL) return result;
+        selected = textdomain(domain);
+        if (selected != NULL) result = b2_copy(selected, strlen(selected));
+        free(domain);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "setlocale") == 0) {
+        int category;
+        const char *selected = NULL;
+        if (args == NULL || argc < 2u) return result;
+        category = (int)jinx_oracle_intish(args[0]);
+        for (size_t i = 1u; i < argc; i++) {
+            char *locale;
+            if (args[i].type != 3u) return result;
+            locale = b2_dup(args[i]);
+            if (locale == NULL) return result;
+            selected = setlocale(category, locale);
+            free(locale);
+            if (selected != NULL) break;
+        }
+        if (handled != NULL) *handled = 1;
+        return selected != NULL ? b2_copy(selected, strlen(selected)) : jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "bindtextdomain") == 0 ||
         strcmp(name, "bind_textdomain_codeset") == 0) {
         char *domain;
@@ -2520,6 +2572,12 @@ JinxValue jinx_oracle_batch2_builtin(
         }
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(previous);
+    }
+
+    if (strcmp(name, "time") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)time(NULL));
     }
 
     if (strcmp(name, "getcwd") == 0) {
@@ -3447,6 +3505,41 @@ JinxValue jinx_oracle_batch2_builtin(
             : jinx_oracle_int_value((int64_t)out);
     }
 
+    if (strcmp(name, "strftime") == 0) {
+        char *format;
+        time_t raw;
+        struct tm tmv;
+        char buffer[4096];
+        size_t len;
+        const char *old_tz;
+        char *saved_tz = NULL;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        format = b2_dup(args[0]);
+        if (format == NULL) return result;
+        if (format[0] == '\0') {
+            free(format);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        raw = argc >= 2u && args[1].type != 0u ? (time_t)jinx_oracle_intish(args[1]) : time(NULL);
+        old_tz = getenv("TZ");
+        if (old_tz != NULL) saved_tz = strdup(old_tz);
+        if (setenv("TZ", JINX_NATIVE_PHP_DEFAULT_TIMEZONE, 1) != 0) {
+            free(saved_tz); free(format); return result;
+        }
+        tzset();
+        if (localtime_r(&raw, &tmv) == NULL) {
+            if (saved_tz != NULL) setenv("TZ", saved_tz, 1); else unsetenv("TZ");
+            tzset(); free(saved_tz); free(format); return result;
+        }
+        len = strftime(buffer, sizeof(buffer), format, &tmv);
+        if (saved_tz != NULL) setenv("TZ", saved_tz, 1); else unsetenv("TZ");
+        tzset();
+        free(saved_tz); free(format);
+        if (handled != NULL) *handled = 1;
+        return len != 0u ? b2_copy(buffer, len) : jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "gmstrftime") == 0) {
         char *format;
         time_t raw;
@@ -3467,6 +3560,36 @@ JinxValue jinx_oracle_batch2_builtin(
         free(format);
         if (handled != NULL) *handled = 1;
         return b2_copy(buffer, len);
+    }
+
+    if (strcmp(name, "readgzfile") == 0) {
+        char *path;
+        gzFile gz;
+        unsigned char buffer[8192];
+        int got;
+        int64_t total = 0;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc >= 2u && jinx_oracle_boolish(args[1])) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL) return result;
+        gz = gzopen(path, "rb");
+        free(path);
+        if (gz == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        while ((got = gzread(gz, buffer, sizeof(buffer))) > 0) {
+            if (fwrite(buffer, 1u, (size_t)got, stdout) != (size_t)got) {
+                gzclose(gz);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            total += got;
+        }
+        gzclose(gz);
+        fflush(stdout);
+        if (handled != NULL) *handled = 1;
+        return got < 0 ? jinx_oracle_bool_value(0) : jinx_oracle_int_value(total);
     }
 
     if (strcmp(name, "gzopen") == 0) {
@@ -3939,6 +4062,46 @@ JinxValue jinx_oracle_batch2_builtin(
         free(type_name);
         if (result.type != 0u && handled != NULL) *handled = 1;
         return result;
+    }
+
+    if (strcmp(name, "system") == 0 || strcmp(name, "passthru") == 0) {
+        char *command;
+        FILE *pipe;
+        unsigned char buffer[4096];
+        char last[4096] = "";
+        size_t last_len = 0u;
+        size_t got;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        command = b2_dup(args[0]);
+        if (command == NULL) return result;
+        pipe = popen(command, "r");
+        free(command);
+        if (pipe == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        while ((got = fread(buffer, 1u, sizeof(buffer), pipe)) != 0u) {
+            if (fwrite(buffer, 1u, got, stdout) != got) {
+                (void)pclose(pipe);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            if (strcmp(name, "system") == 0) {
+                for (size_t i = 0u; i < got; i++) {
+                    unsigned char ch = buffer[i];
+                    if (ch == '\n') {
+                        last_len = 0u;
+                    } else if (ch != '\r' && last_len + 1u < sizeof(last)) {
+                        last[last_len++] = (char)ch;
+                        last[last_len] = '\0';
+                    }
+                }
+            }
+        }
+        (void)pclose(pipe);
+        fflush(stdout);
+        if (handled != NULL) *handled = 1;
+        return strcmp(name, "passthru") == 0 ? jinx_oracle_zero_value() : b2_copy(last, last_len);
     }
 
     if (strcmp(name, "exec") == 0) {
