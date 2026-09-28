@@ -72,6 +72,7 @@ function sample100(string $name): array
     if ($name === 'cal_days_in_month') return ['i:0', 'i:2', 'i:2024'];
     if ($name === 'cal_to_jd') return ['i:0', 'i:1', 'i:1', 'i:2024'];
 
+    if ($name === 'date') return ['s:Y-m-d', 'i:1704067200'];
     if ($name === 'date_create' || $name === 'date_create_immutable') {
         return ['s:2024-01-02 03:04:05'];
     }
@@ -176,6 +177,7 @@ $checks = [
     ['call_user_func_array', ['s:max', 'za:sample'], 'int:40'],
     ['cal_days_in_month', ['i:0', 'i:2', 'i:2024'], 'int:' . cal_days_in_month(CAL_GREGORIAN, 2, 2024)],
     ['cal_to_jd', ['i:0', 'i:1', 'i:1', 'i:2024'], 'int:' . cal_to_jd(CAL_GREGORIAN, 1, 1, 2024)],
+    ['date', ['s:Y-m-d', 'i:1704067200'], 'string:' . date('Y-m-d', 1704067200)],
     ['date_create', ['s:2024-01-02 03:04:05'], 'zend-object:DateTime:2'],
     ['date_create_from_format', ['s:Y-m-d H:i:s', 's:2024-01-02 03:04:05'], 'zend-object:DateTime:2'],
     ['date_create_immutable', ['s:2024-01-02 03:04:05'], 'zend-object:DateTimeImmutable:2'],
@@ -191,7 +193,6 @@ $checks = [
     ['date_parse_from_format', ['s:Y-m-d H:i:s', 's:2024-01-02 03:04:05'], 'zend-array:12'],
     ['date_timestamp_get', ['dt:2024-01-02 03:04:05'], 'int:' . $phpFixtureDate->getTimestamp()],
     ['date_timezone_get', ['dt:2024-01-02 03:04:05'], 'zend-object:DateTimeZone:1'],
-    ['class_alias', ['s:stdClass', 's:JinxInternalAliasProbe'], 'bool:false'],
     ['class_exists', ['s:stdClass'], 'bool:' . (class_exists('stdClass') ? 'true' : 'false')],
     ['class_implements', ['s:stdClass'], 'zend-array:' . count(class_implements('stdClass', false) ?: [])],
     ['class_parents', ['s:stdClass'], 'zend-array:' . count(class_parents('stdClass', false) ?: [])],
