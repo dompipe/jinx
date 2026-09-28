@@ -201,6 +201,83 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
         return;
     }
 
+    if (strcmp(name, "array_all") == 0 || strcmp(name, "array_any") == 0 ||
+        strcmp(name, "array_find") == 0 || strcmp(name, "array_find_key") == 0) {
+        args[0] = make_zend_array_fixture(0);
+        args[1] = jinx_value_string("is_numeric", 10);
+        return;
+    }
+
+    if (strcmp(name, "array_map") == 0) {
+        args[0] = jinx_value_string("abs", 3);
+        args[1] = make_zend_array_fixture(0);
+        return;
+    }
+
+    if (strcmp(name, "array_reduce") == 0) {
+        args[0] = make_zend_array_fixture(0);
+        args[1] = jinx_value_string("max", 3);
+        args[2] = jinx_value_int(0);
+        return;
+    }
+
+    if (strcmp(name, "array_fill") == 0) {
+        args[0] = jinx_value_int(0);
+        args[1] = jinx_value_int(3);
+        args[2] = jinx_value_int(9);
+        return;
+    }
+
+    if (strcmp(name, "array_combine") == 0) {
+        args[0] = make_zend_array_fixture(0);
+        args[1] = make_zend_array_fixture(0);
+        return;
+    }
+
+    if (strcmp(name, "array_chunk") == 0) {
+        args[0] = make_zend_array_fixture(0);
+        args[1] = jinx_value_int(2);
+        return;
+    }
+
+    if (strncmp(name, "array_", 6) == 0) {
+        args[0] = make_zend_array_fixture(0);
+        args[1] = jinx_value_int(0);
+        return;
+    }
+
+    if (strcmp(name, "cal_days_in_month") == 0) {
+        args[0] = jinx_value_int(0);
+        args[1] = jinx_value_int(2);
+        args[2] = jinx_value_int(2024);
+        return;
+    }
+
+    if (strcmp(name, "cal_to_jd") == 0) {
+        args[0] = jinx_value_int(0);
+        args[1] = jinx_value_int(1);
+        args[2] = jinx_value_int(1);
+        args[3] = jinx_value_int(2024);
+        return;
+    }
+
+    if (strcmp(name, "call_user_func") == 0) {
+        args[0] = jinx_value_string("strlen", 6);
+        args[1] = jinx_value_string("oracle", 6);
+        return;
+    }
+
+    if (strcmp(name, "call_user_func_array") == 0) {
+        args[0] = jinx_value_string("max", 3);
+        args[1] = make_zend_array_fixture(0);
+        return;
+    }
+
+    if (strcmp(name, "constant") == 0 || strcmp(name, "defined") == 0) {
+        args[0] = jinx_value_string("PHP_VERSION_ID", 14);
+        return;
+    }
+
     if (strcmp(name, "count") == 0) {
         args[0] = jinx_value_array_count(4);
         args[1] = jinx_value_int(0);
@@ -251,7 +328,7 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
     }
 
     if (strstr(name, "array") != NULL) {
-        args[0] = jinx_value_array_count(4);
+        args[0] = make_zend_array_fixture(0);
         args[1] = jinx_value_int(0);
         return;
     }
@@ -268,6 +345,7 @@ static int call_all_function_name(const char *name, JinxValue *out) {
         JINX_NATIVE_SAMPLE_ARGC,
         &ok
     );
+    release_cli_values(args, JINX_NATIVE_SAMPLE_ARGC);
     return ok;
 }
 
@@ -665,6 +743,7 @@ static int command_first100(void) {
             printf("FAIL");
         }
         printf("\n");
+        release_cli_value(result);
     }
 
     printf("--------------------------------------------------\n");
@@ -694,6 +773,7 @@ static int command_bench_first100(int argc, char **argv) {
                 fprintf(stderr, "FAIL: native first100 dispatch failed for %s\n", first100_names[n]);
                 return 1;
             }
+            release_cli_value(result);
         }
     }
 
@@ -744,6 +824,7 @@ static int command_bench_all_functions(int argc, char **argv) {
 
         if (call_all_function_name(name, &result)) {
             concrete++;
+            release_cli_value(result);
         } else {
             if (null_or_fault < 20) {
                 fprintf(stderr, "null/fault placeholder: %s\n", name);
@@ -768,6 +849,7 @@ static int command_bench_all_functions(int argc, char **argv) {
         for (size_t n = 0; n < calls; n++) {
             JinxValue result;
             (void) call_all_function_name(jinx_all_function_names[n], &result);
+            release_cli_value(result);
         }
     }
 
