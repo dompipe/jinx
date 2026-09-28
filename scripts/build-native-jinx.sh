@@ -30,6 +30,16 @@ if printf '%s\n' '#include <magic.h>' 'int main(void){magic_t m=magic_open(0); i
 fi
 rm -f "$MAGIC_PROBE"
 
+CRYPT_DEFINE=""
+CRYPT_LIBS=""
+CRYPT_PROBE="${OUT_DIR}/jinx-crypt-probe"
+if printf '%s\n' '#include <crypt.h>' 'int main(void){return crypt("x","xx")==0;}' | \
+    "$CC_BIN" -x c - -lcrypt -o "$CRYPT_PROBE" >/dev/null 2>&1; then
+    CRYPT_DEFINE="-DJINX_HAVE_CRYPT=1"
+    CRYPT_LIBS="-lcrypt"
+fi
+rm -f "$CRYPT_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -46,6 +56,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -D_DEFAULT_SOURCE \
     ${CRYPTO_DEFINE} \
     ${MAGIC_DEFINE} \
+    ${CRYPT_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -65,6 +76,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -lz \
     ${CRYPTO_LIBS} \
     ${MAGIC_LIBS} \
+    ${CRYPT_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -139,6 +151,11 @@ if [ -n "$MAGIC_DEFINE" ]; then
     echo "Native libmagic finfo backend: enabled"
 else
     echo "Native libmagic finfo backend: unavailable; finfo family remains faulting"
+fi
+if [ -n "$CRYPT_DEFINE" ]; then
+    echo "Native libcrypt backend: enabled"
+else
+    echo "Native libcrypt backend: unavailable; crypt remains faulting"
 fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
