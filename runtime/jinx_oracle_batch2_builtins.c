@@ -2385,5 +2385,23 @@ csv_fail:
     }
 #endif
 
+    if (strcmp(name, "hash_algos") == 0) {
+        result = b2_string_list(
+            jinx_native_hash_algos,
+            jinx_native_hash_algos_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "hash_hmac_algos") == 0) {
+        result = b2_string_list(
+            jinx_native_hash_hmac_algos,
+            jinx_native_hash_hmac_algos_count
+        );
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
     return result;
 }
