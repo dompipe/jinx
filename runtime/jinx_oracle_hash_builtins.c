@@ -51,6 +51,238 @@ static JinxValue hash_hex_bytes(const unsigned char *bytes, size_t len) {
     return jinx_oracle_string_value_len(out, (uint32_t)(len * 2u));
 }
 
+static JinxValue hash_base64_encode(const unsigned char *bytes, size_t len) {
+    size_t out_len;
+    unsigned char *tmp;
+    int written;
+    JinxValue out;
+    if (len > (size_t)INT_MAX) return jinx_oracle_zero_value();
+    out_len = 4u * ((len + 2u) / 3u);
+    tmp = (unsigned char *)malloc(out_len + 1u);
+    if (tmp == NULL) return jinx_oracle_zero_value();
+    written = EVP_EncodeBlock(tmp, bytes, (int)len);
+    if (written < 0) {
+        free(tmp);
+        return jinx_oracle_zero_value();
+    }
+    out = hash_copy_bytes(tmp, (size_t)written);
+    free(tmp);
+    return out;
+}
+
+static unsigned char *hash_base64_decode(
+    const unsigned char *bytes,
+    size_t len,
+    size_t *out_len
+) {
+    unsigned char *clean = NULL;
+    unsigned char *out = NULL;
+    size_t clean_len = 0u;
+    size_t padding = 0u;
+    int decoded;
+
+    if (out_len != NULL) *out_len = 0u;
+    if (bytes == NULL && len != 0u) return NULL;
+
+    clean = (unsigned char *)malloc(len + 1u);
+    if (clean == NULL) return NULL;
+    for (size_t i = 0u; i < len; i++) {
+        unsigned char ch = bytes[i];
+        if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') continue;
+        clean[clean_len++] = ch;
+    }
+    clean[clean_len] = '\0';
+
+    if (clean_len == 0u) {
+        free(clean);
+        out = (unsigned char *)malloc(1u);
+        if (out != NULL && out_len != NULL) *out_len = 0u;
+        return out;
+    }
+    if ((clean_len % 4u) != 0u || clean_len > (size_t)INT_MAX) {
+        free(clean);
+        return NULL;
+    }
+    if (clean_len >= 1u && clean[clean_len - 1u] == '=') padding++;
+    if (clean_len >= 2u && clean[clean_len - 2u] == '=') padding++;
+
+    out = (unsigned char *)malloc((clean_len / 4u) * 3u + 1u);
+    if (out == NULL) {
+        free(clean);
+        return NULL;
+    }
+    decoded = EVP_DecodeBlock(out, clean, (int)clean_len);
+    free(clean);
+    if (decoded < 0 || (size_t)decoded < padding) {
+        free(out);
+        return NULL;
+    }
+    if (out_len != NULL) *out_len = (size_t)decoded - padding;
+    return out;
+}
+
+static int hash_cipher_is_aead(const EVP_CIPHER *cipher) {
+    int mode;
+    if (cipher == NULL) return 0;
+    mode = EVP_CIPHER_mode(cipher);
+#ifdef EVP_CIPH_GCM_MODE
+    if (mode == EVP_CIPH_GCM_MODE) return 1;
+#endif
+#ifdef EVP_CIPH_CCM_MODE
+    if (mode == EVP_CIPH_CCM_MODE) return 1;
+#endif
+#ifdef EVP_CIPH_OCB_MODE
+    if (mode == EVP_CIPH_OCB_MODE) return 1;
+#endif
+#ifdef NID_chacha20_poly1305
+    if (EVP_CIPHER_nid(cipher) == NID_chacha20_poly1305) return 1;
+#endif
+    return 0;
+}
+
+static JinxValue hash_openssl_cipher_crypt(
+    int encrypting,
+    JinxValue data_value,
+    JinxValue method_value,
+    JinxValue password_value,
+    int64_t options,
+    JinxValue iv_value,
+    int *supported
+) {
+    const EVP_CIPHER *cipher;
+    EVP_CIPHER_CTX *ctx = NULL;
+    char *method = NULL;
+    const unsigned char *input;
+    size_t input_len;
+    unsigned char *decoded_input = NULL;
+    unsigned char *key_buf = NULL;
+    unsigned char *iv_buf = NULL;
+    const unsigned char *key;
+    const unsigned char *iv = NULL;
+    size_t password_len;
+    size_t iv_len;
+    int key_len;
+    int required_iv_len;
+    int block_size;
+    unsigned char *out = NULL;
+    int out1 = 0;
+    int out2 = 0;
+    JinxValue result = jinx_oracle_zero_value();
+
+    if (supported != NULL) *supported = 0;
+    if (data_value.type != 3u || method_value.type != 3u ||
+        password_value.type != 3u || iv_value.type != 3u) {
+        return result;
+    }
+
+    method = hash_dup_string(method_value);
+    if (method == NULL) return result;
+    cipher = EVP_get_cipherbyname(method);
+    free(method);
+    if (cipher == NULL) {
+        if (supported != NULL) *supported = 1;
+        return jinx_oracle_bool_value(0);
+    }
+    if (hash_cipher_is_aead(cipher)) {
+        return result;
+    }
+    if (supported != NULL) *supported = 1;
+
+    input = jinx_oracle_string_bytes(data_value);
+    input_len = jinx_oracle_string_len(data_value);
+    if (!encrypting && (options & 1LL) == 0) {
+        decoded_input = hash_base64_decode(input, input_len, &input_len);
+        if (decoded_input == NULL) return jinx_oracle_bool_value(0);
+        input = decoded_input;
+    }
+    if (input_len > (size_t)INT_MAX) goto fail;
+
+    password_len = jinx_oracle_string_len(password_value);
+    iv_len = jinx_oracle_string_len(iv_value);
+    key_len = EVP_CIPHER_key_length(cipher);
+    required_iv_len = EVP_CIPHER_iv_length(cipher);
+    block_size = EVP_CIPHER_block_size(cipher);
+    if (key_len < 0 || required_iv_len < 0 || block_size <= 0) goto fail;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL ||
+        EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, encrypting) != 1) {
+        goto fail;
+    }
+
+    if (required_iv_len > 0) {
+        iv_buf = (unsigned char *)calloc((size_t)required_iv_len, 1u);
+        if (iv_buf == NULL) goto fail;
+        if (iv_len != 0u) {
+            size_t copy_len = iv_len < (size_t)required_iv_len
+                ? iv_len
+                : (size_t)required_iv_len;
+            memcpy(iv_buf, jinx_oracle_string_bytes(iv_value), copy_len);
+        }
+        iv = iv_buf;
+    }
+
+    key = jinx_oracle_string_bytes(password_value);
+    if (password_len < (size_t)key_len) {
+        if ((options & 4LL) != 0) {
+            if (password_len > (size_t)INT_MAX ||
+                EVP_CIPHER_CTX_set_key_length(ctx, (int)password_len) != 1) {
+                goto fail;
+            }
+        } else {
+            key_buf = (unsigned char *)calloc((size_t)key_len, 1u);
+            if (key_buf == NULL) goto fail;
+            if (password_len != 0u) {
+                memcpy(key_buf, key, password_len);
+            }
+            key = key_buf;
+        }
+    } else if (password_len > (size_t)key_len) {
+        if (password_len <= (size_t)INT_MAX) {
+            (void)EVP_CIPHER_CTX_set_key_length(ctx, (int)password_len);
+        }
+    }
+
+    if (EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, encrypting) != 1) {
+        goto fail;
+    }
+    if ((options & 2LL) != 0) {
+        (void)EVP_CIPHER_CTX_set_padding(ctx, 0);
+    }
+
+    out = (unsigned char *)malloc(input_len + (size_t)block_size + 1u);
+    if (out == NULL) goto fail;
+    if (EVP_CipherUpdate(
+            ctx,
+            out,
+            &out1,
+            input,
+            (int)input_len
+        ) != 1 ||
+        EVP_CipherFinal_ex(ctx, out + out1, &out2) != 1) {
+        result = jinx_oracle_bool_value(0);
+        goto cleanup;
+    }
+
+    if (encrypting && (options & 1LL) == 0) {
+        result = hash_base64_encode(out, (size_t)(out1 + out2));
+    } else {
+        result = hash_copy_bytes(out, (size_t)(out1 + out2));
+    }
+    goto cleanup;
+
+fail:
+    result = jinx_oracle_bool_value(0);
+
+cleanup:
+    free(decoded_input);
+    free(key_buf);
+    free(iv_buf);
+    free(out);
+    EVP_CIPHER_CTX_free(ctx);
+    return result;
+}
+
 static const EVP_MD *hash_md_from_value(JinxValue value) {
     char *name;
     const EVP_MD *md;
@@ -258,6 +490,83 @@ JinxValue jinx_oracle_hash_builtin(
     JinxValue result = jinx_oracle_zero_value();
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    if (strcmp(name, "openssl_digest") == 0) {
+        const EVP_MD *md;
+        unsigned char digest[EVP_MAX_MD_SIZE];
+        unsigned int digest_len = 0u;
+        int raw_output;
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        md = hash_md_from_value(args[1]);
+        if (md == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (EVP_Digest(
+                jinx_oracle_string_bytes(args[0]),
+                jinx_oracle_string_len(args[0]),
+                digest,
+                &digest_len,
+                md,
+                NULL
+            ) != 1) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        raw_output = argc >= 3u && jinx_oracle_boolish(args[2]);
+        if (handled != NULL) *handled = 1;
+        return hash_finish_bytes(digest, digest_len, raw_output);
+    }
+
+    if (strcmp(name, "openssl_cipher_iv_length") == 0 ||
+        strcmp(name, "openssl_cipher_key_length") == 0) {
+        char *method;
+        const EVP_CIPHER *cipher;
+        int length;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        if (jinx_oracle_string_len(args[0]) == 0u) return result;
+        method = hash_dup_string(args[0]);
+        if (method == NULL) return result;
+        cipher = EVP_get_cipherbyname(method);
+        free(method);
+        if (handled != NULL) *handled = 1;
+        if (cipher == NULL) return jinx_oracle_bool_value(0);
+        length = strcmp(name, "openssl_cipher_iv_length") == 0
+            ? EVP_CIPHER_iv_length(cipher)
+            : EVP_CIPHER_key_length(cipher);
+        return length < 0
+            ? jinx_oracle_bool_value(0)
+            : jinx_oracle_int_value((int64_t)length);
+    }
+
+    if (strcmp(name, "openssl_encrypt") == 0 ||
+        strcmp(name, "openssl_decrypt") == 0) {
+        int supported = 0;
+        int encrypting = strcmp(name, "openssl_encrypt") == 0;
+        int64_t options = argc >= 4u ? jinx_oracle_intish(args[3]) : 0;
+        JinxValue iv = argc >= 5u
+            ? args[4]
+            : jinx_oracle_string_value("");
+        if (args == NULL || argc < 3u ||
+            args[0].type != 3u || args[1].type != 3u ||
+            args[2].type != 3u || iv.type != 3u) return result;
+
+        /* PHP's AEAD path needs a tag reference on encryption and a tag value
+         * on decryption. Leave those modes unhandled until ref semantics are
+         * represented end-to-end by the native call bridge. */
+        result = hash_openssl_cipher_crypt(
+            encrypting,
+            args[0],
+            args[1],
+            args[2],
+            options,
+            iv,
+            &supported
+        );
+        if (supported && handled != NULL) *handled = 1;
+        return result;
+    }
 
     if (strcmp(name, "md5") == 0 || strcmp(name, "sha1") == 0) {
         const EVP_MD *md = strcmp(name, "md5") == 0 ? EVP_md5() : EVP_sha1();
