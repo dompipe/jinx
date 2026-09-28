@@ -2153,7 +2153,8 @@ JinxValue jinx_oracle_extended_builtin(
     }
 
     if (strcmp(name, "is_dir") == 0 || strcmp(name, "is_file") == 0 ||
-        strcmp(name, "lstat") == 0 || strcmp(name, "mkdir") == 0 ||
+        strcmp(name, "lstat") == 0 || strcmp(name, "stat") == 0 ||
+        strcmp(name, "mkdir") == 0 || strcmp(name, "unlink") == 0 ||
         strcmp(name, "realpath") == 0 || strcmp(name, "scandir") == 0 ||
         strcmp(name, "glob") == 0) {
         char *path;
@@ -2164,6 +2165,13 @@ JinxValue jinx_oracle_extended_builtin(
         if(strcmp(name,"mkdir")==0){
             mode_t mode=argc>=2u?(mode_t)jinx_oracle_intish(args[1]):0777;
             ok=mkdir(path,mode)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            return jinx_oracle_bool_value(ok);
+        }
+
+        if(strcmp(name,"unlink")==0){
+            ok=unlink(path)==0;
             free(path);
             if(handled!=NULL)*handled=1;
             return jinx_oracle_bool_value(ok);
@@ -2218,6 +2226,17 @@ JinxValue jinx_oracle_extended_builtin(
             struct stat st;
             JinxZendArray *array;
             ok=lstat(path,&st)==0;
+            free(path);
+            if(handled!=NULL)*handled=1;
+            if(!ok) return jinx_oracle_bool_value(0);
+            array=jinx_oracle_ext_stat_array(&st);
+            return array!=NULL?jinx_oracle_zend_array_value_owned(array):result;
+        }
+
+        if(strcmp(name,"stat")==0){
+            struct stat st;
+            JinxZendArray *array;
+            ok=stat(path,&st)==0;
             free(path);
             if(handled!=NULL)*handled=1;
             if(!ok) return jinx_oracle_bool_value(0);
