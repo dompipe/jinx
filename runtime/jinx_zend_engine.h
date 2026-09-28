@@ -95,6 +95,7 @@ typedef struct JinxZendCallFrame {
     const char *scope_name;
     JinxZendValue *args;
     size_t argc;
+    JinxZendArray *locals;
     JinxZendValue return_value;
     struct JinxZendCallFrame *previous;
 } JinxZendCallFrame;
@@ -167,6 +168,8 @@ JinxZendArray *jinx_zend_array_keys_builtin(const JinxZendArray *array);
 
 void jinx_zend_executor_init(JinxZendExecutor *executor);
 void jinx_zend_frame_enter(JinxZendExecutor *executor, JinxZendCallFrame *frame, const char *function_name, JinxZendValue *args, size_t argc);
+int jinx_zend_frame_set_local(JinxZendCallFrame *frame, const char *name, JinxZendValue value);
+JinxZendValue *jinx_zend_frame_get_local(JinxZendCallFrame *frame, const char *name);
 JinxZendValue jinx_zend_frame_leave(JinxZendExecutor *executor, JinxZendValue return_value);
 const JinxZendModuleFamily *jinx_zend_module_families(size_t *count);
 int jinx_zend_smoke(void);
