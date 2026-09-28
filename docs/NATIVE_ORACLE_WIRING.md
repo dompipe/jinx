@@ -13,7 +13,10 @@ values have deliberately narrow meanings:
 | `asm` | A named outer dispatcher branch reaches the scalar Oracle runtime. |
 | `zend-container` | The generated dispatcher routes the name to a corresponding carried-container implementation. |
 | `asm+zend-container` | The dispatcher selects between those paths according to arguments. |
-| `intentional-native-fault` | There is no native implementation. The generated wrapper must reach the explicit terminal fault, and checked dispatch must report failure. |
+| `extended` | The wrapper falls through to a named implementation in the linked extended C backend. Optional extension backends can still be feature-gated at build time. |
+| `context` | The wrapper reaches a named backend that requires the live Oracle/Zend call context, typically for references or caller-frame state. |
+| combined routes | A `+`-joined route means more than one native layer recognizes the callable. |
+| `intentional-native-fault` | No named native implementation exists in any audited backend. The generated wrapper must reach the explicit terminal fault, and checked dispatch must report failure. |
 
 A named route may support only a bounded set of PHP values, overloads, flags,
 callbacks, or argument forms. The ledger records wiring, not full semantic
@@ -42,14 +45,18 @@ checkout parity script runs it. It checks:
   Every dispatch entry has the manifest's required, total, and variadic arity.
 - Every container route has an implementation and every container
   implementation has a route. Scalar inner name cases must remain reachable
-  through their outer dispatch guards.
+  through their outer dispatch guards. Extended and context backends are also
+  inventoried by their named dispatch conditions, and their delegation chain is
+  checked so those implementations cannot become silently unreachable.
 - Both PHP direct-dispatch methods agree with their name list and invoke the
   matching PHP function. Native manual classifications and the CLI first-100
   list cannot introduce unregistered names. A manual entry claiming native
   behavior cannot refer to a callable classified as an intentional native fault.
-- Every registered wrapper resolves in a compiled C harness. Every unsupported
-  wrapper, including methods, reaches the explicit native terminal fault with
-  its declared arguments supplied, and checked dispatch reports failure.
+- Every registered wrapper resolves in a compiled C harness. Every callable
+  with no audited ASM, container, extended, or context route reaches the
+  explicit native terminal fault with its declared arguments supplied, and
+  checked dispatch reports failure. Extended/context semantic success remains
+  covered by their family parity tests and the full native build.
 - Too few arguments are rejected for every required signature, and too many
   for every fixed signature. A real variadic call retains its tail, reference
   variadics retain caller slots, oversized frames retain their fault, and
