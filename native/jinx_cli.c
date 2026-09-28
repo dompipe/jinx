@@ -32,6 +32,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
+    printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
@@ -1398,6 +1399,58 @@ static int command_oracle_error_smoke(void) {
     return 0;
 }
 
+static int command_oracle_posix_error_smoke(void) {
+    JinxValue access_args[1];
+    JinxValue access_result;
+    JinxValue last_result;
+    JinxValue errno_result;
+    int ok = 0;
+
+    access_args[0] = jinx_value_string(
+        "/__jinx_native_posix_missing__",
+        (uint32_t)strlen("/__jinx_native_posix_missing__")
+    );
+    access_result = jinx_call_builtin_through_oracle_checked(
+        "posix_access", access_args, 1u, &ok
+    );
+    if (!ok || access_result.type != 2u || access_result.as.i64 != 0) {
+        release_cli_value(access_result);
+        return fail("posix_access did not produce false for missing path");
+    }
+
+    ok = 0;
+    last_result = jinx_call_builtin_through_oracle_checked(
+        "posix_get_last_error", NULL, 0u, &ok
+    );
+    if (!ok || last_result.type != 1u || last_result.as.i64 <= 0) {
+        release_cli_value(access_result);
+        release_cli_value(last_result);
+        return fail("posix_get_last_error did not retain errno");
+    }
+
+    ok = 0;
+    errno_result = jinx_call_builtin_through_oracle_checked(
+        "posix_errno", NULL, 0u, &ok
+    );
+    if (!ok || errno_result.type != 1u ||
+        errno_result.as.i64 != last_result.as.i64) {
+        release_cli_value(access_result);
+        release_cli_value(last_result);
+        release_cli_value(errno_result);
+        return fail("posix_errno did not alias posix_get_last_error");
+    }
+
+    printf(
+        "access=bool:false\nlast=int:%lld\nerrno=int:%lld\n",
+        (long long)last_result.as.i64,
+        (long long)errno_result.as.i64
+    );
+    release_cli_value(access_result);
+    release_cli_value(last_result);
+    release_cli_value(errno_result);
+    return 0;
+}
+
 static int command_oracle_script_context_smoke(
     int argc,
     char **argv
@@ -1703,6 +1756,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-error-smoke") == 0) {
         return command_oracle_error_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-posix-error-smoke") == 0) {
+        return command_oracle_posix_error_smoke();
     }
 
     if (strcmp(argv[1], "oracle-script-context-smoke") == 0) {
