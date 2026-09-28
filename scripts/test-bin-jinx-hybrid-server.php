@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$jinx = $root . '/bin/jinx';
+$webTools = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/scripts/jinx-web-tools.php');
 
 function fail(string $message): never
 {
@@ -76,7 +76,7 @@ $log = $root . '/build/test-jinx-hybrid-server.log';
 
 $cmd = sprintf(
     '%s hybrid-server %s %s > %s 2>&1',
-    escapeshellarg($jinx),
+    $webTools,
     escapeshellarg($root . '/fixtures'),
     escapeshellarg("{$host}:{$port}"),
     escapeshellarg($log)
