@@ -187,6 +187,15 @@ case "$FRAME_CONTEXT_SMOKE" in
         ;;
 esac
 
+ORACLE_ERROR_SMOKE=$("$OUT" oracle-error-smoke)
+case "$ORACLE_ERROR_SMOKE" in
+    *"PASS: native Zend executor last-error state drives error_get_last/error_clear_last"*) ;;
+    *)
+        echo "FAIL: post-build Zend last-error smoke failed: $ORACLE_ERROR_SMOKE" >&2
+        exit 1
+        ;;
+esac
+
 WEB_PLAN_SMOKE=$("$OUT" web-plan "${ROOT_DIR}/fixtures/simple-web-api-validated.php")
 case "$WEB_PLAN_SMOKE" in
     *WEB_IF_MISSING_ARRAY_KEY*) ;;
@@ -249,6 +258,7 @@ echo "Native oracle-call smoke: strtolower/strtoupper PASS"
 echo "Extended Oracle smoke: call_user_func/class_exists/date_format PASS"
 echo "Native constant registry smoke: PASS"
 echo "Native caller-frame builtin smoke: PASS"
+echo "Native Zend last-error smoke: PASS"
 echo "Native web-plan smoke: PASS"
 echo "Try: ./jinx oracle-smoke"
 echo "Try: ./build/native/jinx-zend-smoke"
