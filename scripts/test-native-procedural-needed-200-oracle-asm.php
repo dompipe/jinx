@@ -250,6 +250,30 @@ expect200(
     'zend-array:' . count(date_sun_info($solarTs, $solarLat, $solarLon))
 );
 
+/* Native get_meta_tags parser parity on a deterministic local HTML file. */
+$metaFile = sys_get_temp_dir() . '/jinx-meta-' . getmypid() . '.html';
+file_put_contents(
+    $metaFile,
+    '<html><head>'
+    . '<meta name="DESCRIPTION" content="alpha">'
+    . '<meta content="beta" name="geo.position">'
+    . '<meta name="duplicate" content="first">'
+    . '<meta name="duplicate" content="last">'
+    . '</head><body>x</body></html>'
+);
+$phpMeta = get_meta_tags($metaFile);
+if ($phpMeta === false) {
+    @unlink($metaFile);
+    fail200('PHP get_meta_tags rejected deterministic fixture');
+}
+expect200(
+    $jinx,
+    'get_meta_tags',
+    ['s:' . $metaFile],
+    'zend-array:' . count($phpMeta)
+);
+@unlink($metaFile);
+
 /* Native gzip carrier and zlib context. */
 expect200($jinx, 'gzeof', ['gz:tmp'], 'bool:false');
 expect200($jinx, 'gzgetc', ['gz:tmp'], 'string:a');
