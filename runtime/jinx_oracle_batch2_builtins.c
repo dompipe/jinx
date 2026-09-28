@@ -435,6 +435,93 @@ static JinxValue b2_copy(const char *bytes, size_t len) {
     return jinx_oracle_string_value_len(out, (uint32_t)len);
 }
 
+static void b2_print_trace_string(
+    const char *bytes,
+    size_t len
+) {
+    fputc('\'', stdout);
+    for (size_t i = 0u; i < len; i++) {
+        unsigned char ch = (unsigned char)bytes[i];
+        if (ch == '\\' || ch == '\'') {
+            fputc('\\', stdout);
+            fputc((int)ch, stdout);
+        } else if (ch == '\n') {
+            fputs("\\n", stdout);
+        } else if (ch == '\r') {
+            fputs("\\r", stdout);
+        } else if (ch == '\t') {
+            fputs("\\t", stdout);
+        } else if (ch == '\0') {
+            fputs("\\0", stdout);
+        } else {
+            fputc((int)ch, stdout);
+        }
+    }
+    fputc('\'', stdout);
+}
+
+static void b2_print_trace_value(JinxZendValue value) {
+    switch (value.type) {
+        case JINX_ZEND_NULL:
+            fputs("NULL", stdout);
+            break;
+        case JINX_ZEND_FALSE:
+            fputs("false", stdout);
+            break;
+        case JINX_ZEND_TRUE:
+            fputs("true", stdout);
+            break;
+        case JINX_ZEND_LONG:
+            fprintf(stdout, "%lld", (long long)value.value.lval);
+            break;
+        case JINX_ZEND_DOUBLE:
+            fprintf(stdout, "%.14g", value.value.dval);
+            break;
+        case JINX_ZEND_STRING:
+            if (value.value.str == NULL) {
+                fputs("''", stdout);
+            } else {
+                b2_print_trace_string(
+                    value.value.str->bytes,
+                    value.value.str->len
+                );
+            }
+            break;
+        case JINX_ZEND_ARRAY:
+            fputs("Array", stdout);
+            break;
+        case JINX_ZEND_OBJECT:
+            fprintf(
+                stdout,
+                "Object(%s)",
+                value.value.object != NULL &&
+                value.value.object->class_name != NULL
+                    ? value.value.object->class_name
+                    : "stdClass"
+            );
+            break;
+        case JINX_ZEND_RESOURCE: {
+            int64_t id = jinx_oracle_resource_id(value.value.ptr);
+            fprintf(
+                stdout,
+                "Resource id #%lld",
+                (long long)(id > 0 ? id : 0)
+            );
+            break;
+        }
+        case JINX_ZEND_REFERENCE:
+            if (value.value.ref != NULL) {
+                b2_print_trace_value(value.value.ref->value);
+            } else {
+                fputs("NULL", stdout);
+            }
+            break;
+        default:
+            fputs("NULL", stdout);
+            break;
+    }
+}
+
 static int b2_assoc_string(
     JinxZendArray *array,
     const char *key,
@@ -3616,6 +3703,76 @@ csv_fail:
 
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(trace);
+    }
+
+    if (strcmp(name, "debug_print_backtrace") == 0) {
+        JinxZendCallFrame *frame = jinx_oracle_get_caller_frame();
+        int64_t options = 0;
+        int64_t limit = 0;
+        int64_t ignore_args = b2_constant_int(
+            "DEBUG_BACKTRACE_IGNORE_ARGS", 2
+        );
+        size_t emitted = 0u;
+
+        if (argc >= 1u && args != NULL && args[0].type != 0u) {
+            options = jinx_oracle_intish(args[0]);
+        }
+        if (argc >= 2u && args != NULL && args[1].type != 0u) {
+            limit = jinx_oracle_intish(args[1]);
+            if (limit < 0) return result;
+        }
+        if (argc > 2u) return result;
+
+        while (frame != NULL &&
+               (limit == 0 || (int64_t)emitted < limit)) {
+            fprintf(stdout, "#%zu ", emitted);
+
+            if (frame->call_file != NULL &&
+                frame->call_file[0] != '\0') {
+                fprintf(
+                    stdout,
+                    "%s(%u): ",
+                    frame->call_file,
+                    frame->call_line
+                );
+            } else {
+                fputs("[internal function]: ", stdout);
+            }
+
+            if (frame->scope_name != NULL &&
+                frame->scope_name[0] != '\0') {
+                fputs(frame->scope_name, stdout);
+                fputs(
+                    frame->call_type != NULL &&
+                    frame->call_type[0] != '\0'
+                        ? frame->call_type
+                        : "::",
+                    stdout
+                );
+            }
+
+            fputs(
+                frame->function_name != NULL
+                    ? frame->function_name
+                    : "{main}",
+                stdout
+            );
+            fputc('(', stdout);
+
+            if ((options & ignore_args) == 0) {
+                for (size_t i = 0u; i < frame->argc; i++) {
+                    if (i != 0u) fputs(", ", stdout);
+                    b2_print_trace_value(frame->args[i]);
+                }
+            }
+
+            fputs(")\n", stdout);
+            emitted++;
+            frame = frame->previous;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
     }
 
     if (strcmp(name, "error_clear_last") == 0) {
