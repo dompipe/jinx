@@ -45,8 +45,7 @@ int jinx_oracle_constant_registry_define(
     }
 
     /* PHP constants support null/scalars/arrays, not object/resource values. */
-    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT ||
-        value.type == JINX_ORACLE_VALUE_ZEND_RESOURCE) {
+    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
         return 0;
     }
 
