@@ -94,6 +94,37 @@ if ($code !== 0 ||
 }
 
 /* Deterministic metadata/introspection parity. */
+$posixChecks = [];
+if (function_exists('posix_getuid')) {
+    $phpPw = posix_getpwuid(posix_getuid());
+    $phpGr = posix_getgrgid(posix_getgid());
+    if (!is_array($phpPw) || !isset($phpPw['name']) ||
+        !is_array($phpGr) || !isset($phpGr['name'])) {
+        fail200('PHP POSIX account fixtures were unavailable');
+    }
+    $phpLogin = posix_getlogin();
+    $phpGroups = posix_getgroups();
+    $posixChecks = [
+        ['posix_getuid', [], 'int:' . posix_getuid()],
+        ['posix_getgid', [], 'int:' . posix_getgid()],
+        ['posix_geteuid', [], 'int:' . posix_geteuid()],
+        ['posix_getegid', [], 'int:' . posix_getegid()],
+        ['posix_getpgrp', [], 'int:' . posix_getpgrp()],
+        ['posix_getpgid', ['i:0'], (($v = posix_getpgid(0)) === false ? 'bool:false' : 'int:' . $v)],
+        ['posix_getsid', ['i:0'], (($v = posix_getsid(0)) === false ? 'bool:false' : 'int:' . $v)],
+        ['posix_getcwd', [], (($v = posix_getcwd()) === false ? 'bool:false' : 'string:' . $v)],
+        ['posix_getlogin', [], ($phpLogin === false ? 'bool:false' : 'string:' . $phpLogin)],
+        ['posix_getgroups', [], ($phpGroups === false ? 'bool:false' : 'zend-array:' . count($phpGroups))],
+        ['posix_getpwnam', ['s:' . $phpPw['name']], 'zend-array:' . count(posix_getpwnam($phpPw['name']) ?: [])],
+        ['posix_getpwuid', ['i:' . posix_getuid()], 'zend-array:' . count($phpPw)],
+        ['posix_getgrnam', ['s:' . $phpGr['name']], 'zend-array:' . count(posix_getgrnam($phpGr['name']) ?: [])],
+        ['posix_getgrgid', ['i:' . posix_getgid()], 'zend-array:' . count($phpGr)],
+        ['posix_strerror', ['i:2'], 'string:' . posix_strerror(2)],
+        ['posix_access', ['s:' . $root . '/README.md'], 'bool:' . (posix_access($root . '/README.md') ? 'true' : 'false')],
+        ['posix_access', ['s:' . $root . '/__jinx_missing_posix__'], 'bool:' . (posix_access($root . '/__jinx_missing_posix__') ? 'true' : 'false')],
+    ];
+}
+
 $checks = [
     ['function_exists', ['s:strlen'], 'bool:' . (function_exists('strlen') ? 'true' : 'false')],
     ['enum_exists', ['s:__JinxMissingEnum'], 'bool:false'],
@@ -140,12 +171,25 @@ $checks = [
     ['get_resources', [], 'zend-array:0'],
 ];
 
+array_push($checks, ...$posixChecks);
+
 if (function_exists('gmstrftime')) {
     $checks[] = ['gmstrftime', ['s:%Y-%m-%d', 'i:1704067200'], 'string:' . gmstrftime('%Y-%m-%d', 1704067200)];
 }
 
 foreach ($checks as [$name, $args, $expected]) {
     expect200($jinx, $name, $args, $expected);
+}
+
+if (function_exists('posix_getpid')) {
+    foreach (['posix_getpid', 'posix_getppid'] as $name) {
+        $actual = jinx200($jinx, $name, [], false, $code);
+        if ($code !== 0 ||
+            !preg_match('/^int:([0-9]+)$/', $actual, $match) ||
+            (int)$match[1] <= 0) {
+            fail200("{$name} positive-process-id contract mismatch\nJINX: {$actual}");
+        }
+    }
 }
 
 /* PHP debug_backtrace contract fixture: first frame includes function
