@@ -45,6 +45,18 @@ foreach ([$interfaces, $traits, $internalFunctions, $extensions, $enums] as &$li
 }
 unset($list);
 
+$filterRows = [];
+if (function_exists('filter_list') && function_exists('filter_id')) {
+    foreach (filter_list() as $filterName) {
+        $filterId = filter_id($filterName);
+        if (is_int($filterId)) {
+            $filterRows[] = [$filterName, $filterId];
+        }
+    }
+    usort($filterRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
+}
+$includePath = get_include_path();
+
 $extensionFunctionRows = [];
 foreach ($extensions as $extension) {
     $funcs = get_extension_funcs($extension);
@@ -93,10 +105,12 @@ $code[] = '#ifndef JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#define JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#include <stddef.h>';
 $code[] = '#define JINX_NATIVE_PHP_DEFAULT_TIMEZONE ' . cstr($defaultTimezone);
+$code[] = '#define JINX_NATIVE_PHP_INCLUDE_PATH ' . cstr($includePath);
 $code[] = '';
 $code[] = 'typedef struct JinxNativeClassMeta { const char *name; const char *const *parents; size_t parent_count; const char *const *implements; size_t implements_count; const char *const *uses; size_t uses_count; } JinxNativeClassMeta;';
 $code[] = 'typedef struct JinxNativeConstantMeta { const char *name; unsigned type; long long i64; double f64; const char *str; } JinxNativeConstantMeta;';
 $code[] = 'typedef struct JinxNativeExtensionMeta { const char *name; const char *const *functions; size_t function_count; } JinxNativeExtensionMeta;';
+$code[] = 'typedef struct JinxNativeFilterMeta { const char *name; int id; } JinxNativeFilterMeta;';
 $code[] = '';
 array_push($code, ...$arrays);
 $code[] = '';
@@ -130,6 +144,13 @@ foreach ($extensions as $extension) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_extension_metadata_count = sizeof(jinx_native_extension_metadata) / sizeof(jinx_native_extension_metadata[0]);';
+$code[] = '';
+$code[] = 'static const JinxNativeFilterMeta jinx_native_filter_metadata[] = {';
+foreach ($filterRows as [$filterName, $filterId]) {
+    $code[] = '    { ' . cstr($filterName) . ', ' . (int)$filterId . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_filter_metadata_count = sizeof(jinx_native_filter_metadata) / sizeof(jinx_native_filter_metadata[0]);';
 $code[] = '';
 
 $code[] = 'static const JinxNativeClassMeta jinx_native_class_metadata[] = {';
