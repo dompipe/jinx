@@ -20,6 +20,16 @@ if printf '%s\n' '#include <openssl/evp.h>' 'int main(void){return EVP_sha256()=
 fi
 rm -f "$CRYPTO_PROBE"
 
+MAGIC_DEFINE=""
+MAGIC_LIBS=""
+MAGIC_PROBE="${OUT_DIR}/jinx-libmagic-probe"
+if printf '%s\n' '#include <magic.h>' 'int main(void){magic_t m=magic_open(0); if(m) magic_close(m); return 0;}' | \
+    "$CC_BIN" -x c - -lmagic -o "$MAGIC_PROBE" >/dev/null 2>&1; then
+    MAGIC_DEFINE="-DJINX_HAVE_LIBMAGIC=1"
+    MAGIC_LIBS="-lmagic"
+fi
+rm -f "$MAGIC_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -35,6 +45,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -D_POSIX_C_SOURCE=200809L \
     -D_DEFAULT_SOURCE \
     ${CRYPTO_DEFINE} \
+    ${MAGIC_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -47,11 +58,13 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_extended_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_batch2_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_hash_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_finfo_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
     -lz \
     ${CRYPTO_LIBS} \
+    ${MAGIC_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -121,6 +134,11 @@ if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
     echo "Native OpenSSL hash backend: unavailable; hash family remains faulting"
+fi
+if [ -n "$MAGIC_DEFINE" ]; then
+    echo "Native libmagic finfo backend: enabled"
+else
+    echo "Native libmagic finfo backend: unavailable; finfo family remains faulting"
 fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
