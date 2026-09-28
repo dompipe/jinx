@@ -2,6 +2,7 @@
 #define JINX_ORACLE_CONSTANT_REGISTRY_H
 
 #include "jinx_oracle_asm_context.h"
+#include "jinx_oracle_zend_array_carrier.h"
 #include <stddef.h>
 
 int jinx_oracle_constant_registry_define(const char *name, JinxValue value);
