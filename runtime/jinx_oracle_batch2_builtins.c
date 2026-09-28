@@ -17,11 +17,14 @@
 #include <strings.h>
 #include <sys/ipc.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/statvfs.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <syslog.h>
+#include <time.h>
 #include <unistd.h>
+#include <zlib.h>
 
 extern char **environ;
 
@@ -170,6 +173,172 @@ static char *b2_escape_cmd(const char *input) {
     }
     out[pos] = '\0';
     return out;
+}
+
+
+typedef struct JinxOracleBatch2Stream {
+    FILE *fp;
+} JinxOracleBatch2Stream;
+
+typedef struct JinxOracleBatch2Gzip {
+    gzFile gz;
+} JinxOracleBatch2Gzip;
+
+typedef struct JinxOracleBatch2Deflate {
+    z_stream stream;
+    int initialized;
+} JinxOracleBatch2Deflate;
+
+static int b2_object_set_resource(JinxZendObject *object, const char *key, void *ptr) {
+    JinxZendValue value = jinx_zend_null();
+    if (object == NULL || object->properties == NULL || key == NULL) return 0;
+    value.type = JINX_ZEND_RESOURCE;
+    value.value.ptr = ptr;
+    return jinx_zend_array_add_assoc(object->properties, key, strlen(key), value);
+}
+
+static void *b2_object_resource(
+    JinxValue value,
+    const char *class_name,
+    const char *property
+) {
+    JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
+    JinxZendValue *slot;
+    if (object == NULL || object->class_name == NULL ||
+        strcmp(object->class_name, class_name) != 0 ||
+        object->properties == NULL) return NULL;
+    slot = jinx_zend_array_find(object->properties, property, strlen(property));
+    if (slot == NULL || slot->type != JINX_ZEND_RESOURCE) return NULL;
+    return slot->value.ptr;
+}
+
+static JinxOracleBatch2Stream *b2_stream(JinxValue value) {
+    return (JinxOracleBatch2Stream *)b2_object_resource(value, "stream", "__stream");
+}
+
+static JinxValue b2_new_stream(FILE *fp) {
+    JinxOracleBatch2Stream *stream;
+    JinxZendObject *object;
+    if (fp == NULL) return jinx_oracle_zero_value();
+    stream = (JinxOracleBatch2Stream *)calloc(1u, sizeof(*stream));
+    if (stream == NULL) {
+        fclose(fp);
+        return jinx_oracle_zero_value();
+    }
+    stream->fp = fp;
+    object = jinx_zend_object_new("stream");
+    if (object == NULL || !b2_object_set_resource(object, "__stream", stream)) {
+        fclose(fp);
+        free(stream);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxOracleBatch2Gzip *b2_gzip(JinxValue value) {
+    return (JinxOracleBatch2Gzip *)b2_object_resource(value, "gzip-stream", "__gzip");
+}
+
+static JinxValue b2_new_gzip(gzFile gz) {
+    JinxOracleBatch2Gzip *stream;
+    JinxZendObject *object;
+    if (gz == NULL) return jinx_oracle_zero_value();
+    stream = (JinxOracleBatch2Gzip *)calloc(1u, sizeof(*stream));
+    if (stream == NULL) {
+        gzclose(gz);
+        return jinx_oracle_zero_value();
+    }
+    stream->gz = gz;
+    object = jinx_zend_object_new("gzip-stream");
+    if (object == NULL || !b2_object_set_resource(object, "__gzip", stream)) {
+        gzclose(gz);
+        free(stream);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxOracleBatch2Deflate *b2_deflate(JinxValue value) {
+    return (JinxOracleBatch2Deflate *)b2_object_resource(value, "DeflateContext", "__deflate");
+}
+
+static JinxValue b2_new_deflate(int encoding) {
+    JinxOracleBatch2Deflate *ctx;
+    JinxZendObject *object;
+    int rc;
+    ctx = (JinxOracleBatch2Deflate *)calloc(1u, sizeof(*ctx));
+    if (ctx == NULL) return jinx_oracle_zero_value();
+    rc = deflateInit2(
+        &ctx->stream,
+        Z_DEFAULT_COMPRESSION,
+        Z_DEFLATED,
+        encoding,
+        8,
+        Z_DEFAULT_STRATEGY
+    );
+    if (rc != Z_OK) {
+        free(ctx);
+        return jinx_oracle_bool_value(0);
+    }
+    ctx->initialized = 1;
+    object = jinx_zend_object_new("DeflateContext");
+    if (object == NULL || !b2_object_set_resource(object, "__deflate", ctx)) {
+        deflateEnd(&ctx->stream);
+        free(ctx);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxValue b2_hostbyname_value(const char *host, int all) {
+    struct addrinfo hints;
+    struct addrinfo *results = NULL;
+    struct addrinfo *it;
+    int rc;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    rc = getaddrinfo(host, NULL, &hints, &results);
+    if (rc != 0 || results == NULL) {
+        if (all) return jinx_oracle_bool_value(0);
+        return jinx_oracle_string_value(host != NULL ? host : "");
+    }
+
+    if (!all) {
+        char ip[INET_ADDRSTRLEN];
+        struct sockaddr_in *sin = (struct sockaddr_in *)results->ai_addr;
+        const char *p = inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof(ip));
+        JinxValue out = p != NULL
+            ? b2_copy(ip, strlen(ip))
+            : jinx_oracle_string_value(host);
+        freeaddrinfo(results);
+        return out;
+    }
+
+    {
+        JinxZendArray *array = jinx_zend_array_new_packed(4u);
+        if (array == NULL) {
+            freeaddrinfo(results);
+            return jinx_oracle_zero_value();
+        }
+        for (it = results; it != NULL; it = it->ai_next) {
+            char ip[INET_ADDRSTRLEN];
+            struct sockaddr_in *sin;
+            if (it->ai_family != AF_INET) continue;
+            sin = (struct sockaddr_in *)it->ai_addr;
+            if (inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof(ip)) == NULL) continue;
+            if (!b2_append_string(array, ip)) {
+                jinx_zend_array_release(array);
+                freeaddrinfo(results);
+                return jinx_oracle_zero_value();
+            }
+        }
+        freeaddrinfo(results);
+        return jinx_oracle_zend_array_value_owned(array);
+    }
 }
 
 JinxValue jinx_oracle_batch2_builtin(
