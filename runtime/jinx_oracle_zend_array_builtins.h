@@ -486,6 +486,10 @@ static inline int jinx_oracle_jinx_value_to_zend(JinxValue value, JinxZendValue 
         *out = jinx_zend_array_value(jinx_oracle_zend_array_ptr(value));
         return 1;
     }
+    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT && value.as.ptr != 0) {
+        *out = jinx_zend_object_value((JinxZendObject *)value.as.ptr);
+        return 1;
+    }
 
     return 0;
 }
