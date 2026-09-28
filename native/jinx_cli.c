@@ -61,6 +61,7 @@ static void usage(const char *argv0) {
     printf("  fp:tmp        native temporary stream fixture\n");
     printf("  gz:tmp        native temporary gzip stream fixture\n");
     printf("  deflate:gzip  native gzip DeflateContext fixture\n");
+    printf("  hash:<algo>   native HashContext fixture when OpenSSL is available\n");
     printf("  null          null value\n");
     printf("  raw text defaults to string\n");
 }
@@ -561,7 +562,8 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
         strncmp(text, "di:", 3) == 0 ||
         strcmp(text, "fp:tmp") == 0 ||
         strcmp(text, "gz:tmp") == 0 ||
-        strncmp(text, "deflate:", 8) == 0) {
+        strncmp(text, "deflate:", 8) == 0 ||
+        strncmp(text, "hash:", 5) == 0) {
         return jinx_oracle_extended_fixture(text);
     }
 
