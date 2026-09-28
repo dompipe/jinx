@@ -737,6 +737,7 @@ void jinx_zend_frame_enter(
     frame->scope_name = 0;
     frame->args = args;
     frame->argc = argc;
+    frame->locals = jinx_zend_array_new_packed(argc + 4u);
     frame->return_value = jinx_zend_null();
     frame->previous = executor->current_frame;
     executor->current_frame = frame;
@@ -744,11 +745,39 @@ void jinx_zend_frame_enter(
     executor->executed_ops++;
 }
 
+int jinx_zend_frame_set_local(
+    JinxZendCallFrame *frame,
+    const char *name,
+    JinxZendValue value
+) {
+    if (frame == 0 || frame->locals == 0 || name == 0) {
+        return 0;
+    }
+    return jinx_zend_array_add_assoc(
+        frame->locals, name, strlen(name), value
+    );
+}
+
+JinxZendValue *jinx_zend_frame_get_local(
+    JinxZendCallFrame *frame,
+    const char *name
+) {
+    if (frame == 0 || frame->locals == 0 || name == 0) {
+        return 0;
+    }
+    return jinx_zend_array_find(
+        frame->locals, name, strlen(name)
+    );
+}
+
 JinxZendValue jinx_zend_frame_leave(JinxZendExecutor *executor, JinxZendValue return_value) {
     if (executor != 0 && executor->current_frame != 0) {
-        executor->current_frame->return_value = return_value;
-        executor->current_frame = executor->current_frame->previous;
+        JinxZendCallFrame *leaving = executor->current_frame;
+        leaving->return_value = return_value;
+        executor->current_frame = leaving->previous;
         jinx_oracle_set_caller_frame(executor->current_frame);
+        jinx_zend_array_release(leaving->locals);
+        leaving->locals = 0;
         executor->executed_ops++;
     }
 
