@@ -27,6 +27,7 @@ static void usage(const char *argv0) {
     printf("Usage:\n");
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
+    printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
@@ -974,6 +975,73 @@ static int command_bench_all_functions(int argc, char **argv) {
     return 0;
 }
 
+static int command_oracle_constant_smoke(void) {
+    const char *constant_name = "__JINX_NATIVE_RUNTIME_CONSTANT_SMOKE__";
+    JinxValue define_args[2];
+    JinxValue lookup_args[1];
+    JinxValue result;
+    int ok = 0;
+
+    define_args[0] = jinx_value_string(
+        constant_name, (uint32_t)strlen(constant_name)
+    );
+    define_args[1] = jinx_value_int(73);
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "define", define_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        return fail("native define did not create runtime constant");
+    }
+    release_cli_value(result);
+
+    lookup_args[0] = define_args[0];
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "defined", lookup_args, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        return fail("native defined did not see runtime constant");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "constant", lookup_args, 1u, &ok
+    );
+    if (!ok || result.type != 1u || result.as.i64 != 73) {
+        release_cli_value(result);
+        return fail("native constant did not return runtime constant value");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "get_defined_constants", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("native get_defined_constants did not return registry array");
+    }
+    {
+        JinxZendArray *array = jinx_oracle_zend_array_ptr(result);
+        JinxZendValue *slot = jinx_zend_array_find(
+            array, constant_name, strlen(constant_name)
+        );
+        if (slot == NULL || slot->type != JINX_ZEND_LONG ||
+            slot->value.lval != 73) {
+            release_cli_value(result);
+            return fail("runtime constant missing from get_defined_constants");
+        }
+    }
+    release_cli_value(result);
+
+    printf("PASS: native define/defined/constant/get_defined_constants share one runtime registry\n");
+    return 0;
+}
+
 static int command_oracle_smoke(void) {
     long long value = 0;
     JinxValue result;
@@ -1110,6 +1178,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-smoke") == 0) {
         return command_oracle_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-constant-smoke") == 0) {
+        return command_oracle_constant_smoke();
     }
 
     if (strcmp(argv[1], "oracle-call") == 0) {
