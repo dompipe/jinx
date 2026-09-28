@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 712,
-        "extended_native_route": 414,
+        "native_named_route": 716,
+        "extended_native_route": 418,
         "context_native_route": 3,
-        "intentional_native_fault": 2815
+        "intentional_native_fault": 2811
     },
     "routes": {
         "_": "extended",
@@ -1258,10 +1258,10 @@
         "memory_reset_peak_usage": "intentional-native-fault",
         "metaphone": "asm",
         "method_exists": "extended",
-        "mhash": "intentional-native-fault",
-        "mhash_count": "intentional-native-fault",
-        "mhash_get_block_size": "intentional-native-fault",
-        "mhash_get_hash_name": "intentional-native-fault",
+        "mhash": "extended",
+        "mhash_count": "extended",
+        "mhash_get_block_size": "extended",
+        "mhash_get_hash_name": "extended",
         "mhash_keygen_s2k": "intentional-native-fault",
         "microtime": "extended",
         "mime_content_type": "intentional-native-fault",
