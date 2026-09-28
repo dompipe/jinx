@@ -2489,6 +2489,24 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
+    if (strcmp(name, "ignore_user_abort") == 0) {
+        const JinxNativeIniMeta *meta = b2_ini_meta("ignore_user_abort");
+        const char *current = meta != NULL ? b2_ini_current(meta) : "0";
+        int64_t old_value = current != NULL && atoi(current) != 0 ? 1 : 0;
+        if (args != NULL && argc >= 1u && args[0].type != 0u) {
+            int set_ok = 0;
+            JinxValue updated = b2_ini_set_value(
+                "ignore_user_abort",
+                jinx_oracle_bool_value(jinx_oracle_boolish(args[0])),
+                &set_ok
+            );
+            (void)updated;
+            if (!set_ok) return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(old_value);
+    }
+
     if (strcmp(name, "connection_aborted") == 0 ||
         strcmp(name, "connection_status") == 0) {
         if (handled != NULL) *handled = 1;
@@ -2512,6 +2530,30 @@ JinxValue jinx_oracle_batch2_builtin(
         }
         if (handled != NULL) *handled = 1;
         return b2_copy(buffer, strlen(buffer));
+    }
+
+    if (strcmp(name, "putenv") == 0) {
+        char *setting;
+        char *equals;
+        int rc;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        setting = b2_dup(args[0]);
+        if (setting == NULL) return result;
+        if (setting[0] == '\0' || setting[0] == '=') {
+            free(setting);
+            return result;
+        }
+        equals = strchr(setting, '=');
+        if (equals == NULL) {
+            rc = unsetenv(setting);
+        } else {
+            *equals = '\0';
+            rc = setenv(setting, equals + 1, 1);
+        }
+        if (strcasecmp(setting, "TZ") == 0) tzset();
+        free(setting);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
     }
 
     if (strcmp(name, "getenv") == 0) {
