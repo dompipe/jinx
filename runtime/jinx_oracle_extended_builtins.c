@@ -1491,6 +1491,29 @@ JinxValue jinx_oracle_extended_builtin(
         return result;
     }
 
+    {
+        const char *procedural_alias = NULL;
+        if (strcmp(name, "DateTime::getTimestamp") == 0 ||
+            strcmp(name, "DateTimeImmutable::getTimestamp") == 0) {
+            procedural_alias = "date_timestamp_get";
+        } else if (strcmp(name, "DateTime::getOffset") == 0 ||
+                   strcmp(name, "DateTimeImmutable::getOffset") == 0) {
+            procedural_alias = "date_offset_get";
+        } else if (strcmp(name, "DateTimeZone::getName") == 0) {
+            procedural_alias = "timezone_name_get";
+        } else if (strcmp(name, "DateTimeZone::getOffset") == 0) {
+            procedural_alias = "timezone_offset_get";
+        } else if (strcmp(name, "DateInterval::format") == 0) {
+            procedural_alias = "date_interval_format";
+        }
+
+        if (procedural_alias != NULL) {
+            return jinx_oracle_extended_builtin(
+                procedural_alias, args, argc, handled
+            );
+        }
+    }
+
     if (strcmp(name, "is_callable") == 0) {
         char *callable;
         int answer;
