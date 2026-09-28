@@ -2219,6 +2219,54 @@ JinxValue jinx_oracle_batch2_builtin(
             : jinx_oracle_bool_value(0);
     }
 
+    if (strcmp(name, "hrtime") == 0) {
+        struct timespec ts;
+        int as_number = args != NULL && argc >= 1u && jinx_oracle_boolish(args[0]);
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        if (as_number) {
+            int64_t total = (int64_t)ts.tv_sec * 1000000000LL + (int64_t)ts.tv_nsec;
+            return jinx_oracle_int_value(total);
+        }
+        {
+            JinxZendArray *array = jinx_zend_array_new_packed(2u);
+            if (array == NULL) return result;
+            if (!jinx_zend_array_append(array, jinx_zend_long((int64_t)ts.tv_sec)) ||
+                !jinx_zend_array_append(array, jinx_zend_long((int64_t)ts.tv_nsec))) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+            return jinx_oracle_zend_array_value_owned(array);
+        }
+    }
+
+    if (strcmp(name, "microtime") == 0) {
+        struct timeval tv;
+        int as_float = args != NULL && argc >= 1u && jinx_oracle_boolish(args[0]);
+        if (gettimeofday(&tv, NULL) != 0) return result;
+        if (handled != NULL) *handled = 1;
+        if (as_float) {
+            return jinx_oracle_float_value(
+                (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0
+            );
+        }
+        {
+            char buffer[96];
+            int written = snprintf(
+                buffer,
+                sizeof(buffer),
+                "%.8f %lld",
+                (double)tv.tv_usec / 1000000.0,
+                (long long)tv.tv_sec
+            );
+            if (written < 0 || (size_t)written >= sizeof(buffer)) return result;
+            return b2_copy(buffer, (size_t)written);
+        }
+    }
+
     if (strcmp(name, "gettimeofday") == 0) {
         struct timeval tv;
         if (gettimeofday(&tv, NULL) != 0) return result;
