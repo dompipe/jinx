@@ -32,6 +32,7 @@ $mustFault = [
     ['str_split', 's:abc', 'i:0'],
     ['count_chars', 's:abc', 'i:9'],
     ['range', 'i:1', 'i:10', 'i:0'],
+    ['range', 'i:1', 'i:5', 'i:9'],
     ['array_combine', 'za:sample', 'za:strings'],
     ['array_rand', 'za:sample', 'i:0'],
     ['array_fill', 'i:0', 'i:-1', 'i:9'],
@@ -88,12 +89,6 @@ foreach ($arrayConversions as [$name, $arg, $expected]) {
 $out = runReturn([$jinx, 'oracle-call', 'strval', 'dt:2024-01-02 03:04:05'], $code);
 if ($code === 0 || !str_contains($out, 'null/fault: strval')) {
     failReturn("strval(DateTime) fabricated a scalar value instead of requiring __toString: {$out}");
-}
-
-/* A step larger than the distance is still a valid one-element integer range. */
-$out = runReturn([$jinx, 'oracle-call', 'range', 'i:1', 'i:2', 'i:3'], $code);
-if ($code !== 0 || $out !== 'zend-array:1') {
-    failReturn("range(1, 2, 3) expected a one-element array, got {$out}");
 }
 
 /* Object predicates must use class metadata, not hard-coded false. */
