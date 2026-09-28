@@ -170,6 +170,13 @@ $checks = [
     ['get_class_methods', ['s:ArrayIterator'], 'zend-array:' . count(get_class_methods('ArrayIterator') ?: [])],
     ['get_class_vars', ['s:stdClass'], 'zend-array:' . count(get_class_vars('stdClass') ?: [])],
     ['get_include_path', [], 'string:' . get_include_path()],
+    ['set_include_path', ['s:/tmp/jinx-include'], 'string:' . get_include_path()],
+    ['ini_get', ['s:precision'], (($v = ini_get('precision')) === false ? 'bool:false' : 'string:' . $v)],
+    ['ini_set', ['s:precision', 's:13'], (($v = ini_get('precision')) === false ? 'bool:false' : 'string:' . $v)],
+    ['ini_alter', ['s:precision', 's:13'], (($v = ini_get('precision')) === false ? 'bool:false' : 'string:' . $v)],
+    ['ini_restore', ['s:precision'], 'null'],
+    ['ini_get_all', [], 'zend-array:' . count(ini_get_all())],
+    ['ini_get_all', ['s:date', 'b:false'], 'zend-array:' . count(ini_get_all('date', false) ?: [])],
     ['filter_list', [], 'zend-array:' . count(filter_list())],
     ['filter_id', ['s:int'], 'int:' . filter_id('int')],
     ['filter_var', ['s:42', 'i:' . filter_id('int')], 'int:42'],
@@ -351,6 +358,34 @@ if (function_exists('posix_get_last_error') && function_exists('posix_errno')) {
             . $posixErrorSmoke
         );
     }
+}
+
+$phpIniBefore = ini_get('precision');
+$phpIniOld = ini_set('precision', '13');
+$phpIniDuring = ini_get('precision');
+ini_restore('precision');
+$phpIniRestored = ini_get('precision');
+if ($phpIniBefore === false || $phpIniOld === false ||
+    $phpIniDuring === false || $phpIniRestored === false) {
+    fail200('PHP INI smoke fixture failed');
+}
+$iniSmoke = run200(
+    escapeshellarg($jinx) . ' oracle-ini-smoke',
+    $iniSmokeCode
+);
+$iniSmokeExpected = implode(PHP_EOL, [
+    'before=string:' . $phpIniBefore,
+    'set_old=string:' . $phpIniOld,
+    'during=string:' . $phpIniDuring,
+    'restored=string:' . $phpIniRestored,
+]);
+if ($iniSmokeCode !== 0 || $iniSmoke !== $iniSmokeExpected) {
+    fail200(
+        "native INI state smoke mismatch\nExpected:\n"
+        . $iniSmokeExpected
+        . "\nJINX:\n"
+        . $iniSmoke
+    );
 }
 
 $errorSmoke = run200(
