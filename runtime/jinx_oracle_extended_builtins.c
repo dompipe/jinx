@@ -1631,6 +1631,10 @@ JinxValue jinx_oracle_extended_builtin(
 
     if (strcmp(name, "DateTime::getLastErrors") == 0 ||
         strcmp(name, "DateTimeImmutable::getLastErrors") == 0) {
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_value_is_zend_object(args[0])) {
+            return result;
+        }
         return jinx_oracle_extended_builtin(
             "date_get_last_errors", NULL, 0u, handled
         );
