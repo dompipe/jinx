@@ -1531,6 +1531,136 @@ JinxValue jinx_oracle_extended_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    /*
+     * Date/time constructors and static factories. Method wrappers present the
+     * native receiver as args[0]; user-supplied arguments begin at args[1].
+     */
+    if (strcmp(name, "DateTime::__construct") == 0 ||
+        strcmp(name, "DateTimeImmutable::__construct") == 0) {
+        JinxZendObject *object;
+        const char *timezone = jinx_oracle_ext_default_timezone;
+        char *text = NULL;
+        int64_t timestamp;
+
+        if (args == NULL || argc < 1u || argc > 3u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL) return result;
+
+        if (argc >= 2u && args[1].type != 0u) {
+            if (args[1].type != 3u) return result;
+            text = jinx_oracle_ext_dup_string_value(args[1]);
+        } else {
+            text = jinx_oracle_ext_strdup("now");
+        }
+        if (text == NULL) return result;
+
+        if (argc >= 3u && args[2].type != 0u &&
+            !jinx_oracle_ext_timezone_from_value(args[2], &timezone)) {
+            free(text);
+            return result;
+        }
+
+        ok = jinx_oracle_ext_parse_datetime_text(text, timezone, &timestamp);
+        free(text);
+        if (!ok ||
+            !jinx_oracle_ext_object_set_long(object, "timestamp", timestamp) ||
+            !jinx_oracle_ext_object_set_string(object, "timezone", timezone)) {
+            return result;
+        }
+
+        jinx_oracle_ext_set_date_error("");
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "DateTimeZone::__construct") == 0) {
+        JinxZendObject *object;
+        char *timezone;
+
+        if (args == NULL || argc != 2u || args[1].type != 3u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL) return result;
+        timezone = jinx_oracle_ext_dup_string_value(args[1]);
+        if (timezone == NULL) return result;
+        ok = jinx_oracle_ext_timezone_valid(timezone) &&
+            jinx_oracle_ext_object_set_string(object, "timezone", timezone);
+        free(timezone);
+        if (!ok) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "DateInterval::__construct") == 0) {
+        JinxZendObject *object;
+        JinxOracleExtInterval interval;
+        char *spec;
+
+        if (args == NULL || argc != 2u || args[1].type != 3u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL) return result;
+        spec = jinx_oracle_ext_dup_string_value(args[1]);
+        if (spec == NULL) return result;
+        ok = jinx_oracle_ext_parse_interval_text(spec, &interval);
+        free(spec);
+        if (!ok ||
+            !jinx_oracle_ext_object_set_long(object, "y", interval.years) ||
+            !jinx_oracle_ext_object_set_long(object, "m", interval.months) ||
+            !jinx_oracle_ext_object_set_long(object, "d", interval.days) ||
+            !jinx_oracle_ext_object_set_long(object, "h", interval.hours) ||
+            !jinx_oracle_ext_object_set_long(object, "i", interval.minutes) ||
+            !jinx_oracle_ext_object_set_long(object, "s", interval.seconds) ||
+            !jinx_oracle_ext_object_set_long(object, "invert", interval.invert) ||
+            !jinx_oracle_ext_object_set_long(object, "days", interval.total_days)) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "DateTime::createFromFormat") == 0 ||
+        strcmp(name, "DateTimeImmutable::createFromFormat") == 0) {
+        const char *alias =
+            strcmp(name, "DateTimeImmutable::createFromFormat") == 0
+                ? "date_create_immutable_from_format"
+                : "date_create_from_format";
+        if (args == NULL || argc < 3u) return result;
+        return jinx_oracle_extended_builtin(
+            alias, args + 1u, argc - 1u, handled
+        );
+    }
+
+    if (strcmp(name, "DateTime::getLastErrors") == 0 ||
+        strcmp(name, "DateTimeImmutable::getLastErrors") == 0) {
+        return jinx_oracle_extended_builtin(
+            "date_get_last_errors", NULL, 0u, handled
+        );
+    }
+
+    if (strcmp(name, "DateInterval::createFromDateString") == 0) {
+        if (args == NULL || argc != 2u) return result;
+        return jinx_oracle_extended_builtin(
+            "date_interval_create_from_date_string",
+            args + 1u,
+            1u,
+            handled
+        );
+    }
+
+    if (strcmp(name, "DateTime::createFromInterface") == 0) {
+        int64_t timestamp;
+        const char *timezone;
+        if (args == NULL || argc != 2u ||
+            !jinx_oracle_ext_datetime_parts(
+                args[1], NULL, &timestamp, &timezone
+            )) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_ext_new_datetime(
+            "DateTime", timestamp, timezone
+        );
+    }
+
     if (strcmp(name, "DateTime::format") == 0 ||
         strcmp(name, "DateTimeImmutable::format") == 0) {
         int64_t timestamp;
