@@ -221,6 +221,27 @@ if (function_exists('posix_getpid')) {
     }
 }
 
+expect200($jinx, 'hrtime', [], 'zend-array:2');
+$hrNumber = jinx200($jinx, 'hrtime', ['b:true'], false, $code);
+if ($code !== 0 ||
+    !preg_match('/^int:([0-9]+)$/', $hrNumber, $match) ||
+    (int)$match[1] <= 0) {
+    fail200("hrtime numeric contract mismatch\nJINX: {$hrNumber}");
+}
+
+$microFloat = jinx200($jinx, 'microtime', ['b:true'], false, $code);
+if ($code !== 0 ||
+    !preg_match('/^float:([0-9]+(?:\.[0-9]+)?)$/', $microFloat, $match) ||
+    abs((float)$match[1] - microtime(true)) > 5.0) {
+    fail200("microtime float contract mismatch\nJINX: {$microFloat}");
+}
+$microString = jinx200($jinx, 'microtime', [], false, $code);
+if ($code !== 0 ||
+    !preg_match('/^string:0\.[0-9]{8} ([0-9]+)$/', $microString, $match) ||
+    abs((int)$match[1] - time()) > 5) {
+    fail200("microtime string contract mismatch\nJINX: {$microString}");
+}
+
 $randomBytes = jinx200($jinx, 'random_bytes', ['i:16'], true, $code);
 if ($code !== 0 || !preg_match('/^hex:[0-9a-f]{32}$/', $randomBytes)) {
     fail200("random_bytes length/binary contract mismatch\nJINX: {$randomBytes}");
