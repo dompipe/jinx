@@ -1967,16 +1967,18 @@ JinxValue jinx_oracle_extended_builtin(
         original = jinx_oracle_ext_dup_string_value(args[0]);
         alias = jinx_oracle_ext_dup_string_value(args[1]);
         if (original == NULL || alias == NULL) { free(original); free(alias); return result; }
+
+        /*
+         * The generated metadata contains PHP's internal classes. PHP does not
+         * allow class_alias() to alias those as user-defined classes. Until
+         * Oracle's user-class registry is connected here, preserve the exact
+         * internal/missing-class result instead of inventing an alias.
+         */
         meta = jinx_oracle_ext_class_meta(original);
-        ok = meta != NULL && jinx_oracle_ext_class_meta(alias) == NULL &&
-            jinx_oracle_ext_alias_count < JINX_ORACLE_EXT_MAX_ALIASES;
-        if (ok) {
-            jinx_oracle_ext_alias_names[jinx_oracle_ext_alias_count] = alias;
-            jinx_oracle_ext_alias_targets[jinx_oracle_ext_alias_count] = original;
-            jinx_oracle_ext_alias_count++;
-        } else {
-            free(original); free(alias);
-        }
+        ok = 0;
+        (void)meta;
+        free(original);
+        free(alias);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(ok);
     }
