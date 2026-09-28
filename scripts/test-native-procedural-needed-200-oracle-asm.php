@@ -159,6 +159,22 @@ if ($errorSmokeCode !== 0 ||
     )) {
     fail200("native Zend last-error smoke failed\n{$errorSmoke}");
 }
+$scriptSmoke = run200(
+    escapeshellarg($jinx)
+        . ' oracle-script-context-smoke '
+        . escapeshellarg(__FILE__)
+        . ' '
+        . escapeshellarg($root . '/README.md'),
+    $scriptSmokeCode
+);
+if ($scriptSmokeCode !== 0 ||
+    !str_contains(
+        $scriptSmoke,
+        'PASS: native script context drives get_included_files/get_required_files/getlastmod/getmyinode'
+    )) {
+    fail200("native script-context smoke failed\n{$scriptSmoke}");
+}
+
 
 expect200($jinx, 'error_get_last', [], 'null');
 expect200($jinx, 'error_clear_last', [], 'null');
