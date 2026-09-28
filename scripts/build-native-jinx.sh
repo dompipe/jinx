@@ -22,6 +22,8 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
 
 "$CC_BIN" \
     -std=c11 \
+    -D_POSIX_C_SOURCE=200809L \
+    -D_DEFAULT_SOURCE \
     -O2 \
     -Wall \
     -Wextra \
