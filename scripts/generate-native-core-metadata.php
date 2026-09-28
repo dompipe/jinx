@@ -152,6 +152,7 @@ $code[] = '#ifndef JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#define JINX_NATIVE_CORE_METADATA_GENERATED_H';
 $code[] = '#include <stddef.h>';
 $code[] = '#define JINX_NATIVE_PHP_DEFAULT_TIMEZONE ' . cstr($defaultTimezone);
+$code[] = '#define JINX_NATIVE_PHP_ERROR_REPORTING ' . (string)error_reporting() . 'LL';
 $code[] = '#define JINX_NATIVE_PHP_INCLUDE_PATH ' . cstr($includePath);
 $code[] = '';
 $code[] = 'typedef struct JinxNativeClassMeta { const char *name; const char *const *parents; size_t parent_count; const char *const *implements; size_t implements_count; const char *const *uses; size_t uses_count; const char *const *methods; size_t method_count; } JinxNativeClassMeta;';
