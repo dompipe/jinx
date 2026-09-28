@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$jinx = $root . '/bin/jinx';
+$webTools = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/scripts/jinx-web-tools.php');
 
 function fail(string $message): never
 {
@@ -82,7 +82,7 @@ removeTree($cacheRoot);
 
 $cmd = sprintf(
     '%s -S %s --jinx-cache %s %s > %s 2>&1',
-    escapeshellarg($jinx),
+    $webTools,
     escapeshellarg("{$host}:{$port}"),
     escapeshellarg($root . '/fixtures'),
     escapeshellarg($cacheRoot),
@@ -98,7 +98,7 @@ $descriptorSpec = [
 $process = proc_open($cmd, $descriptorSpec, $pipes, $root);
 
 if (!is_resource($process)) {
-    fail('could not start bin/jinx cache server');
+    fail('could not start JINX web helper cache server');
 }
 
 try {
@@ -165,4 +165,4 @@ try {
     proc_close($process);
 }
 
-echo "PASS: bin/jinx -S --jinx-cache serves source endpoint through cached compiled output\n";
+echo "PASS: JINX web helper -S --jinx-cache serves source endpoint through cached compiled output\n";
