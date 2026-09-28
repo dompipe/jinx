@@ -1269,6 +1269,21 @@ JinxValue jinx_oracle_extended_builtin(
     }
 
     /* Date/time constructors and global timezone. */
+    if (strcmp(name, "date") == 0 || strcmp(name, "gmdate") == 0) {
+        int64_t timestamp;
+        const char *timezone;
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        timestamp = argc >= 2u && args[1].type != 0u
+            ? jinx_oracle_intish(args[1])
+            : (int64_t)time(NULL);
+        timezone = strcmp(name, "gmdate") == 0
+            ? "UTC"
+            : jinx_oracle_ext_default_timezone;
+        result = jinx_oracle_ext_date_format_value(timestamp, timezone, args[0]);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "date_default_timezone_get") == 0) {
         if (handled != NULL) *handled = 1;
         return jinx_oracle_string_value(jinx_oracle_ext_default_timezone);
