@@ -3479,5 +3479,67 @@ csv_fail:
         }
     }
 
+    if (strcmp(name, "error_clear_last") == 0) {
+        JinxZendExecutor *executor = jinx_oracle_get_executor();
+        if (executor != NULL) {
+            jinx_zend_executor_clear_last_error(executor);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "error_get_last") == 0) {
+        JinxZendExecutor *executor = jinx_oracle_get_executor();
+        JinxZendArray *array;
+        JinxZendString *message;
+        JinxZendString *file;
+
+        if (executor == NULL || executor->last_error == NULL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        array = jinx_zend_array_new_packed(4u);
+        if (array == NULL) return result;
+
+        message = jinx_zend_string_new(
+            executor->last_error,
+            strlen(executor->last_error)
+        );
+        file = jinx_zend_string_new(
+            executor->last_error_file != NULL ? executor->last_error_file : "",
+            executor->last_error_file != NULL
+                ? strlen(executor->last_error_file)
+                : 0u
+        );
+        if (message == NULL || file == NULL ||
+            !jinx_zend_array_add_assoc(
+                array, "type", 4u,
+                jinx_zend_long((int64_t)executor->error_level)
+            ) ||
+            !jinx_zend_array_add_assoc(
+                array, "message", 7u,
+                jinx_zend_string_value(message)
+            ) ||
+            !jinx_zend_array_add_assoc(
+                array, "file", 4u,
+                jinx_zend_string_value(file)
+            ) ||
+            !jinx_zend_array_add_assoc(
+                array, "line", 4u,
+                jinx_zend_long((int64_t)executor->last_error_line)
+            )) {
+            jinx_zend_string_release(message);
+            jinx_zend_string_release(file);
+            jinx_zend_array_release(array);
+            return result;
+        }
+
+        jinx_zend_string_release(message);
+        jinx_zend_string_release(file);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
     return result;
 }
