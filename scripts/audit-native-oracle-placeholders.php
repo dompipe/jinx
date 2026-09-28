@@ -239,6 +239,10 @@ function sampleArgs(string $name): array
     if ($name === 'closedir') return ['dir:tmp'];
     if ($name === 'get_resource_id' || $name === 'get_resource_type') return ['fp:tmp'];
     if ($name === 'get_resources') return [];
+    if ($name === 'date_sun_info') return ['i:1704067200', 'f:42.3314', 'f:-83.0458'];
+    if ($name === 'date_sunrise' || $name === 'date_sunset') {
+        return ['i:1704067200', 'i:0', 'f:42.3314', 'f:-83.0458', 'f:90.83333333333333', 'f:-5'];
+    }
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
