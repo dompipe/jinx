@@ -2429,6 +2429,7 @@ JinxValue jinx_oracle_extended_builtin(
         strcmp(name, "fread") == 0 ||
         strcmp(name, "fwrite") == 0 ||
         strcmp(name, "fseek") == 0 ||
+        strcmp(name, "rewind") == 0 ||
         strcmp(name, "ftell") == 0 ||
         strcmp(name, "fstat") == 0 ||
         strcmp(name, "fsync") == 0 ||
@@ -2564,6 +2565,14 @@ JinxValue jinx_oracle_extended_builtin(
             if(argc>=3u) whence=(int)jinx_oracle_intish(args[2]);
             if(handled!=NULL)*handled=1;
             return jinx_oracle_int_value(fseek(stream->fp,(long)offset,whence)==0?0:-1);
+        }
+        if (strcmp(name, "rewind") == 0) {
+            int rc;
+            if (argc != 1u) return result;
+            clearerr(stream->fp);
+            rc = fseek(stream->fp, 0L, SEEK_SET);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(rc == 0);
         }
         if (strcmp(name, "ftell") == 0) {
             long pos=ftell(stream->fp);
