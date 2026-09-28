@@ -67,6 +67,9 @@ function sampleArgs(string $name): array
     }
 
     if ($name === 'abs') return ['i:-42'];
+    if ($name === 'max' || $name === 'min') return ['i:3', 'i:9', 'i:-2'];
+    if ($name === 'chunk_split') return ['s:dompipe', 'i:3', 's:-'];
+    if ($name === 'easter_days' || $name === 'easter_date') return ['i:2026'];
     if (preg_match('/^(acos|asin|atan|ceil|cos|cosh|sin|sinh|sqrt|tan|tanh|log|exp|expm1|log1p)$/', $name)) return ['f:1'];
     if ($name === 'acosh') return ['f:2'];
     if ($name === 'atan2' || $name === 'hypot' || $name === 'fmod' || $name === 'fdiv') return ['f:3', 'f:2'];
