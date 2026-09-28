@@ -64,6 +64,29 @@ static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
 
 
+static int b2_random_fill(unsigned char *out, size_t len) {
+    int fd;
+    size_t offset = 0u;
+    if (out == NULL && len != 0u) return 0;
+    fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) return 0;
+    while (offset < len) {
+        ssize_t n = read(fd, out + offset, len - offset);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            close(fd);
+            return 0;
+        }
+        if (n == 0) {
+            close(fd);
+            return 0;
+        }
+        offset += (size_t)n;
+    }
+    close(fd);
+    return 1;
+}
+
 static int b2_assert_option_slot(
     int option,
     int **numeric_slot,
@@ -1451,6 +1474,47 @@ JinxValue jinx_oracle_batch2_builtin(
 
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    if (strcmp(name, "random_bytes") == 0) {
+        int64_t length;
+        char *bytes;
+        if (args == NULL || argc < 1u) return result;
+        length = jinx_oracle_intish(args[0]);
+        if (length <= 0 || (uint64_t)length > UINT32_MAX) return result;
+        bytes = jinx_oracle_scratch_string((uint32_t)length);
+        if (!b2_random_fill((unsigned char *)bytes, (size_t)length)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_string_value_len(bytes, (uint32_t)length);
+    }
+
+    if (strcmp(name, "random_int") == 0) {
+        int64_t minimum;
+        int64_t maximum;
+        uint64_t span;
+        uint64_t sample;
+        uint64_t selected;
+        int64_t output;
+        if (args == NULL || argc < 2u) return result;
+        minimum = jinx_oracle_intish(args[0]);
+        maximum = jinx_oracle_intish(args[1]);
+        if (minimum > maximum) return result;
+
+        span = (uint64_t)maximum - (uint64_t)minimum + 1u;
+        if (span == 0u) {
+            if (!b2_random_fill((unsigned char *)&sample, sizeof(sample))) return result;
+            memcpy(&output, &sample, sizeof(output));
+        } else {
+            uint64_t cutoff = UINT64_MAX - (UINT64_MAX % span);
+            do {
+                if (!b2_random_fill((unsigned char *)&sample, sizeof(sample))) return result;
+            } while (sample >= cutoff);
+            selected = (uint64_t)minimum + (sample % span);
+            memcpy(&output, &selected, sizeof(output));
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(output);
+    }
 
     if (strcmp(name, "posix_getpid") == 0) {
         if (handled != NULL) *handled = 1;
