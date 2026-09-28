@@ -267,6 +267,22 @@ static void *b2_object_resource(
     return slot->value.ptr;
 }
 
+static void *b2_registered_resource_pointer(JinxValue value) {
+    JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
+    const char *keys[] = { "__stream", "__gzip", "__dir" };
+    if (object == NULL || object->properties == NULL) return NULL;
+    for (size_t i = 0u; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        JinxZendValue *slot = jinx_zend_array_find(
+            object->properties, keys[i], strlen(keys[i])
+        );
+        if (slot != NULL && slot->type == JINX_ZEND_RESOURCE &&
+            slot->value.ptr != NULL) {
+            return slot->value.ptr;
+        }
+    }
+    return NULL;
+}
+
 static JinxOracleBatch2Dir *b2_dir(JinxValue value) {
     return (JinxOracleBatch2Dir *)b2_object_resource(
         value, "directory-stream", "__dir"
@@ -1957,24 +1973,47 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_string_value(JINX_NATIVE_PHP_INCLUDE_PATH);
     }
 
-    if (strcmp(name, "get_resource_type") == 0) {
+    if (strcmp(name, "get_resource_id") == 0 ||
+        strcmp(name, "get_resource_type") == 0) {
         JinxZendObject *object;
+        void *ptr;
+        int64_t id;
+        const char *type_name;
         if (args == NULL || argc < 1u ||
             args[0].type != JINX_ORACLE_VALUE_ZEND_OBJECT) return result;
         object = jinx_oracle_zend_object_ptr(args[0]);
         if (object == NULL || object->class_name == NULL) return result;
-        if (strcmp(object->class_name, "stream") == 0) {
-            if (handled != NULL) *handled = 1;
-            return jinx_oracle_string_value("stream");
-        }
-        if (strcmp(object->class_name, "gzip-stream") == 0) {
-            if (handled != NULL) *handled = 1;
-            return jinx_oracle_string_value("stream");
-        }
+
         if (strcmp(object->class_name, "closed-resource") == 0) {
-            if (handled != NULL) *handled = 1;
-            return jinx_oracle_string_value("Unknown");
+            if (strcmp(name, "get_resource_type") == 0) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_string_value("Unknown");
+            }
+            return result;
         }
+
+        ptr = b2_registered_resource_pointer(args[0]);
+        if (ptr == NULL) return result;
+        id = jinx_oracle_resource_id(ptr);
+        type_name = jinx_oracle_resource_type(ptr);
+        if (id <= 0 || type_name == NULL) return result;
+
+        if (handled != NULL) *handled = 1;
+        return strcmp(name, "get_resource_id") == 0
+            ? jinx_oracle_int_value(id)
+            : jinx_oracle_string_value(type_name);
+    }
+
+    if (strcmp(name, "get_resources") == 0) {
+        char *type_name = NULL;
+        if (argc >= 1u && args != NULL && args[0].type != 0u) {
+            if (args[0].type != 3u) return result;
+            type_name = b2_dup(args[0]);
+            if (type_name == NULL) return result;
+        }
+        result = jinx_oracle_resource_list_value(type_name);
+        free(type_name);
+        if (result.type != 0u && handled != NULL) *handled = 1;
         return result;
     }
 
