@@ -143,6 +143,62 @@ function sampleArgs(string $name): array
     if ($name === 'pathinfo') return ['s:/tmp/example.txt'];
     if ($name === 'stat') return ['s:README.md'];
     if ($name === 'unlink') return ['s:/__jinx_oracle_missing__/unlink-audit'];
+    if ($name === '_' || $name === 'gettext') return ['s:hello'];
+    if ($name === 'bindtextdomain') return ['s:jinx', 's:.'];
+    if ($name === 'bind_textdomain_codeset') return ['s:jinx', 's:UTF-8'];
+    if ($name === 'dgettext') return ['s:jinx', 's:hello'];
+    if ($name === 'dcgettext') return ['s:jinx', 's:hello', 'i:5'];
+    if ($name === 'dngettext') return ['s:jinx', 's:one', 's:many', 'i:2'];
+    if ($name === 'dcngettext') return ['s:jinx', 's:one', 's:many', 'i:2', 'i:5'];
+    if (in_array($name, ['connection_aborted', 'connection_status', 'error_reporting'], true)) return [];
+    if ($name === 'function_exists') return ['s:strlen'];
+    if ($name === 'enum_exists') return ['s:__JinxMissingEnum'];
+    if ($name === 'interface_exists') return ['s:Countable'];
+    if ($name === 'extension_loaded') return ['s:Core'];
+    if (in_array($name, ['get_declared_classes', 'get_declared_interfaces', 'get_declared_traits',
+        'get_defined_constants', 'get_defined_functions', 'get_loaded_extensions'], true)) return [];
+    if ($name === 'get_extension_funcs') return ['s:Core'];
+    if (in_array($name, ['get_class', 'get_parent_class', 'get_object_vars', 'get_mangled_object_vars'], true)) {
+        return ['obj:ArrayIterator'];
+    }
+    if ($name === 'getcwd' || $name === 'getmypid' || $name === 'getmyuid' ||
+        $name === 'getmygid' || $name === 'get_current_user' || $name === 'gethostname' ||
+        $name === 'getrusage' || $name === 'flush' || $name === 'closelog') return [];
+    if ($name === 'getenv') return ['s:PATH'];
+    if ($name === 'gethostbyname' || $name === 'gethostbynamel') return ['s:localhost'];
+    if ($name === 'gethostbyaddr') return ['s:127.0.0.1'];
+    if ($name === 'getprotobyname') return ['s:tcp'];
+    if ($name === 'getprotobynumber') return ['i:6'];
+    if ($name === 'getservbyname') return ['s:http', 's:tcp'];
+    if ($name === 'getservbyport') return ['i:80', 's:tcp'];
+    if ($name === 'gettimeofday') return ['b:true'];
+    if (in_array($name, ['disk_free_space', 'disk_total_space', 'diskfreespace'], true)) return ['s:.'];
+    if ($name === 'ftok') return ['s:README.md', 's:J'];
+    if ($name === 'fnmatch') return ['s:*.md', 's:README.md'];
+    if ($name === 'error_log') return ['s:jinx-audit'];
+    if ($name === 'escapeshellarg' || $name === 'escapeshellcmd') return ['s:a b'];
+    if ($name === 'chroot') return ['s:/__jinx_oracle_missing__'];
+    if ($name === 'fsockopen') return ['s:127.0.0.1', 'i:1'];
+    if ($name === 'ftruncate') return ['fp:tmp', 'i:2'];
+    if ($name === 'fputs') return ['fp:tmp', 's:x'];
+    if ($name === 'fprintf') return ['fp:tmp', 's:%s', 's:x'];
+    if ($name === 'fpassthru') return ['fp:tmp'];
+    if ($name === 'getdate') return ['i:1704067200'];
+    if ($name === 'gmmktime') return ['i:0', 'i:0', 'i:0', 'i:1', 'i:1', 'i:2024'];
+    if ($name === 'gmstrftime') return ['s:%Y-%m-%d', 'i:1704067200'];
+    if ($name === 'gzopen') return ['s:/__jinx_oracle_missing__.gz', 's:rb'];
+    if (in_array($name, ['gzclose', 'gzeof', 'gzgetc', 'gzpassthru', 'gzrewind', 'gztell'], true)) {
+        return ['gz:tmp'];
+    }
+    if ($name === 'gzgets') return ['gz:tmp', 'i:64'];
+    if ($name === 'gzread') return ['gz:tmp', 'i:4'];
+    if ($name === 'gzseek') return ['gz:tmp', 'i:0', 'i:0'];
+    if ($name === 'gzwrite' || $name === 'gzputs') return ['gz:tmp', 's:x'];
+    if ($name === 'gzfile') return ['s:/__jinx_oracle_missing__.gz'];
+    if ($name === 'deflate_init') return ['i:31'];
+    if ($name === 'deflate_add') return ['deflate:gzip', 's:hello', 'i:2'];
+    if ($name === 'hash_equals') return ['s:abc', 's:abc'];
+
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
