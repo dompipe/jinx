@@ -7368,6 +7368,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "bin2hex")) {
         ret = jinx_oracle_bin2hex_value(arg0);
+        if (ret.type != 3u) {
+            ctx->fault = "bin2hex native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7386,6 +7390,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "addslashes")) {
         ret = jinx_oracle_addslashes_value(arg0);
+        if (ret.type != 3u) {
+            ctx->fault = "addslashes native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7398,6 +7406,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "quotemeta")) {
         ret = jinx_oracle_quotemeta_value(arg0);
+        if (ret.type != 3u) {
+            ctx->fault = "quotemeta native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7423,12 +7435,20 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
             jinx_oracle_call_arg(ctx, 2u),
             argc
         );
+        if (ret.type != 3u) {
+            ctx->fault = "chunk_split native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
 
     if (jinx_oracle_name_is(name, "addcslashes")) {
         ret = jinx_oracle_addcslashes_value(arg0, arg1);
+        if (ret.type != 3u) {
+            ctx->fault = "addcslashes native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7486,6 +7506,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "levenshtein")) {
         ret = jinx_oracle_levenshtein_value(arg0, arg1);
+        if (ret.type != 1u) {
+            ctx->fault = "levenshtein native calculation failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7494,6 +7518,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
         ret = jinx_oracle_htmlspecialchars_value(
             arg0, arg1, jinx_oracle_call_arg(ctx, 3u), argc
         );
+        if (ret.type != 3u) {
+            ctx->fault = "htmlspecialchars native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7506,6 +7534,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "base64_encode")) {
         ret = jinx_oracle_base64_encode_value(arg0);
+        if (ret.type != 3u) {
+            ctx->fault = "base64_encode native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7518,6 +7550,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_in2(name, "urlencode", "rawurlencode")) {
         ret = jinx_oracle_urlencode_value(arg0, jinx_oracle_name_is(name, "rawurlencode"));
+        if (ret.type != 3u) {
+            ctx->fault = "urlencode native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7536,12 +7572,20 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "dirname")) {
         ret = jinx_oracle_dirname_value(arg0, arg1, argc);
+        if (ret.type != 3u) {
+            ctx->fault = "dirname native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
 
     if (jinx_oracle_name_is(name, "base_convert")) {
         ret = jinx_oracle_base_convert_value(arg0, arg1, jinx_oracle_call_arg(ctx, 2u));
+        if (ret.type != 3u) {
+            ctx->fault = "base_convert native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7556,6 +7600,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     if (jinx_oracle_name_in3(name, "decbin", "dechex", "decoct")) {
         int base = jinx_oracle_name_is(name, "decbin") ? 2 : (jinx_oracle_name_is(name, "dechex") ? 16 : 8);
         ret = jinx_oracle_uint_to_base((uint64_t)jinx_oracle_intish(arg0), base);
+        if (ret.type != 3u) {
+            ctx->fault = "integer base formatting failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7597,6 +7645,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "quoted_printable_encode")) {
         ret = jinx_oracle_quoted_printable_encode_value(arg0);
+        if (ret.type != 3u) {
+            ctx->fault = "quoted_printable_encode native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7618,6 +7670,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "nl2br")) {
         ret = jinx_oracle_nl2br_value(arg0, arg1, argc);
+        if (ret.type != 3u) {
+            ctx->fault = "nl2br native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
@@ -7712,6 +7768,10 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
 
     if (jinx_oracle_name_is(name, "convert_uuencode")) {
         ret = jinx_oracle_uuencode_value(arg0);
+        if (ret.type != 3u) {
+            ctx->fault = "convert_uuencode native string result failed";
+            return jinx_oracle_zero_value();
+        }
         jinx_oracle_return(ctx, ret);
         return ret;
     }
