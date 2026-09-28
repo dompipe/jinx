@@ -1,4 +1,5 @@
 #include "jinx_oracle_extended_builtins.h"
+#include "jinx_oracle_batch2_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -2337,6 +2338,17 @@ JinxValue jinx_oracle_extended_builtin(
         }
         if (handled != NULL) *handled = 1;
         return jinx_oracle_ext_constant_value(meta);
+    }
+
+    {
+        int batch2_handled = 0;
+        JinxValue batch2_result = jinx_oracle_batch2_builtin(
+            name, args, argc, &batch2_handled
+        );
+        if (batch2_handled) {
+            if (handled != NULL) *handled = 1;
+            return batch2_result;
+        }
     }
 
     return result;
