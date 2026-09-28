@@ -967,6 +967,52 @@ if ($code === 0 && !str_starts_with($hashProbe, 'null/fault:')) {
             ['s:' . $opensslMethod],
             'int:' . openssl_cipher_key_length($opensslMethod)
         );
+        expect200(
+            $jinx,
+            'openssl_get_cipher_methods',
+            [],
+            'zend-array:' . count(openssl_get_cipher_methods(false))
+        );
+        expect200(
+            $jinx,
+            'openssl_get_cipher_methods',
+            ['b:true'],
+            'zend-array:' . count(openssl_get_cipher_methods(true))
+        );
+        expect200(
+            $jinx,
+            'openssl_get_md_methods',
+            [],
+            'zend-array:' . count(openssl_get_md_methods(false))
+        );
+        expect200(
+            $jinx,
+            'openssl_get_md_methods',
+            ['b:true'],
+            'zend-array:' . count(openssl_get_md_methods(true))
+        );
+        if (function_exists('openssl_get_curve_names')) {
+            expect200(
+                $jinx,
+                'openssl_get_curve_names',
+                [],
+                'zend-array:' . count(openssl_get_curve_names())
+            );
+        }
+        $opensslRandom = jinx200(
+            $jinx,
+            'openssl_random_pseudo_bytes',
+            ['i:16'],
+            true,
+            $opensslRandomCode
+        );
+        if ($opensslRandomCode !== 0 ||
+            !preg_match('/^hex:[0-9a-f]{32}$/', $opensslRandom)) {
+            fail200(
+                "openssl_random_pseudo_bytes length/binary contract mismatch\n"
+                . "JINX: {$opensslRandom}"
+            );
+        }
 
         $phpOpenSslBase64 = openssl_encrypt(
             $opensslData,
