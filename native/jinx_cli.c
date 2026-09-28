@@ -10,6 +10,7 @@
 #include "../runtime/jinx_function_list.generated.h"
 #include "../runtime/jinx_oracle_zend_array_carrier.h"
 #include "../runtime/jinx_oracle_extended_builtins.h"
+#include "../runtime/jinx_oracle_method_dispatch.h"
 #include "../runtime/jinx_oracle_script_context.h"
 #include "../runtime/jinx_zend_array_delete.h"
 #include "../runtime/jinx_pasm_machine.h"
@@ -41,6 +42,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-strptime-smoke\n", argv0);
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
+    printf("  %s oracle-method-call <Class::method> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
@@ -2017,6 +2019,76 @@ static int command_oracle_call(int argc, char **argv, int output_mode) {
     return exit_code;
 }
 
+static int command_oracle_method_call(int argc, char **argv) {
+    const char *name;
+    JinxValue receiver;
+    JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    JinxValue result = jinx_value_null();
+    int supplied_argc;
+    int oracle_ok = 0;
+    int exit_code = 0;
+    void *owned_receiver = NULL;
+    void *owned_args[JINX_NATIVE_SAMPLE_ARGC] = {0};
+
+    if (argc < 4) {
+        return fail("oracle-method-call requires a method name and receiver fixture");
+    }
+
+    name = argv[2];
+    if (jinx_lookup_oracle_wrapper(name) == NULL) {
+        fprintf(stderr, "missing: %s\n", name);
+        return 1;
+    }
+
+    receiver = parse_cli_value(argv[3], &owned_receiver);
+    if (receiver.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        free(owned_receiver);
+        return fail("oracle-method-call receiver must be a native object fixture");
+    }
+
+    supplied_argc = argc - 4;
+    if ((size_t)supplied_argc > JINX_NATIVE_SAMPLE_ARGC) {
+        release_cli_value(receiver);
+        free(owned_receiver);
+        fprintf(stderr, "too many arguments: max %u\n", JINX_NATIVE_SAMPLE_ARGC);
+        return 1;
+    }
+
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        args[i] = jinx_value_null();
+    }
+    for (int i = 0; i < supplied_argc; i++) {
+        args[i] = parse_cli_value(argv[i + 4], &owned_args[i]);
+    }
+
+    result = jinx_call_method_through_oracle_checked(
+        name, receiver, args, (size_t)supplied_argc, &oracle_ok
+    );
+
+    if (!oracle_ok) {
+        fprintf(stderr, "null/fault: %s\n", name);
+        exit_code = 1;
+    } else {
+        print_value_line(result);
+    }
+
+    if (result.type == JINX_ORACLE_VALUE_ZEND_OBJECT &&
+        receiver.type == JINX_ORACLE_VALUE_ZEND_OBJECT &&
+        result.as.ptr == receiver.as.ptr) {
+        release_cli_value(result);
+        receiver = jinx_value_null();
+    } else {
+        release_cli_value(result);
+    }
+    release_cli_value(receiver);
+    release_cli_values(args, (size_t)supplied_argc);
+    free(owned_receiver);
+    for (size_t i = 0u; i < JINX_NATIVE_SAMPLE_ARGC; i++) {
+        free(owned_args[i]);
+    }
+    return exit_code;
+}
+
 static int command_bench_oracle(int argc, char **argv) {
     long iterations = 1000000;
     JinxValue value;
@@ -2111,6 +2183,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-call") == 0) {
         return command_oracle_call(argc, argv, 0);
+    }
+
+    if (strcmp(argv[1], "oracle-method-call") == 0) {
+        return command_oracle_method_call(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-call-hex") == 0) {
