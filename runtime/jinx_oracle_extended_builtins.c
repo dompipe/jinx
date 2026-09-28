@@ -1717,10 +1717,14 @@ JinxValue jinx_oracle_extended_builtin(
                 memcpy(class_name, name, class_len);
                 class_name[class_len] = '\0';
 
-                if (strcasecmp(class_name, object->class_name) == 0 &&
-                    jinx_oracle_ext_class_is_a_name(
-                        object->class_name, "Throwable", 0, &known
-                    ) && known) {
+                {
+                    int route_known = 0;
+                    if (jinx_oracle_ext_class_is_a_name(
+                            object->class_name, class_name, 0, &route_known
+                        ) && route_known &&
+                        jinx_oracle_ext_class_is_a_name(
+                            object->class_name, "Throwable", 0, &known
+                        ) && known) {
                     const char *method = separator + 2u;
 
                     if (strcasecmp(method, "__wakeup") == 0 &&
@@ -1947,6 +1951,7 @@ JinxValue jinx_oracle_extended_builtin(
                             *handled = 1;
                         }
                         return result;
+                    }
                     }
                 }
             }
