@@ -10,6 +10,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
+#include <openssl/err.h>
 
 typedef struct JinxOracleHashContext {
     EVP_MD_CTX *ctx;
@@ -70,6 +71,32 @@ static JinxValue hash_string_array_value(
             return jinx_oracle_zero_value();
         }
         jinx_zend_string_release(string);
+    }
+    return jinx_oracle_zend_array_value_owned(array);
+}
+
+static JinxValue hash_string_pair_array_value(
+    const JinxNativeStringPair *items,
+    size_t count
+) {
+    JinxZendArray *array = jinx_zend_array_new_packed(count == 0u ? 1u : count);
+    if (array == NULL) return jinx_oracle_zero_value();
+    for (size_t i = 0u; i < count; i++) {
+        JinxZendString *value;
+        if (items[i].name == NULL || items[i].value == NULL) continue;
+        value = jinx_zend_string_new(items[i].value, strlen(items[i].value));
+        if (value == NULL ||
+            !jinx_zend_array_add_assoc(
+                array,
+                items[i].name,
+                strlen(items[i].name),
+                jinx_zend_string_value(value)
+            )) {
+            jinx_zend_string_release(value);
+            jinx_zend_array_release(array);
+            return jinx_oracle_zero_value();
+        }
+        jinx_zend_string_release(value);
     }
     return jinx_oracle_zend_array_value_owned(array);
 }
@@ -513,6 +540,79 @@ JinxValue jinx_oracle_hash_builtin(
     JinxValue result = jinx_oracle_zero_value();
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    if (strcmp(name, "openssl_get_cert_locations") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return hash_string_pair_array_value(
+            jinx_native_openssl_cert_locations,
+            jinx_native_openssl_cert_locations_count
+        );
+    }
+
+    if (strcmp(name, "openssl_error_string") == 0) {
+        unsigned long error_code;
+        char buffer[256];
+        if (argc != 0u) return result;
+        error_code = ERR_get_error();
+        if (handled != NULL) *handled = 1;
+        if (error_code == 0ul) return jinx_oracle_bool_value(0);
+        ERR_error_string_n(error_code, buffer, sizeof(buffer));
+        return hash_copy_bytes(
+            (const unsigned char *)buffer,
+            strlen(buffer)
+        );
+    }
+
+    if (strcmp(name, "openssl_pbkdf2") == 0) {
+        const EVP_MD *md = EVP_sha1();
+        int64_t key_length;
+        int64_t iterations;
+        unsigned char *out;
+        if (args == NULL || argc < 4u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        key_length = jinx_oracle_intish(args[2]);
+        iterations = jinx_oracle_intish(args[3]);
+        if (key_length <= 0 || key_length > INT_MAX ||
+            iterations < INT_MIN || iterations > INT_MAX) {
+            return result;
+        }
+        if (argc >= 5u) {
+            if (args[4].type != 3u) return result;
+            if (jinx_oracle_string_len(args[4]) != 0u) {
+                md = hash_md_from_value(args[4]);
+                if (md == NULL) {
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+            }
+        }
+        if (argc > 5u ||
+            jinx_oracle_string_len(args[0]) > (uint32_t)INT_MAX ||
+            jinx_oracle_string_len(args[1]) > (uint32_t)INT_MAX) {
+            return result;
+        }
+        out = (unsigned char *)malloc((size_t)key_length);
+        if (out == NULL) return result;
+        if (PKCS5_PBKDF2_HMAC(
+                (const char *)jinx_oracle_string_bytes(args[0]),
+                (int)jinx_oracle_string_len(args[0]),
+                jinx_oracle_string_bytes(args[1]),
+                (int)jinx_oracle_string_len(args[1]),
+                (int)iterations,
+                md,
+                (int)key_length,
+                out
+            ) != 1) {
+            free(out);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        result = hash_copy_bytes(out, (size_t)key_length);
+        free(out);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
 
     if (strcmp(name, "openssl_get_cipher_methods") == 0) {
         int aliases = args != NULL && argc >= 1u
