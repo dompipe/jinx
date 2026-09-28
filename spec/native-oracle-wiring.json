@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 658,
-        "extended_native_route": 360,
+        "native_named_route": 660,
+        "extended_native_route": 362,
         "context_native_route": 3,
-        "intentional_native_fault": 2869
+        "intentional_native_fault": 2867
     },
     "routes": {
         "_": "extended",
@@ -1076,7 +1076,7 @@
         "iconv_strrpos": "intentional-native-fault",
         "iconv_substr": "intentional-native-fault",
         "idate": "extended",
-        "ignore_user_abort": "intentional-native-fault",
+        "ignore_user_abort": "extended",
         "image_type_to_extension": "asm",
         "image_type_to_mime_type": "asm",
         "implode": "zend-container",
@@ -1881,7 +1881,7 @@
         "propertyhooktype::cases": "intentional-native-fault",
         "propertyhooktype::from": "intentional-native-fault",
         "propertyhooktype::tryfrom": "intentional-native-fault",
-        "putenv": "intentional-native-fault",
+        "putenv": "extended",
         "quoted_printable_decode": "asm",
         "quoted_printable_encode": "asm",
         "quotemeta": "asm",
