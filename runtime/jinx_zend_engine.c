@@ -718,8 +718,11 @@ void jinx_zend_executor_init(JinxZendExecutor *executor) {
 
     executor->current_frame = 0;
     executor->last_error = 0;
+    executor->last_error_file = 0;
+    executor->last_error_line = 0u;
     executor->error_level = 0;
     executor->executed_ops = 0;
+    jinx_oracle_set_executor(executor);
 }
 
 void jinx_zend_frame_enter(
