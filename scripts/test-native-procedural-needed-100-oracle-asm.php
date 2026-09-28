@@ -101,6 +101,7 @@ function sample100(string $name): array
     if ($name === 'date_timestamp_set') return ['dt:2024-01-02 03:04:05', 'i:1704164645'];
     if ($name === 'date_timezone_set') return ['dt:2024-01-02 03:04:05', 'tz:UTC'];
 
+    if ($name === 'dirname') return ['s:/tmp/example.txt'];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) {
