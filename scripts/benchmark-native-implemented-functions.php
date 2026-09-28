@@ -10,6 +10,8 @@ $iterations = 1000;
 $limit = 0;
 $routeFilter = null;
 $nameFilter = null;
+$caseTimeout = 10;
+$showProgress = true;
 $buildFirst = getenv('JINX_SKIP_BUILD') !== '1';
 
 foreach (array_slice($argv, 1) as $arg) {
@@ -29,6 +31,18 @@ foreach (array_slice($argv, 1) as $arg) {
         $nameFilter = strtolower(substr($arg, strlen('--name=')));
         continue;
     }
+    if (str_starts_with($arg, '--case-timeout=')) {
+        $caseTimeout = max(1, (int) substr($arg, strlen('--case-timeout=')));
+        continue;
+    }
+    if ($arg === '--quiet') {
+        $showProgress = false;
+        continue;
+    }
+    if ($arg === '--no-build') {
+        $buildFirst = false;
+        continue;
+    }
 
     fwrite(STDERR, "Unknown option: {$arg}\n");
     exit(1);
@@ -40,18 +54,79 @@ function benchFail(string $message): never
     exit(1);
 }
 
-function benchRun(string $command, ?int &$code = null): string
-{
-    $lines = [];
-    $status = 0;
-    exec($command . ' 2>&1', $lines, $status);
-    $code = $status;
-    return rtrim(implode(PHP_EOL, $lines), "\r\n");
+function benchRun(
+    string $command,
+    ?int &$code = null,
+    int $timeoutSeconds = 30
+): string {
+    $descriptors = [
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+    $process = proc_open('exec ' . $command, $descriptors, $pipes);
+    if (!is_resource($process)) {
+        $code = 127;
+        return 'could not start command';
+    }
+
+    foreach ($pipes as $pipe) {
+        stream_set_blocking($pipe, false);
+    }
+
+    $output = '';
+    $started = microtime(true);
+    $exitCode = null;
+
+    while (true) {
+        $read = [];
+        foreach ($pipes as $pipe) {
+            if (!feof($pipe)) $read[] = $pipe;
+        }
+
+        if ($read !== []) {
+            $write = null;
+            $except = null;
+            @stream_select($read, $write, $except, 0, 200000);
+            foreach ($read as $pipe) {
+                $chunk = stream_get_contents($pipe);
+                if ($chunk !== false) $output .= $chunk;
+            }
+        } else {
+            usleep(10000);
+        }
+
+        $status = proc_get_status($process);
+        if (!$status['running']) {
+            $exitCode = $status['exitcode'];
+            break;
+        }
+
+        if ((microtime(true) - $started) >= $timeoutSeconds) {
+            proc_terminate($process, 9);
+            $exitCode = 124;
+            $output .= PHP_EOL . "TIMEOUT after {$timeoutSeconds}s";
+            break;
+        }
+    }
+
+    foreach ($pipes as $pipe) {
+        $chunk = stream_get_contents($pipe);
+        if ($chunk !== false) $output .= $chunk;
+        fclose($pipe);
+    }
+
+    $closed = proc_close($process);
+    if (($exitCode === null || $exitCode < 0) && $closed >= 0) {
+        $exitCode = $closed;
+    }
+
+    $code = $exitCode ?? 1;
+    return rtrim($output, "\r\n");
 }
 
-function benchRequireOk(string $command): string
+function benchRequireOk(string $command, int $timeoutSeconds = 180): string
 {
-    $output = benchRun($command, $code);
+    $output = benchRun($command, $code, $timeoutSeconds);
     if ($code !== 0) {
         benchFail("command failed ({$code}): {$command}\n{$output}");
     }
@@ -208,18 +283,18 @@ function benchPhpCase(string $name, array $args, int $iterations): array
 /**
  * @param list<string> $typedArgs
  */
-function benchNativeFunction(string $jinx, string $name, array $typedArgs, int $iterations): array
-{
-    $base = escapeshellarg($jinx) . ' oracle-call ' . escapeshellarg($name);
-    foreach ($typedArgs as $arg) {
-        $base .= ' ' . escapeshellarg($arg);
-    }
-
-    $probe = benchRun($base, $probeCode);
-    if ($probeCode !== 0 || $probe === '' || str_starts_with($probe, 'null/fault')) {
-        return [false, 0.0, 'native sample rejected'];
-    }
-
+function benchNativeFunction(
+    string $jinx,
+    string $name,
+    array $typedArgs,
+    int $iterations,
+    int $timeoutSeconds
+): array {
+    /*
+     * bench-call already performs one checked probe before timing. Running a
+     * separate oracle-call here doubled process launches and let one slow
+     * native route stall the whole benchmark before PHP safety filtering.
+     */
     $command = escapeshellarg($jinx)
         . ' bench-call '
         . escapeshellarg($name)
@@ -229,7 +304,10 @@ function benchNativeFunction(string $jinx, string $name, array $typedArgs, int $
         $command .= ' ' . escapeshellarg($arg);
     }
 
-    $output = benchRun($command, $code);
+    $output = benchRun($command, $code, $timeoutSeconds);
+    if ($code === 124) {
+        return [false, 0.0, "native case timed out after {$timeoutSeconds}s"];
+    }
     if ($code !== 0) {
         return [false, 0.0, 'native benchmark failed: ' . preg_replace('/\s+/', ' ', trim($output))];
     }
@@ -252,7 +330,14 @@ function benchProofForRoute(string $route): string
 }
 
 if ($buildFirst) {
-    benchRequireOk('cd ' . escapeshellarg($root) . ' && ./scripts/build-native-jinx.sh');
+    echo "Building native ./jinx before benchmark...\n";
+    fflush(STDOUT);
+    benchRequireOk(
+        'cd ' . escapeshellarg($root) . ' && ./scripts/build-native-jinx.sh',
+        300
+    );
+    echo "Build complete. Starting implementation benchmark.\n";
+    fflush(STDOUT);
 }
 if (!is_file($jinx) || !is_executable($jinx)) {
     benchFail('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
@@ -267,6 +352,10 @@ if (!is_array($wiring) || !isset($wiring['routes']) || !is_array($wiring['routes
 $rows = [];
 $skipped = [];
 $routeCounts = [];
+$attempted = 0;
+
+echo "Scanning implemented routes (per-case timeout: {$caseTimeout}s)...\n";
+fflush(STDOUT);
 
 foreach ($wiring['routes'] as $name => $route) {
     $name = (string) $name;
@@ -282,25 +371,54 @@ foreach ($wiring['routes'] as $name => $route) {
         continue;
     }
 
+    ++$attempted;
+    if ($showProgress) {
+        printf("[%d] %-42s ", $attempted, $name);
+        fflush(STDOUT);
+    }
+
+    if (($unsafeReason = benchUnsafePhpFunction($name)) !== null) {
+        $skipped[] = [$name, $route, $unsafeReason];
+        if ($showProgress) echo "SKIP ({$unsafeReason})\n";
+        continue;
+    }
+    if (!function_exists($name)) {
+        $reason = 'not available as a PHP global function';
+        $skipped[] = [$name, $route, $reason];
+        if ($showProgress) echo "SKIP ({$reason})\n";
+        continue;
+    }
+
     $typedArgs = jinxNativeOracleSampleArgs($name);
     [$decodable, $phpArgs, $decodeReason] = benchDecodeArgs($typedArgs);
     if (!$decodable) {
         $skipped[] = [$name, $route, $decodeReason];
+        if ($showProgress) echo "SKIP ({$decodeReason})\n";
+        continue;
+    }
+
+    /*
+     * Validate and time PHP first. If the fixture is invalid for PHP, do not
+     * launch the native timing loop at all.
+     */
+    [$phpOk, $phpNs, $phpReason] = benchPhpCase($name, $phpArgs, $iterations);
+    if (!$phpOk) {
+        $skipped[] = [$name, $route, $phpReason];
+        if ($showProgress) echo "SKIP ({$phpReason})\n";
         continue;
     }
 
     [$nativeOk, $nativeNs, $nativeReason] = benchNativeFunction(
-        $jinx, $name, $typedArgs, $iterations
+        $jinx, $name, $typedArgs, $iterations, $caseTimeout
     );
     if (!$nativeOk) {
         $skipped[] = [$name, $route, $nativeReason];
+        if ($showProgress) echo "SKIP ({$nativeReason})\n";
         continue;
     }
 
-    [$phpOk, $phpNs, $phpReason] = benchPhpCase($name, $phpArgs, $iterations);
-    if (!$phpOk) {
-        $skipped[] = [$name, $route, $phpReason];
-        continue;
+    if ($showProgress) {
+        printf("OK (PHP %.1f ns, JINX %.1f ns)\n", $phpNs, $nativeNs);
     }
 
     $rows[] = [
@@ -468,9 +586,19 @@ if ($limit === 0 || count($rows) < $limit) {
         foreach ($case['args'] as $arg) {
             $probe .= ' ' . escapeshellarg($arg);
         }
-        $probeOutput = benchRun($probe, $probeCode);
+        ++$attempted;
+        if ($showProgress) {
+            printf("[%d] %-42s ", $attempted, $case['name']);
+            fflush(STDOUT);
+        }
+
+        $probeOutput = benchRun($probe, $probeCode, $caseTimeout);
         if ($probeCode !== 0 || str_starts_with($probeOutput, 'null/fault')) {
-            $skipped[] = [$case['name'], $caseRoute, 'native method sample rejected'];
+            $reason = $probeCode === 124
+                ? "native method probe timed out after {$caseTimeout}s"
+                : 'native method sample rejected';
+            $skipped[] = [$case['name'], $caseRoute, $reason];
+            if ($showProgress) echo "SKIP ({$reason})\n";
             continue;
         }
 
@@ -485,9 +613,13 @@ if ($limit === 0 || count($rows) < $limit) {
             $nativeCommand .= ' ' . escapeshellarg($arg);
         }
 
-        $nativeOutput = benchRun($nativeCommand, $nativeCode);
+        $nativeOutput = benchRun($nativeCommand, $nativeCode, $caseTimeout);
         if ($nativeCode !== 0 || preg_match('/Per call ns:\\s*([0-9.]+)/', $nativeOutput, $m) !== 1) {
-            $skipped[] = [$case['name'], $caseRoute, 'native method benchmark failed'];
+            $reason = $nativeCode === 124
+                ? "native method benchmark timed out after {$caseTimeout}s"
+                : 'native method benchmark failed';
+            $skipped[] = [$case['name'], $caseRoute, $reason];
+            if ($showProgress) echo "SKIP ({$reason})\n";
             continue;
         }
         $nativeNs = (float) $m[1];
@@ -501,6 +633,10 @@ if ($limit === 0 || count($rows) < $limit) {
             $object->{$method}(...$phpArgs);
         }
         $phpNs = (hrtime(true) - $start) / $iterations;
+
+        if ($showProgress) {
+            printf("OK (PHP %.1f ns, JINX %.1f ns)\n", $phpNs, $nativeNs);
+        }
 
         $rows[] = [
             'name' => $case['name'],
