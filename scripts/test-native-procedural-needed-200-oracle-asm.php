@@ -999,6 +999,38 @@ if ($code === 0 && !str_starts_with($hashProbe, 'null/fault:')) {
                 'zend-array:' . count(openssl_get_curve_names())
             );
         }
+        if (function_exists('openssl_get_cert_locations')) {
+            expect200(
+                $jinx,
+                'openssl_get_cert_locations',
+                [],
+                'zend-array:' . count(openssl_get_cert_locations())
+            );
+        }
+        if (function_exists('openssl_pbkdf2')) {
+            $phpOpenSslPbkdf2 = openssl_pbkdf2(
+                'password',
+                'salt',
+                16,
+                1000,
+                'sha256'
+            );
+            if (!is_string($phpOpenSslPbkdf2)) {
+                fail200('PHP OpenSSL PBKDF2 fixture failed');
+            }
+            expect200(
+                $jinx,
+                'openssl_pbkdf2',
+                ['s:password', 's:salt', 'i:16', 'i:1000', 's:sha256'],
+                'hex:' . bin2hex($phpOpenSslPbkdf2),
+                true
+            );
+        }
+        if (function_exists('openssl_error_string')) {
+            while (openssl_error_string() !== false) {
+            }
+            expect200($jinx, 'openssl_error_string', [], 'bool:false');
+        }
         $opensslRandom = jinx200(
             $jinx,
             'openssl_random_pseudo_bytes',
