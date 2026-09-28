@@ -533,6 +533,8 @@ static inline JinxValue jinx_oracle_zend_range_special(const JinxValue *args, si
         ? jinx_oracle_zend_unsigned_distance(end, start)
         : jinx_oracle_zend_unsigned_distance(start, end);
 
+    if (step > distance) return jinx_oracle_zero_value();
+
     uint64_t count = distance / step + 1u;
     if (count > UINT32_MAX) return jinx_oracle_zero_value();
 
