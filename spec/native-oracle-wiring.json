@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 583,
-        "extended_native_route": 285,
+        "native_named_route": 585,
+        "extended_native_route": 287,
         "context_native_route": 3,
-        "intentional_native_fault": 2944
+        "intentional_native_fault": 2942
     },
     "routes": {
         "_": "extended",
@@ -1199,8 +1199,8 @@
         "ksort": "zend-container",
         "lcfirst": "asm",
         "lcg_value": "intentional-native-fault",
-        "lchgrp": "intentional-native-fault",
-        "lchown": "intentional-native-fault",
+        "lchgrp": "extended",
+        "lchown": "extended",
         "lengthexception::__construct": "intentional-native-fault",
         "lengthexception::__tostring": "intentional-native-fault",
         "lengthexception::__wakeup": "intentional-native-fault",
