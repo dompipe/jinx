@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+typedef struct JinxZendCallFrame JinxZendCallFrame;
+
 typedef JinxValue (*JinxOracleWrapper)(JinxOracleAsmContext *ctx);
 
 typedef struct JinxOracleDispatchEntry {
@@ -15,6 +17,9 @@ typedef struct JinxOracleDispatchEntry {
 } JinxOracleDispatchEntry;
 
 JinxOracleWrapper jinx_lookup_oracle_wrapper(const char *name);
+
+void jinx_oracle_set_caller_frame(JinxZendCallFrame *frame);
+JinxZendCallFrame *jinx_oracle_get_caller_frame(void);
 
 JinxValue jinx_call_builtin_through_oracle_checked(
     const char *name,
