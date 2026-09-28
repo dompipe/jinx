@@ -34,6 +34,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-error-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
+    printf("  %s oracle-runtime-state-smoke\n", argv0);
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
@@ -1869,6 +1870,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-ini-smoke") == 0) {
         return command_oracle_ini_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-runtime-state-smoke") == 0) {
+        return command_oracle_runtime_state_smoke();
     }
 
     if (strcmp(argv[1], "oracle-script-context-smoke") == 0) {
