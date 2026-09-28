@@ -81,6 +81,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_batch2_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_hash_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_finfo_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_resource_registry.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
@@ -154,6 +155,7 @@ echo "Oracle dispatch regenerated: runtime/jinx_builtin_dispatch.generated.c"
 echo "Native class/constant metadata regenerated: runtime/jinx_native_core_metadata.generated.h"
 echo "Extended procedural Oracle backend compiled: runtime/jinx_oracle_extended_builtins.c"
 echo "Second-wave Oracle backend compiled: runtime/jinx_oracle_batch2_builtins.c"
+echo "Native resource registry compiled: runtime/jinx_oracle_resource_registry.c"
 if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
