@@ -167,6 +167,10 @@ if ($code !== 0 || !str_contains($arrayParity, 'PASS: native Oracle ASM Zend-arr
 }
 
 /* Exact scalar/output checks for the extended backend. */
+$phpDefaultTimezone = date_default_timezone_get();
+$phpDefaultZone = new DateTimeZone($phpDefaultTimezone);
+$phpFixtureDate = new DateTimeImmutable('2024-01-02 03:04:05', $phpDefaultZone);
+
 $checks = [
     ['call_user_func', ['s:strlen', 's:oracle'], 'int:' . strlen('oracle')],
     ['call_user_func_array', ['s:max', 'za:sample'], 'int:40'],
@@ -176,16 +180,16 @@ $checks = [
     ['date_create_from_format', ['s:Y-m-d H:i:s', 's:2024-01-02 03:04:05'], 'zend-object:DateTime:2'],
     ['date_create_immutable', ['s:2024-01-02 03:04:05'], 'zend-object:DateTimeImmutable:2'],
     ['date_create_immutable_from_format', ['s:Y-m-d H:i:s', 's:2024-01-02 03:04:05'], 'zend-object:DateTimeImmutable:2'],
-    ['date_default_timezone_get', [], 'string:UTC'],
+    ['date_default_timezone_get', [], 'string:' . $phpDefaultTimezone],
     ['date_default_timezone_set', ['s:UTC'], 'bool:true'],
     ['date_format', ['dt:2024-01-02 03:04:05', 's:Y-m-d H:i:s'], 'string:2024-01-02 03:04:05'],
     ['date_get_last_errors', [], 'bool:false'],
     ['date_interval_create_from_date_string', ['s:1 day'], 'zend-object:DateInterval:8'],
     ['date_interval_format', ['di:1 day', 's:%d'], 'string:1'],
-    ['date_offset_get', ['dt:2024-01-02 03:04:05'], 'int:0'],
+    ['date_offset_get', ['dt:2024-01-02 03:04:05'], 'int:' . $phpFixtureDate->getOffset()],
     ['date_parse', ['s:2024-01-02 03:04:05'], 'zend-array:12'],
     ['date_parse_from_format', ['s:Y-m-d H:i:s', 's:2024-01-02 03:04:05'], 'zend-array:12'],
-    ['date_timestamp_get', ['dt:2024-01-02 03:04:05'], 'int:' . (new DateTimeImmutable('2024-01-02 03:04:05', new DateTimeZone('UTC')))->getTimestamp()],
+    ['date_timestamp_get', ['dt:2024-01-02 03:04:05'], 'int:' . $phpFixtureDate->getTimestamp()],
     ['date_timezone_get', ['dt:2024-01-02 03:04:05'], 'zend-object:DateTimeZone:1'],
     ['class_alias', ['s:stdClass', 's:JinxInternalAliasProbe'], 'bool:false'],
     ['class_exists', ['s:stdClass'], 'bool:' . (class_exists('stdClass') ? 'true' : 'false')],
