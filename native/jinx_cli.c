@@ -7,6 +7,7 @@
 
 #include "../runtime/jinx_function_list.generated.h"
 #include "../runtime/jinx_oracle_zend_array_carrier.h"
+#include "../runtime/jinx_oracle_extended_builtins.h"
 #include "../runtime/jinx_zend_array_delete.h"
 #include "../runtime/jinx_pasm_machine.h"
 
@@ -46,6 +47,11 @@ static void usage(const char *argv0) {
     printf("  a:<count>     array-count stand-in\n");
     printf("  za:sample     native Zend array [10, 20, \"name\" => 30, \"keep\" => 40]\n");
     printf("  za:deleted    same native Zend array with index 1 and key \"name\" tombstoned\n");
+    printf("  dt:<text>     native DateTime fixture\n");
+    printf("  dti:<text>    native DateTimeImmutable fixture\n");
+    printf("  tz:<name>     native DateTimeZone fixture\n");
+    printf("  di:<text>     native DateInterval fixture\n");
+    printf("  fp:tmp        native temporary stream fixture\n");
     printf("  null          null value\n");
     printf("  raw text defaults to string\n");
 }
@@ -253,10 +259,16 @@ static void all_function_args(const char *name, JinxValue args[JINX_NATIVE_SAMPL
 
 static int call_all_function_name(const char *name, JinxValue *out) {
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    int ok = 0;
     all_function_args(name, args);
 
-    *out = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
-    return out->type != 0u;
+    *out = jinx_call_builtin_through_oracle_checked(
+        name,
+        args,
+        JINX_NATIVE_SAMPLE_ARGC,
+        &ok
+    );
+    return ok;
 }
 
 static int call_first100_name(const char *name, JinxValue *out) {
@@ -265,9 +277,15 @@ static int call_first100_name(const char *name, JinxValue *out) {
 
 static int call_oracle_with_samples(const char *name, JinxValue *out) {
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
+    int ok = 0;
     all_function_args(name, args);
-    *out = jinx_call_builtin_through_oracle(name, args, JINX_NATIVE_SAMPLE_ARGC);
-    return out->type != 0u;
+    *out = jinx_call_builtin_through_oracle_checked(
+        name,
+        args,
+        JINX_NATIVE_SAMPLE_ARGC,
+        &ok
+    );
+    return ok;
 }
 
 static JinxValue make_zend_array_fixture(int deleted) {
@@ -362,6 +380,14 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
 
     if (strcmp(text, "za:deleted") == 0) {
         return make_zend_array_fixture(1);
+    }
+
+    if (strncmp(text, "dt:", 3) == 0 ||
+        strncmp(text, "dti:", 4) == 0 ||
+        strncmp(text, "tz:", 3) == 0 ||
+        strncmp(text, "di:", 3) == 0 ||
+        strcmp(text, "fp:tmp") == 0) {
+        return jinx_oracle_extended_fixture(text);
     }
 
     return jinx_value_string(text, (uint32_t) strlen(text));
@@ -814,29 +840,23 @@ static int command_oracle_call(int argc, char **argv, int hex_output) {
         args[i] = parse_cli_value(argv[i + 3], &owned_args[i]);
     }
 
-    result = jinx_call_builtin_through_oracle(name, args, (size_t)supplied_argc);
+    {
+        int oracle_ok = 0;
+        result = jinx_call_builtin_through_oracle_checked(
+            name,
+            args,
+            (size_t)supplied_argc,
+            &oracle_ok
+        );
 
-    if (result.type == 0u) {
-        int valid_json_null = 0;
-        if (strcmp(name, "json_decode") == 0) {
-            JinxValue json_error = jinx_call_builtin_through_oracle(
-                "json_last_error",
-                NULL,
-                0u
-            );
-            valid_json_null = json_error.type == 1u && json_error.as.i64 == 0;
-        }
-
-        if (valid_json_null) {
-            print_value_line(result);
-        } else {
+        if (!oracle_ok) {
             fprintf(stderr, "null/fault: %s\n", name);
             exit_code = 1;
-        }
-    } else if (hex_output) {
+        } else if (hex_output) {
         print_value_hex_line(result);
-    } else {
-        print_value_line(result);
+        } else {
+            print_value_line(result);
+        }
     }
 
     release_cli_value(result);
