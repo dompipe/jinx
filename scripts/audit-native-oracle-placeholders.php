@@ -252,6 +252,7 @@ function sampleArgs(string $name): array
     }
     if ($name === 'dns_get_record') return ['s:localhost', 'i:1'];
     if ($name === 'get_meta_tags') return ['s:README.md'];
+    if ($name === 'define') return ['s:__JINX_AUDIT_CONSTANT__', 'i:73'];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
