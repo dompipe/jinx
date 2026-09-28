@@ -966,23 +966,44 @@ static JinxZendArray *jinx_oracle_ext_stat_array(const struct stat *st) {
     return array;
 }
 
-static JinxZendArray *jinx_oracle_ext_string_list_from_dir(const char *path) {
-    DIR *dir;
-    struct dirent *entry;
+static JinxZendArray *jinx_oracle_ext_string_list_from_dir(const char *path, int order) {
+    struct dirent **entries = NULL;
+    int count;
     JinxZendArray *array;
+
     if(path==NULL) return NULL;
-    dir=opendir(path);
-    if(dir==NULL) return NULL;
-    array=jinx_zend_array_new_packed(16u);
-    if(array==NULL){ closedir(dir); return NULL; }
-    while((entry=readdir(dir))!=NULL){
-        if(!jinx_oracle_ext_array_append_string(array,entry->d_name,strlen(entry->d_name))){
-            closedir(dir);
-            jinx_zend_array_release(array);
-            return NULL;
+    count=scandir(path,&entries,NULL,alphasort);
+    if(count<0) return NULL;
+
+    array=jinx_zend_array_new_packed(count==0?1u:(size_t)count);
+    if(array==NULL){
+        for(int i=0;i<count;i++) free(entries[i]);
+        free(entries);
+        return NULL;
+    }
+
+    if(order==1){
+        for(int i=count-1;i>=0;i--){
+            if(!jinx_oracle_ext_array_append_string(array,entries[i]->d_name,strlen(entries[i]->d_name))){
+                for(int j=0;j<count;j++) free(entries[j]);
+                free(entries);
+                jinx_zend_array_release(array);
+                return NULL;
+            }
+        }
+    } else {
+        for(int i=0;i<count;i++){
+            if(!jinx_oracle_ext_array_append_string(array,entries[i]->d_name,strlen(entries[i]->d_name))){
+                for(int j=0;j<count;j++) free(entries[j]);
+                free(entries);
+                jinx_zend_array_release(array);
+                return NULL;
+            }
         }
     }
-    closedir(dir);
+
+    for(int i=0;i<count;i++) free(entries[i]);
+    free(entries);
     return array;
 }
 
@@ -2114,13 +2135,17 @@ JinxValue jinx_oracle_extended_builtin(
         if(strcmp(name,"realpath")==0){
             char resolved[PATH_MAX];
             char *rp=realpath(path,resolved);
+            JinxValue out;
             free(path);
             if(handled!=NULL)*handled=1;
-            return rp!=NULL?jinx_oracle_string_value(resolved):jinx_oracle_bool_value(0);
+            if(rp==NULL) return jinx_oracle_bool_value(0);
+            out=jinx_oracle_ext_copy_string(resolved,strlen(resolved));
+            return out;
         }
 
         if(strcmp(name,"scandir")==0){
-            JinxZendArray *array=jinx_oracle_ext_string_list_from_dir(path);
+            int order=argc>=2u?(int)jinx_oracle_intish(args[1]):0;
+            JinxZendArray *array=jinx_oracle_ext_string_list_from_dir(path,order);
             free(path);
             if(handled!=NULL)*handled=1;
             return array!=NULL?jinx_oracle_zend_array_value_owned(array):jinx_oracle_bool_value(0);
