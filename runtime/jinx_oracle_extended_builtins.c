@@ -39,7 +39,7 @@ typedef struct JinxOracleExtTzScope {
     int had_old;
 } JinxOracleExtTzScope;
 
-static char jinx_oracle_ext_default_timezone[128] = "UTC";
+static char jinx_oracle_ext_default_timezone[128] = JINX_NATIVE_PHP_DEFAULT_TIMEZONE;
 static int jinx_oracle_ext_date_error = 0;
 static char jinx_oracle_ext_date_error_message[160] = "";
 
@@ -1558,10 +1558,12 @@ JinxValue jinx_oracle_extended_builtin(
             int iso_week;
             int iso_day;
             struct tm jan4;
+            struct tm original;
             JinxOracleExtTzScope scope = {0};
             time_t raw;
             int monday_offset;
-            if (argc < 3u) return result;
+            if (argc < 3u ||
+                !jinx_oracle_ext_parts_from_timestamp(timestamp, timezone, &original)) return result;
             iso_year = (int)jinx_oracle_intish(args[1]);
             iso_week = (int)jinx_oracle_intish(args[2]);
             iso_day = argc >= 4u ? (int)jinx_oracle_intish(args[3]) : 1;
@@ -1569,7 +1571,9 @@ JinxValue jinx_oracle_extended_builtin(
             jan4.tm_year = iso_year - 1900;
             jan4.tm_mon = 0;
             jan4.tm_mday = 4;
-            jan4.tm_hour = 12;
+            jan4.tm_hour = original.tm_hour;
+            jan4.tm_min = original.tm_min;
+            jan4.tm_sec = original.tm_sec;
             jan4.tm_isdst = -1;
             if (!jinx_oracle_ext_tz_enter(timezone, &scope)) return result;
             raw = mktime(&jan4);
