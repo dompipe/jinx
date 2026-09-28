@@ -3043,5 +3043,19 @@ csv_fail:
         return jinx_oracle_bool_value(ok_define);
     }
 
+    if (strcmp(name, "get_browser") == 0) {
+        const char *browscap = b2_cfg_value("browscap");
+        /*
+         * PHP returns false when no browscap file is configured. If a
+         * browscap database exists, parsing it is a separate subsystem and
+         * this direct builtin bridge deliberately fails closed for now.
+         */
+        if (browscap == NULL || browscap[0] == '\0') {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        return result;
+    }
+
     return result;
 }
