@@ -95,6 +95,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_resource_registry.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_solar_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_dns_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_ftp_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_curl_ftp_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
