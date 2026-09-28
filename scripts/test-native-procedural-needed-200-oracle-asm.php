@@ -93,6 +93,72 @@ if ($code !== 0 ||
     fail200("native caller-frame smoke failed\n{$frameSmoke}");
 }
 
+
+/* Isolate POSIX state-changing parity from the shared PHP/Jinx runners. */
+if (function_exists('posix_mkfifo')) {
+    $fifoBase = sys_get_temp_dir() . '/jinx-posix-fifo-' . getmypid();
+    $phpFifo = $fifoBase . '-php';
+    $jinxFifo = $fifoBase . '-jinx';
+    @unlink($phpFifo);
+    @unlink($jinxFifo);
+
+    $phpFifoOk = posix_mkfifo($phpFifo, 0600);
+    $phpFifoType = $phpFifoOk ? @filetype($phpFifo) : false;
+    $jinxFifoResult = jinx200(
+        $jinx,
+        'posix_mkfifo',
+        ['s:' . $jinxFifo, 'i:' . 0600],
+        false,
+        $code
+    );
+    $jinxFifoType = @filetype($jinxFifo);
+
+    @unlink($phpFifo);
+    @unlink($jinxFifo);
+
+    $expectedFifo = 'bool:' . ($phpFifoOk ? 'true' : 'false');
+    if ($code !== 0 || $jinxFifoResult !== $expectedFifo ||
+        ($phpFifoOk && ($phpFifoType !== 'fifo' || $jinxFifoType !== 'fifo'))) {
+        fail200(
+            "posix_mkfifo isolated parity mismatch\n"
+            . "PHP: {$expectedFifo} type=" . var_export($phpFifoType, true) . "\n"
+            . "JINX: {$jinxFifoResult} type=" . var_export($jinxFifoType, true)
+        );
+    }
+}
+
+if (function_exists('posix_setpgid') && function_exists('posix_setsid') &&
+    function_exists('posix_getpgrp') && function_exists('posix_getsid')) {
+    $phpSetpgid = run200(
+        escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+            '$ok=posix_setpgid(0,0);'
+            . 'echo ($ok && posix_getpgrp()===getmypid())'
+            . ' ? "setpgid=bool:true" : "setpgid=bool:false";'
+        ),
+        $phpSetpgidCode
+    );
+    $phpSetsid = run200(
+        escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+            '$sid=posix_setsid();'
+            . 'echo (is_int($sid) && $sid>0 && posix_getsid(0)===$sid && $sid===getmypid())'
+            . ' ? "setsid=bool:true" : "setsid=bool:false";'
+        ),
+        $phpSetsidCode
+    );
+    $jinxPosixState = run200(
+        escapeshellarg($jinx) . ' oracle-posix-state-smoke',
+        $jinxPosixStateCode
+    );
+    $phpPosixState = $phpSetpgid . PHP_EOL . $phpSetsid;
+    if ($phpSetpgidCode !== 0 || $phpSetsidCode !== 0 ||
+        $jinxPosixStateCode !== 0 || $jinxPosixState !== $phpPosixState) {
+        fail200(
+            "isolated POSIX state-changing parity mismatch\n"
+            . "PHP:\n{$phpPosixState}\nJINX:\n{$jinxPosixState}"
+        );
+    }
+}
+
 /* Deterministic metadata/introspection parity. */
 $posixChecks = [];
 if (function_exists('posix_getuid')) {
