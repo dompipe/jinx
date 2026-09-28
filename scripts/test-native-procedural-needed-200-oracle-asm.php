@@ -260,6 +260,29 @@ if ($timeCode !== 0 || !preg_match('/^int:(-?[0-9]+)$/', $nativeTime, $timeMatch
     fail200("time parity window mismatch\nJINX: {$nativeTime}");
 }
 
+$phpUniqid = uniqid('jx-');
+$nativeUniqid = jinx200($jinx, 'uniqid', ['s:jx-'], false, $uniqidCode);
+$uniqidPattern = '/^string:jx-[0-9a-f]{13}$/';
+if (!preg_match('/^jx-[0-9a-f]{13}$/', $phpUniqid) ||
+    $uniqidCode !== 0 ||
+    !preg_match($uniqidPattern, $nativeUniqid)) {
+    fail200("uniqid base-layout parity mismatch\nPHP: {$phpUniqid}\nJINX: {$nativeUniqid}");
+}
+
+$phpUniqidEntropy = uniqid('jx-', true);
+$nativeUniqidEntropy = jinx200(
+    $jinx, 'uniqid', ['s:jx-', 'b:true'], false, $uniqidEntropyCode
+);
+$uniqidEntropyPattern = '/^string:jx-[0-9a-f]{13}[0-9]+\.[0-9]{8}$/';
+if (!preg_match('/^jx-[0-9a-f]{13}[0-9]+\.[0-9]{8}$/', $phpUniqidEntropy) ||
+    $uniqidEntropyCode !== 0 ||
+    !preg_match($uniqidEntropyPattern, $nativeUniqidEntropy)) {
+    fail200(
+        "uniqid entropy-layout parity mismatch\nPHP: {$phpUniqidEntropy}\n"
+        . "JINX: {$nativeUniqidEntropy}"
+    );
+}
+
 $commandFixture = "printf 'alpha\\nbeta\\n'";
 ob_start();
 $phpSystemReturn = system($commandFixture);
