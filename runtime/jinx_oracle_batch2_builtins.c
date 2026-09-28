@@ -1,5 +1,6 @@
 #include "jinx_oracle_batch2_builtins.h"
 #include "jinx_oracle_hash_builtins.h"
+#include "jinx_oracle_finfo_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
 #include "jinx_native_core_metadata.generated.h"
 
@@ -402,6 +403,13 @@ JinxValue jinx_oracle_batch2_fixture(const char *spec) {
         hash_args[0] = jinx_oracle_string_value(spec + 5u);
         return jinx_oracle_hash_builtin(
             "hash_init", hash_args, 1u, &hash_handled
+        );
+    }
+
+    if (strcmp(spec, "finfo:default") == 0) {
+        int finfo_handled = 0;
+        return jinx_oracle_finfo_builtin(
+            "finfo_open", NULL, 0u, &finfo_handled
         );
     }
 
@@ -1796,6 +1804,17 @@ csv_fail:
         if (hash_handled) {
             if (handled != NULL) *handled = 1;
             return hash_result;
+        }
+    }
+
+    {
+        int finfo_handled = 0;
+        JinxValue finfo_result = jinx_oracle_finfo_builtin(
+            name, args, argc, &finfo_handled
+        );
+        if (finfo_handled) {
+            if (handled != NULL) *handled = 1;
+            return finfo_result;
         }
     }
 
