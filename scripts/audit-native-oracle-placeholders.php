@@ -234,10 +234,9 @@ function sampleArgs(string $name): array
     if ($name === 'get_html_translation_table') return [];
     if ($name === 'filter_var_array') return ['za:sample', 'i:257'];
     if ($name === 'fscanf') return ['fp:tmp', 's:%c,%c'];
-    if ($name === 'get_resource_id') return ['fp:tmp'];
-    if ($name === 'hash_algos' || $name === 'hash_hmac_algos') return [];
     if ($name === 'crypt') return ['s:password', 's:xx'];
 
+    if ($name === 'closedir') return ['dir:tmp'];
     if ($name === 'clearstatcache') return [];
     if ($name === 'chdir') return ['s:.'];
     if (in_array($name, ['chgrp', 'chmod', 'chown'], true)) return ['s:/__jinx_oracle_missing__', 'i:0'];
