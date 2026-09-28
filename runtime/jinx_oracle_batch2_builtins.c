@@ -341,6 +341,44 @@ static JinxValue b2_hostbyname_value(const char *host, int all) {
     }
 }
 
+
+JinxValue jinx_oracle_batch2_fixture(const char *spec) {
+    if (spec == NULL) return jinx_oracle_zero_value();
+
+    if (strcmp(spec, "gz:tmp") == 0) {
+        char path[] = "/tmp/jinx-gzip-fixture-XXXXXX";
+        int fd = mkstemp(path);
+        gzFile out;
+        gzFile in;
+        if (fd < 0) return jinx_oracle_zero_value();
+        close(fd);
+        out = gzopen(path, "wb");
+        if (out == NULL) {
+            unlink(path);
+            return jinx_oracle_zero_value();
+        }
+        if (gzwrite(out, "a,b\nsecond line\n", 16u) != 16) {
+            gzclose(out);
+            unlink(path);
+            return jinx_oracle_zero_value();
+        }
+        gzclose(out);
+        in = gzopen(path, "rb");
+        unlink(path);
+        return in != NULL ? b2_new_gzip(in) : jinx_oracle_zero_value();
+    }
+
+    if (strcmp(spec, "deflate:gzip") == 0) {
+        return b2_new_deflate(31);
+    }
+
+    if (strcmp(spec, "deflate:zlib") == 0) {
+        return b2_new_deflate(15);
+    }
+
+    return jinx_oracle_zero_value();
+}
+
 JinxValue jinx_oracle_batch2_builtin(
     const char *name,
     JinxValue *args,
