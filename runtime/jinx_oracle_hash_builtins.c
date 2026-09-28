@@ -1,5 +1,6 @@
 #include "jinx_oracle_hash_builtins.h"
 #include "jinx_oracle_zend_array_builtins.h"
+#include "jinx_native_core_metadata.generated.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #ifdef JINX_HAVE_OPENSSL
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <openssl/rand.h>
 
 typedef struct JinxOracleHashContext {
     EVP_MD_CTX *ctx;
@@ -49,6 +51,27 @@ static JinxValue hash_hex_bytes(const unsigned char *bytes, size_t len) {
         out[i * 2u + 1u] = hex[bytes[i] & 0x0f];
     }
     return jinx_oracle_string_value_len(out, (uint32_t)(len * 2u));
+}
+
+static JinxValue hash_string_array_value(
+    const char *const *items,
+    size_t count
+) {
+    JinxZendArray *array = jinx_zend_array_new_packed(count == 0u ? 1u : count);
+    if (array == NULL) return jinx_oracle_zero_value();
+    for (size_t i = 0u; i < count; i++) {
+        JinxZendString *string;
+        if (items[i] == NULL) continue;
+        string = jinx_zend_string_new(items[i], strlen(items[i]));
+        if (string == NULL ||
+            !jinx_zend_array_append(array, jinx_zend_string_value(string))) {
+            jinx_zend_string_release(string);
+            jinx_zend_array_release(array);
+            return jinx_oracle_zero_value();
+        }
+        jinx_zend_string_release(string);
+    }
+    return jinx_oracle_zend_array_value_owned(array);
 }
 
 static JinxValue hash_base64_encode(const unsigned char *bytes, size_t len) {
@@ -490,6 +513,68 @@ JinxValue jinx_oracle_hash_builtin(
     JinxValue result = jinx_oracle_zero_value();
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    if (strcmp(name, "openssl_get_cipher_methods") == 0) {
+        int aliases = args != NULL && argc >= 1u
+            ? jinx_oracle_boolish(args[0])
+            : 0;
+        if (argc > 1u) return result;
+        if (handled != NULL) *handled = 1;
+        return aliases
+            ? hash_string_array_value(
+                jinx_native_openssl_cipher_methods_aliases,
+                jinx_native_openssl_cipher_methods_aliases_count
+            )
+            : hash_string_array_value(
+                jinx_native_openssl_cipher_methods,
+                jinx_native_openssl_cipher_methods_count
+            );
+    }
+
+    if (strcmp(name, "openssl_get_md_methods") == 0) {
+        int aliases = args != NULL && argc >= 1u
+            ? jinx_oracle_boolish(args[0])
+            : 0;
+        if (argc > 1u) return result;
+        if (handled != NULL) *handled = 1;
+        return aliases
+            ? hash_string_array_value(
+                jinx_native_openssl_md_methods_aliases,
+                jinx_native_openssl_md_methods_aliases_count
+            )
+            : hash_string_array_value(
+                jinx_native_openssl_md_methods,
+                jinx_native_openssl_md_methods_count
+            );
+    }
+
+    if (strcmp(name, "openssl_get_curve_names") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return hash_string_array_value(
+            jinx_native_openssl_curve_names,
+            jinx_native_openssl_curve_names_count
+        );
+    }
+
+    if (strcmp(name, "openssl_random_pseudo_bytes") == 0) {
+        int64_t length;
+        unsigned char *bytes;
+        if (args == NULL || argc != 1u) return result;
+        length = jinx_oracle_intish(args[0]);
+        if (length <= 0 || length > INT_MAX) return result;
+        bytes = (unsigned char *)malloc((size_t)length);
+        if (bytes == NULL) return result;
+        if (RAND_bytes(bytes, (int)length) <= 0) {
+            free(bytes);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        result = hash_copy_bytes(bytes, (size_t)length);
+        free(bytes);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
 
     if (strcmp(name, "openssl_digest") == 0) {
         const EVP_MD *md;
