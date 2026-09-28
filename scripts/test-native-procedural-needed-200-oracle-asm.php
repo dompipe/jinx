@@ -128,6 +128,52 @@ expect200($jinx, 'getrusage', [], 'zend-array:' . count(getrusage()));
 expectType200($jinx, 'disk_free_space', ['s:.'], 'float:');
 expectType200($jinx, 'disk_total_space', ['s:.'], 'float:');
 
+/* Solar date parity uses explicit location/zenith/offset to avoid host INI differences. */
+$solarTimestamp = 1704067200;
+$solarLat = 42.3314;
+$solarLon = -83.0458;
+$solarZenith = 90.83333333333333;
+$solarOffset = -5.0;
+
+$phpSunrise = date_sunrise(
+    $solarTimestamp,
+    SUNFUNCS_RET_TIMESTAMP,
+    $solarLat,
+    $solarLon,
+    $solarZenith,
+    $solarOffset
+);
+$phpSunset = date_sunset(
+    $solarTimestamp,
+    SUNFUNCS_RET_TIMESTAMP,
+    $solarLat,
+    $solarLon,
+    $solarZenith,
+    $solarOffset
+);
+if ($phpSunrise === false || $phpSunset === false) {
+    fail200('PHP solar fixture unexpectedly returned false');
+}
+expect200(
+    $jinx,
+    'date_sunrise',
+    ['i:' . $solarTimestamp, 'i:0', 'f:' . $solarLat, 'f:' . $solarLon, 'f:' . $solarZenith, 'f:' . $solarOffset],
+    'int:' . $phpSunrise
+);
+expect200(
+    $jinx,
+    'date_sunset',
+    ['i:' . $solarTimestamp, 'i:0', 'f:' . $solarLat, 'f:' . $solarLon, 'f:' . $solarZenith, 'f:' . $solarOffset],
+    'int:' . $phpSunset
+);
+$phpSunInfo = date_sun_info($solarTimestamp, $solarLat, $solarLon);
+expect200(
+    $jinx,
+    'date_sun_info',
+    ['i:' . $solarTimestamp, 'f:' . $solarLat, 'f:' . $solarLon],
+    'zend-array:' . count($phpSunInfo)
+);
+
 /* Stream behavior uses the deterministic fp:tmp fixture ("a,b\nsecond line\n"). */
 expect200($jinx, 'ftruncate', ['fp:tmp', 'i:2'], 'bool:true');
 expect200($jinx, 'fputs', ['fp:tmp', 's:x'], 'int:1');
