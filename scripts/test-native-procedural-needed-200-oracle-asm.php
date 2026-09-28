@@ -159,6 +159,44 @@ if (function_exists('posix_setpgid') && function_exists('posix_setsid') &&
     }
 }
 
+
+if (function_exists('strptime')) {
+    $phpStrptime = @strptime(
+        '2024-03-05 14:07:09 extra',
+        '%Y-%m-%d %H:%M:%S'
+    );
+    if (!is_array($phpStrptime)) {
+        fail200('PHP strptime fixture failed');
+    }
+    $strptimeLines = [];
+    foreach ([
+        'tm_sec', 'tm_min', 'tm_hour', 'tm_mday',
+        'tm_mon', 'tm_year', 'tm_wday', 'tm_yday',
+    ] as $key) {
+        $strptimeLines[] = $key . '=int:' . $phpStrptime[$key];
+    }
+    $strptimeLines[] = 'unparsed=string:' . $phpStrptime['unparsed'];
+    $phpStrptimeText = implode(PHP_EOL, $strptimeLines);
+    $jinxStrptimeText = run200(
+        escapeshellarg($jinx) . ' oracle-strptime-smoke',
+        $strptimeCode
+    );
+    if ($strptimeCode !== 0 || $jinxStrptimeText !== $phpStrptimeText) {
+        fail200(
+            "strptime field parity mismatch\n"
+            . "PHP:\n{$phpStrptimeText}\nJINX:\n{$jinxStrptimeText}"
+        );
+    }
+
+    $phpBadStrptime = @strptime('not-a-date', '%Y-%m-%d');
+    expect200(
+        $jinx,
+        'strptime',
+        ['s:not-a-date', 's:%Y-%m-%d'],
+        $phpBadStrptime === false ? 'bool:false' : 'zend-array:' . count($phpBadStrptime)
+    );
+}
+
 /* Deterministic metadata/introspection parity. */
 $posixChecks = [];
 if (function_exists('posix_getuid')) {
