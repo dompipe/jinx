@@ -72,6 +72,32 @@ foreach ($tests as $script => $expected) {
 }
 
 $out = run(sprintf(
+    '%s bench-call abs 3 %s',
+    $jinxCommand,
+    escapeshellarg('i:-42')
+), $code);
+
+if ($code !== 0 ||
+    !str_contains($out, 'Function: abs') ||
+    !str_contains($out, 'Per call ns:')) {
+    fail("bench-call did not execute a named native implementation:\n{$out}");
+}
+
+$out = run(sprintf(
+    '%s bench-method-call %s 3 %s %s',
+    $jinxCommand,
+    escapeshellarg('DateTime::format'),
+    escapeshellarg('dt:2024-01-02 03:04:05'),
+    escapeshellarg('s:Y-m-d')
+), $code);
+
+if ($code !== 0 ||
+    !str_contains($out, 'Method: DateTime::format') ||
+    !str_contains($out, 'Per call ns:')) {
+    fail("bench-method-call did not execute the parity-proven native method:\n{$out}");
+}
+
+$out = run(sprintf(
     '%s web-plan %s',
     $jinxCommand,
     escapeshellarg($root . '/fixtures/simple-web-api-validated.php')
@@ -125,4 +151,4 @@ if (!str_contains($json, 'JINX_WEB_PROGRAM')) {
     fail('web-statements output missing JINX_WEB_PROGRAM');
 }
 
-echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle function execution, native Oracle ASM PHP parity checks, Oracle execution families, web-plan, web-compile, and web-statements\n";
+echo "PASS: ./jinx supports PHP script paths, arbitrary Zend records, Zend runtime ops, Zend declaration metadata, Oracle straight-line execution, Oracle conditional execution, Oracle loop execution, Oracle array execution, Oracle function execution, native Oracle ASM PHP parity checks, named implementation benchmarks, Oracle execution families, web-plan, web-compile, and web-statements\n";
