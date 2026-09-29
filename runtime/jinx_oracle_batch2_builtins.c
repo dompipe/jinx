@@ -57,6 +57,11 @@
 #ifdef JINX_HAVE_CRYPT
 #include <crypt.h>
 #endif
+
+#ifdef JINX_HAVE_PCRE2
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+#endif
 #ifdef JINX_HAVE_RESOLV
 #include <arpa/nameser.h>
 #include <resolv.h>
@@ -808,6 +813,113 @@ static int b2_constant_time_string_equal(
     }
     return diff == 0u;
 }
+
+#ifdef JINX_HAVE_PCRE2
+static int b2_preg_compile_pattern(
+    JinxValue pattern_value,
+    pcre2_code **out_code
+) {
+    char *pattern;
+    size_t len;
+    char delimiter;
+    char closing;
+    size_t end = 0u;
+    uint32_t options = 0u;
+    pcre2_code *code;
+    int error_code = 0;
+    PCRE2_SIZE error_offset = 0u;
+
+    if (out_code == NULL || pattern_value.type != 3u) return 0;
+    *out_code = NULL;
+    pattern = b2_dup(pattern_value);
+    if (pattern == NULL) return 0;
+    len = strlen(pattern);
+    if (len < 2u) {
+        free(pattern);
+        return 0;
+    }
+
+    delimiter = pattern[0];
+    if (isalnum((unsigned char)delimiter) || delimiter == '\\' ||
+        isspace((unsigned char)delimiter)) {
+        free(pattern);
+        return 0;
+    }
+    closing = delimiter;
+    if (delimiter == '(') closing = ')';
+    else if (delimiter == '[') closing = ']';
+    else if (delimiter == '{') closing = '}';
+    else if (delimiter == '<') closing = '>';
+
+    if (closing == delimiter) {
+        for (size_t i = len - 1u; i > 0u; i--) {
+            size_t slash_count = 0u;
+            if (pattern[i] != closing) continue;
+            for (size_t j = i; j > 0u && pattern[j - 1u] == '\\'; j--) {
+                slash_count++;
+            }
+            if ((slash_count & 1u) == 0u) {
+                end = i;
+                break;
+            }
+        }
+    } else {
+        int depth = 0;
+        int escaped = 0;
+        for (size_t i = 1u; i < len; i++) {
+            char c = pattern[i];
+            if (escaped) {
+                escaped = 0;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = 1;
+                continue;
+            }
+            if (c == delimiter) depth++;
+            else if (c == closing) {
+                if (depth == 0) {
+                    end = i;
+                    break;
+                }
+                depth--;
+            }
+        }
+    }
+
+    if (end == 0u) {
+        free(pattern);
+        return 0;
+    }
+
+    for (size_t i = end + 1u; i < len; i++) {
+        switch (pattern[i]) {
+            case 'i': options |= PCRE2_CASELESS; break;
+            case 'm': options |= PCRE2_MULTILINE; break;
+            case 's': options |= PCRE2_DOTALL; break;
+            case 'x': options |= PCRE2_EXTENDED; break;
+            case 'u': options |= PCRE2_UTF; break;
+            default:
+                free(pattern);
+                return 0;
+        }
+    }
+
+    pattern[end] = '\0';
+    code = pcre2_compile(
+        (PCRE2_SPTR)(pattern + 1u),
+        PCRE2_ZERO_TERMINATED,
+        options,
+        &error_code,
+        &error_offset,
+        NULL
+    );
+    free(pattern);
+    if (code == NULL) return -1;
+    *out_code = code;
+    return 1;
+}
+#endif
 
 static int b2_bcrypt_salt(char out[23]) {
     static const char alphabet[] =
@@ -6597,6 +6709,62 @@ csv_fail:
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(out);
     }
+
+#ifdef JINX_HAVE_PCRE2
+    if (strcmp(name, "preg_match") == 0) {
+        char *subject;
+        pcre2_code *code = NULL;
+        pcre2_match_data *match_data = NULL;
+        int compiled;
+        int rc;
+
+        /*
+         * The native bridge does not yet carry preg_match()'s by-reference
+         * $matches output. Execute the exact two-argument form now and fail
+         * closed for forms that request captures/flags/offset.
+         */
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) {
+            return result;
+        }
+
+        compiled = b2_preg_compile_pattern(args[0], &code);
+        if (compiled <= 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        subject = b2_dup(args[1]);
+        if (subject == NULL) {
+            pcre2_code_free(code);
+            return result;
+        }
+        match_data = pcre2_match_data_create_from_pattern(code, NULL);
+        if (match_data == NULL) {
+            free(subject);
+            pcre2_code_free(code);
+            return result;
+        }
+
+        rc = pcre2_match(
+            code,
+            (PCRE2_SPTR)subject,
+            strlen(subject),
+            0u,
+            0u,
+            match_data,
+            NULL
+        );
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(code);
+        free(subject);
+
+        if (handled != NULL) *handled = 1;
+        if (rc == PCRE2_ERROR_NOMATCH) return jinx_oracle_int_value(0);
+        if (rc < 0) return jinx_oracle_bool_value(0);
+        return jinx_oracle_int_value(1);
+    }
+#endif
 
 #ifdef JINX_HAVE_CRYPT
     if (strcmp(name, "password_hash") == 0) {
