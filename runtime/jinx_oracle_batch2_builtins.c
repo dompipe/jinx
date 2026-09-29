@@ -809,6 +809,46 @@ static int b2_constant_time_string_equal(
     return diff == 0u;
 }
 
+static int b2_bcrypt_salt(char out[23]) {
+    static const char alphabet[] =
+        "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    unsigned char bytes[16];
+    size_t src = 0u;
+    size_t dst = 0u;
+
+    if (out == NULL || !b2_random_fill(bytes, sizeof(bytes))) return 0;
+
+    while (src < sizeof(bytes) && dst < 22u) {
+        unsigned int c1 = bytes[src++];
+        out[dst++] = alphabet[(c1 >> 2) & 0x3fu];
+        c1 = (c1 & 0x03u) << 4;
+        if (src >= sizeof(bytes)) {
+            out[dst++] = alphabet[c1 & 0x3fu];
+            break;
+        }
+
+        {
+            unsigned int c2 = bytes[src++];
+            c1 |= (c2 >> 4) & 0x0fu;
+            out[dst++] = alphabet[c1 & 0x3fu];
+            c1 = (c2 & 0x0fu) << 2;
+            if (src >= sizeof(bytes)) {
+                out[dst++] = alphabet[c1 & 0x3fu];
+                break;
+            }
+
+            c2 = bytes[src++];
+            c1 |= (c2 >> 6) & 0x03u;
+            out[dst++] = alphabet[c1 & 0x3fu];
+            out[dst++] = alphabet[c2 & 0x3fu];
+        }
+    }
+
+    if (dst != 22u) return 0;
+    out[22] = '\0';
+    return 1;
+}
+
 static int b2_bcrypt_cost(const char *hash, int *cost) {
     if (hash == NULL || cost == NULL || strlen(hash) < 7u) return 0;
     if ((unsigned char)hash[0] != 36u || hash[1] != '2' ||
@@ -6559,6 +6599,74 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_CRYPT
+    if (strcmp(name, "password_hash") == 0) {
+        char *password;
+        char *algorithm = NULL;
+        char salt[23];
+        char setting[32];
+        char *computed;
+        int cost = 12;
+        int algo_is_bcrypt = 0;
+        const JinxNativeConstantMeta *algo_meta;
+        const JinxNativeConstantMeta *cost_meta;
+
+        if (args == NULL || argc < 2u || argc > 3u || args[0].type != 3u) {
+            return result;
+        }
+
+        algo_meta = b2_constant_meta("PASSWORD_BCRYPT");
+        if (args[1].type == 3u) {
+            algorithm = b2_dup(args[1]);
+            if (algorithm == NULL) return result;
+            if (algo_meta != NULL && algo_meta->type == 3u && algo_meta->str != NULL) {
+                algo_is_bcrypt = strcmp(algorithm, algo_meta->str) == 0;
+            } else {
+                algo_is_bcrypt = strcmp(algorithm, "2y") == 0;
+            }
+        } else if ((args[1].type == 1u || args[1].type == 2u) &&
+                   algo_meta != NULL && algo_meta->type == 1u) {
+            algo_is_bcrypt =
+                jinx_oracle_intish(args[1]) == (int64_t)algo_meta->i64;
+        }
+        free(algorithm);
+        if (!algo_is_bcrypt) return result;
+
+        cost_meta = b2_constant_meta("PASSWORD_BCRYPT_DEFAULT_COST");
+        if (cost_meta != NULL && cost_meta->type == 1u) {
+            cost = (int)cost_meta->i64;
+        }
+
+        if (argc >= 3u && args[2].type != 0u) {
+            if (args[2].type != JINX_ORACLE_VALUE_ZEND_ARRAY) return result;
+            {
+                JinxZendArray *options = jinx_oracle_zend_array_ptr(args[2]);
+                JinxZendValue *cost_value = options != NULL
+                    ? jinx_zend_array_find(options, "cost", 4u)
+                    : NULL;
+                if (cost_value != NULL) {
+                    if (cost_value->type != JINX_ZEND_LONG) return result;
+                    cost = (int)cost_value->value.lval;
+                }
+            }
+        }
+
+        if (cost < 4 || cost > 31 || !b2_bcrypt_salt(salt)) return result;
+        password = b2_dup(args[0]);
+        if (password == NULL) return result;
+
+        snprintf(setting, sizeof(setting), "$2y$%02d$%s", cost, salt);
+        computed = crypt(password, setting);
+        free(password);
+        if (computed == NULL || strlen(computed) != 60u ||
+            strncmp(computed, "$2", 2u) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return b2_copy(computed, strlen(computed));
+    }
+
     if (strcmp(name, "password_verify") == 0) {
         char *password;
         char *hash;
