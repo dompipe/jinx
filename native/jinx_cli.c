@@ -24,6 +24,7 @@ static JinxValue make_zend_array_fixture(int deleted);
 static JinxValue make_zend_empty_array_fixture(void);
 static JinxValue make_zend_string_array_fixture(void);
 static JinxValue make_zend_walk_array_fixture(void);
+static JinxValue make_zend_nested_array_fixture(void);
 static void release_cli_value(JinxValue value);
 static void release_cli_values(JinxValue *values, size_t count);
 
@@ -522,6 +523,41 @@ static JinxValue make_zend_walk_array_fixture(void) {
     return value;
 }
 
+static JinxValue make_zend_nested_array_fixture(void) {
+    JinxZendArray *outer = jinx_zend_array_new_packed(2u);
+    JinxZendArray *inner = jinx_zend_array_new_packed(2u);
+    JinxZendString *name = NULL;
+    JinxValue value;
+
+    if (outer == NULL || inner == NULL) {
+        jinx_zend_array_release(outer);
+        jinx_zend_array_release(inner);
+        return jinx_value_null();
+    }
+
+    name = jinx_zend_string_new("jinx", 4u);
+    if (name == NULL ||
+        !jinx_zend_array_append(inner, jinx_zend_long(1)) ||
+        !jinx_zend_array_append(inner, jinx_zend_long(2)) ||
+        !jinx_zend_array_add_assoc(
+            outer, "inner", 5u, jinx_zend_array_value(inner)
+        ) ||
+        !jinx_zend_array_add_assoc(
+            outer, "name", 4u, jinx_zend_string_value(name)
+        )) {
+        jinx_zend_string_release(name);
+        jinx_zend_array_release(inner);
+        jinx_zend_array_release(outer);
+        return jinx_value_null();
+    }
+
+    jinx_zend_string_release(name);
+    jinx_zend_array_release(inner);
+    value = jinx_oracle_zend_array_value_retained(outer);
+    jinx_zend_array_release(outer);
+    return value;
+}
+
 static int cli_hex_nibble(unsigned char c) {
     if (c >= (unsigned char)'0' && c <= (unsigned char)'9') return (int)(c - (unsigned char)'0');
     if (c >= (unsigned char)'a' && c <= (unsigned char)'f') return 10 + (int)(c - (unsigned char)'a');
@@ -600,6 +636,10 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
 
     if (strcmp(text, "za:walk") == 0) {
         return make_zend_walk_array_fixture();
+    }
+
+    if (strcmp(text, "za:nested") == 0) {
+        return make_zend_nested_array_fixture();
     }
 
     if (strncmp(text, "obj:", 4) == 0 ||
