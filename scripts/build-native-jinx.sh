@@ -128,6 +128,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_curl_ftp_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_http_meta_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_exif_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_pack_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
@@ -250,6 +251,7 @@ echo "Native DNS decoder compiled: runtime/jinx_oracle_dns_builtins.c"
 echo "Native FTP backend compiled: runtime/jinx_oracle_curl_ftp_builtins.c"
 echo "Native HTTP/meta backend compiled: runtime/jinx_oracle_http_meta_builtins.c"
 echo "Native EXIF backend compiled: runtime/jinx_oracle_exif_builtins.c"
+echo "Native pack/unpack backend compiled: runtime/jinx_oracle_pack_builtins.c"
 if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
