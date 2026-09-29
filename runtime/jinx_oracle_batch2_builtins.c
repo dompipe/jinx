@@ -28,6 +28,7 @@
 #include <langinfo.h>
 #include <limits.h>
 #include <locale.h>
+#include <math.h>
 #include <netdb.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -532,6 +533,535 @@ static JinxValue b2_copy(const char *bytes, size_t len) {
     out = jinx_oracle_scratch_string((uint32_t)len);
     if (len != 0u && bytes != NULL) memcpy(out, bytes, len);
     return jinx_oracle_string_value_len(out, (uint32_t)len);
+}
+
+typedef struct B2SerializeBuffer {
+    char *data;
+    size_t len;
+    size_t capacity;
+} B2SerializeBuffer;
+
+typedef struct B2UnserializeParser {
+    const unsigned char *data;
+    size_t len;
+    size_t pos;
+} B2UnserializeParser;
+
+static int b2_serialize_reserve(B2SerializeBuffer *buffer, size_t extra) {
+    size_t needed;
+    size_t capacity;
+    char *grown;
+
+    if (buffer == NULL || extra > SIZE_MAX - buffer->len) return 0;
+    needed = buffer->len + extra;
+    if (needed <= buffer->capacity) return 1;
+
+    capacity = buffer->capacity == 0u ? 128u : buffer->capacity;
+    while (capacity < needed) {
+        if (capacity > SIZE_MAX / 2u) {
+            capacity = needed;
+            break;
+        }
+        capacity *= 2u;
+    }
+
+    grown = (char *)realloc(buffer->data, capacity);
+    if (grown == NULL) return 0;
+    buffer->data = grown;
+    buffer->capacity = capacity;
+    return 1;
+}
+
+static int b2_serialize_append(
+    B2SerializeBuffer *buffer,
+    const char *bytes,
+    size_t len
+) {
+    if (!b2_serialize_reserve(buffer, len)) return 0;
+    if (len != 0u && bytes != NULL) memcpy(buffer->data + buffer->len, bytes, len);
+    buffer->len += len;
+    return 1;
+}
+
+static int b2_serialize_append_cstr(B2SerializeBuffer *buffer, const char *text) {
+    return text != NULL && b2_serialize_append(buffer, text, strlen(text));
+}
+
+static int b2_serialize_append_int64(B2SerializeBuffer *buffer, int64_t value) {
+    char text[64];
+    int written = snprintf(text, sizeof(text), "%lld", (long long)value);
+    return written >= 0 && (size_t)written < sizeof(text) &&
+        b2_serialize_append(buffer, text, (size_t)written);
+}
+
+static int b2_serialize_append_size(B2SerializeBuffer *buffer, size_t value) {
+    char text[64];
+    int written = snprintf(text, sizeof(text), "%zu", value);
+    return written >= 0 && (size_t)written < sizeof(text) &&
+        b2_serialize_append(buffer, text, (size_t)written);
+}
+
+static int b2_serialize_append_double(B2SerializeBuffer *buffer, double value) {
+    char text[128];
+    int written;
+
+    if (isnan(value)) return b2_serialize_append_cstr(buffer, "NAN");
+    if (isinf(value)) {
+        return b2_serialize_append_cstr(buffer, signbit(value) ? "-INF" : "INF");
+    }
+
+    written = snprintf(text, sizeof(text), "%.17g", value);
+    return written >= 0 && (size_t)written < sizeof(text) &&
+        b2_serialize_append(buffer, text, (size_t)written);
+}
+
+static int b2_serialize_zend_value(
+    B2SerializeBuffer *buffer,
+    JinxZendValue value,
+    const JinxZendArray **path,
+    size_t depth
+);
+
+static int b2_serialize_array(
+    B2SerializeBuffer *buffer,
+    JinxZendArray *array,
+    const JinxZendArray **path,
+    size_t depth
+) {
+    size_t live;
+
+    if (array == NULL || depth >= 64u) return 0;
+    for (size_t i = 0u; i < depth; i++) {
+        if (path[i] == array) return 0;
+    }
+    path[depth] = array;
+    live = jinx_zend_array_live_count(array);
+
+    if (!b2_serialize_append_cstr(buffer, "a:") ||
+        !b2_serialize_append_size(buffer, live) ||
+        !b2_serialize_append_cstr(buffer, ":{")) {
+        return 0;
+    }
+
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_live_iter_at(array, i);
+        if (bucket == NULL) return 0;
+
+        if (bucket->key != NULL) {
+            if (!b2_serialize_append_cstr(buffer, "s:") ||
+                !b2_serialize_append_size(buffer, bucket->key->len) ||
+                !b2_serialize_append_cstr(buffer, ":\"") ||
+                !b2_serialize_append(
+                    buffer, bucket->key->bytes, bucket->key->len
+                ) ||
+                !b2_serialize_append_cstr(buffer, "\";")) {
+                return 0;
+            }
+        } else {
+            if (!b2_serialize_append_cstr(buffer, "i:") ||
+                !b2_serialize_append_int64(buffer, (int64_t)bucket->h) ||
+                !b2_serialize_append_cstr(buffer, ";")) {
+                return 0;
+            }
+        }
+
+        if (!b2_serialize_zend_value(buffer, bucket->value, path, depth + 1u)) {
+            return 0;
+        }
+    }
+
+    return b2_serialize_append_cstr(buffer, "}");
+}
+
+static int b2_serialize_zend_value(
+    B2SerializeBuffer *buffer,
+    JinxZendValue value,
+    const JinxZendArray **path,
+    size_t depth
+) {
+    switch (value.type) {
+        case JINX_ZEND_NULL:
+            return b2_serialize_append_cstr(buffer, "N;");
+        case JINX_ZEND_FALSE:
+            return b2_serialize_append_cstr(buffer, "b:0;");
+        case JINX_ZEND_TRUE:
+            return b2_serialize_append_cstr(buffer, "b:1;");
+        case JINX_ZEND_LONG:
+            return b2_serialize_append_cstr(buffer, "i:") &&
+                b2_serialize_append_int64(buffer, value.value.lval) &&
+                b2_serialize_append_cstr(buffer, ";");
+        case JINX_ZEND_DOUBLE:
+            return b2_serialize_append_cstr(buffer, "d:") &&
+                b2_serialize_append_double(buffer, value.value.dval) &&
+                b2_serialize_append_cstr(buffer, ";");
+        case JINX_ZEND_STRING:
+            return value.value.str != NULL &&
+                b2_serialize_append_cstr(buffer, "s:") &&
+                b2_serialize_append_size(buffer, value.value.str->len) &&
+                b2_serialize_append_cstr(buffer, ":\"") &&
+                b2_serialize_append(
+                    buffer, value.value.str->bytes, value.value.str->len
+                ) &&
+                b2_serialize_append_cstr(buffer, "\";");
+        case JINX_ZEND_ARRAY:
+            return b2_serialize_array(
+                buffer, value.value.array, path, depth
+            );
+        default:
+            return 0;
+    }
+}
+
+static int b2_serialize_jinx_value(B2SerializeBuffer *buffer, JinxValue value) {
+    const JinxZendArray *path[64] = {0};
+
+    if (jinx_oracle_value_is_zend_array(value)) {
+        return b2_serialize_array(
+            buffer, jinx_oracle_zend_array_ptr(value), path, 0u
+        );
+    }
+    if (value.type == 0u) return b2_serialize_append_cstr(buffer, "N;");
+    if (value.type == 1u) {
+        return b2_serialize_append_cstr(buffer, "i:") &&
+            b2_serialize_append_int64(buffer, value.as.i64) &&
+            b2_serialize_append_cstr(buffer, ";");
+    }
+    if (value.type == 2u) {
+        return b2_serialize_append_cstr(
+            buffer, value.as.i64 != 0 ? "b:1;" : "b:0;"
+        );
+    }
+    if (value.type == 3u) {
+        return b2_serialize_append_cstr(buffer, "s:") &&
+            b2_serialize_append_size(buffer, (size_t)value.flags) &&
+            b2_serialize_append_cstr(buffer, ":\"") &&
+            b2_serialize_append(
+                buffer,
+                (const char *)jinx_oracle_string_bytes(value),
+                (size_t)value.flags
+            ) &&
+            b2_serialize_append_cstr(buffer, "\";");
+    }
+    if (value.type == 5u) {
+        return b2_serialize_append_cstr(buffer, "d:") &&
+            b2_serialize_append_double(buffer, value.as.f64) &&
+            b2_serialize_append_cstr(buffer, ";");
+    }
+    return 0;
+}
+
+static int b2_unserialize_expect(B2UnserializeParser *parser, unsigned char ch) {
+    if (parser == NULL || parser->pos >= parser->len ||
+        parser->data[parser->pos] != ch) {
+        return 0;
+    }
+    parser->pos++;
+    return 1;
+}
+
+static int b2_unserialize_read_uint(
+    B2UnserializeParser *parser,
+    unsigned char delimiter,
+    size_t *out
+) {
+    size_t value = 0u;
+    size_t start;
+
+    if (parser == NULL || out == NULL) return 0;
+    start = parser->pos;
+    while (parser->pos < parser->len &&
+           parser->data[parser->pos] != delimiter) {
+        unsigned char ch = parser->data[parser->pos++];
+        size_t digit;
+        if (ch < '0' || ch > '9') return 0;
+        digit = (size_t)(ch - '0');
+        if (value > (SIZE_MAX - digit) / 10u) return 0;
+        value = value * 10u + digit;
+    }
+    if (parser->pos == start || !b2_unserialize_expect(parser, delimiter)) {
+        return 0;
+    }
+    *out = value;
+    return 1;
+}
+
+static int b2_unserialize_read_int64(
+    B2UnserializeParser *parser,
+    unsigned char delimiter,
+    int64_t *out
+) {
+    int negative = 0;
+    uint64_t value = 0u;
+    uint64_t limit;
+    size_t start;
+
+    if (parser == NULL || out == NULL || parser->pos >= parser->len) return 0;
+    if (parser->data[parser->pos] == '-') {
+        negative = 1;
+        parser->pos++;
+    }
+    start = parser->pos;
+    limit = negative ? (uint64_t)INT64_MAX + 1u : (uint64_t)INT64_MAX;
+
+    while (parser->pos < parser->len &&
+           parser->data[parser->pos] != delimiter) {
+        unsigned char ch = parser->data[parser->pos++];
+        uint64_t digit;
+        if (ch < '0' || ch > '9') return 0;
+        digit = (uint64_t)(ch - '0');
+        if (value > (limit - digit) / 10u) return 0;
+        value = value * 10u + digit;
+    }
+
+    if (parser->pos == start || !b2_unserialize_expect(parser, delimiter)) {
+        return 0;
+    }
+    if (negative) {
+        *out = value == (uint64_t)INT64_MAX + 1u
+            ? INT64_MIN
+            : -(int64_t)value;
+    } else {
+        *out = (int64_t)value;
+    }
+    return 1;
+}
+
+static int b2_unserialize_read_double(
+    B2UnserializeParser *parser,
+    double *out
+) {
+    size_t start;
+    size_t token_len;
+    char token[128];
+    char *end = NULL;
+
+    if (parser == NULL || out == NULL) return 0;
+    start = parser->pos;
+    while (parser->pos < parser->len && parser->data[parser->pos] != ';') {
+        parser->pos++;
+    }
+    if (parser->pos == start || parser->pos >= parser->len) return 0;
+    token_len = parser->pos - start;
+    if (token_len >= sizeof(token)) return 0;
+    memcpy(token, parser->data + start, token_len);
+    token[token_len] = '\0';
+    parser->pos++;
+
+    if (strcmp(token, "INF") == 0) {
+        *out = INFINITY;
+        return 1;
+    }
+    if (strcmp(token, "-INF") == 0) {
+        *out = -INFINITY;
+        return 1;
+    }
+    if (strcmp(token, "NAN") == 0) {
+        *out = NAN;
+        return 1;
+    }
+
+    errno = 0;
+    *out = strtod(token, &end);
+    return errno != ERANGE && end != token && *end == '\0';
+}
+
+static int b2_unserialize_zend_value(
+    B2UnserializeParser *parser,
+    JinxZendValue *out,
+    size_t depth
+) {
+    unsigned char type;
+
+    if (parser == NULL || out == NULL || depth >= 64u ||
+        parser->pos >= parser->len) {
+        return 0;
+    }
+
+    type = parser->data[parser->pos++];
+    if (type == 'N') {
+        if (!b2_unserialize_expect(parser, ';')) return 0;
+        *out = jinx_zend_null();
+        return 1;
+    }
+
+    if (type == 'b') {
+        int value;
+        if (!b2_unserialize_expect(parser, ':') || parser->pos >= parser->len) {
+            return 0;
+        }
+        if (parser->data[parser->pos] == '0') value = 0;
+        else if (parser->data[parser->pos] == '1') value = 1;
+        else return 0;
+        parser->pos++;
+        if (!b2_unserialize_expect(parser, ';')) return 0;
+        *out = jinx_zend_bool(value);
+        return 1;
+    }
+
+    if (type == 'i') {
+        int64_t value;
+        if (!b2_unserialize_expect(parser, ':') ||
+            !b2_unserialize_read_int64(parser, ';', &value)) {
+            return 0;
+        }
+        *out = jinx_zend_long(value);
+        return 1;
+    }
+
+    if (type == 'd') {
+        double value;
+        if (!b2_unserialize_expect(parser, ':') ||
+            !b2_unserialize_read_double(parser, &value)) {
+            return 0;
+        }
+        *out = jinx_zend_double(value);
+        return 1;
+    }
+
+    if (type == 's') {
+        size_t string_len;
+        JinxZendString *string;
+        if (!b2_unserialize_expect(parser, ':') ||
+            !b2_unserialize_read_uint(parser, ':', &string_len) ||
+            !b2_unserialize_expect(parser, '"') ||
+            string_len > parser->len - parser->pos) {
+            return 0;
+        }
+        string = jinx_zend_string_new(
+            (const char *)parser->data + parser->pos,
+            string_len
+        );
+        if (string == NULL) return 0;
+        parser->pos += string_len;
+        if (!b2_unserialize_expect(parser, '"') ||
+            !b2_unserialize_expect(parser, ';')) {
+            jinx_zend_string_release(string);
+            return 0;
+        }
+        *out = jinx_zend_string_value(string);
+        jinx_zend_string_release(string);
+        return 1;
+    }
+
+    if (type == 'a') {
+        size_t count;
+        JinxZendArray *array;
+
+        if (!b2_unserialize_expect(parser, ':') ||
+            !b2_unserialize_read_uint(parser, ':', &count) ||
+            !b2_unserialize_expect(parser, '{')) {
+            return 0;
+        }
+
+        array = jinx_zend_array_new_packed(count == 0u ? 1u : count);
+        if (array == NULL) return 0;
+
+        for (size_t i = 0u; i < count; i++) {
+            JinxZendValue key = jinx_zend_null();
+            JinxZendValue value = jinx_zend_null();
+            int added = 0;
+
+            if (!b2_unserialize_zend_value(parser, &key, depth + 1u) ||
+                !b2_unserialize_zend_value(parser, &value, depth + 1u)) {
+                jinx_zend_value_release(key);
+                jinx_zend_value_release(value);
+                jinx_zend_array_release(array);
+                return 0;
+            }
+
+            if (key.type == JINX_ZEND_LONG) {
+                added = jinx_zend_array_add_index(
+                    array, (size_t)key.value.lval, value
+                );
+            } else if (key.type == JINX_ZEND_STRING && key.value.str != NULL) {
+                added = jinx_zend_array_add_assoc(
+                    array,
+                    key.value.str->bytes,
+                    key.value.str->len,
+                    value
+                );
+            }
+
+            jinx_zend_value_release(key);
+            jinx_zend_value_release(value);
+
+            if (!added) {
+                jinx_zend_array_release(array);
+                return 0;
+            }
+        }
+
+        if (!b2_unserialize_expect(parser, '}')) {
+            jinx_zend_array_release(array);
+            return 0;
+        }
+
+        *out = jinx_zend_array_value(array);
+        return 1;
+    }
+
+    return 0;
+}
+
+static JinxValue b2_unserialize_to_jinx(JinxValue input, int *ok) {
+    B2UnserializeParser parser;
+    JinxZendValue decoded = jinx_zend_null();
+    JinxValue result = jinx_oracle_zero_value();
+
+    if (ok != NULL) *ok = 0;
+    if (input.type != 3u || input.as.ptr == NULL) return result;
+
+    parser.data = jinx_oracle_string_bytes(input);
+    parser.len = jinx_oracle_string_len(input);
+    parser.pos = 0u;
+
+    if (!b2_unserialize_zend_value(&parser, &decoded, 0u) ||
+        parser.pos != parser.len) {
+        jinx_zend_value_release(decoded);
+        if (ok != NULL) *ok = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
+    switch (decoded.type) {
+        case JINX_ZEND_NULL:
+            result = jinx_oracle_zero_value();
+            break;
+        case JINX_ZEND_FALSE:
+            result = jinx_oracle_bool_value(0);
+            break;
+        case JINX_ZEND_TRUE:
+            result = jinx_oracle_bool_value(1);
+            break;
+        case JINX_ZEND_LONG:
+            result = jinx_oracle_int_value(decoded.value.lval);
+            break;
+        case JINX_ZEND_DOUBLE:
+            result = jinx_oracle_float_value(decoded.value.dval);
+            break;
+        case JINX_ZEND_STRING:
+            if (decoded.value.str == NULL) {
+                jinx_zend_value_release(decoded);
+                return jinx_oracle_zero_value();
+            }
+            result = b2_copy(decoded.value.str->bytes, decoded.value.str->len);
+            break;
+        case JINX_ZEND_ARRAY:
+            if (decoded.value.array == NULL) {
+                jinx_zend_value_release(decoded);
+                return jinx_oracle_zero_value();
+            }
+            result = jinx_oracle_zend_array_value_owned(decoded.value.array);
+            decoded.type = JINX_ZEND_NULL;
+            decoded.value.ptr = NULL;
+            break;
+        default:
+            jinx_zend_value_release(decoded);
+            return jinx_oracle_zero_value();
+    }
+
+    jinx_zend_value_release(decoded);
+    if (ok != NULL) *ok = 1;
+    return result;
 }
 
 #ifdef JINX_HAVE_ICONV
