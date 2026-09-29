@@ -89,6 +89,139 @@ static int jinx_sodium_box_keypair_parts(
     return 1;
 }
 
+typedef int (*JinxSodiumAeadEncryptFn)(
+    unsigned char *,
+    unsigned long long *,
+    const unsigned char *,
+    unsigned long long,
+    const unsigned char *,
+    unsigned long long,
+    const unsigned char *,
+    const unsigned char *,
+    const unsigned char *
+);
+
+typedef int (*JinxSodiumAeadDecryptFn)(
+    unsigned char *,
+    unsigned long long *,
+    unsigned char *,
+    const unsigned char *,
+    unsigned long long,
+    const unsigned char *,
+    unsigned long long,
+    const unsigned char *,
+    const unsigned char *
+);
+
+static JinxValue jinx_sodium_aead_encrypt(
+    JinxValue *args,
+    size_t argc,
+    size_t nonce_bytes,
+    size_t key_bytes,
+    size_t auth_bytes,
+    JinxSodiumAeadEncryptFn encrypt_fn,
+    int *ok
+) {
+    const unsigned char *message;
+    const unsigned char *aad;
+    const unsigned char *nonce;
+    const unsigned char *key;
+    size_t message_len;
+    size_t aad_len;
+    unsigned long long ciphertext_len = 0u;
+    unsigned char *out;
+    JinxValue value = jinx_oracle_zero_value();
+
+    if (ok != NULL) *ok = 0;
+    if (args == NULL || argc != 4u ||
+        encrypt_fn == NULL ||
+        !jinx_sodium_string(args[0], &message, &message_len) ||
+        !jinx_sodium_string(args[1], &aad, &aad_len) ||
+        !jinx_sodium_exact_string(args[2], nonce_bytes, &nonce) ||
+        !jinx_sodium_exact_string(args[3], key_bytes, &key) ||
+        message_len > UINT32_MAX - auth_bytes) {
+        return value;
+    }
+
+    value = jinx_sodium_alloc_result(message_len + auth_bytes, &out);
+    if (value.type != 3u ||
+        encrypt_fn(
+            out,
+            &ciphertext_len,
+            message,
+            (unsigned long long)message_len,
+            aad,
+            (unsigned long long)aad_len,
+            NULL,
+            nonce,
+            key
+        ) != 0 ||
+        ciphertext_len != (unsigned long long)(message_len + auth_bytes)) {
+        return jinx_oracle_zero_value();
+    }
+
+    if (ok != NULL) *ok = 1;
+    return value;
+}
+
+static JinxValue jinx_sodium_aead_decrypt(
+    JinxValue *args,
+    size_t argc,
+    size_t nonce_bytes,
+    size_t key_bytes,
+    size_t auth_bytes,
+    JinxSodiumAeadDecryptFn decrypt_fn,
+    int *ok
+) {
+    const unsigned char *ciphertext;
+    const unsigned char *aad;
+    const unsigned char *nonce;
+    const unsigned char *key;
+    size_t ciphertext_len;
+    size_t aad_len;
+    size_t message_capacity;
+    unsigned long long message_len = 0u;
+    unsigned char *out;
+    JinxValue value = jinx_oracle_zero_value();
+
+    if (ok != NULL) *ok = 0;
+    if (args == NULL || argc != 4u ||
+        decrypt_fn == NULL ||
+        !jinx_sodium_string(args[0], &ciphertext, &ciphertext_len) ||
+        ciphertext_len < auth_bytes ||
+        !jinx_sodium_string(args[1], &aad, &aad_len) ||
+        !jinx_sodium_exact_string(args[2], nonce_bytes, &nonce) ||
+        !jinx_sodium_exact_string(args[3], key_bytes, &key)) {
+        return value;
+    }
+
+    message_capacity = ciphertext_len - auth_bytes;
+    value = jinx_sodium_alloc_result(message_capacity, &out);
+    if (value.type != 3u) return jinx_oracle_zero_value();
+
+    if (decrypt_fn(
+            out,
+            &message_len,
+            NULL,
+            ciphertext,
+            (unsigned long long)ciphertext_len,
+            aad,
+            (unsigned long long)aad_len,
+            nonce,
+            key
+        ) != 0) {
+        if (ok != NULL) *ok = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (message_len > UINT32_MAX || message_len > message_capacity) {
+        return jinx_oracle_zero_value();
+    }
+    value.flags = (uint32_t)message_len;
+    if (ok != NULL) *ok = 1;
+    return value;
+}
+
 JinxValue jinx_oracle_sodium_builtin(
     const char *name,
     JinxValue *args,
@@ -404,6 +537,159 @@ JinxValue jinx_oracle_sodium_builtin(
                 key_len
             ) != 0) return result;
 
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_chacha20poly1305_keygen") == 0) {
+        unsigned char key[crypto_aead_chacha20poly1305_KEYBYTES];
+        if (argc != 0u) return result;
+        randombytes_buf(key, sizeof(key));
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_chacha20poly1305_encrypt") == 0 ||
+        strcmp(name, "sodium_crypto_aead_chacha20poly1305_decrypt") == 0) {
+        int aead_ok = 0;
+        JinxValue value =
+            strcmp(name, "sodium_crypto_aead_chacha20poly1305_encrypt") == 0
+            ? jinx_sodium_aead_encrypt(
+                args,
+                argc,
+                crypto_aead_chacha20poly1305_NPUBBYTES,
+                crypto_aead_chacha20poly1305_KEYBYTES,
+                crypto_aead_chacha20poly1305_ABYTES,
+                crypto_aead_chacha20poly1305_encrypt,
+                &aead_ok
+            )
+            : jinx_sodium_aead_decrypt(
+                args,
+                argc,
+                crypto_aead_chacha20poly1305_NPUBBYTES,
+                crypto_aead_chacha20poly1305_KEYBYTES,
+                crypto_aead_chacha20poly1305_ABYTES,
+                crypto_aead_chacha20poly1305_decrypt,
+                &aead_ok
+            );
+        if (!aead_ok) return result;
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_chacha20poly1305_ietf_keygen") == 0) {
+        unsigned char key[crypto_aead_chacha20poly1305_ietf_KEYBYTES];
+        if (argc != 0u) return result;
+        randombytes_buf(key, sizeof(key));
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_chacha20poly1305_ietf_encrypt") == 0 ||
+        strcmp(name, "sodium_crypto_aead_chacha20poly1305_ietf_decrypt") == 0) {
+        int aead_ok = 0;
+        JinxValue value =
+            strcmp(name, "sodium_crypto_aead_chacha20poly1305_ietf_encrypt") == 0
+            ? jinx_sodium_aead_encrypt(
+                args,
+                argc,
+                crypto_aead_chacha20poly1305_ietf_NPUBBYTES,
+                crypto_aead_chacha20poly1305_ietf_KEYBYTES,
+                crypto_aead_chacha20poly1305_ietf_ABYTES,
+                crypto_aead_chacha20poly1305_ietf_encrypt,
+                &aead_ok
+            )
+            : jinx_sodium_aead_decrypt(
+                args,
+                argc,
+                crypto_aead_chacha20poly1305_ietf_NPUBBYTES,
+                crypto_aead_chacha20poly1305_ietf_KEYBYTES,
+                crypto_aead_chacha20poly1305_ietf_ABYTES,
+                crypto_aead_chacha20poly1305_ietf_decrypt,
+                &aead_ok
+            );
+        if (!aead_ok) return result;
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_xchacha20poly1305_ietf_keygen") == 0) {
+        unsigned char key[crypto_aead_xchacha20poly1305_ietf_KEYBYTES];
+        if (argc != 0u) return result;
+        randombytes_buf(key, sizeof(key));
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_xchacha20poly1305_ietf_encrypt") == 0 ||
+        strcmp(name, "sodium_crypto_aead_xchacha20poly1305_ietf_decrypt") == 0) {
+        int aead_ok = 0;
+        JinxValue value =
+            strcmp(name, "sodium_crypto_aead_xchacha20poly1305_ietf_encrypt") == 0
+            ? jinx_sodium_aead_encrypt(
+                args,
+                argc,
+                crypto_aead_xchacha20poly1305_ietf_NPUBBYTES,
+                crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
+                crypto_aead_xchacha20poly1305_ietf_ABYTES,
+                crypto_aead_xchacha20poly1305_ietf_encrypt,
+                &aead_ok
+            )
+            : jinx_sodium_aead_decrypt(
+                args,
+                argc,
+                crypto_aead_xchacha20poly1305_ietf_NPUBBYTES,
+                crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
+                crypto_aead_xchacha20poly1305_ietf_ABYTES,
+                crypto_aead_xchacha20poly1305_ietf_decrypt,
+                &aead_ok
+            );
+        if (!aead_ok) return result;
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_aes256gcm_is_available") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(
+            crypto_aead_aes256gcm_is_available() != 0
+        );
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_aes256gcm_keygen") == 0) {
+        unsigned char key[crypto_aead_aes256gcm_KEYBYTES];
+        if (argc != 0u) return result;
+        randombytes_buf(key, sizeof(key));
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_aead_aes256gcm_encrypt") == 0 ||
+        strcmp(name, "sodium_crypto_aead_aes256gcm_decrypt") == 0) {
+        int aead_ok = 0;
+        JinxValue value;
+        if (crypto_aead_aes256gcm_is_available() == 0) return result;
+        value = strcmp(name, "sodium_crypto_aead_aes256gcm_encrypt") == 0
+            ? jinx_sodium_aead_encrypt(
+                args,
+                argc,
+                crypto_aead_aes256gcm_NPUBBYTES,
+                crypto_aead_aes256gcm_KEYBYTES,
+                crypto_aead_aes256gcm_ABYTES,
+                crypto_aead_aes256gcm_encrypt,
+                &aead_ok
+            )
+            : jinx_sodium_aead_decrypt(
+                args,
+                argc,
+                crypto_aead_aes256gcm_NPUBBYTES,
+                crypto_aead_aes256gcm_KEYBYTES,
+                crypto_aead_aes256gcm_ABYTES,
+                crypto_aead_aes256gcm_decrypt,
+                &aead_ok
+            );
+        if (!aead_ok) return result;
         if (handled != NULL) *handled = 1;
         return value;
     }
