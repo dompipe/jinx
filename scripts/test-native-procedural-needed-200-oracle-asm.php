@@ -689,6 +689,54 @@ expect200(
     zlib_get_coding_type() === false ? 'bool:false' : 'string:' . zlib_get_coding_type()
 );
 
+if (function_exists('iconv')) {
+    $iconvInput = "Héllo";
+    $phpIconv = iconv('UTF-8', 'ISO-8859-1', $iconvInput);
+    if ($phpIconv !== false) {
+        expect200(
+            $jinx,
+            'iconv',
+            ['s:UTF-8', 's:ISO-8859-1', 's:' . $iconvInput],
+            'hex:' . bin2hex($phpIconv),
+            true
+        );
+    }
+
+    $phpIconvLen = iconv_strlen($iconvInput, 'UTF-8');
+    expect200(
+        $jinx,
+        'iconv_strlen',
+        ['s:' . $iconvInput, 's:UTF-8'],
+        $phpIconvLen === false ? 'bool:false' : 'int:' . $phpIconvLen
+    );
+
+    $phpIconvSub = iconv_substr($iconvInput, 1, 3, 'UTF-8');
+    expect200(
+        $jinx,
+        'iconv_substr',
+        ['s:' . $iconvInput, 'i:1', 'i:3', 's:UTF-8'],
+        $phpIconvSub === false ? 'bool:false' : 'hex:' . bin2hex($phpIconvSub),
+        true
+    );
+
+    $positionInput = "abécdé";
+    $phpIconvPos = iconv_strpos($positionInput, 'é', 0, 'UTF-8');
+    expect200(
+        $jinx,
+        'iconv_strpos',
+        ['s:' . $positionInput, 's:é', 'i:0', 's:UTF-8'],
+        $phpIconvPos === false ? 'bool:false' : 'int:' . $phpIconvPos
+    );
+
+    $phpIconvRpos = iconv_strrpos($positionInput, 'é', 'UTF-8');
+    expect200(
+        $jinx,
+        'iconv_strrpos',
+        ['s:' . $positionInput, 's:é', 's:UTF-8'],
+        $phpIconvRpos === false ? 'bool:false' : 'int:' . $phpIconvRpos
+    );
+}
+
 $randomBytes = jinx200($jinx, 'random_bytes', ['i:16'], true, $code);
 if ($code !== 0 || !preg_match('/^hex:[0-9a-f]{32}$/', $randomBytes)) {
     fail200("random_bytes length/binary contract mismatch\nJINX: {$randomBytes}");
