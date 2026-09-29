@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 805,
-        "extended_native_route": 507,
+        "native_named_route": 807,
+        "extended_native_route": 509,
         "context_native_route": 3,
-        "intentional_native_fault": 2722
+        "intentional_native_fault": 2720
     },
     "routes": {
         "_": "extended",
@@ -2739,7 +2739,7 @@
         "sensitiveparametervalue::getvalue": "intentional-native-fault",
         "serializable::serialize": "intentional-native-fault",
         "serializable::unserialize": "intentional-native-fault",
-        "serialize": "intentional-native-fault",
+        "serialize": "extended",
         "session_abort": "intentional-native-fault",
         "session_cache_expire": "intentional-native-fault",
         "session_cache_limiter": "intentional-native-fault",
@@ -3499,7 +3499,7 @@
         "unlink": "extended",
         "unpack": "extended",
         "unregister_tick_function": "intentional-native-fault",
-        "unserialize": "intentional-native-fault",
+        "unserialize": "extended",
         "urldecode": "asm",
         "urlencode": "asm",
         "user_error": "intentional-native-fault",
