@@ -764,6 +764,60 @@ static int b2_assoc_string(
     return ok;
 }
 
+static int b2_assoc_value(
+    JinxZendArray *array,
+    const char *key,
+    JinxValue value
+) {
+    JinxZendValue zend_value;
+    JinxZendString *owned_string = NULL;
+    int ok;
+
+    if (array == NULL || key == NULL) return 0;
+    if (!jinx_oracle_jinx_value_to_zend(
+            value, &zend_value, &owned_string)) {
+        return 0;
+    }
+    ok = jinx_zend_array_add_assoc(
+        array, key, strlen(key), zend_value
+    );
+    jinx_zend_string_release(owned_string);
+    return ok;
+}
+
+static int b2_constant_time_string_equal(
+    const char *left,
+    const char *right
+) {
+    size_t left_len;
+    size_t right_len;
+    unsigned char diff = 0u;
+
+    if (left == NULL || right == NULL) return 0;
+    left_len = strlen(left);
+    right_len = strlen(right);
+    if (left_len != right_len) return 0;
+
+    for (size_t i = 0u; i < left_len; i++) {
+        diff |= (unsigned char)left[i] ^ (unsigned char)right[i];
+    }
+    return diff == 0u;
+}
+
+static int b2_bcrypt_cost(const char *hash, int *cost) {
+    if (hash == NULL || cost == NULL || strlen(hash) < 7u) return 0;
+    if ((unsigned char)hash[0] != 36u || hash[1] != '2' ||
+        (hash[2] != 'y' && hash[2] != 'a' && hash[2] != 'b' && hash[2] != 'x') ||
+        (unsigned char)hash[3] != 36u ||
+        hash[4] < '0' || hash[4] > '9' ||
+        hash[5] < '0' || hash[5] > '9' ||
+        (unsigned char)hash[6] != 36u) {
+        return 0;
+    }
+    *cost = (hash[4] - '0') * 10 + (hash[5] - '0');
+    return *cost >= 4 && *cost <= 31;
+}
+
 static int b2_append_string(JinxZendArray *array, const char *text) {
     JinxZendString *string;
     int ok;
@@ -6185,6 +6239,162 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_CRYPT
+    if (strcmp(name, "password_verify") == 0) {
+        char *password;
+        char *hash;
+        char *computed;
+        int bcrypt_cost;
+
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+
+        password = b2_dup(args[0]);
+        hash = b2_dup(args[1]);
+        if (password == NULL || hash == NULL) {
+            free(password);
+            free(hash);
+            return result;
+        }
+
+        if (!b2_bcrypt_cost(hash, &bcrypt_cost)) {
+            free(password);
+            free(hash);
+            return result;
+        }
+
+        computed = crypt(password, hash);
+        free(password);
+        if (handled != NULL) *handled = 1;
+        if (computed == NULL) {
+            free(hash);
+            return jinx_oracle_bool_value(0);
+        }
+
+        {
+            int verified = b2_constant_time_string_equal(computed, hash);
+            free(hash);
+            return jinx_oracle_bool_value(verified);
+        }
+    }
+
+    if (strcmp(name, "password_get_info") == 0) {
+        char *hash;
+        int cost = 0;
+        int is_bcrypt;
+        JinxZendArray *outer;
+        JinxZendArray *options;
+        JinxValue algo = jinx_value_null();
+        const JinxNativeConstantMeta *algo_meta;
+
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        hash = b2_dup(args[0]);
+        if (hash == NULL) return result;
+        is_bcrypt = b2_bcrypt_cost(hash, &cost);
+        free(hash);
+
+        outer = jinx_zend_array_new_packed(3u);
+        options = jinx_zend_array_new_packed(is_bcrypt ? 1u : 0u);
+        if (outer == NULL || options == NULL) {
+            jinx_zend_array_release(outer);
+            jinx_zend_array_release(options);
+            return result;
+        }
+
+        if (is_bcrypt) {
+            algo_meta = b2_constant_meta("PASSWORD_BCRYPT");
+            if (algo_meta != NULL) algo = b2_constant_value(algo_meta);
+            else algo = jinx_oracle_string_value("2y");
+
+            if (!jinx_zend_array_add_assoc(
+                    options, "cost", 4u, jinx_zend_long((int64_t)cost))) {
+                jinx_zend_array_release(outer);
+                jinx_zend_array_release(options);
+                return result;
+            }
+        }
+
+        if (!b2_assoc_value(outer, "algo", algo) ||
+            !b2_assoc_string(
+                outer, "algoName", is_bcrypt ? "bcrypt" : "unknown"
+            ) ||
+            !jinx_zend_array_add_assoc(
+                outer, "options", 7u, jinx_zend_array_value(options)
+            )) {
+            jinx_zend_array_release(outer);
+            jinx_zend_array_release(options);
+            return result;
+        }
+
+        jinx_zend_array_release(options);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(outer);
+    }
+
+    if (strcmp(name, "password_needs_rehash") == 0) {
+        char *hash;
+        int current_cost = 0;
+        int desired_cost = 12;
+        int is_bcrypt;
+        int algo_is_bcrypt = 0;
+        const JinxNativeConstantMeta *algo_meta;
+        const JinxNativeConstantMeta *cost_meta;
+
+        if (args == NULL || argc < 2u || args[0].type != 3u) return result;
+        hash = b2_dup(args[0]);
+        if (hash == NULL) return result;
+
+        algo_meta = b2_constant_meta("PASSWORD_BCRYPT");
+        if (algo_meta != NULL) {
+            if (algo_meta->type == 3u && args[1].type == 3u) {
+                char *algo = b2_dup(args[1]);
+                if (algo != NULL) {
+                    algo_is_bcrypt = algo_meta->str != NULL &&
+                        strcmp(algo, algo_meta->str) == 0;
+                    free(algo);
+                }
+            } else if (algo_meta->type == 1u &&
+                       (args[1].type == 1u || args[1].type == 2u)) {
+                algo_is_bcrypt =
+                    jinx_oracle_intish(args[1]) == (int64_t)algo_meta->i64;
+            }
+        }
+
+        if (!algo_is_bcrypt) {
+            free(hash);
+            return result;
+        }
+
+        if (argc >= 3u && args[2].type != 0u) {
+            if (args[2].type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+                JinxZendArray *options_array =
+                    jinx_oracle_zend_array_ptr(args[2]);
+                JinxZendValue *cost_value = options_array != NULL
+                    ? jinx_zend_array_find(options_array, "cost", 4u)
+                    : NULL;
+                if (cost_value != NULL &&
+                    (cost_value->type == JINX_ZEND_LONG ||
+                     cost_value->type == JINX_ZEND_BOOL)) {
+                    desired_cost = (int)cost_value->value.lval;
+                }
+            } else {
+                free(hash);
+                return result;
+            }
+        } else {
+            cost_meta = b2_constant_meta("PASSWORD_BCRYPT_DEFAULT_COST");
+            if (cost_meta != NULL && cost_meta->type == 1u) {
+                desired_cost = (int)cost_meta->i64;
+            }
+        }
+
+        is_bcrypt = b2_bcrypt_cost(hash, &current_cost);
+        free(hash);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(
+            !is_bcrypt || current_cost != desired_cost
+        );
+    }
+
     if (strcmp(name, "crypt") == 0) {
         char *password;
         char *salt;
