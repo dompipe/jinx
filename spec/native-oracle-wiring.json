@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 804,
-        "extended_native_route": 506,
+        "native_named_route": 805,
+        "extended_native_route": 507,
         "context_native_route": 3,
-        "intentional_native_fault": 2723
+        "intentional_native_fault": 2722
     },
     "routes": {
         "_": "extended",
@@ -1859,7 +1859,7 @@
         "posix_uname": "extended",
         "pow": "asm",
         "preg_filter": "extended",
-        "preg_grep": "intentional-native-fault",
+        "preg_grep": "extended",
         "preg_last_error": "extended",
         "preg_last_error_msg": "extended",
         "preg_match": "extended",
