@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 731,
-        "extended_native_route": 433,
+        "native_named_route": 735,
+        "extended_native_route": 437,
         "context_native_route": 3,
-        "intentional_native_fault": 2796
+        "intentional_native_fault": 2792
     },
     "routes": {
         "_": "extended",
@@ -1515,7 +1515,7 @@
         "pdo::quote": "intentional-native-fault",
         "pdo::rollback": "intentional-native-fault",
         "pdo::setattribute": "intentional-native-fault",
-        "pdo_drivers": "intentional-native-fault",
+        "pdo_drivers": "extended",
         "pdoexception::__construct": "intentional-native-fault",
         "pdoexception::__tostring": "intentional-native-fault",
         "pdoexception::__wakeup": "intentional-native-fault",
@@ -2781,7 +2781,7 @@
         "sessionupdatetimestamphandlerinterface::validateid": "intentional-native-fault",
         "set_error_handler": "intentional-native-fault",
         "set_exception_handler": "intentional-native-fault",
-        "set_file_buffer": "intentional-native-fault",
+        "set_file_buffer": "extended",
         "set_include_path": "extended",
         "set_time_limit": "intentional-native-fault",
         "setcookie": "intentional-native-fault",
@@ -2843,7 +2843,7 @@
         "socket_sendmsg": "intentional-native-fault",
         "socket_sendto": "intentional-native-fault",
         "socket_set_block": "intentional-native-fault",
-        "socket_set_blocking": "intentional-native-fault",
+        "socket_set_blocking": "extended",
         "socket_set_nonblock": "intentional-native-fault",
         "socket_set_option": "intentional-native-fault",
         "socket_set_timeout": "intentional-native-fault",
@@ -3536,6 +3536,6 @@
         "zend_version": "extended",
         "zlib_decode": "asm",
         "zlib_encode": "asm",
-        "zlib_get_coding_type": "intentional-native-fault"
+        "zlib_get_coding_type": "extended"
     }
 }
