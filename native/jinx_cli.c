@@ -1317,7 +1317,55 @@ static int command_oracle_frame_smoke(void) {
 static int command_oracle_gc_smoke(void) {
     JinxValue result;
     int ok = 0;
+    int64_t runs_before = -1;
 
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_status", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("gc_status did not return native status array");
+    }
+    {
+        JinxZendArray *status = jinx_oracle_zend_array_ptr(result);
+        const char *bool_keys[] = {"running", "protected", "full"};
+        const char *int_keys[] = {"runs", "collected", "threshold", "buffer_size", "roots"};
+        const char *float_keys[] = {"application_time", "collector_time", "destructor_time", "free_time"};
+
+        if (status == NULL || jinx_zend_array_live_count(status) != 12u) {
+            release_cli_value(result);
+            return fail("gc_status did not expose all PHP 8.4 status fields");
+        }
+
+        for (size_t i = 0u; i < sizeof(bool_keys) / sizeof(bool_keys[0]); i++) {
+            JinxZendValue *value = jinx_zend_array_find(status, bool_keys[i], strlen(bool_keys[i]));
+            if (value == NULL || (value->type != JINX_ZEND_FALSE && value->type != JINX_ZEND_TRUE)) {
+                release_cli_value(result);
+                return fail("gc_status boolean field type mismatch");
+            }
+        }
+        for (size_t i = 0u; i < sizeof(int_keys) / sizeof(int_keys[0]); i++) {
+            JinxZendValue *value = jinx_zend_array_find(status, int_keys[i], strlen(int_keys[i]));
+            if (value == NULL || value->type != JINX_ZEND_LONG) {
+                release_cli_value(result);
+                return fail("gc_status integer field type mismatch");
+            }
+            if (strcmp(int_keys[i], "runs") == 0) runs_before = value->value.lval;
+        }
+        for (size_t i = 0u; i < sizeof(float_keys) / sizeof(float_keys[0]); i++) {
+            JinxZendValue *value = jinx_zend_array_find(status, float_keys[i], strlen(float_keys[i]));
+            if (value == NULL || value->type != JINX_ZEND_DOUBLE) {
+                release_cli_value(result);
+                return fail("gc_status timing field type mismatch");
+            }
+        }
+    }
+    release_cli_value(result);
+    if (runs_before < 0) {
+        return fail("gc_status did not expose runs counter");
+    }
+
+    ok = 0;
     result = jinx_call_builtin_through_oracle_checked(
         "gc_enabled", NULL, 0u, &ok
     );
@@ -1359,6 +1407,35 @@ static int command_oracle_gc_smoke(void) {
 
     ok = 0;
     result = jinx_call_builtin_through_oracle_checked(
+        "gc_status", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("gc_status after collection did not return status array");
+    }
+    {
+        JinxZendArray *status = jinx_oracle_zend_array_ptr(result);
+        JinxZendValue *runs = status != NULL
+            ? jinx_zend_array_find(status, "runs", sizeof("runs") - 1u)
+            : NULL;
+        JinxZendValue *collected = status != NULL
+            ? jinx_zend_array_find(status, "collected", sizeof("collected") - 1u)
+            : NULL;
+        JinxZendValue *roots = status != NULL
+            ? jinx_zend_array_find(status, "roots", sizeof("roots") - 1u)
+            : NULL;
+        if (runs == NULL || runs->type != JINX_ZEND_LONG ||
+            runs->value.lval != runs_before + 1 ||
+            collected == NULL || collected->type != JINX_ZEND_LONG || collected->value.lval != 0 ||
+            roots == NULL || roots->type != JINX_ZEND_LONG || roots->value.lval != 0) {
+            release_cli_value(result);
+            return fail("gc_status did not reflect native forced-collection state");
+        }
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
         "gc_mem_caches", NULL, 0u, &ok
     );
     if (!ok || result.type != 1u || result.as.i64 != 0) {
@@ -1387,7 +1464,7 @@ static int command_oracle_gc_smoke(void) {
     }
     release_cli_value(result);
 
-    printf("PASS: native GC enable/disable/collect/cache state transitions match Jinx runtime semantics\n");
+    printf("PASS: native GC enable/disable/collect/cache/status state transitions match PHP 8.4-shaped Jinx runtime semantics\n");
     return 0;
 }
 
