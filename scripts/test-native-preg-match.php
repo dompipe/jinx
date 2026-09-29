@@ -42,6 +42,17 @@ function oraclePregAll(string $jinx, string $pattern, string $subject, ?int &$co
     );
 }
 
+function oraclePregSplit(string $jinx, string $pattern, string $subject, ?int &$code = null): string
+{
+    return runPreg(
+        escapeshellarg($jinx)
+        . ' oracle-call preg_split '
+        . escapeshellarg('s:' . $pattern)
+        . ' ' . escapeshellarg('s:' . $subject),
+        $code
+    );
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     failPreg('repository-root native ./jinx missing');
 }
@@ -97,4 +108,31 @@ foreach ($allCases as [$pattern, $subject]) {
     }
 }
 
-echo "PASS: native PCRE2 preg_match and preg_match_all two-argument forms match PHP" . PHP_EOL;
+$splitCases = [
+    ['/,+/', 'a,b,,c'],
+    ['/\s+/', 'one two   three'],
+    ['/:/', 'a:b:c:d'],
+];
+
+foreach ($splitCases as [$pattern, $subject]) {
+    $php = @preg_split($pattern, $subject);
+    if (!is_array($php)) {
+        failPreg("PHP preg_split fixture unexpectedly failed: {$pattern}");
+    }
+    $actual = oraclePregSplit($jinx, $pattern, $subject, $code);
+    $expected = 'zend-array:' . count($php);
+    if ($code !== 0 || trim($actual) !== $expected) {
+        failPreg(
+            "preg_split count parity mismatch\n"
+            . "pattern={$pattern}\nsubject={$subject}\n"
+            . "PHP/expected: {$expected}\nJINX: {$actual}"
+        );
+    }
+}
+
+$invalidSplit = oraclePregSplit($jinx, '/[/', 'x', $invalidSplitCode);
+if ($invalidSplitCode !== 0 || trim($invalidSplit) !== 'bool:false') {
+    failPreg("preg_split invalid-pattern contract mismatch\nJINX: {$invalidSplit}");
+}
+
+echo "PASS: native PCRE2 preg_match, preg_match_all, and preg_split core forms match PHP" . PHP_EOL;
