@@ -190,7 +190,7 @@ if (!pcntl_sigprocmask(SIG_BLOCK, [SIGUSR1], $phpOldMask)) {
 $phpInitialContains = in_array(SIGUSR1, $phpOldMask, true);
 
 $phpBlockedMask = [];
-if (!pcntl_sigprocmask(SIG_BLOCK, [], $phpBlockedMask)) {
+if (!pcntl_sigprocmask(SIG_BLOCK, [SIGUSR1], $phpBlockedMask)) {
     pcntl_sigprocmask(SIG_SETMASK, $phpOldMask);
     pcntlFail('PHP pcntl_sigprocmask blocked-state query failed');
 }
@@ -202,7 +202,7 @@ if (!pcntl_sigprocmask(SIG_UNBLOCK, [SIGUSR1], $phpUnblockOld)) {
 }
 
 $phpFinalMask = [];
-if (!pcntl_sigprocmask(SIG_BLOCK, [], $phpFinalMask)) {
+if (!pcntl_sigprocmask(SIG_UNBLOCK, [SIGUSR1], $phpFinalMask)) {
     pcntl_sigprocmask(SIG_SETMASK, $phpOldMask);
     pcntlFail('PHP pcntl_sigprocmask final-state query failed');
 }
