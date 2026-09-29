@@ -2818,13 +2818,14 @@ static int command_net_interfaces_smoke(void) {
         up = jinx_zend_array_find(iface, "up", 2u);
         if (unicast == NULL || unicast->type != JINX_ZEND_ARRAY ||
             unicast->value.array == NULL ||
-            up == NULL || up->type != JINX_ZEND_BOOL) {
+            up == NULL ||
+            (up->type != JINX_ZEND_FALSE && up->type != JINX_ZEND_TRUE)) {
             release_cli_value(result);
             return fail("native net_get_interfaces interface shape mismatch");
         }
 
         unicast_count += jinx_zend_array_live_count(unicast->value.array);
-        if (up->value.lval != 0) up_count++;
+        if (up->type == JINX_ZEND_TRUE) up_count++;
 
         for (size_t j = 0u; j < unicast->value.array->capacity; j++) {
             JinxZendBucket *entry_bucket = &unicast->value.array->buckets[j];
