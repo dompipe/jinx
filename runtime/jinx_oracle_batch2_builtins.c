@@ -2121,6 +2121,12 @@ static JinxValue b2_ini_set_value(
         : jinx_oracle_bool_value(0);
 }
 
+static int b2_ini_assign_value(const char *name, JinxValue value) {
+    int ok = 0;
+    (void)b2_ini_set_value(name, value, &ok);
+    return ok;
+}
+
 static const JinxNativeClassMeta *b2_class(const char *name) {
     if (name == NULL) return NULL;
     while (*name == '\\') name++;
@@ -2949,6 +2955,94 @@ JinxValue jinx_oracle_batch2_builtin(
             if (handled != NULL) *handled = 1;
             return ini_result;
         }
+    }
+
+    if (strcmp(name, "session_set_cookie_params") == 0) {
+        if (args == NULL || argc < 1u || argc > 5u ||
+            jinx_oracle_batch2_session_active) {
+            if (jinx_oracle_batch2_session_active && handled != NULL) *handled = 1;
+            return jinx_oracle_batch2_session_active
+                ? jinx_oracle_bool_value(0) : result;
+        }
+
+        if (args[0].type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            static const struct {
+                const char *key;
+                const char *ini;
+                int kind;
+            } option_map[] = {
+                { "lifetime", "session.cookie_lifetime", 1 },
+                { "path", "session.cookie_path", 2 },
+                { "domain", "session.cookie_domain", 2 },
+                { "secure", "session.cookie_secure", 3 },
+                { "httponly", "session.cookie_httponly", 3 },
+                { "samesite", "session.cookie_samesite", 2 },
+            };
+            JinxZendArray *options;
+            if (argc != 1u) return result;
+            options = jinx_oracle_zend_array_ptr(args[0]);
+            if (options == NULL) return result;
+
+            for (size_t i = 0u; i < sizeof(option_map) / sizeof(option_map[0]); i++) {
+                JinxZendValue *slot = jinx_zend_array_find(
+                    options, option_map[i].key, strlen(option_map[i].key)
+                );
+                JinxValue jv;
+                if (slot == NULL) continue;
+                if (!jinx_oracle_zend_to_jinx_borrowed(*slot, &jv)) return result;
+                if (option_map[i].kind == 1 && jv.type != 1u && jv.type != 2u) {
+                    return result;
+                }
+                if (option_map[i].kind == 2 && jv.type != 3u) return result;
+                if (option_map[i].kind == 3) {
+                    jv = jinx_oracle_bool_value(jinx_oracle_boolish(jv));
+                }
+                if (!b2_ini_assign_value(option_map[i].ini, jv)) return result;
+            }
+
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(1);
+        }
+
+        if (args[0].type != 1u && args[0].type != 2u) return result;
+        if (!b2_ini_assign_value(
+                "session.cookie_lifetime",
+                jinx_oracle_int_value(jinx_oracle_intish(args[0]))
+            )) {
+            return result;
+        }
+
+        if (argc >= 2u && args[1].type != 0u) {
+            if (args[1].type != 3u ||
+                !b2_ini_assign_value("session.cookie_path", args[1])) {
+                return result;
+            }
+        }
+        if (argc >= 3u && args[2].type != 0u) {
+            if (args[2].type != 3u ||
+                !b2_ini_assign_value("session.cookie_domain", args[2])) {
+                return result;
+            }
+        }
+        if (argc >= 4u && args[3].type != 0u) {
+            if (!b2_ini_assign_value(
+                    "session.cookie_secure",
+                    jinx_oracle_bool_value(jinx_oracle_boolish(args[3]))
+                )) {
+                return result;
+            }
+        }
+        if (argc >= 5u && args[4].type != 0u) {
+            if (!b2_ini_assign_value(
+                    "session.cookie_httponly",
+                    jinx_oracle_bool_value(jinx_oracle_boolish(args[4]))
+                )) {
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
     }
 
     if (strcmp(name, "session_get_cookie_params") == 0) {
