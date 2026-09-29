@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 911,
-        "extended_native_route": 601,
+        "native_named_route": 915,
+        "extended_native_route": 605,
         "context_native_route": 13,
-        "intentional_native_fault": 2616
+        "intentional_native_fault": 2612
     },
     "routes": {
         "_": "extended",
@@ -2729,10 +2729,10 @@
         "seekableiterator::rewind": "intentional-native-fault",
         "seekableiterator::seek": "intentional-native-fault",
         "seekableiterator::valid": "intentional-native-fault",
-        "sem_acquire": "intentional-native-fault",
-        "sem_get": "intentional-native-fault",
-        "sem_release": "intentional-native-fault",
-        "sem_remove": "intentional-native-fault",
+        "sem_acquire": "extended",
+        "sem_get": "extended",
+        "sem_release": "extended",
+        "sem_remove": "extended",
         "sensitiveparameter::__construct": "intentional-native-fault",
         "sensitiveparametervalue::__construct": "intentional-native-fault",
         "sensitiveparametervalue::__debuginfo": "intentional-native-fault",
