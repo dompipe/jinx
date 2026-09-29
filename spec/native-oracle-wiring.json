@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 754,
-        "extended_native_route": 456,
+        "native_named_route": 755,
+        "extended_native_route": 457,
         "context_native_route": 3,
-        "intentional_native_fault": 2773
+        "intentional_native_fault": 2772
     },
     "routes": {
         "_": "extended",
@@ -898,7 +898,7 @@
         "gc_enable": "extended",
         "gc_enabled": "extended",
         "gc_mem_caches": "extended",
-        "gc_status": "intentional-native-fault",
+        "gc_status": "extended",
         "generator::__debuginfo": "intentional-native-fault",
         "generator::current": "intentional-native-fault",
         "generator::getreturn": "intentional-native-fault",
