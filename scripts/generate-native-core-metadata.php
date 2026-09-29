@@ -45,6 +45,15 @@ $dateDefaultLatitude = (float)ini_get('date.default_latitude');
 $dateDefaultLongitude = (float)ini_get('date.default_longitude');
 $dateSunriseZenith = (float)ini_get('date.sunrise_zenith');
 $dateSunsetZenith = (float)ini_get('date.sunset_zenith');
+$iconvInputEncoding = function_exists('iconv_get_encoding')
+    ? (string)(iconv_get_encoding('input_encoding') ?: 'UTF-8')
+    : 'UTF-8';
+$iconvOutputEncoding = function_exists('iconv_get_encoding')
+    ? (string)(iconv_get_encoding('output_encoding') ?: 'UTF-8')
+    : 'UTF-8';
+$iconvInternalEncoding = function_exists('iconv_get_encoding')
+    ? (string)(iconv_get_encoding('internal_encoding') ?: 'UTF-8')
+    : 'UTF-8';
 
 $interfaces = get_declared_interfaces();
 $traits = get_declared_traits();
@@ -278,6 +287,9 @@ $code[] = '#define JINX_NATIVE_DATE_DEFAULT_LATITUDE ' . sprintf('%.17g', $dateD
 $code[] = '#define JINX_NATIVE_DATE_DEFAULT_LONGITUDE ' . sprintf('%.17g', $dateDefaultLongitude);
 $code[] = '#define JINX_NATIVE_DATE_SUNRISE_ZENITH ' . sprintf('%.17g', $dateSunriseZenith);
 $code[] = '#define JINX_NATIVE_DATE_SUNSET_ZENITH ' . sprintf('%.17g', $dateSunsetZenith);
+$code[] = '#define JINX_NATIVE_ICONV_INPUT_ENCODING ' . cstr($iconvInputEncoding);
+$code[] = '#define JINX_NATIVE_ICONV_OUTPUT_ENCODING ' . cstr($iconvOutputEncoding);
+$code[] = '#define JINX_NATIVE_ICONV_INTERNAL_ENCODING ' . cstr($iconvInternalEncoding);
 $code[] = '#define JINX_NATIVE_PHP_ERROR_REPORTING ' . (string)error_reporting() . 'LL';
 $code[] = '#define JINX_NATIVE_PHP_INCLUDE_PATH ' . cstr($includePath);
 $code[] = '';
