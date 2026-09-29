@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 743,
-        "extended_native_route": 445,
+        "native_named_route": 744,
+        "extended_native_route": 446,
         "context_native_route": 3,
-        "intentional_native_fault": 2784
+        "intentional_native_fault": 2783
     },
     "routes": {
         "_": "extended",
@@ -3404,7 +3404,7 @@
         "strstr": "asm",
         "strtok": "extended",
         "strtolower": "asm",
-        "strtotime": "intentional-native-fault",
+        "strtotime": "extended",
         "strtoupper": "asm",
         "strtr": "asm",
         "strval": "asm",
