@@ -70,6 +70,23 @@ function oraclePregReplace(
     );
 }
 
+function oraclePregFilter(
+    string $jinx,
+    string $pattern,
+    string $replacement,
+    string $subject,
+    ?int &$code = null
+): string {
+    return runPreg(
+        escapeshellarg($jinx)
+        . ' oracle-call preg_filter '
+        . escapeshellarg('s:' . $pattern)
+        . ' ' . escapeshellarg('s:' . $replacement)
+        . ' ' . escapeshellarg('s:' . $subject),
+        $code
+    );
+}
+
 function oraclePregState(
     string $jinx,
     string $typedPattern,
@@ -189,6 +206,30 @@ foreach ($replaceCases as [$pattern, $replacement, $subject]) {
     }
 }
 
+$filterCases = [
+    ['/cat/', 'dog', 'cat cat'],
+    ['/jinx/i', 'native', 'JINX + jinx'],
+    ['/nomatch/', 'native', 'JINX + jinx'],
+];
+
+foreach ($filterCases as [$pattern, $replacement, $subject]) {
+    $php = @preg_filter($pattern, $replacement, $subject);
+    $actual = oraclePregFilter($jinx, $pattern, $replacement, $subject, $code);
+    $expected = $php === null ? 'null' : 'string:' . $php;
+    if ($code !== 0 || trim($actual) !== $expected) {
+        failPreg(
+            "preg_filter parity mismatch\n"
+            . "pattern={$pattern}\nreplacement={$replacement}\nsubject={$subject}\n"
+            . "PHP/expected: {$expected}\nJINX: {$actual}"
+        );
+    }
+}
+
+$invalidFilter = oraclePregFilter($jinx, '/[/', 'x', 'subject', $invalidFilterCode);
+if ($invalidFilterCode !== 0 || trim($invalidFilter) !== 'null') {
+    failPreg("preg_filter invalid-pattern contract mismatch\nJINX: {$invalidFilter}");
+}
+
 $stateCases = [
     ['/jinx/', 'jinx compiler', false],
     ['/[/', 'x', false],
@@ -227,4 +268,4 @@ foreach ($stateCases as [$pattern, $subject, $binarySubject]) {
     }
 }
 
-echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_last_error, and preg_last_error_msg core forms match PHP" . PHP_EOL;
+echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_filter, preg_last_error, and preg_last_error_msg core forms match PHP" . PHP_EOL;
