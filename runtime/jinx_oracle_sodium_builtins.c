@@ -1,4 +1,5 @@
 #include "jinx_oracle_sodium_builtins.h"
+#include "jinx_oracle_zend_array_carrier.h"
 
 #include <limits.h>
 #include <stdint.h>
