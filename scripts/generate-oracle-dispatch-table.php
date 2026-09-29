@@ -199,6 +199,11 @@ if (count($orderedRows) > 32768) {
     generation_fail('Compact Oracle callable IDs support at most 32768 entries');
 }
 
+$idByName = [];
+foreach ($orderedRows as $rowIndex => $row) {
+    $idByName[strtolower((string)$row['name'])] = $rowIndex;
+}
+
 $hashSize = 1;
 while ($hashSize < count($orderedRows) * 2) {
     $hashSize <<= 1;
@@ -418,6 +423,145 @@ $code[] = '    }';
 $code[] = '    return *left == *right;';
 $code[] = '}';
 $code[] = '';
+/*
+ * Direct one-byte hot-path execution. These cases preserve the same scalar
+ * semantics as jinx_oracle_asm_call_builtin(), but avoid re-dispatching the
+ * already-resolved callable through its string-name chain.
+ */
+$code[] = 'static int jinx_call_hot_builtin_id_checked(';
+$code[] = '    JinxBuiltinId id, JinxValue *args, size_t argc, JinxValue *result, int *ok';
+$code[] = ') {';
+$code[] = '    JinxValue zero = jinx_oracle_zero_value();';
+$code[] = '    JinxValue arg0 = (args != NULL && argc > 0u) ? args[0] : zero;';
+$code[] = '    JinxValue arg1 = (args != NULL && argc > 1u) ? args[1] : zero;';
+$code[] = '    JinxValue arg2 = (args != NULL && argc > 2u) ? args[2] : zero;';
+$code[] = '    JinxValue value = zero;';
+$code[] = '    if (result == NULL) return 0;';
+$code[] = '    switch (id) {';
+
+$directUnary = [
+    'acos' => 'acos',
+    'acosh' => 'acosh',
+    'asin' => 'asin',
+    'asinh' => 'asinh',
+    'atan' => 'atan',
+    'atanh' => 'atanh',
+    'ceil' => 'ceil',
+    'cos' => 'cos',
+    'cosh' => 'cosh',
+    'exp' => 'exp',
+    'expm1' => 'expm1',
+    'floor' => 'floor',
+    'log10' => 'log10',
+    'log1p' => 'log1p',
+    'sin' => 'sin',
+    'sinh' => 'sinh',
+    'sqrt' => 'sqrt',
+    'tan' => 'tan',
+    'tanh' => 'tanh',
+];
+foreach ($directUnary as $name => $cfn) {
+    if (!isset($idByName[$name]) || $idByName[$name] >= 128) continue;
+    $code[] = '        case ' . $idByName[$name] . 'u:';
+    $code[] = '            value = jinx_oracle_float_value(' . $cfn . '(jinx_oracle_floatish(arg0)));';
+    $code[] = '            break;';
+}
+
+if (isset($idByName['abs']) && $idByName['abs'] < 128) {
+    $code[] = '        case ' . $idByName['abs'] . 'u:';
+    $code[] = '            if (arg0.type == 5u) {';
+    $code[] = '                value = jinx_oracle_float_value(fabs(arg0.as.f64));';
+    $code[] = '            } else {';
+    $code[] = '                int64_t v = jinx_oracle_intish(arg0);';
+    $code[] = '                value = v == INT64_MIN ? jinx_oracle_float_value(-(double)INT64_MIN)';
+    $code[] = '                    : jinx_oracle_int_value(v < 0 ? -v : v);';
+    $code[] = '            }';
+    $code[] = '            break;';
+}
+
+$directBinaryFloat = [
+    'atan2' => 'atan2',
+    'fmod' => 'fmod',
+    'hypot' => 'hypot',
+];
+foreach ($directBinaryFloat as $name => $cfn) {
+    if (!isset($idByName[$name]) || $idByName[$name] >= 128) continue;
+    $code[] = '        case ' . $idByName[$name] . 'u:';
+    $code[] = '            value = jinx_oracle_float_value(' . $cfn . '(jinx_oracle_floatish(arg0), jinx_oracle_floatish(arg1)));';
+    $code[] = '            break;';
+}
+
+if (isset($idByName['fdiv']) && $idByName['fdiv'] < 128) {
+    $code[] = '        case ' . $idByName['fdiv'] . 'u:';
+    $code[] = '            value = jinx_oracle_float_value(jinx_oracle_floatish(arg0) / jinx_oracle_floatish(arg1));';
+    $code[] = '            break;';
+}
+
+if (isset($idByName['intdiv']) && $idByName['intdiv'] < 128) {
+    $code[] = '        case ' . $idByName['intdiv'] . 'u: {';
+    $code[] = '            int64_t dividend = jinx_oracle_intish(arg0);';
+    $code[] = '            int64_t divisor = jinx_oracle_intish(arg1);';
+    $code[] = '            if (divisor == 0 || (dividend == INT64_MIN && divisor == -1)) {';
+    $code[] = '                *result = zero;';
+    $code[] = '                if (ok != NULL) *ok = 0;';
+    $code[] = '                return 1;';
+    $code[] = '            }';
+    $code[] = '            value = jinx_oracle_int_value(dividend / divisor);';
+    $code[] = '            break;';
+    $code[] = '        }';
+}
+
+if (isset($idByName['pi']) && $idByName['pi'] < 128) {
+    $code[] = '        case ' . $idByName['pi'] . 'u:';
+    $code[] = '            value = jinx_oracle_float_value(jinx_oracle_pi());';
+    $code[] = '            break;';
+}
+
+foreach (['pow' => 0, 'fpow' => 1] as $name => $forceFloat) {
+    if (!isset($idByName[$name]) || $idByName[$name] >= 128) continue;
+    $code[] = '        case ' . $idByName[$name] . 'u:';
+    $code[] = '            value = jinx_oracle_pow_value(arg0, arg1, ' . $forceFloat . ');';
+    $code[] = '            break;';
+}
+
+if (isset($idByName['round']) && $idByName['round'] < 128) {
+    $code[] = '        case ' . $idByName['round'] . 'u: {';
+    $code[] = '            int round_ok = 0;';
+    $code[] = '            value = jinx_oracle_round_value(arg0, arg1, arg2, argc, &round_ok);';
+    $code[] = '            if (!round_ok) {';
+    $code[] = '                *result = zero;';
+    $code[] = '                if (ok != NULL) *ok = 0;';
+    $code[] = '                return 1;';
+    $code[] = '            }';
+    $code[] = '            break;';
+    $code[] = '        }';
+}
+
+if (isset($idByName['log']) && $idByName['log'] < 128) {
+    $code[] = '        case ' . $idByName['log'] . 'u: {';
+    $code[] = '            double x = jinx_oracle_floatish(arg0);';
+    $code[] = '            double base = argc >= 2u ? jinx_oracle_floatish(arg1) : 0.0;';
+    $code[] = '            if (argc >= 2u && base <= 0.0) {';
+    $code[] = '                *result = zero;';
+    $code[] = '                if (ok != NULL) *ok = 0;';
+    $code[] = '                return 1;';
+    $code[] = '            }';
+    $code[] = '            value = jinx_oracle_float_value(argc < 2u ? log(x)';
+    $code[] = '                : (base == 1.0 ? NAN : (base == 2.0 ? log2(x)';
+    $code[] = '                : (base == 10.0 ? log10(x) : log(x) / log(base)))));';
+    $code[] = '            break;';
+    $code[] = '        }';
+}
+
+$code[] = '        default:';
+$code[] = '            return 0;';
+$code[] = '    }';
+$code[] = '    *result = value;';
+$code[] = '    if (ok != NULL) *ok = 1;';
+$code[] = '    return 1;';
+$code[] = '}';
+$code[] = '';
+
 $code[] = 'static const JinxOracleDispatchEntry *jinx_lookup_oracle_entry(const char *name) {';
 $code[] = '    if (name == NULL) return NULL;';
 $code[] = '    size_t slot = (size_t)(jinx_oracle_callable_hash(name) & (JINX_ORACLE_DISPATCH_HASH_SIZE - 1u));';
@@ -497,6 +641,14 @@ $code[] = '';
 $code[] = '    if (entry == NULL || argc > 64u || (argc != 0u && args == NULL) ||';
 $code[] = '        argc < entry->required_args || (!entry->variadic && argc > entry->total_args)) {';
 $code[] = '        return jinx_value_null();';
+$code[] = '    }';
+$code[] = '    {';
+$code[] = '        JinxBuiltinId id = (JinxBuiltinId)(entry - oracle_dispatch_table);';
+$code[] = '        JinxValue hot_result = jinx_value_null();';
+$code[] = '        if (id < JINX_BUILTIN_HOT_ID_LIMIT &&';
+$code[] = '            jinx_call_hot_builtin_id_checked(id, args, argc, &hot_result, ok)) {';
+$code[] = '            return hot_result;';
+$code[] = '        }';
 $code[] = '    }';
 $code[] = '    const char *name = entry->name;';
 $code[] = '';
