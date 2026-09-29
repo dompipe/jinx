@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 922,
-        "extended_native_route": 610,
+        "native_named_route": 923,
+        "extended_native_route": 611,
         "context_native_route": 15,
-        "intentional_native_fault": 2605
+        "intentional_native_fault": 2604
     },
     "routes": {
         "_": "extended",
@@ -1294,7 +1294,7 @@
         "multipleiterator::valid": "intentional-native-fault",
         "natcasesort": "zend-container",
         "natsort": "zend-container",
-        "net_get_interfaces": "intentional-native-fault",
+        "net_get_interfaces": "extended",
         "next": "zend-container",
         "ngettext": "extended",
         "nl2br": "asm",
