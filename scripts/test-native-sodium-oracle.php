@@ -376,6 +376,138 @@ if ($aesAvailable) {
     );
 }
 
+$pwPassword = "jinx-password\0native";
+$pwSalt = substr(
+    hash('sha256', 'jinx-pwhash-salt', true),
+    0,
+    SODIUM_CRYPTO_PWHASH_SALTBYTES
+);
+$pwOps = defined('SODIUM_CRYPTO_PWHASH_OPSLIMIT_MIN')
+    ? SODIUM_CRYPTO_PWHASH_OPSLIMIT_MIN
+    : SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE;
+$pwMem = defined('SODIUM_CRYPTO_PWHASH_MEMLIMIT_MIN')
+    ? SODIUM_CRYPTO_PWHASH_MEMLIMIT_MIN
+    : SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE;
+
+$pwRaw = sodium_crypto_pwhash(
+    32,
+    $pwPassword,
+    $pwSalt,
+    $pwOps,
+    $pwMem,
+    SODIUM_CRYPTO_PWHASH_ALG_DEFAULT
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_pwhash',
+    [
+        'i:32',
+        sodiumTypedString($pwPassword),
+        sodiumTypedString($pwSalt),
+        'i:' . $pwOps,
+        'i:' . $pwMem,
+        'i:' . SODIUM_CRYPTO_PWHASH_ALG_DEFAULT,
+    ],
+    $pwRaw
+);
+
+$phpPwHash = sodium_crypto_pwhash_str($pwPassword, $pwOps, $pwMem);
+sodiumExpect(
+    $jinx,
+    'sodium_crypto_pwhash_str_verify',
+    ['s:' . $phpPwHash, sodiumTypedString($pwPassword)],
+    'bool:true'
+);
+sodiumExpect(
+    $jinx,
+    'sodium_crypto_pwhash_str_needs_rehash',
+    ['s:' . $phpPwHash, 'i:' . $pwOps, 'i:' . $pwMem],
+    'bool:' . (
+        sodium_crypto_pwhash_str_needs_rehash($phpPwHash, $pwOps, $pwMem)
+            ? 'true'
+            : 'false'
+    )
+);
+
+$jinxPwHashText = sodiumJinx(
+    $jinx,
+    'sodium_crypto_pwhash_str',
+    [sodiumTypedString($pwPassword), 'i:' . $pwOps, 'i:' . $pwMem],
+    false,
+    $code
+);
+if ($code !== 0 || !str_starts_with($jinxPwHashText, 'string:')) {
+    sodiumFail("sodium_crypto_pwhash_str native output invalid\nJINX: {$jinxPwHashText}");
+}
+$jinxPwHash = substr($jinxPwHashText, strlen('string:'));
+if (!sodium_crypto_pwhash_str_verify($jinxPwHash, $pwPassword)) {
+    sodiumFail('JINX sodium_crypto_pwhash_str hash did not verify in PHP');
+}
+
+if (function_exists('sodium_crypto_pwhash_scryptsalsa208sha256')) {
+    $scryptSalt = substr(
+        hash('sha256', 'jinx-scrypt-salt', true),
+        0,
+        SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_SALTBYTES
+    );
+    $scryptOps = defined('SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_OPSLIMIT_MIN')
+        ? SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_OPSLIMIT_MIN
+        : SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_OPSLIMIT_INTERACTIVE;
+    $scryptMem = defined('SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_MEMLIMIT_MIN')
+        ? SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_MEMLIMIT_MIN
+        : SODIUM_CRYPTO_PWHASH_SCRYPTSALSA208SHA256_MEMLIMIT_INTERACTIVE;
+
+    $scryptRaw = sodium_crypto_pwhash_scryptsalsa208sha256(
+        32,
+        $pwPassword,
+        $scryptSalt,
+        $scryptOps,
+        $scryptMem
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_pwhash_scryptsalsa208sha256',
+        [
+            'i:32',
+            sodiumTypedString($pwPassword),
+            sodiumTypedString($scryptSalt),
+            'i:' . $scryptOps,
+            'i:' . $scryptMem,
+        ],
+        $scryptRaw
+    );
+
+    $phpScryptHash = sodium_crypto_pwhash_scryptsalsa208sha256_str(
+        $pwPassword,
+        $scryptOps,
+        $scryptMem
+    );
+    sodiumExpect(
+        $jinx,
+        'sodium_crypto_pwhash_scryptsalsa208sha256_str_verify',
+        ['s:' . $phpScryptHash, sodiumTypedString($pwPassword)],
+        'bool:true'
+    );
+
+    $jinxScryptText = sodiumJinx(
+        $jinx,
+        'sodium_crypto_pwhash_scryptsalsa208sha256_str',
+        [sodiumTypedString($pwPassword), 'i:' . $scryptOps, 'i:' . $scryptMem],
+        false,
+        $code
+    );
+    if ($code !== 0 || !str_starts_with($jinxScryptText, 'string:')) {
+        sodiumFail("sodium scrypt string hash native output invalid\nJINX: {$jinxScryptText}");
+    }
+    $jinxScryptHash = substr($jinxScryptText, strlen('string:'));
+    if (!sodium_crypto_pwhash_scryptsalsa208sha256_str_verify(
+        $jinxScryptHash,
+        $pwPassword
+    )) {
+        sodiumFail('JINX sodium scrypt string hash did not verify in PHP');
+    }
+}
+
 $streamKey = substr(hash('sha256', 'jinx-stream-key', true), 0, SODIUM_CRYPTO_STREAM_KEYBYTES);
 $streamNonce = substr(hash('sha256', 'jinx-stream-nonce', true), 0, SODIUM_CRYPTO_STREAM_NONCEBYTES);
 sodiumExpectHex(
