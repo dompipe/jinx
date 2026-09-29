@@ -240,6 +240,94 @@ static JinxValue jinx_sodium_aead_decrypt(
     return value;
 }
 
+JinxValue jinx_oracle_sodium_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+) {
+    JinxValue result = jinx_oracle_zero_value();
+
+    if (handled != NULL) *handled = 0;
+    if (ctx == NULL || name == NULL || !jinx_sodium_ready()) return result;
+
+    if (strcmp(name, "sodium_add") == 0) {
+        const unsigned char *left;
+        const unsigned char *right;
+        size_t left_len;
+        size_t right_len;
+        unsigned char *out;
+        JinxValue mutated;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_string(args[0], &left, &left_len) ||
+            !jinx_sodium_string(args[1], &right, &right_len) ||
+            left_len != right_len) {
+            return result;
+        }
+
+        mutated = jinx_sodium_alloc_result(left_len, &out);
+        if (mutated.type != 3u) return result;
+        if (left_len != 0u) memcpy(out, left, left_len);
+        sodium_add(out, right, left_len);
+
+        if (!jinx_oracle_write_ref_arg(ctx, 0u, mutated)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "sodium_increment") == 0) {
+        const unsigned char *input;
+        size_t input_len;
+        unsigned char *out;
+        JinxValue mutated;
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_string(args[0], &input, &input_len)) {
+            return result;
+        }
+
+        mutated = jinx_sodium_alloc_result(input_len, &out);
+        if (mutated.type != 3u) return result;
+        if (input_len != 0u) memcpy(out, input, input_len);
+        sodium_increment(out, input_len);
+
+        if (!jinx_oracle_write_ref_arg(ctx, 0u, mutated)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    if (strcmp(name, "sodium_memzero") == 0) {
+        const unsigned char *input;
+        size_t input_len;
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_string(args[0], &input, &input_len)) {
+            return result;
+        }
+
+        /*
+         * PHP ext/sodium wipes the existing buffer before replacing the
+         * referenced zval with NULL. The CLI/runtime typed string storage is
+         * mutable, so preserve that security property before the ref write.
+         */
+        if (input_len != 0u) {
+            sodium_memzero((void *)input, input_len);
+        }
+        if (!jinx_oracle_write_ref_arg(
+                ctx, 0u, jinx_oracle_zero_value()
+            )) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
+    return result;
+}
+
 JinxValue jinx_oracle_sodium_builtin(
     const char *name,
     JinxValue *args,
@@ -1930,6 +2018,21 @@ JinxValue jinx_oracle_sodium_builtin(
 }
 
 #else
+
+JinxValue jinx_oracle_sodium_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+) {
+    (void)ctx;
+    (void)name;
+    (void)args;
+    (void)argc;
+    if (handled != NULL) *handled = 0;
+    return jinx_oracle_zero_value();
+}
 
 JinxValue jinx_oracle_sodium_builtin(
     const char *name,
