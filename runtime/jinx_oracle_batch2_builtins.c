@@ -1211,6 +1211,12 @@ typedef struct JinxOracleBatch2Deflate {
     int initialized;
 } JinxOracleBatch2Deflate;
 
+typedef struct JinxOracleBatch2Inflate {
+    z_stream stream;
+    int initialized;
+    int status;
+} JinxOracleBatch2Inflate;
+
 static int b2_object_set_resource(JinxZendObject *object, const char *key, void *ptr) {
     JinxZendValue value = jinx_zend_null();
     if (object == NULL || object->properties == NULL || key == NULL) return 0;
@@ -1372,6 +1378,39 @@ static JinxValue b2_new_deflate(int encoding) {
         jinx_zend_object_release(object);
         return jinx_oracle_zero_value();
     }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxOracleBatch2Inflate *b2_inflate(JinxValue value) {
+    return (JinxOracleBatch2Inflate *)b2_object_resource(
+        value, "InflateContext", "__inflate"
+    );
+}
+
+static JinxValue b2_new_inflate(int encoding) {
+    JinxOracleBatch2Inflate *ctx;
+    JinxZendObject *object;
+    int rc;
+
+    ctx = (JinxOracleBatch2Inflate *)calloc(1u, sizeof(*ctx));
+    if (ctx == NULL) return jinx_oracle_zero_value();
+
+    rc = inflateInit2(&ctx->stream, encoding);
+    if (rc != Z_OK) {
+        free(ctx);
+        return jinx_oracle_bool_value(0);
+    }
+
+    ctx->initialized = 1;
+    ctx->status = Z_OK;
+    object = jinx_zend_object_new("InflateContext");
+    if (object == NULL || !b2_object_set_resource(object, "__inflate", ctx)) {
+        inflateEnd(&ctx->stream);
+        free(ctx);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+
     return jinx_oracle_zend_object_value_owned(object);
 }
 
@@ -1651,6 +1690,18 @@ JinxValue jinx_oracle_batch2_fixture(const char *spec) {
 
     if (strcmp(spec, "deflate:zlib") == 0) {
         return b2_new_deflate(15);
+    }
+
+    if (strcmp(spec, "inflate:gzip") == 0) {
+        return b2_new_inflate(31);
+    }
+
+    if (strcmp(spec, "inflate:zlib") == 0) {
+        return b2_new_inflate(15);
+    }
+
+    if (strcmp(spec, "inflate:raw") == 0) {
+        return b2_new_inflate(-15);
     }
 
     if (strncmp(spec, "hash:", 5u) == 0) {
@@ -5237,6 +5288,119 @@ JinxValue jinx_oracle_batch2_builtin(
         free(buffer);
         if (result.type != 0u && handled != NULL) *handled = 1;
         return result;
+    }
+
+    if (strcmp(name, "inflate_init") == 0) {
+        int encoding;
+        if (args == NULL || argc < 1u) return result;
+        if (argc >= 2u && args[1].type != 0u) return result;
+        encoding = (int)jinx_oracle_intish(args[0]);
+        result = b2_new_inflate(encoding);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "inflate_add") == 0) {
+        JinxOracleBatch2Inflate *ctx;
+        const unsigned char *input = NULL;
+        uint32_t input_len = 0u;
+        int flush_mode = Z_SYNC_FLUSH;
+        unsigned char *buffer = NULL;
+        size_t capacity = 8192u;
+        size_t produced_total = 0u;
+        int rc = Z_OK;
+
+        if (args == NULL || argc < 2u) return result;
+        ctx = b2_inflate(args[0]);
+        if (ctx == NULL || !ctx->initialized) return result;
+
+        if (args[1].type == 3u) {
+            input = jinx_oracle_string_bytes(args[1]);
+            input_len = jinx_oracle_string_len(args[1]);
+        } else if (args[1].type != 0u) {
+            return result;
+        }
+        if (argc >= 3u) flush_mode = (int)jinx_oracle_intish(args[2]);
+
+        buffer = (unsigned char *)malloc(capacity);
+        if (buffer == NULL) return result;
+
+        ctx->stream.next_in = (Bytef *)input;
+        ctx->stream.avail_in = input_len;
+
+        for (;;) {
+            uInt before_out;
+            size_t wrote;
+
+            if (produced_total == capacity) {
+                size_t next_capacity = capacity <= SIZE_MAX / 2u ? capacity * 2u : 0u;
+                unsigned char *grown;
+                if (next_capacity == 0u) {
+                    free(buffer);
+                    return result;
+                }
+                grown = (unsigned char *)realloc(buffer, next_capacity);
+                if (grown == NULL) {
+                    free(buffer);
+                    return result;
+                }
+                buffer = grown;
+                capacity = next_capacity;
+            }
+
+            {
+                size_t available = capacity - produced_total;
+                if (available > UINT_MAX) available = UINT_MAX;
+                ctx->stream.next_out = buffer + produced_total;
+                ctx->stream.avail_out = (uInt)available;
+            }
+            before_out = ctx->stream.avail_out;
+
+            rc = inflate(&ctx->stream, flush_mode);
+            wrote = (size_t)(before_out - ctx->stream.avail_out);
+            produced_total += wrote;
+            ctx->status = rc;
+
+            if (rc == Z_STREAM_END) break;
+            if (rc != Z_OK && rc != Z_BUF_ERROR) {
+                free(buffer);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+
+            if (ctx->stream.avail_in == 0u && ctx->stream.avail_out != 0u) {
+                /*
+                 * Z_BUF_ERROR is non-fatal here: it means no more progress can
+                 * be made until another input chunk arrives.
+                 */
+                break;
+            }
+
+            if (wrote == 0u && ctx->stream.avail_in == 0u) break;
+        }
+
+        result = b2_copy((const char *)buffer, produced_total);
+        free(buffer);
+        if (result.type != 0u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "inflate_get_status") == 0) {
+        JinxOracleBatch2Inflate *ctx;
+        if (args == NULL || argc != 1u) return result;
+        ctx = b2_inflate(args[0]);
+        if (ctx == NULL || !ctx->initialized) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)ctx->status);
+    }
+
+    if (strcmp(name, "inflate_get_read_len") == 0) {
+        JinxOracleBatch2Inflate *ctx;
+        if (args == NULL || argc != 1u) return result;
+        ctx = b2_inflate(args[0]);
+        if (ctx == NULL || !ctx->initialized) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)ctx->stream.total_in);
     }
 
     if (strcmp(name, "hash_equals") == 0) {
