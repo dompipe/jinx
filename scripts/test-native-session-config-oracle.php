@@ -35,6 +35,7 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 
 $required = [
     'session_status',
+    'session_get_cookie_params',
     'session_name',
     'session_id',
     'session_cache_limiter',
@@ -46,6 +47,19 @@ foreach ($required as $name) {
     if (!function_exists($name)) {
         sessionConfigFail("PHP {$name} is required for native parity");
     }
+}
+
+$phpCookieParams = session_get_cookie_params();
+$jinxCookieParams = sessionConfigRun(
+    escapeshellarg($jinx) . ' oracle-call-serialize-hex session_get_cookie_params',
+    $cookieCode
+);
+$expectedCookieParams = 'hex:' . bin2hex(serialize($phpCookieParams));
+if ($cookieCode !== 0 || $jinxCookieParams !== $expectedCookieParams) {
+    sessionConfigFail(
+        "session_get_cookie_params parity mismatch\n" .
+        "PHP/expected: {$expectedCookieParams}\nJINX: {$jinxCookieParams}"
+    );
 }
 
 $statusInitial = session_status();
@@ -118,4 +132,4 @@ if ($code !== 0 || $actual !== $expected) {
     );
 }
 
-echo "PASS: native session configuration getters and setters match PHP\n";
+echo "PASS: native session configuration and cookie getters match PHP\n";
