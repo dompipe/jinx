@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 873,
+        "native_named_route": 874,
         "extended_native_route": 573,
-        "context_native_route": 3,
-        "intentional_native_fault": 2654
+        "context_native_route": 4,
+        "intentional_native_fault": 2653
     },
     "routes": {
         "_": "extended",
@@ -2952,7 +2952,7 @@
         "sodium_hex2bin": "extended",
         "sodium_increment": "asm",
         "sodium_memcmp": "extended",
-        "sodium_memzero": "intentional-native-fault",
+        "sodium_memzero": "context",
         "sodium_pad": "extended",
         "sodium_unpad": "extended",
         "sodiumexception::__construct": "intentional-native-fault",
