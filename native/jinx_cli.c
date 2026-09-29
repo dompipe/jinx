@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <signal.h>
 #include <locale.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -45,6 +46,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-alarm-smoke\n", argv0);
     printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
     printf("  %s oracle-pcntl-async-smoke\n", argv0);
+    printf("  %s oracle-pcntl-sigmask-smoke\n", argv0);
     printf("  %s oracle-session-config-smoke\n", argv0);
     printf("  %s oracle-session-cookie-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
@@ -2152,6 +2154,145 @@ static int command_oracle_session_config_smoke(void) {
     return 0;
 }
 
+static JinxValue make_signal_mask_fixture(int signal_number) {
+    JinxZendArray *array = jinx_zend_array_new_packed(1u);
+    JinxValue value;
+    if (array == NULL) return jinx_value_null();
+    if (signal_number > 0 &&
+        !jinx_zend_array_append(array, jinx_zend_long(signal_number))) {
+        jinx_zend_array_release(array);
+        return jinx_value_null();
+    }
+    value = jinx_oracle_zend_array_value_retained(array);
+    jinx_zend_array_release(array);
+    return value;
+}
+
+static int signal_mask_contains(JinxValue value, int signal_number) {
+    JinxZendArray *array;
+    size_t live;
+    if (value.type != JINX_ORACLE_VALUE_ZEND_ARRAY) return 0;
+    array = jinx_oracle_zend_array_ptr(value);
+    if (array == NULL) return 0;
+    live = jinx_zend_array_live_count(array);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket =
+            jinx_zend_array_live_iter_at(array, i);
+        if (bucket != NULL &&
+            bucket->value.type == JINX_ZEND_LONG &&
+            bucket->value.value.lval == (int64_t)signal_number) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int pcntl_sigmask_call(
+    int how,
+    JinxValue signals,
+    JinxValue *old_mask
+) {
+    JinxValue args[3];
+    JinxValue result;
+    int ok = 0;
+
+    args[0] = jinx_value_int((int64_t)how);
+    args[1] = signals;
+    args[2] = jinx_value_null();
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_sigprocmask", args, 3u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0 ||
+        args[2].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        release_cli_value(result);
+        return 0;
+    }
+
+    if (old_mask != NULL) *old_mask = args[2];
+    else release_cli_value(args[2]);
+    release_cli_value(result);
+    return 1;
+}
+
+static int command_oracle_pcntl_sigmask_smoke(void) {
+    JinxValue sigusr1 = make_signal_mask_fixture(SIGUSR1);
+    JinxValue empty = make_signal_mask_fixture(0);
+    JinxValue original = jinx_value_null();
+    JinxValue blocked = jinx_value_null();
+    JinxValue unblock_old = jinx_value_null();
+    JinxValue final_mask = jinx_value_null();
+    JinxValue restore_args[2];
+    JinxValue restore_result;
+    int restore_ok = 0;
+    int initial_contains;
+    int blocked_contains;
+    int unblock_old_contains;
+    int final_contains;
+
+    if (sigusr1.type != JINX_ORACLE_VALUE_ZEND_ARRAY ||
+        empty.type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        release_cli_value(sigusr1);
+        release_cli_value(empty);
+        return fail("could not build pcntl signal-mask fixtures");
+    }
+
+    if (!pcntl_sigmask_call(SIG_BLOCK, sigusr1, &original) ||
+        !pcntl_sigmask_call(SIG_BLOCK, empty, &blocked) ||
+        !pcntl_sigmask_call(SIG_UNBLOCK, sigusr1, &unblock_old) ||
+        !pcntl_sigmask_call(SIG_BLOCK, empty, &final_mask)) {
+        release_cli_value(sigusr1);
+        release_cli_value(empty);
+        release_cli_value(original);
+        release_cli_value(blocked);
+        release_cli_value(unblock_old);
+        release_cli_value(final_mask);
+        return fail("pcntl_sigprocmask transition failed");
+    }
+
+    initial_contains = signal_mask_contains(original, SIGUSR1);
+    blocked_contains = signal_mask_contains(blocked, SIGUSR1);
+    unblock_old_contains = signal_mask_contains(unblock_old, SIGUSR1);
+    final_contains = signal_mask_contains(final_mask, SIGUSR1);
+
+    restore_args[0] = jinx_value_int((int64_t)SIG_SETMASK);
+    restore_args[1] = original;
+    restore_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_sigprocmask", restore_args, 2u, &restore_ok
+    );
+    if (!restore_ok || restore_result.type != 2u ||
+        restore_result.as.i64 == 0) {
+        release_cli_value(restore_result);
+        release_cli_value(sigusr1);
+        release_cli_value(empty);
+        release_cli_value(original);
+        release_cli_value(blocked);
+        release_cli_value(unblock_old);
+        release_cli_value(final_mask);
+        return fail("pcntl_sigprocmask original mask restore failed");
+    }
+
+    printf(
+        "initial_sigusr1=bool:%s\n"
+        "blocked_sigusr1=bool:%s\n"
+        "unblock_old_sigusr1=bool:%s\n"
+        "final_sigusr1=bool:%s\n",
+        initial_contains ? "true" : "false",
+        blocked_contains ? "true" : "false",
+        unblock_old_contains ? "true" : "false",
+        final_contains ? "true" : "false"
+    );
+
+    release_cli_value(restore_result);
+    release_cli_value(sigusr1);
+    release_cli_value(empty);
+    release_cli_value(original);
+    release_cli_value(blocked);
+    release_cli_value(unblock_old);
+    release_cli_value(final_mask);
+    return 0;
+}
+
 static int command_oracle_pcntl_async_smoke(void) {
     JinxValue args[1];
     JinxValue query0;
@@ -3631,6 +3772,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-async-smoke") == 0) {
         return command_oracle_pcntl_async_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pcntl-sigmask-smoke") == 0) {
+        return command_oracle_pcntl_sigmask_smoke();
     }
 
     if (strcmp(argv[1], "oracle-session-config-smoke") == 0) {
