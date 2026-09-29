@@ -31,6 +31,17 @@ function oraclePreg(string $jinx, string $pattern, string $subject, ?int &$code 
     );
 }
 
+function oraclePregAll(string $jinx, string $pattern, string $subject, ?int &$code = null): string
+{
+    return runPreg(
+        escapeshellarg($jinx)
+        . ' oracle-call preg_match_all '
+        . escapeshellarg('s:' . $pattern)
+        . ' ' . escapeshellarg('s:' . $subject),
+        $code
+    );
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     failPreg('repository-root native ./jinx missing');
 }
@@ -66,4 +77,24 @@ if ($invalidCode !== 0 || trim($invalid) !== 'bool:false') {
     failPreg("invalid-pattern contract mismatch\nJINX: {$invalid}");
 }
 
-echo "PASS: native PCRE2 preg_match two-argument form matches PHP" . PHP_EOL;
+$allCases = [
+    ['/jinx/i', 'jinx JINX php jinx'],
+    ['/a+/', 'aa x aaaa y'],
+    ['~[0-9]+~', 'a12b345c'],
+    ['/nomatch/', 'jinx compiler'],
+];
+
+foreach ($allCases as [$pattern, $subject]) {
+    $php = @preg_match_all($pattern, $subject);
+    $actual = oraclePregAll($jinx, $pattern, $subject, $code);
+    $expected = $php === false ? 'bool:false' : 'int:' . $php;
+    if ($code !== 0 || trim($actual) !== $expected) {
+        failPreg(
+            "preg_match_all parity mismatch\n"
+            . "pattern={$pattern}\nsubject={$subject}\n"
+            . "PHP/expected: {$expected}\nJINX: {$actual}"
+        );
+    }
+}
+
+echo "PASS: native PCRE2 preg_match and preg_match_all two-argument forms match PHP" . PHP_EOL;
