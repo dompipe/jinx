@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 902,
+        "native_named_route": 903,
         "extended_native_route": 595,
-        "context_native_route": 10,
-        "intentional_native_fault": 2625
+        "context_native_route": 11,
+        "intentional_native_fault": 2624
     },
     "routes": {
         "_": "extended",
@@ -1484,7 +1484,7 @@
         "pcntl_signal": "intentional-native-fault",
         "pcntl_signal_dispatch": "intentional-native-fault",
         "pcntl_signal_get_handler": "intentional-native-fault",
-        "pcntl_sigprocmask": "intentional-native-fault",
+        "pcntl_sigprocmask": "context",
         "pcntl_sigtimedwait": "intentional-native-fault",
         "pcntl_sigwaitinfo": "intentional-native-fault",
         "pcntl_strerror": "extended",
