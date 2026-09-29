@@ -49,6 +49,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <zlib.h>
+#ifdef JINX_HAVE_ICONV
+#include <iconv.h>
+#endif
 #ifdef JINX_HAVE_CRYPT
 #include <crypt.h>
 #endif
@@ -511,6 +514,136 @@ static JinxValue b2_copy(const char *bytes, size_t len) {
     if (len != 0u && bytes != NULL) memcpy(out, bytes, len);
     return jinx_oracle_string_value_len(out, (uint32_t)len);
 }
+
+#ifdef JINX_HAVE_ICONV
+static int b2_iconv_convert(
+    const char *from_encoding,
+    const char *to_encoding,
+    const unsigned char *input,
+    size_t input_len,
+    unsigned char **output,
+    size_t *output_len
+) {
+    iconv_t cd;
+    unsigned char *buffer;
+    size_t capacity;
+    char *in_ptr;
+    size_t in_left;
+    char *out_ptr;
+    size_t out_left;
+
+    if (from_encoding == NULL || to_encoding == NULL ||
+        output == NULL || output_len == NULL) return 0;
+
+    cd = iconv_open(to_encoding, from_encoding);
+    if (cd == (iconv_t)-1) return 0;
+
+    capacity = input_len > (SIZE_MAX - 64u) / 4u
+        ? input_len + 64u
+        : input_len * 4u + 64u;
+    if (capacity < 64u) capacity = 64u;
+
+    buffer = (unsigned char *)malloc(capacity);
+    if (buffer == NULL) {
+        iconv_close(cd);
+        return 0;
+    }
+
+    in_ptr = (char *)(uintptr_t)input;
+    in_left = input_len;
+    out_ptr = (char *)buffer;
+    out_left = capacity;
+
+    while (1) {
+        size_t rc = iconv(cd, &in_ptr, &in_left, &out_ptr, &out_left);
+        if (rc != (size_t)-1) break;
+        if (errno != E2BIG) {
+            free(buffer);
+            iconv_close(cd);
+            return 0;
+        }
+
+        {
+            size_t used = (size_t)(out_ptr - (char *)buffer);
+            size_t new_capacity = capacity > SIZE_MAX / 2u ? SIZE_MAX : capacity * 2u;
+            unsigned char *grown;
+            if (new_capacity <= capacity) {
+                free(buffer);
+                iconv_close(cd);
+                return 0;
+            }
+            grown = (unsigned char *)realloc(buffer, new_capacity);
+            if (grown == NULL) {
+                free(buffer);
+                iconv_close(cd);
+                return 0;
+            }
+            buffer = grown;
+            capacity = new_capacity;
+            out_ptr = (char *)buffer + used;
+            out_left = capacity - used;
+        }
+    }
+
+    while (1) {
+        size_t rc = iconv(cd, NULL, NULL, &out_ptr, &out_left);
+        if (rc != (size_t)-1) break;
+        if (errno != E2BIG) {
+            free(buffer);
+            iconv_close(cd);
+            return 0;
+        }
+        {
+            size_t used = (size_t)(out_ptr - (char *)buffer);
+            size_t new_capacity = capacity > SIZE_MAX / 2u ? SIZE_MAX : capacity * 2u;
+            unsigned char *grown;
+            if (new_capacity <= capacity) {
+                free(buffer);
+                iconv_close(cd);
+                return 0;
+            }
+            grown = (unsigned char *)realloc(buffer, new_capacity);
+            if (grown == NULL) {
+                free(buffer);
+                iconv_close(cd);
+                return 0;
+            }
+            buffer = grown;
+            capacity = new_capacity;
+            out_ptr = (char *)buffer + used;
+            out_left = capacity - used;
+        }
+    }
+
+    *output_len = (size_t)(out_ptr - (char *)buffer);
+    *output = buffer;
+    iconv_close(cd);
+    return 1;
+}
+
+static int b2_iconv_utf32(
+    JinxValue value,
+    const char *encoding,
+    unsigned char **output,
+    size_t *output_len
+) {
+    if (value.type != 3u) return 0;
+    return b2_iconv_convert(
+        encoding,
+        "UTF-32LE",
+        jinx_oracle_string_bytes(value),
+        jinx_oracle_string_len(value),
+        output,
+        output_len
+    );
+}
+
+static int64_t b2_iconv_normalize_offset(int64_t offset, size_t units) {
+    int64_t total = units > (size_t)INT64_MAX ? INT64_MAX : (int64_t)units;
+    if (offset < 0) offset = total + offset;
+    return offset;
+}
+#endif
 
 static void b2_print_trace_string(
     const char *bytes,
@@ -1970,6 +2103,223 @@ JinxValue jinx_oracle_batch2_builtin(
             return b2_copy(buffer, (size_t)written);
         }
     }
+
+#ifdef JINX_HAVE_ICONV
+    if (strcmp(name, "iconv") == 0) {
+        char *from_encoding;
+        char *to_encoding;
+        unsigned char *converted = NULL;
+        size_t converted_len = 0u;
+
+        if (args == NULL || argc != 3u ||
+            args[0].type != 3u || args[1].type != 3u || args[2].type != 3u) {
+            return result;
+        }
+
+        from_encoding = b2_dup(args[0]);
+        to_encoding = b2_dup(args[1]);
+        if (from_encoding == NULL || to_encoding == NULL) {
+            free(from_encoding);
+            free(to_encoding);
+            return result;
+        }
+
+        if (!b2_iconv_convert(
+                from_encoding,
+                to_encoding,
+                jinx_oracle_string_bytes(args[2]),
+                jinx_oracle_string_len(args[2]),
+                &converted,
+                &converted_len)) {
+            free(from_encoding);
+            free(to_encoding);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        free(from_encoding);
+        free(to_encoding);
+        result = b2_copy((const char *)converted, converted_len);
+        free(converted);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "iconv_strlen") == 0) {
+        char *encoding = NULL;
+        unsigned char *utf32 = NULL;
+        size_t utf32_len = 0u;
+
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        if (argc >= 2u && args[1].type != 0u) {
+            if (args[1].type != 3u) return result;
+            encoding = b2_dup(args[1]);
+            if (encoding == NULL) return result;
+        } else {
+            encoding = strdup("UTF-8");
+            if (encoding == NULL) return result;
+        }
+
+        if (!b2_iconv_utf32(args[0], encoding, &utf32, &utf32_len) ||
+            (utf32_len % 4u) != 0u) {
+            free(encoding);
+            free(utf32);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        free(encoding);
+        free(utf32);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)(utf32_len / 4u));
+    }
+
+    if (strcmp(name, "iconv_substr") == 0) {
+        char *encoding = NULL;
+        unsigned char *utf32 = NULL;
+        size_t utf32_len = 0u;
+        size_t units;
+        int64_t start;
+        int64_t length;
+        size_t take;
+        unsigned char *converted = NULL;
+        size_t converted_len = 0u;
+
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u) return result;
+
+        if (argc >= 4u && args[3].type != 0u) {
+            if (args[3].type != 3u) return result;
+            encoding = b2_dup(args[3]);
+        } else {
+            encoding = strdup("UTF-8");
+        }
+        if (encoding == NULL) return result;
+
+        if (!b2_iconv_utf32(args[0], encoding, &utf32, &utf32_len) ||
+            (utf32_len % 4u) != 0u) {
+            free(encoding);
+            free(utf32);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        units = utf32_len / 4u;
+        start = b2_iconv_normalize_offset(jinx_oracle_intish(args[1]), units);
+        if (start < 0 || (uint64_t)start > units) {
+            free(encoding);
+            free(utf32);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (argc < 3u || args[2].type == 0u) {
+            take = units - (size_t)start;
+        } else {
+            length = jinx_oracle_intish(args[2]);
+            if (length >= 0) {
+                take = (size_t)length;
+                if (take > units - (size_t)start) take = units - (size_t)start;
+            } else {
+                int64_t end = (int64_t)units + length;
+                if (end < start) take = 0u;
+                else take = (size_t)(end - start);
+            }
+        }
+
+        if (!b2_iconv_convert(
+                "UTF-32LE",
+                encoding,
+                utf32 + ((size_t)start * 4u),
+                take * 4u,
+                &converted,
+                &converted_len)) {
+            free(encoding);
+            free(utf32);
+            free(converted);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        result = b2_copy((const char *)converted, converted_len);
+        free(converted);
+        free(utf32);
+        free(encoding);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "iconv_strpos") == 0 ||
+        strcmp(name, "iconv_strrpos") == 0) {
+        char *encoding = NULL;
+        unsigned char *haystack = NULL;
+        unsigned char *needle = NULL;
+        size_t haystack_len = 0u;
+        size_t needle_len = 0u;
+        size_t hay_units;
+        size_t needle_units;
+        int64_t offset = 0;
+        int64_t found = -1;
+
+        if (args == NULL || argc < 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+
+        if (argc >= 4u && args[3].type != 0u) {
+            if (args[3].type != 3u) return result;
+            encoding = b2_dup(args[3]);
+        } else {
+            encoding = strdup("UTF-8");
+        }
+        if (encoding == NULL) return result;
+
+        if (argc >= 3u) offset = jinx_oracle_intish(args[2]);
+
+        if (!b2_iconv_utf32(args[0], encoding, &haystack, &haystack_len) ||
+            !b2_iconv_utf32(args[1], encoding, &needle, &needle_len) ||
+            (haystack_len % 4u) != 0u || (needle_len % 4u) != 0u) {
+            free(encoding);
+            free(haystack);
+            free(needle);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        hay_units = haystack_len / 4u;
+        needle_units = needle_len / 4u;
+        offset = b2_iconv_normalize_offset(offset, hay_units);
+
+        if (offset >= 0 && (uint64_t)offset <= hay_units) {
+            if (needle_units == 0u) {
+                found = offset;
+            } else if (needle_units <= hay_units) {
+                if (strcmp(name, "iconv_strpos") == 0) {
+                    for (size_t i = (size_t)offset; i + needle_units <= hay_units; i++) {
+                        if (memcmp(haystack + i * 4u, needle, needle_units * 4u) == 0) {
+                            found = (int64_t)i;
+                            break;
+                        }
+                    }
+                } else {
+                    size_t last = hay_units - needle_units;
+                    if ((size_t)offset > last) offset = (int64_t)last;
+                    for (size_t i = last + 1u; i-- > (size_t)offset;) {
+                        if (memcmp(haystack + i * 4u, needle, needle_units * 4u) == 0) {
+                            found = (int64_t)i;
+                            break;
+                        }
+                        if (i == 0u) break;
+                    }
+                }
+            }
+        }
+
+        free(encoding);
+        free(haystack);
+        free(needle);
+        if (handled != NULL) *handled = 1;
+        return found >= 0 ? jinx_oracle_int_value(found) : jinx_oracle_bool_value(0);
+    }
+#endif
 
     if (strcmp(name, "zlib_get_coding_type") == 0) {
         /*
