@@ -1250,6 +1250,45 @@ if ($deflate !== false) {
     }
 }
 
+expectType200($jinx, 'inflate_init', ['i:' . ZLIB_ENCODING_GZIP], 'zend-object:InflateContext:');
+
+$inflateFresh = inflate_init(ZLIB_ENCODING_GZIP);
+if ($inflateFresh === false) {
+    fail200('PHP inflate_init rejected deterministic GZIP context');
+}
+expect200(
+    $jinx,
+    'inflate_get_status',
+    ['inflate:gzip'],
+    'int:' . inflate_get_status($inflateFresh)
+);
+expect200(
+    $jinx,
+    'inflate_get_read_len',
+    ['inflate:gzip'],
+    'int:' . inflate_get_read_len($inflateFresh)
+);
+
+$inflatePayload = gzencode('hello native inflate');
+if ($inflatePayload === false) {
+    fail200('PHP gzencode rejected deterministic inflate payload');
+}
+$inflateContext = inflate_init(ZLIB_ENCODING_GZIP);
+if ($inflateContext === false) {
+    fail200('PHP inflate_init rejected payload context');
+}
+$phpInflated = inflate_add($inflateContext, $inflatePayload, ZLIB_FINISH);
+if ($phpInflated === false) {
+    fail200('PHP inflate_add rejected deterministic GZIP payload');
+}
+expect200(
+    $jinx,
+    'inflate_add',
+    ['inflate:gzip', 'h:' . bin2hex($inflatePayload), 'i:' . ZLIB_FINISH],
+    'hex:' . bin2hex($phpInflated),
+    true
+);
+
 /* Common image header parsing without GD. */
 $pngHeader = hex2bin('89504e470d0a1a0a0000000d4948445200000001000000010806000000');
 if ($pngHeader === false) fail200('could not build PNG header fixture');
