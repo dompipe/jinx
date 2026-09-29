@@ -43,6 +43,7 @@ foreach ([
     'pcntl_errno',
     'pcntl_strerror',
     'pcntl_alarm',
+    'pcntl_async_signals',
     'pcntl_getcpuaffinity',
     'pcntl_setcpuaffinity',
 ] as $name) {
@@ -103,6 +104,45 @@ if ($code !== 0 ||
     !preg_match('/^set=int:0\ncancel=int:([1-3])$/', $jinxAlarm, $alarmMatch)) {
     pcntlFail(
         "pcntl_alarm scheduling contract mismatch\nJINX:\n{$jinxAlarm}"
+    );
+}
+
+$phpAsyncInitial = pcntl_async_signals();
+$phpAsyncEnablePrevious = pcntl_async_signals(true);
+$phpAsyncEnabled = pcntl_async_signals();
+$phpAsyncDisablePrevious = pcntl_async_signals(false);
+$phpAsyncFinal = pcntl_async_signals();
+pcntl_async_signals($phpAsyncInitial);
+
+if ($phpAsyncInitial !== false ||
+    $phpAsyncEnablePrevious !== false ||
+    $phpAsyncEnabled !== true ||
+    $phpAsyncDisablePrevious !== true ||
+    $phpAsyncFinal !== false) {
+    pcntlFail(
+        "PHP pcntl_async_signals state fixture failed\n" .
+        "initial=" . var_export($phpAsyncInitial, true) .
+        " enable_previous=" . var_export($phpAsyncEnablePrevious, true) .
+        " enabled=" . var_export($phpAsyncEnabled, true) .
+        " disable_previous=" . var_export($phpAsyncDisablePrevious, true) .
+        " final=" . var_export($phpAsyncFinal, true)
+    );
+}
+
+$jinxAsync = pcntlRun(
+    escapeshellarg($jinx) . ' oracle-pcntl-async-smoke',
+    $code
+);
+$expectedAsync =
+    "initial=bool:false\n" .
+    "enable_previous=bool:false\n" .
+    "enabled=bool:true\n" .
+    "disable_previous=bool:true\n" .
+    "final=bool:false";
+if ($code !== 0 || $jinxAsync !== $expectedAsync) {
+    pcntlFail(
+        "pcntl_async_signals state parity mismatch\n" .
+        "PHP/expected:\n{$expectedAsync}\nJINX:\n{$jinxAsync}"
     );
 }
 
@@ -191,4 +231,4 @@ if ($code !== 0 || $jinxErrorText !== 'string:' . $phpErrorText) {
     );
 }
 
-echo "PASS: native PCNTL alarm, affinity, priority, CPU, and error helpers match PHP\n";
+echo "PASS: native PCNTL alarm, async-signals, affinity, priority, CPU, and error helpers match PHP\n";
