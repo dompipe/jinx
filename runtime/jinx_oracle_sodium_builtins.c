@@ -289,6 +289,120 @@ JinxValue jinx_oracle_sodium_builtin_with_context(
     if (handled != NULL) *handled = 0;
     if (ctx == NULL || name == NULL || !jinx_sodium_ready()) return result;
 
+    if (strcmp(name, "sodium_crypto_generichash_init") == 0) {
+        const unsigned char *key = NULL;
+        size_t key_len = 0u;
+        int64_t out_len = crypto_generichash_BYTES;
+        crypto_generichash_state state;
+
+        if (argc > 2u) return result;
+        if (argc >= 1u) {
+            if (!jinx_sodium_string(args[0], &key, &key_len)) return result;
+        }
+        if (argc >= 2u) out_len = jinx_oracle_intish(args[1]);
+        if (out_len < crypto_generichash_BYTES_MIN ||
+            out_len > crypto_generichash_BYTES_MAX) {
+            return result;
+        }
+        if (key_len != 0u &&
+            (key_len < crypto_generichash_KEYBYTES_MIN ||
+             key_len > crypto_generichash_KEYBYTES_MAX)) {
+            return result;
+        }
+
+        if (crypto_generichash_init(
+                &state,
+                key_len == 0u ? NULL : key,
+                key_len,
+                (size_t)out_len
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(
+            (const unsigned char *)&state,
+            sizeof(state)
+        );
+    }
+
+    if (strcmp(name, "sodium_crypto_generichash_update") == 0) {
+        const unsigned char *state_bytes;
+        const unsigned char *message;
+        size_t state_len;
+        size_t message_len;
+        crypto_generichash_state state;
+        JinxValue updated;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_string(args[0], &state_bytes, &state_len) ||
+            state_len != sizeof(state) ||
+            !jinx_sodium_string(args[1], &message, &message_len)) {
+            return result;
+        }
+
+        memcpy(&state, state_bytes, sizeof(state));
+        if (crypto_generichash_update(&state, message, message_len) != 0) {
+            return result;
+        }
+
+        updated = jinx_sodium_copy(
+            (const unsigned char *)&state,
+            sizeof(state)
+        );
+        if (updated.type != 3u ||
+            !jinx_oracle_write_ref_arg(ctx, 0u, updated)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "sodium_crypto_generichash_final") == 0) {
+        const unsigned char *state_bytes;
+        size_t state_len;
+        int64_t out_len = crypto_generichash_BYTES;
+        crypto_generichash_state state;
+        unsigned char digest[crypto_generichash_BYTES_MAX];
+        JinxValue updated;
+
+        if (args == NULL || argc < 1u || argc > 2u ||
+            !jinx_sodium_string(args[0], &state_bytes, &state_len) ||
+            state_len != sizeof(state)) {
+            return result;
+        }
+        if (argc >= 2u) out_len = jinx_oracle_intish(args[1]);
+        if (out_len < crypto_generichash_BYTES_MIN ||
+            out_len > crypto_generichash_BYTES_MAX) {
+            return result;
+        }
+
+        memcpy(&state, state_bytes, sizeof(state));
+        if (crypto_generichash_final(
+                &state,
+                digest,
+                (size_t)out_len
+            ) != 0) {
+            return result;
+        }
+
+        updated = jinx_sodium_copy(
+            (const unsigned char *)&state,
+            sizeof(state)
+        );
+        if (updated.type != 3u ||
+            !jinx_oracle_write_ref_arg(ctx, 0u, updated)) {
+            sodium_memzero(digest, sizeof(digest));
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        result = jinx_sodium_copy(digest, (size_t)out_len);
+        sodium_memzero(digest, sizeof(digest));
+        return result;
+    }
+
     if (strcmp(name, "sodium_memzero") == 0) {
         const unsigned char *input;
         size_t input_len;
