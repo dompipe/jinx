@@ -36,6 +36,7 @@
 #include <math.h>
 #include <netdb.h>
 #include <pwd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2776,6 +2777,77 @@ JinxValue jinx_oracle_batch2_builtin_with_context(
             if (handled != NULL) *handled = 1;
             return sodium_result;
         }
+    }
+
+    if (strcmp(name, "pcntl_sigprocmask") == 0) {
+        int how;
+        sigset_t set;
+        sigset_t old_set;
+        JinxZendArray *signals;
+
+        if (args == NULL || argc < 2u || argc > 3u ||
+            args[1].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            return result;
+        }
+
+        how = (int)jinx_oracle_intish(args[0]);
+        if (how != SIG_BLOCK && how != SIG_UNBLOCK && how != SIG_SETMASK) {
+            return result;
+        }
+
+        signals = jinx_oracle_zend_array_ptr(args[1]);
+        if (signals == NULL || sigemptyset(&set) != 0) return result;
+
+        for (size_t i = 0u, live = jinx_zend_array_live_count(signals);
+             i < live;
+             i++) {
+            const JinxZendBucket *bucket =
+                jinx_zend_array_live_iter_at(signals, i);
+            int signal_number;
+            if (bucket == NULL || bucket->value.type != JINX_ZEND_LONG) {
+                return result;
+            }
+            signal_number = (int)bucket->value.value.lval;
+            if (signal_number <= 0 ||
+                sigaddset(&set, signal_number) != 0) {
+                return result;
+            }
+        }
+
+        errno = 0;
+        if (sigprocmask(how, &set, &old_set) != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (argc >= 3u) {
+            JinxZendArray *old_signals =
+                jinx_zend_array_new_packed(8u);
+            JinxValue old_value;
+            if (old_signals == NULL) return result;
+
+            for (int signal_number = 1; signal_number < NSIG; signal_number++) {
+                int member = sigismember(&old_set, signal_number);
+                if (member < 0) continue;
+                if (member != 0 &&
+                    !jinx_zend_array_append(
+                        old_signals, jinx_zend_long(signal_number)
+                    )) {
+                    jinx_zend_array_release(old_signals);
+                    return result;
+                }
+            }
+
+            old_value = jinx_oracle_zend_array_value_owned(old_signals);
+            if (!jinx_oracle_write_ref_arg(ctx, 2u, old_value)) {
+                jinx_zend_array_release(old_signals);
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
     }
 
 #ifdef JINX_HAVE_RESOLV
