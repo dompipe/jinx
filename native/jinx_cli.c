@@ -43,6 +43,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-pcntl-error-smoke\n", argv0);
     printf("  %s oracle-pcntl-alarm-smoke\n", argv0);
+    printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -1962,6 +1963,47 @@ static int command_oracle_posix_error_smoke(void) {
 }
 
 
+static int command_oracle_pcntl_affinity_smoke(void) {
+    JinxValue affinity;
+    JinxValue set_args[2];
+    JinxValue set_result;
+    JinxZendArray *array;
+    size_t count;
+    int ok = 0;
+
+    affinity = jinx_call_builtin_through_oracle_checked(
+        "pcntl_getcpuaffinity", NULL, 0u, &ok
+    );
+    if (!ok || affinity.type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        release_cli_value(affinity);
+        return fail("pcntl_getcpuaffinity did not return an array");
+    }
+
+    array = jinx_oracle_zend_array_ptr(affinity);
+    count = array != NULL ? jinx_zend_array_live_count(array) : 0u;
+    if (count == 0u) {
+        release_cli_value(affinity);
+        return fail("pcntl_getcpuaffinity returned an empty mask");
+    }
+
+    set_args[0] = jinx_value_null();
+    set_args[1] = affinity;
+    ok = 0;
+    set_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_setcpuaffinity", set_args, 2u, &ok
+    );
+    if (!ok || set_result.type != 2u || set_result.as.i64 == 0) {
+        release_cli_value(affinity);
+        release_cli_value(set_result);
+        return fail("pcntl_setcpuaffinity could not restore current mask");
+    }
+
+    printf("cpus=%zu\nset=bool:true\n", count);
+    release_cli_value(affinity);
+    release_cli_value(set_result);
+    return 0;
+}
+
 static int command_oracle_pcntl_alarm_smoke(void) {
     JinxValue args[1];
     JinxValue set_result;
@@ -3332,6 +3374,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-alarm-smoke") == 0) {
         return command_oracle_pcntl_alarm_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pcntl-affinity-smoke") == 0) {
+        return command_oracle_pcntl_affinity_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
