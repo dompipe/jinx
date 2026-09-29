@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 741,
-        "extended_native_route": 443,
+        "native_named_route": 743,
+        "extended_native_route": 445,
         "context_native_route": 3,
-        "intentional_native_fault": 2786
+        "intentional_native_fault": 2784
     },
     "routes": {
         "_": "extended",
@@ -1066,11 +1066,11 @@
         "http_response_code": "intentional-native-fault",
         "hypot": "asm",
         "iconv": "extended",
-        "iconv_get_encoding": "intentional-native-fault",
+        "iconv_get_encoding": "extended",
         "iconv_mime_decode": "intentional-native-fault",
         "iconv_mime_decode_headers": "intentional-native-fault",
         "iconv_mime_encode": "intentional-native-fault",
-        "iconv_set_encoding": "intentional-native-fault",
+        "iconv_set_encoding": "extended",
         "iconv_strlen": "extended",
         "iconv_strpos": "extended",
         "iconv_strrpos": "extended",
