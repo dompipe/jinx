@@ -1167,6 +1167,12 @@ expect200($jinx, 'fputs', ['fp:tmp', 's:x'], 'int:1');
 expect200($jinx, 'fprintf', ['fp:tmp', 's:%s', 's:x'], 'int:1');
 expect200($jinx, 'fputcsv', ['fp:tmp', 'za:strings'], 'int:6');
 expect200($jinx, 'fscanf', ['fp:tmp', 's:%c,%c'], 'zend-array:2');
+expect200(
+    $jinx,
+    'sscanf',
+    ['s:10 20.5 hello X', 's:%d %f %s %c'],
+    'zend-array:4'
+);
 
 /* Current PHP/timelib solar algorithm parity with explicit coordinates. */
 $solarTs = 1704067200;
