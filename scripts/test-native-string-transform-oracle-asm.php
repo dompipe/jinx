@@ -208,4 +208,4 @@ foreach ($rejectCases as [$function, $args]) {
     }
 }
 
-echo 'PASS: native Oracle ASM string byte transforms, HTML401 entities, searches, comparisons, and counts match PHP for covered scalar cases' . PHP_EOL;
+echo 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP for covered scalar cases; HTML401 entities covered' . PHP_EOL;
