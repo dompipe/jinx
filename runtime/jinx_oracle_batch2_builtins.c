@@ -6711,17 +6711,20 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_PCRE2
-    if (strcmp(name, "preg_match") == 0) {
+    if (strcmp(name, "preg_match") == 0 ||
+        strcmp(name, "preg_match_all") == 0) {
         char *subject;
+        size_t subject_len;
         pcre2_code *code = NULL;
         pcre2_match_data *match_data = NULL;
         int compiled;
         int rc;
 
         /*
-         * The native bridge does not yet carry preg_match()'s by-reference
-         * $matches output. Execute the exact two-argument form now and fail
-         * closed for forms that request captures/flags/offset.
+         * The native bridge does not yet carry the by-reference $matches
+         * output. PHP permits the exact two-argument form for both functions,
+         * so execute that form and fail closed when captures/flags/offsets are
+         * requested.
          */
         if (args == NULL || argc != 2u ||
             args[0].type != 3u || args[1].type != 3u) {
@@ -6739,6 +6742,7 @@ csv_fail:
             pcre2_code_free(code);
             return result;
         }
+        subject_len = strlen(subject);
         match_data = pcre2_match_data_create_from_pattern(code, NULL);
         if (match_data == NULL) {
             free(subject);
@@ -6746,23 +6750,71 @@ csv_fail:
             return result;
         }
 
-        rc = pcre2_match(
-            code,
-            (PCRE2_SPTR)subject,
-            strlen(subject),
-            0u,
-            0u,
-            match_data,
-            NULL
-        );
-        pcre2_match_data_free(match_data);
-        pcre2_code_free(code);
-        free(subject);
+        if (strcmp(name, "preg_match") == 0) {
+            rc = pcre2_match(
+                code,
+                (PCRE2_SPTR)subject,
+                subject_len,
+                0u,
+                0u,
+                match_data,
+                NULL
+            );
+            pcre2_match_data_free(match_data);
+            pcre2_code_free(code);
+            free(subject);
 
-        if (handled != NULL) *handled = 1;
-        if (rc == PCRE2_ERROR_NOMATCH) return jinx_oracle_int_value(0);
-        if (rc < 0) return jinx_oracle_bool_value(0);
-        return jinx_oracle_int_value(1);
+            if (handled != NULL) *handled = 1;
+            if (rc == PCRE2_ERROR_NOMATCH) return jinx_oracle_int_value(0);
+            if (rc < 0) return jinx_oracle_bool_value(0);
+            return jinx_oracle_int_value(1);
+        }
+
+        {
+            size_t offset = 0u;
+            int64_t count = 0;
+            while (offset <= subject_len) {
+                PCRE2_SIZE *ovector;
+                rc = pcre2_match(
+                    code,
+                    (PCRE2_SPTR)subject,
+                    subject_len,
+                    offset,
+                    0u,
+                    match_data,
+                    NULL
+                );
+                if (rc == PCRE2_ERROR_NOMATCH) break;
+                if (rc < 0) {
+                    pcre2_match_data_free(match_data);
+                    pcre2_code_free(code);
+                    free(subject);
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+
+                count++;
+                ovector = pcre2_get_ovector_pointer(match_data);
+                if (ovector == NULL) {
+                    pcre2_match_data_free(match_data);
+                    pcre2_code_free(code);
+                    free(subject);
+                    return result;
+                }
+                if ((size_t)ovector[1] > offset) {
+                    offset = (size_t)ovector[1];
+                } else {
+                    if (offset >= subject_len) break;
+                    offset++;
+                }
+            }
+
+            pcre2_match_data_free(match_data);
+            pcre2_code_free(code);
+            free(subject);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(count);
+        }
     }
 #endif
 
