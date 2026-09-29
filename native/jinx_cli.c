@@ -53,6 +53,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-datetime-extra-smoke <Class::method>\n", argv0);
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
+    printf("  %s oracle-call-json <function> [typed-args...]\n", argv0);
     printf("  %s native-benchmark-id\n", argv0);
     printf("  %s builtin-id <function>\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
@@ -2263,6 +2264,21 @@ static int command_oracle_call(int argc, char **argv, int output_mode) {
                 printf("arg%d=", i);
                 print_value_line(args[i]);
             }
+        } else if (output_mode == 3) {
+            JinxValue json_args[1];
+            JinxValue encoded = jinx_value_null();
+            int json_ok = 0;
+            json_args[0] = result;
+            encoded = jinx_call_builtin_through_oracle_checked(
+                "json_encode", json_args, 1u, &json_ok
+            );
+            if (!json_ok) {
+                fprintf(stderr, "null/fault: json_encode\n");
+                exit_code = 1;
+            } else {
+                print_value_line(encoded);
+            }
+            release_cli_value(encoded);
         } else {
             print_value_line(result);
         }
@@ -3209,6 +3225,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-call-refs") == 0) {
         return command_oracle_call(argc, argv, 2);
+    }
+
+    if (strcmp(argv[1], "oracle-call-json") == 0) {
+        return command_oracle_call(argc, argv, 3);
     }
 
     if (strcmp(argv[1], "native-benchmark-id") == 0) {
