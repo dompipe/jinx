@@ -203,6 +203,7 @@ $extendedSpecs = [
 $contextSpecs = [
     ['runtime/jinx_oracle_batch2_builtins.c', ['jinx_oracle_batch2_builtin_with_context']],
     ['runtime/jinx_oracle_ftp_builtins.c', ['jinx_oracle_ftp_builtin_with_context']],
+    ['runtime/jinx_oracle_sodium_builtins.c', ['jinx_oracle_sodium_builtin_with_context']],
 ];
 $extended = [];
 foreach ($extendedSpecs as [$sourcePath, $functions]) {
