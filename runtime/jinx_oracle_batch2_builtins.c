@@ -3946,6 +3946,21 @@ JinxValue jinx_oracle_batch2_builtin(
             if (argc != 2u) return result;
             size = jinx_oracle_intish(args[1]);
             if (size < 0 || (uint64_t)size > SIZE_MAX) return result;
+
+            /*
+             * PHP's tmpfile() wrapper does not honor write-buffer changes and
+             * returns -1. An unlinked regular file is the native tmpfile()
+             * shape on POSIX (st_nlink == 0), while ordinary fopen() files
+             * keep the setvbuf-backed path below.
+             */
+            if (strcmp(name, "stream_set_write_buffer") == 0) {
+                struct stat st;
+                if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_nlink == 0) {
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_int_value(-1);
+                }
+            }
+
             rc = setvbuf(
                 stream->fp,
                 NULL,
