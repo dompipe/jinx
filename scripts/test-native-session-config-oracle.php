@@ -35,6 +35,7 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 
 $required = [
     'session_status',
+    'session_create_id',
     'session_get_cookie_params',
     'session_set_cookie_params',
     'session_name',
@@ -48,6 +49,62 @@ foreach ($required as $name) {
     if (!function_exists($name)) {
         sessionConfigFail("PHP {$name} is required for native parity");
     }
+}
+
+$sidPrefix = 'jx-';
+$phpCreatedId = session_create_id($sidPrefix);
+if (!is_string($phpCreatedId)) {
+    sessionConfigFail('PHP session_create_id did not return a string');
+}
+$jinxCreatedLine = sessionConfigRun(
+    escapeshellarg($jinx)
+        . ' oracle-call session_create_id '
+        . escapeshellarg('s:' . $sidPrefix),
+    $createIdCode
+);
+if ($createIdCode !== 0 || !str_starts_with($jinxCreatedLine, 'string:')) {
+    sessionConfigFail(
+        "JINX session_create_id did not return a string\n{$jinxCreatedLine}"
+    );
+}
+$jinxCreatedId = substr($jinxCreatedLine, strlen('string:'));
+
+$sidLength = (int)ini_get('session.sid_length');
+$sidBits = (int)ini_get('session.sid_bits_per_character');
+$charClass = match ($sidBits) {
+    4 => '0-9a-f',
+    5 => '0-9a-v',
+    6 => '0-9a-zA-Z,\\-',
+    default => sessionConfigFail("unsupported PHP session.sid_bits_per_character={$sidBits}"),
+};
+$pattern = '/^' . preg_quote($sidPrefix, '/') . '[' . $charClass . ']{' . $sidLength . '}$/';
+foreach (['PHP' => $phpCreatedId, 'JINX' => $jinxCreatedId] as $engine => $createdId) {
+    if (strlen($createdId) !== strlen($sidPrefix) + $sidLength ||
+        preg_match($pattern, $createdId) !== 1) {
+        sessionConfigFail(
+            "{$engine} session_create_id format mismatch\n" .
+            "id={$createdId}\nlength=" . strlen($createdId) .
+            " expected=" . (strlen($sidPrefix) + $sidLength) .
+            " bits={$sidBits}"
+        );
+    }
+}
+
+$phpBadPrefix = @session_create_id('bad_prefix');
+$jinxBadPrefix = sessionConfigRun(
+    escapeshellarg($jinx)
+        . ' oracle-call session_create_id '
+        . escapeshellarg('s:bad_prefix'),
+    $badPrefixCode
+);
+if ($phpBadPrefix !== false ||
+    $badPrefixCode !== 0 ||
+    $jinxBadPrefix !== 'bool:false') {
+    sessionConfigFail(
+        "session_create_id invalid-prefix parity mismatch\n" .
+        "PHP=" . var_export($phpBadPrefix, true) .
+        "\nJINX={$jinxBadPrefix}"
+    );
 }
 
 $phpCookieParams = session_get_cookie_params();
@@ -172,4 +229,4 @@ if ($code !== 0 || $actual !== $expected) {
     );
 }
 
-echo "PASS: native session configuration and cookie getter/setter match PHP\n";
+echo "PASS: native session configuration, ID generation, and cookie getter/setter match PHP\n";
