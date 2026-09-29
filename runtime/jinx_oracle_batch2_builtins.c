@@ -6711,6 +6711,94 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_PCRE2
+    if (strcmp(name, "preg_replace") == 0) {
+        char *replacement;
+        char *subject;
+        size_t subject_len;
+        size_t replacement_len;
+        size_t capacity;
+        PCRE2_SIZE output_len;
+        unsigned char *output;
+        pcre2_code *code = NULL;
+        int compiled;
+        int rc;
+
+        /*
+         * Exact scalar three-string form:
+         * preg_replace(string $pattern, string $replacement, string $subject).
+         * Arrays, limit and by-reference count remain faulting.
+         */
+        if (args == NULL || argc != 3u ||
+            args[0].type != 3u || args[1].type != 3u || args[2].type != 3u) {
+            return result;
+        }
+
+        compiled = b2_preg_compile_pattern(args[0], &code);
+        if (compiled <= 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        replacement = b2_dup(args[1]);
+        subject = b2_dup(args[2]);
+        if (replacement == NULL || subject == NULL) {
+            free(replacement);
+            free(subject);
+            pcre2_code_free(code);
+            return result;
+        }
+
+        subject_len = strlen(subject);
+        replacement_len = strlen(replacement);
+        if (replacement_len > 0u &&
+            subject_len > (SIZE_MAX - 64u) / (replacement_len + 1u)) {
+            free(replacement);
+            free(subject);
+            pcre2_code_free(code);
+            return result;
+        }
+        capacity = subject_len + ((subject_len + 1u) * replacement_len) + 64u;
+        if (capacity < 64u) capacity = 64u;
+        output = (unsigned char *)malloc(capacity);
+        if (output == NULL) {
+            free(replacement);
+            free(subject);
+            pcre2_code_free(code);
+            return result;
+        }
+
+        output_len = (PCRE2_SIZE)capacity;
+        rc = pcre2_substitute(
+            code,
+            (PCRE2_SPTR)subject,
+            (PCRE2_SIZE)subject_len,
+            0u,
+            PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_EXTENDED,
+            NULL,
+            NULL,
+            (PCRE2_SPTR)replacement,
+            (PCRE2_SIZE)replacement_len,
+            (PCRE2_UCHAR *)output,
+            &output_len
+        );
+
+        free(replacement);
+        free(subject);
+        pcre2_code_free(code);
+
+        if (rc < 0) {
+            free(output);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        result = b2_copy((const char *)output, (size_t)output_len);
+        free(output);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+#ifdef JINX_HAVE_PCRE2
     if (strcmp(name, "preg_split") == 0) {
         char *subject;
         size_t subject_len;
