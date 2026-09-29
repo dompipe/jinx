@@ -119,6 +119,13 @@ $cases = [
     ['stripslashes', ["s:Is your name O\\'reilly?"]],
     ['quotemeta', ['s:Hello world. (can you hear me?)']],
     ['quotemeta', ['s:']],
+    ['htmlentities', ['s:Tom & "Jinx" < © € >']],
+    ['htmlentities', ['s:Café & tea']],
+    ['htmlentities', ['s:already &amp;']],
+    ['htmlentities', ['s:©', 'i:11', 's:UTF-8', 'b:true']],
+    ['html_entity_decode', ['s:Tom &amp; &quot;Jinx&quot; &lt; &copy; &euro; &gt;']],
+    ['html_entity_decode', ['s:&#169; &#x20AC;']],
+    ['html_entity_decode', ['s:&copy;', 'i:11', 's:UTF-8']],
     ['strpbrk', ['s:This is a Simple text.', 's:mi']],
     ['strpbrk', ['s:abcdef', 's:XYZ']],
     ['chunk_split', ['s:abcdefghij', 'i:4', 's:|']],
@@ -201,4 +208,4 @@ foreach ($rejectCases as [$function, $args]) {
     }
 }
 
-echo 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP for covered scalar cases' . PHP_EOL;
+echo 'PASS: native Oracle ASM string byte transforms, HTML401 entities, searches, comparisons, and counts match PHP for covered scalar cases' . PHP_EOL;
