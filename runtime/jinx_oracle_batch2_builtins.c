@@ -3810,6 +3810,83 @@ JinxValue jinx_oracle_batch2_builtin(
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value((int64_t)cpu);
     }
+
+    if (strcmp(name, "pcntl_getcpuaffinity") == 0) {
+        pid_t pid = 0;
+        cpu_set_t cpuset;
+        JinxZendArray *array;
+
+        if (argc > 1u) return result;
+        if (argc == 1u && args[0].type != 0u) {
+            int64_t pid_value = jinx_oracle_intish(args[0]);
+            if (pid_value < 0 || pid_value > INT_MAX) return result;
+            pid = (pid_t)pid_value;
+        }
+
+        CPU_ZERO(&cpuset);
+        if (sched_getaffinity(pid, sizeof(cpuset), &cpuset) != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        array = jinx_zend_array_new_packed((size_t)CPU_COUNT(&cpuset));
+        if (array == NULL) return result;
+        for (int cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+            if (CPU_ISSET(cpu, &cpuset) &&
+                !jinx_zend_array_append(array, jinx_zend_long((int64_t)cpu))) {
+                jinx_zend_array_release(array);
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "pcntl_setcpuaffinity") == 0) {
+        pid_t pid = 0;
+        JinxZendArray *cpu_ids;
+        size_t live;
+        cpu_set_t cpuset;
+
+        if (argc > 2u) return result;
+        if (argc >= 1u && args[0].type != 0u) {
+            int64_t pid_value = jinx_oracle_intish(args[0]);
+            if (pid_value < 0 || pid_value > INT_MAX) return result;
+            pid = (pid_t)pid_value;
+        }
+        if (argc < 2u || args[1].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            return result;
+        }
+
+        cpu_ids = jinx_oracle_zend_array_ptr(args[1]);
+        if (cpu_ids == NULL) return result;
+        live = jinx_zend_array_live_count(cpu_ids);
+        if (live == 0u) return result;
+
+        CPU_ZERO(&cpuset);
+        for (size_t i = 0u; i < live; i++) {
+            const JinxZendBucket *bucket =
+                jinx_zend_array_live_iter_at(cpu_ids, i);
+            int64_t cpu;
+            if (bucket == NULL || bucket->value.type != JINX_ZEND_LONG) {
+                return result;
+            }
+            cpu = bucket->value.value.lval;
+            if (cpu < 0 || cpu >= CPU_SETSIZE) return result;
+            CPU_SET((int)cpu, &cpuset);
+        }
+
+        if (sched_setaffinity(pid, sizeof(cpuset), &cpuset) != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
 #endif
 
     if (strcmp(name, "pcntl_getpriority") == 0) {
