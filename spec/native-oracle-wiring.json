@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 759,
-        "extended_native_route": 461,
+        "native_named_route": 761,
+        "extended_native_route": 463,
         "context_native_route": 3,
-        "intentional_native_fault": 2768
+        "intentional_native_fault": 2766
     },
     "routes": {
         "_": "extended",
@@ -1435,7 +1435,7 @@
         "overflowexception::gettrace": "intentional-native-fault",
         "overflowexception::gettraceasstring": "intentional-native-fault",
         "override::__construct": "intentional-native-fault",
-        "pack": "intentional-native-fault",
+        "pack": "extended",
         "parentiterator::__construct": "intentional-native-fault",
         "parentiterator::accept": "intentional-native-fault",
         "parentiterator::current": "intentional-native-fault",
@@ -3497,7 +3497,7 @@
         "unitenum::cases": "intentional-native-fault",
         "unixtojd": "extended",
         "unlink": "extended",
-        "unpack": "intentional-native-fault",
+        "unpack": "extended",
         "unregister_tick_function": "intentional-native-fault",
         "unserialize": "intentional-native-fault",
         "urldecode": "asm",
