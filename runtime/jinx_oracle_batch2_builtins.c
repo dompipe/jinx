@@ -11,6 +11,7 @@
 #include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_exif_builtins.h"
 #include "jinx_oracle_pack_builtins.h"
+#include "jinx_oracle_ini_builtins.h"
 #include "jinx_oracle_sodium_builtins.h"
 #include "jinx_oracle_frame_context.h"
 #include "jinx_oracle_script_context.h"
@@ -2643,6 +2644,17 @@ JinxValue jinx_oracle_batch2_builtin(
 
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
+
+    {
+        int ini_handled = 0;
+        JinxValue ini_result = jinx_oracle_ini_builtin(
+            name, args, argc, &ini_handled
+        );
+        if (ini_handled) {
+            if (handled != NULL) *handled = 1;
+            return ini_result;
+        }
+    }
 
     if (strcmp(name, "stream_get_wrappers") == 0) {
         if (argc != 0u) return result;
