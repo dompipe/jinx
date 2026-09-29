@@ -6711,6 +6711,129 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_PCRE2
+    if (strcmp(name, "preg_split") == 0) {
+        char *subject;
+        size_t subject_len;
+        size_t offset = 0u;
+        size_t piece_start = 0u;
+        pcre2_code *code = NULL;
+        pcre2_match_data *match_data = NULL;
+        JinxZendArray *out = NULL;
+        int compiled;
+
+        /*
+         * Exact two-argument preg_split() form. Limit/flags stay faulting until
+         * those semantics are carried explicitly.
+         */
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) {
+            return result;
+        }
+
+        compiled = b2_preg_compile_pattern(args[0], &code);
+        if (compiled <= 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        subject = b2_dup(args[1]);
+        if (subject == NULL) {
+            pcre2_code_free(code);
+            return result;
+        }
+        subject_len = strlen(subject);
+        match_data = pcre2_match_data_create_from_pattern(code, NULL);
+        out = jinx_zend_array_new_packed(8u);
+        if (match_data == NULL || out == NULL) {
+            pcre2_match_data_free(match_data);
+            pcre2_code_free(code);
+            jinx_zend_array_release(out);
+            free(subject);
+            return result;
+        }
+
+        while (offset <= subject_len) {
+            int rc = pcre2_match(
+                code,
+                (PCRE2_SPTR)subject,
+                subject_len,
+                offset,
+                0u,
+                match_data,
+                NULL
+            );
+            PCRE2_SIZE *ovector;
+            JinxZendString *piece;
+
+            if (rc == PCRE2_ERROR_NOMATCH) break;
+            if (rc < 0) {
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                free(subject);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+
+            ovector = pcre2_get_ovector_pointer(match_data);
+            if (ovector == NULL || (size_t)ovector[0] < piece_start) {
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                free(subject);
+                return result;
+            }
+
+            piece = jinx_zend_string_new(
+                subject + piece_start,
+                (size_t)ovector[0] - piece_start
+            );
+            if (piece == NULL ||
+                !jinx_zend_array_append(out, jinx_zend_string_value(piece))) {
+                jinx_zend_string_release(piece);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                free(subject);
+                return result;
+            }
+            jinx_zend_string_release(piece);
+
+            piece_start = (size_t)ovector[1];
+            if ((size_t)ovector[1] > offset) {
+                offset = (size_t)ovector[1];
+            } else {
+                if (offset >= subject_len) break;
+                offset++;
+                piece_start = offset;
+            }
+        }
+
+        {
+            JinxZendString *piece = jinx_zend_string_new(
+                subject + piece_start,
+                subject_len - piece_start
+            );
+            if (piece == NULL ||
+                !jinx_zend_array_append(out, jinx_zend_string_value(piece))) {
+                jinx_zend_string_release(piece);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                free(subject);
+                return result;
+            }
+            jinx_zend_string_release(piece);
+        }
+
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(code);
+        free(subject);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(out);
+    }
+
+#ifdef JINX_HAVE_PCRE2
     if (strcmp(name, "preg_match") == 0 ||
         strcmp(name, "preg_match_all") == 0) {
         char *subject;
