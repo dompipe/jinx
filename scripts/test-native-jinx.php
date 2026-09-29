@@ -160,6 +160,7 @@ $tests = [
     'scripts/test-native-pcntl-oracle.php' => 'PASS: native PCNTL alarm, async-signals, signal-mask, affinity, priority, CPU, and error helpers match PHP',
     'scripts/test-native-session-config-oracle.php' => 'PASS: native session configuration, ID generation, and cookie getter/setter match PHP',
     'scripts/test-native-shmop-oracle.php' => 'PASS: native shmop shared-memory lifecycle matches PHP',
+    'scripts/test-native-sem-oracle.php' => 'PASS: native SysV semaphore lifecycle matches PHP',
     'scripts/test-native-method-oracle-asm.php' => 'PASS: native Oracle method receiver proves 500 newly added callable routes',
     'scripts/test-native-zlib-oracle-asm.php' => 'PASS: native Oracle zlib helpers match PHP for covered one-shot semantics',
     'scripts/test-native-sodium-oracle.php' => 'PASS: native libsodium core and secretstream functions match PHP sodium byte-for-byte',
