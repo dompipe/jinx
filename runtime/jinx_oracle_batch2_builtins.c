@@ -77,6 +77,8 @@ static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
 static size_t jinx_oracle_batch2_strtok_len = 0u;
 static size_t jinx_oracle_batch2_strtok_pos = 0u;
 static int jinx_oracle_batch2_gc_enabled = 1;
+static int64_t jinx_oracle_batch2_gc_runs = 0;
+static int64_t jinx_oracle_batch2_gc_collected = 0;
 
 #ifdef JINX_HAVE_ICONV
 static char jinx_oracle_batch2_iconv_input_encoding[128] = JINX_NATIVE_ICONV_INPUT_ENCODING;
@@ -2606,11 +2608,44 @@ JinxValue jinx_oracle_batch2_builtin(
     if (strcmp(name, "gc_collect_cycles") == 0) {
         /*
          * Jinx's native carried values are reference-counted and currently
-         * maintain no separate cyclic-garbage root buffer. Therefore there
-         * are no queued cycles for this collector to reclaim.
+         * maintain no separate cyclic-garbage root buffer. A forced collector
+         * pass is still observable through gc_status()["runs"], but there are
+         * no queued cycles to reclaim.
          */
+        jinx_oracle_batch2_gc_runs++;
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(0);
+    }
+
+    if (strcmp(name, "gc_status") == 0) {
+        JinxZendArray *status = jinx_zend_array_new_packed(12u);
+        if (status == NULL) return result;
+
+        /*
+         * PHP 8.3+ exposes twelve collector fields. Jinx reports the same
+         * contract using its actual native collector model: no root buffer,
+         * no protected/running/full collector phase, and no retained GC
+         * allocator cache. Timings are zero until Jinx grows a cycle collector
+         * with measurable phases.
+         */
+        if (!b2_assoc_value(status, "running", jinx_oracle_bool_value(0)) ||
+            !b2_assoc_value(status, "protected", jinx_oracle_bool_value(0)) ||
+            !b2_assoc_value(status, "full", jinx_oracle_bool_value(0)) ||
+            !b2_assoc_value(status, "runs", jinx_oracle_int_value(jinx_oracle_batch2_gc_runs)) ||
+            !b2_assoc_value(status, "collected", jinx_oracle_int_value(jinx_oracle_batch2_gc_collected)) ||
+            !b2_assoc_value(status, "threshold", jinx_oracle_int_value(0)) ||
+            !b2_assoc_value(status, "buffer_size", jinx_oracle_int_value(0)) ||
+            !b2_assoc_value(status, "roots", jinx_oracle_int_value(0)) ||
+            !b2_assoc_value(status, "application_time", jinx_oracle_float_value(0.0)) ||
+            !b2_assoc_value(status, "collector_time", jinx_oracle_float_value(0.0)) ||
+            !b2_assoc_value(status, "destructor_time", jinx_oracle_float_value(0.0)) ||
+            !b2_assoc_value(status, "free_time", jinx_oracle_float_value(0.0))) {
+            jinx_zend_array_release(status);
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(status);
     }
 
     if (strcmp(name, "gc_mem_caches") == 0) {
