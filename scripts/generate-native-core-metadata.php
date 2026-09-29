@@ -54,6 +54,7 @@ $iconvOutputEncoding = function_exists('iconv_get_encoding')
 $iconvInternalEncoding = function_exists('iconv_get_encoding')
     ? (string)(iconv_get_encoding('internal_encoding') ?: 'UTF-8')
     : 'UTF-8';
+$defaultCharset = (string)(ini_get('default_charset') ?: 'UTF-8');
 
 $interfaces = get_declared_interfaces();
 $traits = get_declared_traits();
@@ -121,6 +122,15 @@ usort($iniRows, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
 $htmlTranslationRows = [];
 foreach (get_html_translation_table() as $from => $to) {
     $htmlTranslationRows[] = [(string)$from, (string)$to];
+}
+
+$htmlEntitiesRows = [];
+foreach (get_html_translation_table(
+    HTML_ENTITIES,
+    ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401,
+    'UTF-8'
+) as $from => $to) {
+    $htmlEntitiesRows[] = [(string)$from, (string)$to];
 }
 
 $filterRows = [];
@@ -349,6 +359,7 @@ $code[] = '#define JINX_NATIVE_DATE_SUNSET_ZENITH ' . sprintf('%.17g', $dateSuns
 $code[] = '#define JINX_NATIVE_ICONV_INPUT_ENCODING ' . cstr($iconvInputEncoding);
 $code[] = '#define JINX_NATIVE_ICONV_OUTPUT_ENCODING ' . cstr($iconvOutputEncoding);
 $code[] = '#define JINX_NATIVE_ICONV_INTERNAL_ENCODING ' . cstr($iconvInternalEncoding);
+$code[] = '#define JINX_NATIVE_DEFAULT_CHARSET ' . cstr($defaultCharset);
 $code[] = '#define JINX_NATIVE_PHP_ERROR_REPORTING ' . (string)error_reporting() . 'LL';
 $code[] = '#define JINX_NATIVE_PHP_INCLUDE_PATH ' . cstr($includePath);
 $code[] = '';
@@ -473,6 +484,14 @@ foreach ($htmlTranslationRows as [$from, $to]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_html_translation_default_count = sizeof(jinx_native_html_translation_default) / sizeof(jinx_native_html_translation_default[0]);';
+$code[] = '';
+
+$code[] = 'static const JinxNativeStringPair jinx_native_html_entities_html401[] = {';
+foreach ($htmlEntitiesRows as [$from, $to]) {
+    $code[] = '    { ' . cstr($from) . ', ' . cstr($to) . ' },';
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_html_entities_html401_count = sizeof(jinx_native_html_entities_html401) / sizeof(jinx_native_html_entities_html401[0]);';
 $code[] = '';
 
 $classVarSymbols = [];
