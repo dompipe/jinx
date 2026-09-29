@@ -210,6 +210,10 @@ $checks = [
     ['method_exists', ['s:ArrayIterator', 's:current'], 'bool:' . (method_exists('ArrayIterator', 'current') ? 'true' : 'false')],
     ['method_exists', ['obj:ArrayIterator', 's:CURRENT'], 'bool:' . (method_exists(new ArrayIterator([]), 'CURRENT') ? 'true' : 'false')],
     ['method_exists', ['s:ArrayIterator', 's:__jinx_missing_method'], 'bool:false'],
+    ['property_exists', ['s:Exception', 's:message'], 'bool:' . (property_exists(Exception::class, 'message') ? 'true' : 'false')],
+    ['property_exists', ['ex:Exception', 's:message'], 'bool:' . (property_exists(new Exception('jinx'), 'message') ? 'true' : 'false')],
+    ['property_exists', ['s:Exception', 's:__jinx_missing_property'], 'bool:false'],
+    ['trait_exists', ['s:__JinxMissingTrait'], 'bool:false'],
     ['is_a', ['obj:ErrorException', 's:Exception'], 'bool:' . (is_a(new ErrorException('probe'), 'Exception') ? 'true' : 'false')],
     ['is_a', ['obj:ErrorException', 's:ErrorException'], 'bool:' . (is_a(new ErrorException('probe'), 'ErrorException') ? 'true' : 'false')],
     ['is_a', ['s:ErrorException', 's:Exception'], 'bool:' . (is_a('ErrorException', 'Exception') ? 'true' : 'false')],
@@ -225,6 +229,15 @@ $checks = [
     ['constant', ['s:PHP_VERSION_ID'], 'int:' . PHP_VERSION_ID],
     ['defined', ['s:PHP_VERSION_ID'], 'bool:' . (defined('PHP_VERSION_ID') ? 'true' : 'false')],
 ];
+
+$declaredTraits = get_declared_traits();
+if ($declaredTraits !== []) {
+    $checks[] = [
+        'trait_exists',
+        ['s:' . $declaredTraits[0]],
+        'bool:' . (trait_exists($declaredTraits[0], false) ? 'true' : 'false'),
+    ];
+}
 
 foreach ($checks as [$name, $args, $expected]) {
     $actual = jinx100($jinx, $name, $args, false, $code);
