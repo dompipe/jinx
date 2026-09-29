@@ -1462,6 +1462,21 @@ if ($code === 0 && !str_starts_with($finfoProbe, 'null/fault:') && class_exists(
     }
 }
 
+if (function_exists('mime_content_type')) {
+    $mimePath = tempnam(sys_get_temp_dir(), 'jx-mime-');
+    if ($mimePath === false) {
+        fail200('mime_content_type fixture creation failed');
+    }
+    file_put_contents($mimePath, "Jinx MIME probe\n");
+    $phpMime = mime_content_type($mimePath);
+    $mimeProbe = jinx200($jinx, 'mime_content_type', ['s:' . $mimePath], false, $code);
+    @unlink($mimePath);
+    if ($code === 0 && !str_starts_with($mimeProbe, 'null/fault:') &&
+        $phpMime !== false && $mimeProbe !== 'string:' . $phpMime) {
+        fail200("mime_content_type parity mismatch\nPHP: {$phpMime}\nJINX: {$mimeProbe}");
+    }
+}
+
 /* Optional libcrypt backend likewise must either match or remain faulting. */
 $cryptProbe = jinx200($jinx, 'crypt', ['s:password', 's:xx'], false, $code);
 if ($code === 0 && !str_starts_with($cryptProbe, 'null/fault:')) {
