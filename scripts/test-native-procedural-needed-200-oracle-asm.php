@@ -676,6 +676,19 @@ if ($code !== 0 ||
     fail200("microtime string contract mismatch\nJINX: {$microString}");
 }
 
+expect200(
+    $jinx,
+    'pdo_drivers',
+    [],
+    'zend-array:' . count(function_exists('pdo_drivers') ? pdo_drivers() : [])
+);
+expect200(
+    $jinx,
+    'zlib_get_coding_type',
+    [],
+    zlib_get_coding_type() === false ? 'bool:false' : 'string:' . zlib_get_coding_type()
+);
+
 $randomBytes = jinx200($jinx, 'random_bytes', ['i:16'], true, $code);
 if ($code !== 0 || !preg_match('/^hex:[0-9a-f]{32}$/', $randomBytes)) {
     fail200("random_bytes length/binary contract mismatch\nJINX: {$randomBytes}");
@@ -1013,6 +1026,7 @@ if ($phpReadBufferStream === false || $phpWriteBufferStream === false) {
 }
 $phpStreamReadBuffer = stream_set_read_buffer($phpReadBufferStream, 0);
 $phpStreamWriteBuffer = stream_set_write_buffer($phpWriteBufferStream, 0);
+$phpSetFileBuffer = set_file_buffer($phpWriteBufferStream, 0);
 fclose($phpReadBufferStream);
 fclose($phpWriteBufferStream);
 
@@ -1054,6 +1068,8 @@ expect200($jinx, 'stream_supports_lock', ['fp:tmp'], 'bool:' . ($phpStreamLocks 
 expect200($jinx, 'stream_set_blocking', ['fp:tmp', 'b:true'], 'bool:' . ($phpStreamBlocking ? 'true' : 'false'));
 expect200($jinx, 'stream_set_read_buffer', ['fp:tmp', 'i:0'], 'int:' . $phpStreamReadBuffer);
 expect200($jinx, 'stream_set_write_buffer', ['fp:tmp', 'i:0'], 'int:' . $phpStreamWriteBuffer);
+expect200($jinx, 'set_file_buffer', ['fp:tmp', 'i:0'], 'int:' . $phpSetFileBuffer);
+expect200($jinx, 'socket_set_blocking', ['fp:tmp', 'b:true'], 'bool:true');
 
 $resolvedReadme = stream_resolve_include_path($root . '/README.md');
 expect200(
