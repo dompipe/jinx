@@ -37,6 +37,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s shmop-smoke\n", argv0);
     printf("  %s sem-smoke\n", argv0);
+    printf("  %s msg-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
@@ -2778,6 +2779,234 @@ static int command_oracle_smoke(void) {
     return 0;
 }
 
+static int command_msg_smoke(void) {
+    long long key = (long long)(0x4a000000u | ((unsigned int)getpid() & 0xffffu));
+    JinxValue exists_args[1];
+    JinxValue get_args[2];
+    JinxValue queue;
+    JinxValue result;
+    JinxValue one_arg[1];
+    JinxValue send_args[5];
+    JinxValue receive_args[7];
+    JinxValue set_args[2];
+    JinxValue settings_value = jinx_value_null();
+    JinxZendArray *settings = NULL;
+    int ok = 0;
+
+    exists_args[0] = jinx_value_int(key);
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_queue_exists", exists_args, 1u, &ok
+    );
+    if (!ok || result.type != 2u) {
+        release_cli_value(result);
+        return fail("native msg_queue_exists initial probe failed");
+    }
+
+    if (result.as.i64 != 0) {
+        JinxValue stale;
+        get_args[0] = jinx_value_int(key);
+        get_args[1] = jinx_value_int(0600);
+        ok = 0;
+        stale = jinx_call_builtin_through_oracle_checked(
+            "msg_get_queue", get_args, 2u, &ok
+        );
+        if (ok && jinx_oracle_value_is_zend_object(stale)) {
+            JinxValue stale_arg[1] = { stale };
+            JinxValue removed;
+            int remove_ok = 0;
+            removed = jinx_call_builtin_through_oracle_checked(
+                "msg_remove_queue", stale_arg, 1u, &remove_ok
+            );
+            release_cli_value(removed);
+        }
+        release_cli_value(stale);
+    }
+    release_cli_value(result);
+
+    get_args[0] = jinx_value_int(key);
+    get_args[1] = jinx_value_int(0600);
+    ok = 0;
+    queue = jinx_call_builtin_through_oracle_checked(
+        "msg_get_queue", get_args, 2u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_object(queue)) {
+        release_cli_value(queue);
+        return fail("native msg_get_queue did not create a SysvMessageQueue object");
+    }
+
+    exists_args[0] = jinx_value_int(key);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_queue_exists", exists_args, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_queue_exists did not see created queue");
+    }
+    release_cli_value(result);
+
+    settings = jinx_zend_array_new_packed(1u);
+    if (settings == NULL ||
+        !jinx_zend_array_add_assoc(
+            settings, "msg_perm.mode", 13u, jinx_zend_long(0600)
+        )) {
+        jinx_zend_array_release(settings);
+        release_cli_value(queue);
+        return fail("native msg_set_queue settings fixture allocation failed");
+    }
+    settings_value = jinx_oracle_zend_array_value_owned(settings);
+    set_args[0] = queue;
+    set_args[1] = settings_value;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_set_queue", set_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(settings_value);
+        release_cli_value(queue);
+        return fail("native msg_set_queue did not apply queue mode");
+    }
+    release_cli_value(result);
+    release_cli_value(settings_value);
+    settings_value = jinx_value_null();
+
+    one_arg[0] = queue;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_stat_queue", one_arg, 1u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_stat_queue did not return queue metadata");
+    }
+    {
+        JinxZendArray *stats = jinx_oracle_zend_array_ptr(result);
+        JinxZendValue *mode = jinx_zend_array_find(stats, "msg_perm.mode", 13u);
+        JinxZendValue *qnum = jinx_zend_array_find(stats, "msg_qnum", 8u);
+        if (mode == NULL || mode->type != JINX_ZEND_LONG ||
+            (((int64_t)mode->value.lval) & 0777) != 0600 ||
+            qnum == NULL || qnum->type != JINX_ZEND_LONG ||
+            qnum->value.lval != 0) {
+            release_cli_value(result);
+            release_cli_value(queue);
+            return fail("native msg_stat_queue initial metadata mismatch");
+        }
+    }
+    release_cli_value(result);
+
+    send_args[0] = queue;
+    send_args[1] = jinx_value_int(7);
+    send_args[2] = jinx_value_string("hello", 5u);
+    send_args[3] = jinx_value_bool(1);
+    send_args[4] = jinx_value_bool(1);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_send", send_args, 5u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_send serialized message failed");
+    }
+    release_cli_value(result);
+
+    one_arg[0] = queue;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_stat_queue", one_arg, 1u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_stat_queue after send failed");
+    }
+    {
+        JinxZendValue *qnum = jinx_zend_array_find(
+            jinx_oracle_zend_array_ptr(result), "msg_qnum", 8u
+        );
+        if (qnum == NULL || qnum->type != JINX_ZEND_LONG ||
+            qnum->value.lval != 1) {
+            release_cli_value(result);
+            release_cli_value(queue);
+            return fail("native message queue depth did not become one");
+        }
+    }
+    release_cli_value(result);
+
+    receive_args[0] = queue;
+    receive_args[1] = jinx_value_int(7);
+    receive_args[2] = jinx_value_int(0);
+    receive_args[3] = jinx_value_int(1024);
+    receive_args[4] = jinx_value_null();
+    receive_args[5] = jinx_value_bool(1);
+    receive_args[6] = jinx_value_int(0);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_receive", receive_args, 7u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0 ||
+        receive_args[2].type != 1u || receive_args[2].as.i64 != 7 ||
+        receive_args[4].type != 3u ||
+        jinx_oracle_string_len(receive_args[4]) != 5u ||
+        memcmp(jinx_oracle_string_bytes(receive_args[4]), "hello", 5u) != 0) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_receive by-reference serialized message mismatch");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_stat_queue", one_arg, 1u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_stat_queue after receive failed");
+    }
+    {
+        JinxZendValue *qnum = jinx_zend_array_find(
+            jinx_oracle_zend_array_ptr(result), "msg_qnum", 8u
+        );
+        if (qnum == NULL || qnum->type != JINX_ZEND_LONG ||
+            qnum->value.lval != 0) {
+            release_cli_value(result);
+            release_cli_value(queue);
+            return fail("native message queue depth did not return to zero");
+        }
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_remove_queue", one_arg, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(queue);
+        return fail("native msg_remove_queue failed");
+    }
+    release_cli_value(result);
+    release_cli_value(queue);
+
+    exists_args[0] = jinx_value_int(key);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "msg_queue_exists", exists_args, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 != 0) {
+        release_cli_value(result);
+        return fail("native removed message queue still exists");
+    }
+    release_cli_value(result);
+
+    printf("PASS: native SysV message queue send/receive/stat/set/remove lifecycle\n");
+    return 0;
+}
+
 static int command_sem_smoke(void) {
     JinxValue get_args[4];
     JinxValue acquire_args[2];
@@ -3927,6 +4156,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "sem-smoke") == 0) {
         return command_sem_smoke();
+    }
+
+    if (strcmp(argv[1], "msg-smoke") == 0) {
+        return command_msg_smoke();
     }
 
     if (strcmp(argv[1], "oracle-constant-smoke") == 0) {
