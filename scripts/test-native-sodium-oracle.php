@@ -41,6 +41,41 @@ function sodiumTypedString(string $bytes): string
     return 'h:' . bin2hex($bytes);
 }
 
+function sodiumJinxRefsHex(
+    string $jinx,
+    string $name,
+    array $args,
+    ?int &$code = null
+): string {
+    $cmd = escapeshellarg($jinx)
+        . ' oracle-call-refs-hex '
+        . escapeshellarg($name);
+    foreach ($args as $arg) {
+        $cmd .= ' ' . escapeshellarg((string)$arg);
+    }
+    return sodiumRun($cmd, $code);
+}
+
+function sodiumExpectRefHex(
+    string $jinx,
+    string $name,
+    array $args,
+    array $expectedArgs
+): void {
+    $actual = sodiumJinxRefsHex($jinx, $name, $args, $code);
+    $expected = ['return=null'];
+    foreach ($expectedArgs as $index => $bytes) {
+        $expected[] = 'arg' . $index . '=hex:' . bin2hex($bytes);
+    }
+    $expectedText = implode(PHP_EOL, $expected);
+    if ($code !== 0 || $actual !== $expectedText) {
+        sodiumFail(
+            "{$name} by-reference parity mismatch\n" .
+            "PHP/expected:\n{$expectedText}\nJINX:\n{$actual}"
+        );
+    }
+}
+
 function sodiumExpect(
     string $jinx,
     string $name,
@@ -84,6 +119,27 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 if (!extension_loaded('sodium') || !function_exists('sodium_bin2hex')) {
     sodiumFail('PHP sodium extension is required for native parity');
 }
+
+$addLeft = "\xff\x00";
+$addRight = "\x01\x01";
+$addExpected = $addLeft;
+sodium_add($addExpected, $addRight);
+sodiumExpectRefHex(
+    $jinx,
+    'sodium_add',
+    [sodiumTypedString($addLeft), sodiumTypedString($addRight)],
+    [$addExpected, $addRight]
+);
+
+$incrementInput = "\xff\xff\x00";
+$incrementExpected = $incrementInput;
+sodium_increment($incrementExpected);
+sodiumExpectRefHex(
+    $jinx,
+    'sodium_increment',
+    [sodiumTypedString($incrementInput)],
+    [$incrementExpected]
+);
 
 $binary = "\x00JiNx\xff";
 sodiumExpect(
