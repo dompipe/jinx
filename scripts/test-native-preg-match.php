@@ -70,6 +70,21 @@ function oraclePregReplace(
     );
 }
 
+function oraclePregState(
+    string $jinx,
+    string $typedPattern,
+    string $typedSubject,
+    ?int &$code = null
+): string {
+    return runPreg(
+        escapeshellarg($jinx)
+        . ' oracle-preg-state '
+        . escapeshellarg($typedPattern)
+        . ' ' . escapeshellarg($typedSubject),
+        $code
+    );
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     failPreg('repository-root native ./jinx missing');
 }
@@ -174,4 +189,42 @@ foreach ($replaceCases as [$pattern, $replacement, $subject]) {
     }
 }
 
-echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, and preg_replace core forms match PHP" . PHP_EOL;
+$stateCases = [
+    ['/jinx/', 'jinx compiler', false],
+    ['/[/', 'x', false],
+    ['/./u', "\xff", true],
+];
+
+foreach ($stateCases as [$pattern, $subject, $binarySubject]) {
+    $phpMatch = @preg_match($pattern, $subject);
+    $phpError = preg_last_error();
+    $phpMessage = preg_last_error_msg();
+
+    $typedSubject = $binarySubject
+        ? 'h:' . bin2hex($subject)
+        : 's:' . $subject;
+
+    $actual = oraclePregState(
+        $jinx,
+        's:' . $pattern,
+        $typedSubject,
+        $code
+    );
+
+    $expected = implode(PHP_EOL, [
+        'match=' . ($phpMatch === false ? 'bool:false' : 'int:' . $phpMatch),
+        'error=int:' . $phpError,
+        'message=string:' . $phpMessage,
+    ]);
+
+    if ($code !== 0 || trim($actual) !== $expected) {
+        failPreg(
+            "preg last-error state parity mismatch\n"
+            . "pattern={$pattern}\n"
+            . "PHP/expected:\n{$expected}\n"
+            . "JINX:\n{$actual}"
+        );
+    }
+}
+
+echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_last_error, and preg_last_error_msg core forms match PHP" . PHP_EOL;
