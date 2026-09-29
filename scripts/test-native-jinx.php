@@ -156,6 +156,7 @@ $tests = [
     'scripts/test-native-pfsockopen-oracle.php' => 'PASS: native pfsockopen matches bounded PHP socket behavior',
     'scripts/test-native-method-oracle-asm.php' => 'PASS: native Oracle method receiver proves 500 newly added callable routes',
     'scripts/test-native-zlib-oracle-asm.php' => 'PASS: native Oracle zlib helpers match PHP for covered one-shot semantics',
+    'scripts/test-native-sodium-oracle.php' => 'PASS: native libsodium core functions match PHP sodium byte-for-byte',
     'scripts/test-native-string-transform-oracle-asm.php' => 'PASS: native Oracle ASM string byte transforms, searches, comparisons, and counts match PHP',
     'scripts/test-oracle-execution-families.php' => 'PASS: Oracle execution families expose',
 ];
