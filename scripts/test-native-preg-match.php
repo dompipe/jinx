@@ -87,6 +87,22 @@ function oraclePregFilter(
     );
 }
 
+function oraclePregGrepJson(
+    string $jinx,
+    string $pattern,
+    int $flags = 0,
+    ?int &$code = null
+): string {
+    $command = escapeshellarg($jinx)
+        . ' oracle-call-json preg_grep '
+        . escapeshellarg('s:' . $pattern)
+        . ' ' . escapeshellarg('za:strings');
+    if ($flags !== 0) {
+        $command .= ' ' . escapeshellarg('i:' . $flags);
+    }
+    return runPreg($command, $code);
+}
+
 function oraclePregState(
     string $jinx,
     string $typedPattern,
@@ -206,6 +222,31 @@ foreach ($replaceCases as [$pattern, $replacement, $subject]) {
     }
 }
 
+$grepInput = ['b', 'a', 'c'];
+$grepCases = [
+    ['/[ac]/', 0],
+    ['/a/', 0],
+    ['/[ac]/', PREG_GREP_INVERT],
+    ['/z/', 0],
+];
+
+foreach ($grepCases as [$pattern, $flags]) {
+    $php = preg_grep($pattern, $grepInput, $flags);
+    if (!is_array($php)) {
+        failPreg("PHP preg_grep fixture unexpectedly failed: {$pattern}");
+    }
+    $expectedJson = json_encode($php, JSON_THROW_ON_ERROR);
+    $actual = oraclePregGrepJson($jinx, $pattern, $flags, $code);
+    $expected = 'string:' . $expectedJson;
+    if ($code !== 0 || trim($actual) !== $expected) {
+        failPreg(
+            "preg_grep JSON parity mismatch\n"
+            . "pattern={$pattern}\nflags={$flags}\n"
+            . "PHP/expected: {$expected}\nJINX: {$actual}"
+        );
+    }
+}
+
 $filterCases = [
     ['/cat/', 'dog', 'cat cat'],
     ['/jinx/i', 'native', 'JINX + jinx'],
@@ -268,4 +309,4 @@ foreach ($stateCases as [$pattern, $subject, $binarySubject]) {
     }
 }
 
-echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_filter, preg_last_error, and preg_last_error_msg core forms match PHP" . PHP_EOL;
+echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_filter, preg_grep, preg_last_error, and preg_last_error_msg core forms match PHP" . PHP_EOL;
