@@ -6798,7 +6798,6 @@ csv_fail:
         return result;
     }
 
-#ifdef JINX_HAVE_PCRE2
     if (strcmp(name, "preg_split") == 0) {
         char *subject;
         size_t subject_len;
@@ -6921,7 +6920,6 @@ csv_fail:
         return jinx_oracle_zend_array_value_owned(out);
     }
 
-#ifdef JINX_HAVE_PCRE2
     if (strcmp(name, "preg_match") == 0 ||
         strcmp(name, "preg_match_all") == 0) {
         char *subject;
