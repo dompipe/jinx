@@ -1291,6 +1291,30 @@ static int jinx_oracle_ext_class_has_method(
     return 0;
 }
 
+static int jinx_oracle_ext_class_has_property(
+    const JinxNativeClassMeta *meta,
+    const char *property_name
+) {
+    if (meta == NULL || property_name == NULL) return 0;
+
+    for (size_t i = 0u; i < meta->property_count; i++) {
+        if (meta->properties[i] != NULL &&
+            strcmp(meta->properties[i], property_name) == 0) {
+            return 1;
+        }
+    }
+
+    for (size_t i = 0u; i < meta->parent_count; i++) {
+        const JinxNativeClassMeta *parent =
+            jinx_oracle_ext_class_meta(meta->parents[i]);
+        if (jinx_oracle_ext_class_has_property(parent, property_name)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static int jinx_oracle_ext_class_implements_name(
     const JinxNativeClassMeta *meta,
     const char *interface_name
@@ -3539,6 +3563,47 @@ JinxValue jinx_oracle_extended_builtin(
                 strcmp(name,"is_dir")==0?S_ISDIR(st.st_mode):S_ISREG(st.st_mode)
             );
         }
+    }
+
+    if (strcmp(name, "property_exists") == 0) {
+        const JinxNativeClassMeta *meta = NULL;
+        JinxZendObject *object = NULL;
+        char *class_name = NULL;
+        char *property_name;
+        int answer = 0;
+
+        if (args == NULL || argc < 2u || args[1].type != 3u) return result;
+
+        if (args[0].type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            object = jinx_oracle_zend_object_ptr(args[0]);
+            if (object == NULL || object->class_name == NULL) return result;
+            meta = jinx_oracle_ext_class_meta(object->class_name);
+        } else if (args[0].type == 3u) {
+            class_name = jinx_oracle_ext_dup_string_value(args[0]);
+            if (class_name == NULL) return result;
+            meta = jinx_oracle_ext_class_meta(class_name);
+        } else {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        property_name = jinx_oracle_ext_dup_string_value(args[1]);
+        if (property_name == NULL) {
+            free(class_name);
+            return result;
+        }
+
+        if (object != NULL &&
+            jinx_oracle_ext_object_prop(object, property_name) != NULL) {
+            answer = 1;
+        } else if (meta != NULL) {
+            answer = jinx_oracle_ext_class_has_property(meta, property_name);
+        }
+
+        free(property_name);
+        free(class_name);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(answer);
     }
 
     if (strcmp(name, "method_exists") == 0) {
