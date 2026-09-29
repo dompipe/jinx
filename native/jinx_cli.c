@@ -38,6 +38,7 @@ static void usage(const char *argv0) {
     printf("  %s shmop-smoke\n", argv0);
     printf("  %s sem-smoke\n", argv0);
     printf("  %s msg-smoke\n", argv0);
+    printf("  %s net-interfaces-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
@@ -2779,6 +2780,86 @@ static int command_oracle_smoke(void) {
     return 0;
 }
 
+static int command_net_interfaces_smoke(void) {
+    JinxValue result;
+    JinxZendArray *outer;
+    size_t interface_count;
+    size_t unicast_count = 0u;
+    size_t up_count = 0u;
+    int ok = 0;
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "net_get_interfaces", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("native net_get_interfaces did not return an array");
+    }
+
+    outer = jinx_oracle_zend_array_ptr(result);
+    if (outer == NULL) {
+        release_cli_value(result);
+        return fail("native net_get_interfaces returned null array carrier");
+    }
+    interface_count = jinx_zend_array_live_count(outer);
+
+    for (size_t i = 0u; i < outer->capacity; i++) {
+        JinxZendBucket *bucket = &outer->buckets[i];
+        JinxZendArray *iface;
+        JinxZendValue *unicast;
+        JinxZendValue *up;
+
+        if (bucket->value.type != JINX_ZEND_ARRAY ||
+            bucket->value.value.array == NULL) {
+            continue;
+        }
+        iface = bucket->value.value.array;
+        unicast = jinx_zend_array_find(iface, "unicast", 7u);
+        up = jinx_zend_array_find(iface, "up", 2u);
+        if (unicast == NULL || unicast->type != JINX_ZEND_ARRAY ||
+            unicast->value.array == NULL ||
+            up == NULL || up->type != JINX_ZEND_BOOL) {
+            release_cli_value(result);
+            return fail("native net_get_interfaces interface shape mismatch");
+        }
+
+        unicast_count += jinx_zend_array_live_count(unicast->value.array);
+        if (up->value.lval != 0) up_count++;
+
+        for (size_t j = 0u; j < unicast->value.array->capacity; j++) {
+            JinxZendBucket *entry_bucket = &unicast->value.array->buckets[j];
+            JinxZendArray *entry;
+            JinxZendValue *flags;
+            JinxZendValue *family;
+            JinxZendValue *address;
+            JinxZendValue *netmask;
+
+            if (entry_bucket->value.type != JINX_ZEND_ARRAY ||
+                entry_bucket->value.value.array == NULL) {
+                continue;
+            }
+            entry = entry_bucket->value.value.array;
+            flags = jinx_zend_array_find(entry, "flags", 5u);
+            family = jinx_zend_array_find(entry, "family", 6u);
+            address = jinx_zend_array_find(entry, "address", 7u);
+            netmask = jinx_zend_array_find(entry, "netmask", 7u);
+            if (flags == NULL || flags->type != JINX_ZEND_LONG ||
+                family == NULL || family->type != JINX_ZEND_LONG ||
+                address == NULL || address->type != JINX_ZEND_STRING ||
+                netmask == NULL || netmask->type != JINX_ZEND_STRING) {
+                release_cli_value(result);
+                return fail("native net_get_interfaces unicast shape mismatch");
+            }
+        }
+    }
+
+    printf("interfaces=%zu\n", interface_count);
+    printf("unicast=%zu\n", unicast_count);
+    printf("up=%zu\n", up_count);
+    release_cli_value(result);
+    return 0;
+}
+
 static int command_msg_smoke(void) {
     long long key = (long long)(0x4a000000u | ((unsigned int)getpid() & 0xffffu));
     JinxValue exists_args[1];
@@ -4160,6 +4241,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "msg-smoke") == 0) {
         return command_msg_smoke();
+    }
+
+    if (strcmp(argv[1], "net-interfaces-smoke") == 0) {
+        return command_net_interfaces_smoke();
     }
 
     if (strcmp(argv[1], "oracle-constant-smoke") == 0) {
