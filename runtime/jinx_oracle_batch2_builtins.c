@@ -588,6 +588,281 @@ static int b2_serialize_append_cstr(B2SerializeBuffer *buffer, const char *text)
     return text != NULL && b2_serialize_append(buffer, text, strlen(text));
 }
 
+static int b2_html_utf8_valid(const unsigned char *bytes, size_t len) {
+    size_t i = 0u;
+    while (i < len) {
+        unsigned char c = bytes[i++];
+        if (c <= 0x7fu) continue;
+
+        if (c >= 0xc2u && c <= 0xdfu) {
+            if (i >= len || (bytes[i] & 0xc0u) != 0x80u) return 0;
+            i += 1u;
+            continue;
+        }
+
+        if (c >= 0xe0u && c <= 0xefu) {
+            unsigned char c1;
+            if (i + 1u >= len) return 0;
+            c1 = bytes[i];
+            if ((bytes[i] & 0xc0u) != 0x80u ||
+                (bytes[i + 1u] & 0xc0u) != 0x80u) return 0;
+            if (c == 0xe0u && c1 < 0xa0u) return 0;
+            if (c == 0xedu && c1 >= 0xa0u) return 0;
+            i += 2u;
+            continue;
+        }
+
+        if (c >= 0xf0u && c <= 0xf4u) {
+            unsigned char c1;
+            if (i + 2u >= len) return 0;
+            c1 = bytes[i];
+            if ((bytes[i] & 0xc0u) != 0x80u ||
+                (bytes[i + 1u] & 0xc0u) != 0x80u ||
+                (bytes[i + 2u] & 0xc0u) != 0x80u) return 0;
+            if (c == 0xf0u && c1 < 0x90u) return 0;
+            if (c == 0xf4u && c1 > 0x8fu) return 0;
+            i += 3u;
+            continue;
+        }
+
+        return 0;
+    }
+    return 1;
+}
+
+static int b2_html_append_codepoint(B2SerializeBuffer *buffer, uint32_t codepoint) {
+    char bytes[4];
+    size_t len;
+
+    if (codepoint == 0u || codepoint > 0x10ffffu ||
+        (codepoint >= 0xd800u && codepoint <= 0xdfffu)) {
+        return 0;
+    }
+
+    if (codepoint <= 0x7fu) {
+        bytes[0] = (char)codepoint;
+        len = 1u;
+    } else if (codepoint <= 0x7ffu) {
+        bytes[0] = (char)(0xc0u | (codepoint >> 6u));
+        bytes[1] = (char)(0x80u | (codepoint & 0x3fu));
+        len = 2u;
+    } else if (codepoint <= 0xffffu) {
+        bytes[0] = (char)(0xe0u | (codepoint >> 12u));
+        bytes[1] = (char)(0x80u | ((codepoint >> 6u) & 0x3fu));
+        bytes[2] = (char)(0x80u | (codepoint & 0x3fu));
+        len = 3u;
+    } else {
+        bytes[0] = (char)(0xf0u | (codepoint >> 18u));
+        bytes[1] = (char)(0x80u | ((codepoint >> 12u) & 0x3fu));
+        bytes[2] = (char)(0x80u | ((codepoint >> 6u) & 0x3fu));
+        bytes[3] = (char)(0x80u | (codepoint & 0x3fu));
+        len = 4u;
+    }
+
+    return b2_serialize_append(buffer, bytes, len);
+}
+
+static int b2_html_default_contract(
+    JinxValue *args,
+    size_t argc,
+    int has_double_encode
+) {
+    int64_t flags;
+    char *encoding = NULL;
+    int encoding_ok;
+
+    if (args == NULL || argc < 1u ||
+        argc > (has_double_encode ? 4u : 3u) ||
+        args[0].type != 3u) return 0;
+
+    flags = argc >= 2u ? jinx_oracle_intish(args[1]) : 11;
+    if (flags != 11) return 0;
+
+    if (argc >= 3u && args[2].type != 0u) {
+        if (args[2].type != 3u) return 0;
+        encoding = b2_dup(args[2]);
+        if (encoding == NULL) return 0;
+        encoding_ok = strcasecmp(encoding, "UTF-8") == 0 ||
+            strcasecmp(encoding, "UTF8") == 0;
+        free(encoding);
+        if (!encoding_ok) return 0;
+    } else if (strcasecmp(JINX_NATIVE_DEFAULT_CHARSET, "UTF-8") != 0 &&
+               strcasecmp(JINX_NATIVE_DEFAULT_CHARSET, "UTF8") != 0) {
+        return 0;
+    }
+
+    if (has_double_encode && argc >= 4u && !jinx_oracle_boolish(args[3])) {
+        return 0;
+    }
+
+    return 1;
+}
+
+static const JinxNativeStringPair *b2_html_entity_for_utf8(
+    const unsigned char *bytes,
+    size_t len,
+    size_t pos
+) {
+    for (size_t i = 0u; i < jinx_native_html_entities_html401_count; i++) {
+        size_t key_len = strlen(jinx_native_html_entities_html401[i].name);
+        if (key_len != 0u && pos + key_len <= len &&
+            memcmp(bytes + pos, jinx_native_html_entities_html401[i].name, key_len) == 0) {
+            return &jinx_native_html_entities_html401[i];
+        }
+    }
+    return NULL;
+}
+
+static const JinxNativeStringPair *b2_html_utf8_for_entity(
+    const unsigned char *bytes,
+    size_t len,
+    size_t pos
+) {
+    for (size_t i = 0u; i < jinx_native_html_entities_html401_count; i++) {
+        size_t entity_len = strlen(jinx_native_html_entities_html401[i].value);
+        if (entity_len != 0u && pos + entity_len <= len &&
+            memcmp(bytes + pos, jinx_native_html_entities_html401[i].value, entity_len) == 0) {
+            return &jinx_native_html_entities_html401[i];
+        }
+    }
+    return NULL;
+}
+
+static int b2_html_numeric_entity(
+    const unsigned char *bytes,
+    size_t len,
+    size_t pos,
+    size_t *consumed,
+    uint32_t *codepoint
+) {
+    size_t i;
+    uint32_t value = 0u;
+    unsigned base = 10u;
+    int digits = 0;
+
+    if (bytes == NULL || consumed == NULL || codepoint == NULL ||
+        pos + 3u >= len || bytes[pos] != '&' || bytes[pos + 1u] != '#') {
+        return 0;
+    }
+
+    i = pos + 2u;
+    if (i < len && (bytes[i] == 'x' || bytes[i] == 'X')) {
+        base = 16u;
+        i++;
+    }
+
+    while (i < len && bytes[i] != ';') {
+        unsigned digit;
+        if (base == 16u) {
+            if (bytes[i] >= '0' && bytes[i] <= '9') digit = (unsigned)(bytes[i] - '0');
+            else if (bytes[i] >= 'a' && bytes[i] <= 'f') digit = (unsigned)(bytes[i] - 'a') + 10u;
+            else if (bytes[i] >= 'A' && bytes[i] <= 'F') digit = (unsigned)(bytes[i] - 'A') + 10u;
+            else return 0;
+        } else {
+            if (bytes[i] < '0' || bytes[i] > '9') return 0;
+            digit = (unsigned)(bytes[i] - '0');
+        }
+        if (value > (0x10ffffu - digit) / base) return 0;
+        value = value * base + digit;
+        digits++;
+        i++;
+    }
+
+    if (!digits || i >= len || bytes[i] != ';' ||
+        value == 0u || value > 0x10ffffu ||
+        (value >= 0xd800u && value <= 0xdfffu)) {
+        return 0;
+    }
+
+    *consumed = i - pos + 1u;
+    *codepoint = value;
+    return 1;
+}
+
+static JinxValue b2_htmlentities_default(JinxValue input, int *ok) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(input);
+    size_t len = (size_t)jinx_oracle_string_len(input);
+    B2SerializeBuffer buffer = {0};
+    JinxValue out = jinx_oracle_zero_value();
+
+    if (ok != NULL) *ok = 0;
+    if (!b2_html_utf8_valid(bytes, len)) return out;
+
+    for (size_t pos = 0u; pos < len;) {
+        const JinxNativeStringPair *pair =
+            b2_html_entity_for_utf8(bytes, len, pos);
+        if (pair != NULL) {
+            size_t key_len = strlen(pair->name);
+            if (!b2_serialize_append_cstr(&buffer, pair->value)) {
+                free(buffer.data);
+                return out;
+            }
+            pos += key_len;
+        } else {
+            if (!b2_serialize_append(&buffer, (const char *)bytes + pos, 1u)) {
+                free(buffer.data);
+                return out;
+            }
+            pos++;
+        }
+    }
+
+    out = b2_copy(buffer.data, buffer.len);
+    free(buffer.data);
+    if (ok != NULL) *ok = 1;
+    return out;
+}
+
+static JinxValue b2_html_entity_decode_default(JinxValue input, int *ok) {
+    const unsigned char *bytes = jinx_oracle_string_bytes(input);
+    size_t len = (size_t)jinx_oracle_string_len(input);
+    B2SerializeBuffer buffer = {0};
+    JinxValue out = jinx_oracle_zero_value();
+
+    if (ok != NULL) *ok = 0;
+    if (!b2_html_utf8_valid(bytes, len)) return out;
+
+    for (size_t pos = 0u; pos < len;) {
+        size_t consumed = 0u;
+        uint32_t codepoint = 0u;
+        const JinxNativeStringPair *pair = NULL;
+
+        if (bytes[pos] == '&' &&
+            b2_html_numeric_entity(bytes, len, pos, &consumed, &codepoint)) {
+            if (!b2_html_append_codepoint(&buffer, codepoint)) {
+                free(buffer.data);
+                return out;
+            }
+            pos += consumed;
+            continue;
+        }
+
+        if (bytes[pos] == '&') {
+            pair = b2_html_utf8_for_entity(bytes, len, pos);
+        }
+        if (pair != NULL) {
+            size_t entity_len = strlen(pair->value);
+            size_t key_len = strlen(pair->name);
+            if (!b2_serialize_append(&buffer, pair->name, key_len)) {
+                free(buffer.data);
+                return out;
+            }
+            pos += entity_len;
+        } else {
+            if (!b2_serialize_append(&buffer, (const char *)bytes + pos, 1u)) {
+                free(buffer.data);
+                return out;
+            }
+            pos++;
+        }
+    }
+
+    out = b2_copy(buffer.data, buffer.len);
+    free(buffer.data);
+    if (ok != NULL) *ok = 1;
+    return out;
+}
+
 static int b2_serialize_append_int64(B2SerializeBuffer *buffer, int64_t value) {
     char text[64];
     int written = snprintf(text, sizeof(text), "%lld", (long long)value);
@@ -7101,6 +7376,24 @@ csv_fail:
         }
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "htmlentities") == 0) {
+        int html_ok = 0;
+        if (!b2_html_default_contract(args, argc, 1)) return result;
+        result = b2_htmlentities_default(args[0], &html_ok);
+        if (!html_ok) return result;
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "html_entity_decode") == 0) {
+        int html_ok = 0;
+        if (!b2_html_default_contract(args, argc, 0)) return result;
+        result = b2_html_entity_decode_default(args[0], &html_ok);
+        if (!html_ok) return result;
+        if (handled != NULL) *handled = 1;
+        return result;
     }
 
     if (strcmp(name, "get_html_translation_table") == 0) {
