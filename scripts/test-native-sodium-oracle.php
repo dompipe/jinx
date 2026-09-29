@@ -41,6 +41,28 @@ function sodiumTypedString(string $bytes): string
     return 'h:' . bin2hex($bytes);
 }
 
+function sodiumExpectSerializedHex(
+    string $jinx,
+    string $name,
+    array $args,
+    mixed $expected
+): void {
+    $cmd = escapeshellarg($jinx)
+        . ' oracle-call-serialize-hex '
+        . escapeshellarg($name);
+    foreach ($args as $arg) {
+        $cmd .= ' ' . escapeshellarg((string)$arg);
+    }
+    $actual = sodiumRun($cmd, $code);
+    $expectedText = 'hex:' . bin2hex(serialize($expected));
+    if ($code !== 0 || $actual !== $expectedText) {
+        sodiumFail(
+            "{$name} serialized parity mismatch\n" .
+            "PHP/expected: {$expectedText}\nJINX: {$actual}"
+        );
+    }
+}
+
 function sodiumJinxRefsHex(
     string $jinx,
     string $name,
@@ -1075,6 +1097,27 @@ sodiumExpectHexLength(
     'sodium_crypto_kx_keypair',
     [],
     SODIUM_CRYPTO_KX_SECRETKEYBYTES + SODIUM_CRYPTO_KX_PUBLICKEYBYTES
+);
+
+$kxPeerSeed = substr(
+    hash('sha256', 'jinx-kx-peer-seed', true),
+    0,
+    SODIUM_CRYPTO_KX_SEEDBYTES
+);
+$kxPeerPair = sodium_crypto_kx_seed_keypair($kxPeerSeed);
+$kxPeerPublic = sodium_crypto_kx_publickey($kxPeerPair);
+
+sodiumExpectSerializedHex(
+    $jinx,
+    'sodium_crypto_kx_client_session_keys',
+    [sodiumTypedString($kxPair), sodiumTypedString($kxPeerPublic)],
+    sodium_crypto_kx_client_session_keys($kxPair, $kxPeerPublic)
+);
+sodiumExpectSerializedHex(
+    $jinx,
+    'sodium_crypto_kx_server_session_keys',
+    [sodiumTypedString($kxPeerPair), sodiumTypedString($kxPublic)],
+    sodium_crypto_kx_server_session_keys($kxPeerPair, $kxPublic)
 );
 
 $kdfKey = substr(hash('sha256', 'jinx-kdf-key', true), 0, SODIUM_CRYPTO_KDF_KEYBYTES);
