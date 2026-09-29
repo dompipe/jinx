@@ -46,6 +46,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-strptime-smoke\n", argv0);
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
+    printf("  %s oracle-preg-state <typed-pattern> <typed-subject>\n", argv0);
     printf("  %s oracle-method-call <Class::method> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s oracle-throwable-construct-smoke <Class>\n", argv0);
     printf("  %s oracle-datetime-method-smoke <DateTime|DateTimeImmutable> <method>\n", argv0);
@@ -2275,6 +2276,54 @@ static int command_oracle_call(int argc, char **argv, int output_mode) {
     return exit_code;
 }
 
+static int command_oracle_preg_state(int argc, char **argv) {
+    JinxValue args[2];
+    void *owned[2] = {0};
+    JinxValue match_result = jinx_value_null();
+    JinxValue error_result = jinx_value_null();
+    JinxValue message_result = jinx_value_null();
+    int match_ok = 0;
+    int error_ok = 0;
+    int message_ok = 0;
+    int exit_code = 0;
+
+    if (argc != 4) {
+        return fail("oracle-preg-state requires typed pattern and subject arguments");
+    }
+
+    args[0] = parse_cli_value(argv[2], &owned[0]);
+    args[1] = parse_cli_value(argv[3], &owned[1]);
+
+    match_result = jinx_call_builtin_through_oracle_checked(
+        "preg_match", args, 2u, &match_ok
+    );
+    error_result = jinx_call_builtin_through_oracle_checked(
+        "preg_last_error", NULL, 0u, &error_ok
+    );
+    message_result = jinx_call_builtin_through_oracle_checked(
+        "preg_last_error_msg", NULL, 0u, &message_ok
+    );
+
+    if (!match_ok || !error_ok || !message_ok) {
+        exit_code = 1;
+    }
+
+    printf("match=");
+    print_value_line(match_result);
+    printf("error=");
+    print_value_line(error_result);
+    printf("message=");
+    print_value_line(message_result);
+
+    release_cli_value(match_result);
+    release_cli_value(error_result);
+    release_cli_value(message_result);
+    release_cli_values(args, 2u);
+    free(owned[0]);
+    free(owned[1]);
+    return exit_code;
+}
+
 static int command_builtin_id(int argc, char **argv) {
     JinxBuiltinId id;
     uint8_t encoded[2] = {0u, 0u};
@@ -3132,6 +3181,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-call") == 0) {
         return command_oracle_call(argc, argv, 0);
+    }
+
+    if (strcmp(argv[1], "oracle-preg-state") == 0) {
+        return command_oracle_preg_state(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-method-call") == 0) {
