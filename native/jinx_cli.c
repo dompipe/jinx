@@ -44,6 +44,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-error-smoke\n", argv0);
     printf("  %s oracle-pcntl-alarm-smoke\n", argv0);
     printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
+    printf("  %s oracle-pcntl-async-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -1963,6 +1964,66 @@ static int command_oracle_posix_error_smoke(void) {
 }
 
 
+static int command_oracle_pcntl_async_smoke(void) {
+    JinxValue args[1];
+    JinxValue query0;
+    JinxValue enable;
+    JinxValue query1;
+    JinxValue disable;
+    JinxValue query2;
+    int ok = 0;
+
+    query0 = jinx_call_builtin_through_oracle_checked(
+        "pcntl_async_signals", NULL, 0u, &ok
+    );
+    if (!ok || query0.type != 2u || query0.as.i64 != 0) {
+        return fail("pcntl_async_signals initial state was not false");
+    }
+
+    args[0] = jinx_value_bool(1);
+    ok = 0;
+    enable = jinx_call_builtin_through_oracle_checked(
+        "pcntl_async_signals", args, 1u, &ok
+    );
+    if (!ok || enable.type != 2u || enable.as.i64 != 0) {
+        return fail("pcntl_async_signals enable did not return previous false state");
+    }
+
+    ok = 0;
+    query1 = jinx_call_builtin_through_oracle_checked(
+        "pcntl_async_signals", NULL, 0u, &ok
+    );
+    if (!ok || query1.type != 2u || query1.as.i64 == 0) {
+        return fail("pcntl_async_signals enabled state was not retained");
+    }
+
+    args[0] = jinx_value_bool(0);
+    ok = 0;
+    disable = jinx_call_builtin_through_oracle_checked(
+        "pcntl_async_signals", args, 1u, &ok
+    );
+    if (!ok || disable.type != 2u || disable.as.i64 == 0) {
+        return fail("pcntl_async_signals disable did not return previous true state");
+    }
+
+    ok = 0;
+    query2 = jinx_call_builtin_through_oracle_checked(
+        "pcntl_async_signals", NULL, 0u, &ok
+    );
+    if (!ok || query2.type != 2u || query2.as.i64 != 0) {
+        return fail("pcntl_async_signals disabled state was not retained");
+    }
+
+    printf(
+        "initial=bool:false\n"
+        "enable_previous=bool:false\n"
+        "enabled=bool:true\n"
+        "disable_previous=bool:true\n"
+        "final=bool:false\n"
+    );
+    return 0;
+}
+
 static int command_oracle_pcntl_affinity_smoke(void) {
     JinxValue affinity;
     JinxValue set_args[2];
@@ -3378,6 +3439,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-affinity-smoke") == 0) {
         return command_oracle_pcntl_affinity_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pcntl-async-smoke") == 0) {
+        return command_oracle_pcntl_async_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
