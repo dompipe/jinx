@@ -136,7 +136,69 @@ if ($limit === null && array_diff_key($signatures, $rows) !== []) {
  * Keep the table itself stable, but generate a 50%-or-lower load-factor hash
  * index that maps a case-insensitive FNV-1a name hash to the table row.
  */
-$orderedRows = array_values($rows);
+/*
+ * Assign compact numeric callable IDs. IDs 0..127 have a canonical one-byte
+ * encoding; all remaining current callables use a canonical two-byte encoding.
+ * Put common scalar/math/string/array globals first, then fill any unused hot
+ * slots with other global functions before appending the remaining inventory.
+ */
+$hotNames = [
+    'abs', 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atan2', 'atanh',
+    'ceil', 'cos', 'cosh', 'exp', 'expm1', 'fdiv', 'floor', 'fmod',
+    'hypot', 'intdiv', 'log', 'log10', 'log1p', 'pi', 'pow', 'fpow',
+    'round', 'sin', 'sinh', 'sqrt', 'tan', 'tanh',
+    'strlen', 'count', 'sizeof', 'is_null', 'is_bool', 'is_int',
+    'is_integer', 'is_long', 'is_float', 'is_double', 'is_string',
+    'is_array', 'is_object', 'is_resource', 'is_scalar', 'is_numeric',
+    'boolval', 'intval', 'floatval', 'doubleval', 'strval',
+    'strcmp', 'strcasecmp', 'strncmp', 'strncasecmp', 'str_contains',
+    'str_starts_with', 'str_ends_with', 'strpos', 'stripos', 'strrpos',
+    'strripos', 'substr', 'substr_count', 'substr_compare', 'strtolower',
+    'strtoupper', 'lcfirst', 'ucfirst', 'ucwords', 'trim', 'ltrim', 'rtrim',
+    'explode', 'implode', 'join', 'str_split', 'str_getcsv', 'str_replace',
+    'str_ireplace', 'substr_replace', 'addslashes', 'stripslashes',
+    'htmlspecialchars', 'htmlspecialchars_decode', 'htmlentities',
+    'html_entity_decode', 'base64_encode', 'base64_decode',
+    'urlencode', 'urldecode', 'rawurlencode', 'rawurldecode',
+    'json_encode', 'json_decode', 'json_validate', 'json_last_error',
+    'json_last_error_msg', 'array_key_exists', 'in_array', 'array_search',
+    'array_values', 'array_keys', 'array_sum', 'array_product', 'array_slice',
+    'array_merge', 'array_merge_recursive', 'array_replace',
+    'array_replace_recursive', 'array_reverse', 'array_flip', 'array_chunk',
+    'array_column', 'array_unique', 'array_filter', 'array_map', 'array_reduce',
+    'array_push', 'array_pop', 'array_shift', 'array_unshift', 'array_splice',
+    'min', 'max', 'range', 'sort', 'rsort', 'asort', 'arsort', 'ksort',
+    'krsort',
+];
+
+$orderedRows = [];
+$selectedRows = [];
+foreach ($hotNames as $hotName) {
+    $key = strtolower($hotName);
+    if (isset($rows[$key]) && !isset($selectedRows[$key])) {
+        $orderedRows[] = $rows[$key];
+        $selectedRows[$key] = true;
+        if (count($orderedRows) >= 128) break;
+    }
+}
+if (count($orderedRows) < 128) {
+    foreach ($rows as $key => $row) {
+        if (count($orderedRows) >= 128) break;
+        if (isset($selectedRows[$key]) || str_contains((string)$row['name'], '::')) continue;
+        $orderedRows[] = $row;
+        $selectedRows[$key] = true;
+    }
+}
+foreach ($rows as $key => $row) {
+    if (isset($selectedRows[$key])) continue;
+    $orderedRows[] = $row;
+    $selectedRows[$key] = true;
+}
+
+if (count($orderedRows) > 32768) {
+    generation_fail('Compact Oracle callable IDs support at most 32768 entries');
+}
+
 $hashSize = 1;
 while ($hashSize < count($orderedRows) * 2) {
     $hashSize <<= 1;
@@ -328,7 +390,7 @@ foreach ($orderedRows as $row) {
 $code[] = '    { NULL, NULL, 0u, 0u, 0 }';
 $code[] = '};';
 $code[] = '';
-$code[] = 'enum { JINX_ORACLE_DISPATCH_HASH_SIZE = ' . $hashSize . ' };';
+$code[] = 'enum { JINX_ORACLE_DISPATCH_COUNT = ' . count($orderedRows) . ', JINX_ORACLE_DISPATCH_HASH_SIZE = ' . $hashSize . ' };';
 $code[] = 'static const int oracle_dispatch_hash_slots[JINX_ORACLE_DISPATCH_HASH_SIZE] = {';
 foreach (array_chunk($hashSlots, 16) as $chunk) {
     $code[] = '    ' . implode(', ', $chunk) . ',';
@@ -384,20 +446,59 @@ $code[] = '    if (variadic != NULL) *variadic = entry->variadic;';
 $code[] = '    return 1;';
 $code[] = '}';
 $code[] = '';
-$code[] = 'JinxValue jinx_call_builtin_through_oracle_checked(';
-$code[] = '    const char *name,';
+$code[] = 'JinxBuiltinId jinx_resolve_builtin_id(const char *name) {';
+$code[] = '    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);';
+$code[] = '    if (entry == NULL) return JINX_BUILTIN_ID_INVALID;';
+$code[] = '    return (JinxBuiltinId)(entry - oracle_dispatch_table);';
+$code[] = '}';
+$code[] = '';
+$code[] = 'const char *jinx_builtin_name_from_id(JinxBuiltinId id) {';
+$code[] = '    return id < JINX_ORACLE_DISPATCH_COUNT ? oracle_dispatch_table[id].name : NULL;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'size_t jinx_encode_builtin_id(JinxBuiltinId id, uint8_t out[2]) {';
+$code[] = '    if (out == NULL || id >= JINX_ORACLE_DISPATCH_COUNT) return 0u;';
+$code[] = '    if (id < JINX_BUILTIN_HOT_ID_LIMIT) {';
+$code[] = '        out[0] = (uint8_t)id;';
+$code[] = '        return 1u;';
+$code[] = '    }';
+$code[] = '    out[0] = (uint8_t)(0x80u | ((id >> 8u) & 0x7fu));';
+$code[] = '    out[1] = (uint8_t)(id & 0xffu);';
+$code[] = '    return 2u;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'int jinx_decode_builtin_id(const uint8_t *bytes, size_t length, JinxBuiltinId *id, size_t *consumed) {';
+$code[] = '    JinxBuiltinId decoded;';
+$code[] = '    size_t used;';
+$code[] = '    if (bytes == NULL || length == 0u || id == NULL) return 0;';
+$code[] = '    if ((bytes[0] & 0x80u) == 0u) {';
+$code[] = '        decoded = (JinxBuiltinId)bytes[0];';
+$code[] = '        used = 1u;';
+$code[] = '    } else {';
+$code[] = '        if (length < 2u) return 0;';
+$code[] = '        decoded = (JinxBuiltinId)((((uint16_t)bytes[0] & 0x7fu) << 8u) | (uint16_t)bytes[1]);';
+$code[] = '        if (decoded < JINX_BUILTIN_HOT_ID_LIMIT) return 0;';
+$code[] = '        used = 2u;';
+$code[] = '    }';
+$code[] = '    if (decoded >= JINX_ORACLE_DISPATCH_COUNT) return 0;';
+$code[] = '    *id = decoded;';
+$code[] = '    if (consumed != NULL) *consumed = used;';
+$code[] = '    return 1;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'static JinxValue jinx_call_builtin_entry_checked(';
+$code[] = '    const JinxOracleDispatchEntry *entry,';
 $code[] = '    JinxValue *args,';
 $code[] = '    size_t argc,';
 $code[] = '    int *ok';
 $code[] = ') {';
 $code[] = '    if (ok != NULL) *ok = 0;';
 $code[] = '';
-$code[] = '    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);';
 $code[] = '    if (entry == NULL || argc > 64u || (argc != 0u && args == NULL) ||';
 $code[] = '        argc < entry->required_args || (!entry->variadic && argc > entry->total_args)) {';
 $code[] = '        return jinx_value_null();';
 $code[] = '    }';
-$code[] = '    name = entry->name;';
+$code[] = '    const char *name = entry->name;';
 $code[] = '';
 $code[] = '    if (argc == 0u && (strcmp(name, "array_merge") == 0 || strcmp(name, "array_merge_recursive") == 0)) {';
 $code[] = '        return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);';
@@ -440,6 +541,28 @@ $code[] = '    }';
 $code[] = '';
 $code[] = '    if (ok != NULL) *ok = 1;';
 $code[] = '    return result;';
+$code[] = '}';
+$code[] = '';
+$code[] = 'JinxValue jinx_call_builtin_id_checked(';
+$code[] = '    JinxBuiltinId id, JinxValue *args, size_t argc, int *ok';
+$code[] = ') {';
+$code[] = '    const JinxOracleDispatchEntry *entry = id < JINX_ORACLE_DISPATCH_COUNT';
+$code[] = '        ? &oracle_dispatch_table[id] : NULL;';
+$code[] = '    return jinx_call_builtin_entry_checked(entry, args, argc, ok);';
+$code[] = '}';
+$code[] = '';
+$code[] = 'JinxValue jinx_call_builtin_through_oracle_checked(';
+$code[] = '    const char *name, JinxValue *args, size_t argc, int *ok';
+$code[] = ') {';
+$code[] = '    return jinx_call_builtin_entry_checked(jinx_lookup_oracle_entry(name), args, argc, ok);';
+$code[] = '}';
+$code[] = '';
+$code[] = 'JinxValue jinx_call_builtin_id(';
+$code[] = '    JinxBuiltinId id, JinxValue *args, size_t argc';
+$code[] = ') {';
+$code[] = '    int ok = 0;';
+$code[] = '    JinxValue result = jinx_call_builtin_id_checked(id, args, argc, &ok);';
+$code[] = '    return ok ? result : jinx_value_null();';
 $code[] = '}';
 $code[] = '';
 $code[] = 'JinxValue jinx_call_builtin_through_oracle(';
