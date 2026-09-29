@@ -70,6 +70,19 @@ if printf '%s\n' '#include <libexif/exif-data.h>' 'int main(void){ExifData *d=ex
 fi
 rm -f "$EXIF_PROBE"
 
+ICONV_DEFINE=""
+ICONV_LIBS=""
+ICONV_PROBE="${OUT_DIR}/jinx-iconv-probe"
+if printf '%s\n' '#include <iconv.h>' 'int main(void){iconv_t c=iconv_open("UTF-8","UTF-8"); if(c!=(iconv_t)-1) iconv_close(c); return 0;}' | \
+    "$CC_BIN" -x c - -o "$ICONV_PROBE" >/dev/null 2>&1; then
+    ICONV_DEFINE="-DJINX_HAVE_ICONV=1"
+elif printf '%s\n' '#include <iconv.h>' 'int main(void){iconv_t c=iconv_open("UTF-8","UTF-8"); if(c!=(iconv_t)-1) iconv_close(c); return 0;}' | \
+    "$CC_BIN" -x c - -liconv -o "$ICONV_PROBE" >/dev/null 2>&1; then
+    ICONV_DEFINE="-DJINX_HAVE_ICONV=1"
+    ICONV_LIBS="-liconv"
+fi
+rm -f "$ICONV_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -90,6 +103,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${RESOLV_DEFINE} \
     ${CURL_DEFINE} \
     ${EXIF_DEFINE} \
+    ${ICONV_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -124,6 +138,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${RESOLV_LIBS} \
     ${CURL_LIBS} \
     ${EXIF_LIBS} \
+    ${ICONV_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -264,6 +279,11 @@ if [ -n "$EXIF_DEFINE" ]; then
     echo "Native libexif backend: enabled"
 else
     echo "Native libexif backend: unavailable; EXIF thumbnail remains faulting"
+fi
+if [ -n "$ICONV_DEFINE" ]; then
+    echo "Native iconv backend: enabled"
+else
+    echo "Native iconv backend: unavailable; iconv family remains faulting"
 fi
 echo "Native functions-smoke: PASS"
 echo "Native oracle-call smoke: strtolower/strtoupper PASS"
