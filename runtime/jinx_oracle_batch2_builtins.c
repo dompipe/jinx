@@ -2012,6 +2012,49 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_int_value(output);
     }
 
+    if (strcmp(name, "lcg_value") == 0) {
+        uint64_t sample;
+        double value;
+        if (!b2_random_fill((unsigned char *)&sample, sizeof(sample))) return result;
+        value = ((double)(sample >> 11) + 0.5) / 9007199254740992.0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_float_value(value);
+    }
+
+    if (strcmp(name, "str_shuffle") == 0) {
+        const unsigned char *input;
+        uint32_t len;
+        unsigned char *buffer;
+
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        input = jinx_oracle_string_bytes(args[0]);
+        len = jinx_oracle_string_len(args[0]);
+
+        buffer = (unsigned char *)malloc((size_t)len + 1u);
+        if (buffer == NULL) return result;
+        if (len != 0u) memcpy(buffer, input, len);
+
+        for (uint32_t i = len; i > 1u; i--) {
+            uint64_t sample;
+            uint32_t j;
+            if (!b2_random_fill((unsigned char *)&sample, sizeof(sample))) {
+                free(buffer);
+                return result;
+            }
+            j = (uint32_t)(sample % i);
+            {
+                unsigned char tmp = buffer[i - 1u];
+                buffer[i - 1u] = buffer[j];
+                buffer[j] = tmp;
+            }
+        }
+
+        result = b2_copy((const char *)buffer, len);
+        free(buffer);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "posix_getpid") == 0) {
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value((int64_t)getpid());
