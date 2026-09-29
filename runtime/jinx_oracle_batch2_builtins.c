@@ -3018,10 +3018,8 @@ JinxValue jinx_oracle_batch2_builtin(
                 jinx_oracle_int_value(jinx_oracle_intish(args[0])),
                 &set_ok
             );
-            if (!set_ok) {
-                jinx_oracle_zend_container_value_release(ignored);
-                return result;
-            }
+            (void)ignored;
+            if (!set_ok) return result;
         }
 
         if (handled != NULL) *handled = 1;
