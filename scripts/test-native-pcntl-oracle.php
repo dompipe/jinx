@@ -43,6 +43,8 @@ foreach ([
     'pcntl_errno',
     'pcntl_strerror',
     'pcntl_alarm',
+    'pcntl_getcpuaffinity',
+    'pcntl_setcpuaffinity',
 ] as $name) {
     if (!function_exists($name)) {
         pcntlFail("PHP {$name} is required for native parity");
@@ -104,6 +106,42 @@ if ($code !== 0 ||
     );
 }
 
+$phpAffinity = pcntl_getcpuaffinity(null);
+if (!is_array($phpAffinity) || $phpAffinity === []) {
+    pcntlFail('PHP pcntl_getcpuaffinity returned no CPUs');
+}
+
+$jinxAffinity = pcntlRun(
+    escapeshellarg($jinx)
+        . ' oracle-call-serialize-hex pcntl_getcpuaffinity',
+    $code
+);
+$expectedAffinity = 'hex:' . bin2hex(serialize($phpAffinity));
+if ($code !== 0 || $jinxAffinity !== $expectedAffinity) {
+    pcntlFail(
+        "pcntl_getcpuaffinity parity mismatch\n" .
+        "PHP/expected: {$expectedAffinity}\nJINX: {$jinxAffinity}"
+    );
+}
+
+if (pcntl_setcpuaffinity(null, $phpAffinity) !== true) {
+    pcntlFail('PHP pcntl_setcpuaffinity no-op failed');
+}
+
+$jinxAffinitySet = pcntlRun(
+    escapeshellarg($jinx) . ' oracle-pcntl-affinity-smoke',
+    $code
+);
+$expectedAffinitySet =
+    'cpus=' . count($phpAffinity) . PHP_EOL . 'set=bool:true';
+if ($code !== 0 || $jinxAffinitySet !== $expectedAffinitySet) {
+    pcntlFail(
+        "pcntl_setcpuaffinity no-op parity mismatch\n" .
+        "PHP/expected:\n{$expectedAffinitySet}\n" .
+        "JINX:\n{$jinxAffinitySet}"
+    );
+}
+
 $phpCpu = pcntl_getcpu();
 $jinxCpu = pcntlJinx($jinx, 'pcntl_getcpu', [], $code);
 if (!is_int($phpCpu) || $phpCpu < 0 ||
@@ -153,4 +191,4 @@ if ($code !== 0 || $jinxErrorText !== 'string:' . $phpErrorText) {
     );
 }
 
-echo "PASS: native PCNTL alarm, priority, CPU, and error helpers match PHP\n";
+echo "PASS: native PCNTL alarm, affinity, priority, CPU, and error helpers match PHP\n";
