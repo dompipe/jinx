@@ -1971,6 +1971,15 @@ JinxValue jinx_oracle_batch2_builtin(
         }
     }
 
+    if (strcmp(name, "zlib_get_coding_type") == 0) {
+        /*
+         * Native Jinx does not install a transparent output-compression
+         * handler. PHP returns false when no zlib output coding is active.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "random_bytes") == 0) {
         int64_t length;
         char *bytes;
@@ -2612,6 +2621,16 @@ JinxValue jinx_oracle_batch2_builtin(
         free(query);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(found);
+    }
+
+    if (strcmp(name, "pdo_drivers") == 0) {
+        result = b2_string_list(
+            jinx_native_pdo_drivers,
+            jinx_native_pdo_drivers_count
+        );
+        if (result.type != JINX_ORACLE_VALUE_ZEND_ARRAY) return result;
+        if (handled != NULL) *handled = 1;
+        return result;
     }
 
     if (strcmp(name, "get_declared_classes") == 0) {
@@ -3902,8 +3921,10 @@ JinxValue jinx_oracle_batch2_builtin(
     if (strcmp(name, "stream_isatty") == 0 ||
         strcmp(name, "stream_supports_lock") == 0 ||
         strcmp(name, "stream_set_blocking") == 0 ||
+        strcmp(name, "socket_set_blocking") == 0 ||
         strcmp(name, "stream_set_read_buffer") == 0 ||
-        strcmp(name, "stream_set_write_buffer") == 0) {
+        strcmp(name, "stream_set_write_buffer") == 0 ||
+        strcmp(name, "set_file_buffer") == 0) {
         JinxOracleBatch2Stream *stream;
         int fd;
         if (args == NULL || argc < 1u) return result;
@@ -3924,7 +3945,8 @@ JinxValue jinx_oracle_batch2_builtin(
             return jinx_oracle_bool_value(supported);
         }
 
-        if (strcmp(name, "stream_set_blocking") == 0) {
+        if (strcmp(name, "stream_set_blocking") == 0 ||
+            strcmp(name, "socket_set_blocking") == 0) {
             int flags;
             int block;
             if (argc != 2u) return result;
@@ -3953,7 +3975,8 @@ JinxValue jinx_oracle_batch2_builtin(
              * shape on POSIX (st_nlink == 0), while ordinary fopen() files
              * keep the setvbuf-backed path below.
              */
-            if (strcmp(name, "stream_set_write_buffer") == 0) {
+            if (strcmp(name, "stream_set_write_buffer") == 0 ||
+                strcmp(name, "set_file_buffer") == 0) {
                 struct stat st;
                 if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_nlink == 0) {
                     if (handled != NULL) *handled = 1;
