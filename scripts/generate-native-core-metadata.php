@@ -51,6 +51,8 @@ $traits = get_declared_traits();
 $definedFunctions = get_defined_functions();
 $internalFunctions = $definedFunctions['internal'] ?? [];
 $extensions = get_loaded_extensions();
+$pdoDrivers = function_exists('pdo_drivers') ? (pdo_drivers() ?: []) : [];
+sort($pdoDrivers, SORT_STRING);
 $enums = [];
 foreach (get_declared_classes() as $candidate) {
     if (function_exists('enum_exists') && enum_exists($candidate, false)) {
@@ -304,6 +306,7 @@ $emitStringArray('jinx_native_interface_names', $interfaces);
 $emitStringArray('jinx_native_trait_names', $traits);
 $emitStringArray('jinx_native_internal_function_names', $internalFunctions);
 $emitStringArray('jinx_native_extension_names', $extensions);
+$emitStringArray('jinx_native_pdo_drivers', $pdoDrivers);
 $emitStringArray('jinx_native_enum_names', $enums);
 $emitStringArray('jinx_native_hash_algos', $hashAlgos);
 $emitStringArray('jinx_native_hash_hmac_algos', $hashHmacAlgos);
