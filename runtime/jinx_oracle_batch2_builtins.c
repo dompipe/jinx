@@ -87,6 +87,8 @@ static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
 static int jinx_oracle_batch2_pcntl_last_error = 0;
 static int jinx_oracle_batch2_pcntl_async_signals = 0;
+static char *jinx_oracle_batch2_session_id = NULL;
+static int jinx_oracle_batch2_session_active = 0;
 static char *jinx_oracle_batch2_syslog_ident = NULL;
 static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
 static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
@@ -2946,6 +2948,150 @@ JinxValue jinx_oracle_batch2_builtin(
         if (ini_handled) {
             if (handled != NULL) *handled = 1;
             return ini_result;
+        }
+    }
+
+    if (strcmp(name, "session_status") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(
+            jinx_oracle_batch2_session_active ? 2 : 1
+        );
+    }
+
+    if (strcmp(name, "session_id") == 0) {
+        const char *current = jinx_oracle_batch2_session_id != NULL
+            ? jinx_oracle_batch2_session_id : "";
+        if (argc > 1u) return result;
+        if (argc == 0u || args[0].type == 0u) {
+            if (handled != NULL) *handled = 1;
+            return b2_copy(current, strlen(current));
+        }
+        if (jinx_oracle_batch2_session_active || args[0].type != 3u) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        char *requested = b2_dup(args[0]);
+        char *old_id;
+        if (requested == NULL) return result;
+        for (const unsigned char *p = (const unsigned char *)requested; *p; p++) {
+            if (!(isalnum(*p) || *p == ',' || *p == '-')) {
+                free(requested);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+        }
+
+        old_id = strdup(current);
+        if (old_id == NULL) {
+            free(requested);
+            return result;
+        }
+        free(jinx_oracle_batch2_session_id);
+        jinx_oracle_batch2_session_id = requested;
+        if (handled != NULL) *handled = 1;
+        result = b2_copy(old_id, strlen(old_id));
+        free(old_id);
+        return result;
+    }
+
+    if (strcmp(name, "session_cache_expire") == 0) {
+        const JinxNativeIniMeta *meta = b2_ini_meta("session.cache_expire");
+        const char *current = b2_ini_current(meta);
+        long long old_value;
+        char *end = NULL;
+        if (meta == NULL || current == NULL || argc > 1u) return result;
+        errno = 0;
+        old_value = strtoll(current, &end, 10);
+        if (errno != 0 || end == current || *end != '\0') return result;
+
+        if (argc == 1u && args[0].type != 0u) {
+            int set_ok = 0;
+            JinxValue ignored;
+            if (jinx_oracle_batch2_session_active) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            ignored = b2_ini_set_value(
+                "session.cache_expire",
+                jinx_oracle_int_value(jinx_oracle_intish(args[0])),
+                &set_ok
+            );
+            if (!set_ok) {
+                jinx_oracle_zend_container_value_release(ignored);
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)old_value);
+    }
+
+    if (strcmp(name, "session_name") == 0 ||
+        strcmp(name, "session_cache_limiter") == 0 ||
+        strcmp(name, "session_module_name") == 0 ||
+        strcmp(name, "session_save_path") == 0) {
+        const char *ini_name =
+            strcmp(name, "session_name") == 0 ? "session.name" :
+            strcmp(name, "session_cache_limiter") == 0 ? "session.cache_limiter" :
+            strcmp(name, "session_module_name") == 0 ? "session.save_handler" :
+            "session.save_path";
+        const JinxNativeIniMeta *meta = b2_ini_meta(ini_name);
+        const char *current = b2_ini_current(meta);
+
+        if (meta == NULL || current == NULL || argc > 1u) return result;
+        if (argc == 0u || args[0].type == 0u) {
+            if (handled != NULL) *handled = 1;
+            return b2_copy(current, strlen(current));
+        }
+        if (jinx_oracle_batch2_session_active || args[0].type != 3u) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (strcmp(name, "session_name") == 0) {
+            char *requested = b2_dup(args[0]);
+            int has_alpha = 0;
+            if (requested == NULL) return result;
+            if (*requested == '\0') {
+                free(requested);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            for (const unsigned char *p = (const unsigned char *)requested; *p; p++) {
+                if (!isalnum(*p)) {
+                    free(requested);
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+                if (isalpha(*p)) has_alpha = 1;
+            }
+            free(requested);
+            if (!has_alpha) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+        }
+
+        if (strcmp(name, "session_module_name") == 0) {
+            char *requested = b2_dup(args[0]);
+            if (requested == NULL) return result;
+            if (strcmp(requested, "user") == 0 ||
+                (strcmp(requested, current) != 0 && strcmp(requested, "files") != 0)) {
+                free(requested);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            free(requested);
+        }
+
+        {
+            int set_ok = 0;
+            JinxValue old = b2_ini_set_value(ini_name, args[0], &set_ok);
+            if (!set_ok) return result;
+            if (handled != NULL) *handled = 1;
+            return old;
         }
     }
 
