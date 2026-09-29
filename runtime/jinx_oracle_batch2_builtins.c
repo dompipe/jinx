@@ -3087,6 +3087,113 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zend_array_value_owned(array);
     }
 
+    if (strcmp(name, "session_create_id") == 0) {
+        static const char alphabet[] =
+            "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,-";
+        const JinxNativeIniMeta *length_meta = b2_ini_meta("session.sid_length");
+        const JinxNativeIniMeta *bits_meta =
+            b2_ini_meta("session.sid_bits_per_character");
+        const char *length_text = b2_ini_current(length_meta);
+        const char *bits_text = b2_ini_current(bits_meta);
+        char *prefix = NULL;
+        size_t prefix_len = 0u;
+        long sid_length;
+        long bits_per_character;
+        char *end = NULL;
+        unsigned char random_bytes[192];
+        size_t bytes_needed;
+        uint32_t word = 0u;
+        unsigned have = 0u;
+        unsigned mask;
+        size_t input_pos = 0u;
+        char *out;
+
+        if (argc > 1u || length_text == NULL || bits_text == NULL) return result;
+        if (jinx_oracle_batch2_session_active) {
+            /*
+             * Active-session collision validation belongs to the save-handler
+             * layer. Do not fabricate collision-free behavior until that
+             * native session-storage path is implemented.
+             */
+            return result;
+        }
+
+        if (argc == 1u) {
+            if (args == NULL || args[0].type != 3u) return result;
+            prefix = b2_dup(args[0]);
+            if (prefix == NULL) return result;
+            prefix_len = strlen(prefix);
+            for (const unsigned char *p = (const unsigned char *)prefix; *p; p++) {
+                if (!(isalnum(*p) || *p == ',' || *p == '-')) {
+                    free(prefix);
+                    if (handled != NULL) *handled = 1;
+                    return jinx_oracle_bool_value(0);
+                }
+            }
+        }
+
+        errno = 0;
+        sid_length = strtol(length_text, &end, 10);
+        if (errno != 0 || end == length_text || *end != '\0' ||
+            sid_length <= 0 || sid_length > 256) {
+            free(prefix);
+            return result;
+        }
+
+        errno = 0;
+        end = NULL;
+        bits_per_character = strtol(bits_text, &end, 10);
+        if (errno != 0 || end == bits_text || *end != '\0' ||
+            (bits_per_character != 4 &&
+             bits_per_character != 5 &&
+             bits_per_character != 6)) {
+            free(prefix);
+            return result;
+        }
+
+        if (prefix_len + (size_t)sid_length > 256u) {
+            free(prefix);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        bytes_needed =
+            ((size_t)sid_length * (size_t)bits_per_character + 7u) / 8u;
+        if (bytes_needed > sizeof(random_bytes) ||
+            !b2_random_fill(random_bytes, bytes_needed)) {
+            free(prefix);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        out = jinx_oracle_scratch_string(
+            (uint32_t)(prefix_len + (size_t)sid_length)
+        );
+        if (out == NULL) {
+            free(prefix);
+            return result;
+        }
+        if (prefix_len != 0u) memcpy(out, prefix, prefix_len);
+        free(prefix);
+
+        mask = (1u << (unsigned)bits_per_character) - 1u;
+        for (size_t i = 0u; i < (size_t)sid_length; i++) {
+            if (have < (unsigned)bits_per_character) {
+                if (input_pos >= bytes_needed) return result;
+                word |= ((uint32_t)random_bytes[input_pos++]) << have;
+                have += 8u;
+            }
+            out[prefix_len + i] = alphabet[word & mask];
+            word >>= (unsigned)bits_per_character;
+            have -= (unsigned)bits_per_character;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_string_value_len(
+            out, (uint32_t)(prefix_len + (size_t)sid_length)
+        );
+    }
+
     if (strcmp(name, "session_status") == 0) {
         if (argc != 0u) return result;
         if (handled != NULL) *handled = 1;
