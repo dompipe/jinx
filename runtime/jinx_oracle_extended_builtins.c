@@ -697,18 +697,18 @@ static int jinx_oracle_ext_apply_interval(
     return 1;
 }
 
-static int jinx_oracle_ext_parse_datetime_text(
+static int jinx_oracle_ext_parse_datetime_text_at(
     const char *text,
     const char *timezone,
+    int64_t base_timestamp,
     int64_t *timestamp
 ) {
     int y, m, d, hh = 0, mm = 0, ss = 0;
     JinxOracleExtInterval interval;
-    time_t now;
 
     if (text == NULL || timestamp == NULL) return 0;
     if (text[0] == '\0' || strcasecmp(text, "now") == 0) {
-        *timestamp = (int64_t)time(NULL);
+        *timestamp = base_timestamp;
         return 1;
     }
     if (text[0] == '@') {
@@ -727,11 +727,22 @@ static int jinx_oracle_ext_parse_datetime_text(
     }
 
     if (jinx_oracle_ext_parse_interval_text(text, &interval)) {
-        now = time(NULL);
-        return jinx_oracle_ext_apply_interval((int64_t)now, timezone, &interval, 1, timestamp);
+        return jinx_oracle_ext_apply_interval(
+            base_timestamp, timezone, &interval, 1, timestamp
+        );
     }
 
     return 0;
+}
+
+static int jinx_oracle_ext_parse_datetime_text(
+    const char *text,
+    const char *timezone,
+    int64_t *timestamp
+) {
+    return jinx_oracle_ext_parse_datetime_text_at(
+        text, timezone, (int64_t)time(NULL), timestamp
+    );
 }
 
 static int jinx_oracle_ext_timezone_valid(const char *timezone) {
@@ -2234,6 +2245,34 @@ JinxValue jinx_oracle_extended_builtin(
         result = jinx_oracle_ext_date_format_value(timestamp, timezone, args[0]);
         if (result.type != 0u && handled != NULL) *handled = 1;
         return result;
+    }
+
+    if (strcmp(name, "strtotime") == 0) {
+        char *text;
+        int64_t base_timestamp;
+        int64_t timestamp;
+
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        text = jinx_oracle_ext_dup_string_value(args[0]);
+        if (text == NULL) return result;
+
+        base_timestamp = argc >= 2u
+            ? jinx_oracle_intish(args[1])
+            : (int64_t)time(NULL);
+
+        if (!jinx_oracle_ext_parse_datetime_text_at(
+                text,
+                jinx_oracle_ext_default_timezone,
+                base_timestamp,
+                &timestamp)) {
+            free(text);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        free(text);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(timestamp);
     }
 
     if (strcmp(name, "mktime") == 0) {
