@@ -3565,6 +3565,39 @@ JinxValue jinx_oracle_extended_builtin(
         }
     }
 
+    if (strcmp(name, "spl_object_id") == 0 ||
+        strcmp(name, "spl_object_hash") == 0) {
+        JinxZendObject *object;
+        uintptr_t raw_id;
+
+        if (args == NULL || argc < 1u ||
+            args[0].type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            return result;
+        }
+
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL) return result;
+        raw_id = (uintptr_t)object;
+
+        if (handled != NULL) *handled = 1;
+
+        if (strcmp(name, "spl_object_id") == 0) {
+            return jinx_oracle_int_value((int64_t)raw_id);
+        }
+
+        {
+            char hash[33];
+            snprintf(
+                hash,
+                sizeof(hash),
+                "%016llx%016llx",
+                (unsigned long long)raw_id,
+                0ULL
+            );
+            return jinx_oracle_ext_copy_string(hash, 32u);
+        }
+    }
+
     if (strcmp(name, "property_exists") == 0) {
         const JinxNativeClassMeta *meta = NULL;
         JinxZendObject *object = NULL;
