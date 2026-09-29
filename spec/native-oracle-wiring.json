@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 744,
-        "extended_native_route": 446,
+        "native_named_route": 746,
+        "extended_native_route": 448,
         "context_native_route": 3,
-        "intentional_native_fault": 2783
+        "intentional_native_fault": 2781
     },
     "routes": {
         "_": "extended",
@@ -1487,7 +1487,7 @@
         "pcntl_sigprocmask": "intentional-native-fault",
         "pcntl_sigtimedwait": "intentional-native-fault",
         "pcntl_sigwaitinfo": "intentional-native-fault",
-        "pcntl_strerror": "intentional-native-fault",
+        "pcntl_strerror": "extended",
         "pcntl_unshare": "intentional-native-fault",
         "pcntl_wait": "intentional-native-fault",
         "pcntl_waitid": "intentional-native-fault",
@@ -2849,7 +2849,7 @@
         "socket_set_timeout": "intentional-native-fault",
         "socket_setopt": "intentional-native-fault",
         "socket_shutdown": "intentional-native-fault",
-        "socket_strerror": "intentional-native-fault",
+        "socket_strerror": "extended",
         "socket_write": "intentional-native-fault",
         "sodium_add": "intentional-native-fault",
         "sodium_base642bin": "intentional-native-fault",
