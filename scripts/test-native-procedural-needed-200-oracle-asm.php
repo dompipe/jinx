@@ -48,6 +48,23 @@ function expectType200(string $jinx, string $name, array $args, string $prefix):
     }
 }
 
+function floatPrintTolerance200(string $number): float
+{
+    $text = ltrim($number, '+-');
+    if (preg_match('/^([0-9]+(?:\.[0-9]*)?|\.[0-9]+)[eE]([+-]?[0-9]+)$/', $text, $m)) {
+        $digits = preg_replace('/[^0-9]/', '', $m[1]) ?? '';
+        $significant = max(1, strlen($digits));
+        $power = (int)$m[2] - ($significant - 1);
+        return 0.5 * (10 ** $power);
+    }
+    $dot = strpos($text, '.');
+    if ($dot !== false) {
+        $decimals = strlen($text) - $dot - 1;
+        return 0.5 * (10 ** (-$decimals));
+    }
+    return 0.5;
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     fail200('repository-root native ./jinx missing or not executable; run ./scripts/build-native-jinx.sh first');
 }
@@ -645,9 +662,12 @@ if ($code !== 0 ||
 
 $microFloat = jinx200($jinx, 'microtime', ['b:true'], false, $code);
 if ($code !== 0 ||
-    !preg_match('/^float:([-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)$/', $microFloat, $match) ||
-    abs((float)$match[1] - microtime(true)) > 5.0) {
+    !preg_match('/^float:([-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)$/', $microFloat, $match)) {
     fail200("microtime float contract mismatch\nJINX: {$microFloat}");
+}
+$microTolerance = floatPrintTolerance200($match[1]) + 5.0;
+if (abs((float)$match[1] - microtime(true)) > $microTolerance) {
+    fail200("microtime float value mismatch\nTolerance: {$microTolerance}\nJINX: {$microFloat}");
 }
 $microString = jinx200($jinx, 'microtime', [], false, $code);
 if ($code !== 0 ||
