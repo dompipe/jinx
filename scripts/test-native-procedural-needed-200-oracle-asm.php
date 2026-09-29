@@ -690,6 +690,27 @@ for ($i = 0; $i < 16; $i++) {
     }
 }
 
+$lcg = jinx200($jinx, 'lcg_value', [], false, $code);
+if ($code !== 0 ||
+    !preg_match('/^float:([-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)$/', $lcg, $match) ||
+    (float)$match[1] <= 0.0 || (float)$match[1] >= 1.0) {
+    fail200("lcg_value open-unit-interval contract mismatch\nJINX: {$lcg}");
+}
+
+$shuffleInput = 'jinx-native';
+$shuffle = jinx200($jinx, 'str_shuffle', ['s:' . $shuffleInput], false, $code);
+if ($code !== 0 || !str_starts_with($shuffle, 'string:')) {
+    fail200("str_shuffle return-contract mismatch\nJINX: {$shuffle}");
+}
+$shuffleValue = substr($shuffle, strlen('string:'));
+$expectedBytes = str_split($shuffleInput);
+$actualBytes = str_split($shuffleValue);
+sort($expectedBytes, SORT_STRING);
+sort($actualBytes, SORT_STRING);
+if ($expectedBytes !== $actualBytes) {
+    fail200("str_shuffle permutation contract mismatch\nInput: {$shuffleInput}\nJINX: {$shuffle}");
+}
+
 /* PHP debug_backtrace contract fixture: first frame includes function
  * and args unless DEBUG_BACKTRACE_IGNORE_ARGS is requested. */
 $phpTraceProbe = (static function (): array {
