@@ -214,6 +214,8 @@ $checks = [
     ['property_exists', ['ex:Exception', 's:message'], 'bool:' . (property_exists(new Exception('jinx'), 'message') ? 'true' : 'false')],
     ['property_exists', ['s:Exception', 's:__jinx_missing_property'], 'bool:false'],
     ['trait_exists', ['s:__JinxMissingTrait'], 'bool:false'],
+    ['token_name', ['i:' . T_STRING], 'string:' . token_name(T_STRING)],
+    ['token_name', ['i:1'], 'string:' . token_name(1)],
     ['is_a', ['obj:ErrorException', 's:Exception'], 'bool:' . (is_a(new ErrorException('probe'), 'Exception') ? 'true' : 'false')],
     ['is_a', ['obj:ErrorException', 's:ErrorException'], 'bool:' . (is_a(new ErrorException('probe'), 'ErrorException') ? 'true' : 'false')],
     ['is_a', ['s:ErrorException', 's:Exception'], 'bool:' . (is_a('ErrorException', 'Exception') ? 'true' : 'false')],
@@ -244,6 +246,18 @@ foreach ($checks as [$name, $args, $expected]) {
     if ($code !== 0 || $actual !== $expected) {
         fail100("{$name} parity mismatch\nPHP/expected: {$expected}\nJINX: {$actual}");
     }
+}
+
+$splId = jinx100($jinx, 'spl_object_id', ['obj:stdClass'], false, $code);
+if ($code !== 0 ||
+    !preg_match('/^int:([1-9][0-9]*)$/', $splId)) {
+    fail100("spl_object_id return-contract mismatch\nJINX: {$splId}");
+}
+
+$splHash = jinx100($jinx, 'spl_object_hash', ['obj:stdClass'], false, $code);
+if ($code !== 0 ||
+    !preg_match('/^string:[0-9a-f]{32}$/', $splHash)) {
+    fail100("spl_object_hash return-contract mismatch\nJINX: {$splHash}");
 }
 
 /* Stateful-object calls: each receives a deterministic fixture and must return
