@@ -152,6 +152,7 @@ $tests = [
     'scripts/test-native-zend-array-core-oracle-asm.php' => 'PASS: native Oracle ASM Zend-array core matches PHP for covered carried-array semantics',
     'scripts/test-native-procedural-needed-100-oracle-asm.php' => 'PASS: first 100 needed procedural Oracle ASM targets execute without placeholders',
     'scripts/test-native-procedural-needed-200-oracle-asm.php' => 'PASS: second-wave procedural Oracle handlers preserve deterministic PHP return contracts',
+    'scripts/test-native-password-hash.php' => 'PASS: native password_hash bcrypt output verifies in PHP and Jinx',
     'scripts/test-native-timezone-abbr-oracle.php' => 'PASS: native timezone_name_from_abbr matches PHP abbreviation resolution',
     'scripts/test-native-pfsockopen-oracle.php' => 'PASS: native pfsockopen matches bounded PHP socket behavior',
     'scripts/test-native-method-oracle-asm.php' => 'PASS: native Oracle method receiver proves 500 newly added callable routes',
