@@ -151,6 +151,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_http_meta_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_exif_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_pack_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_ini_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_sodium_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
@@ -277,6 +278,7 @@ echo "Native FTP backend compiled: runtime/jinx_oracle_curl_ftp_builtins.c"
 echo "Native HTTP/meta backend compiled: runtime/jinx_oracle_http_meta_builtins.c"
 echo "Native EXIF backend compiled: runtime/jinx_oracle_exif_builtins.c"
 echo "Native pack/unpack backend compiled: runtime/jinx_oracle_pack_builtins.c"
+echo "Native INI backend compiled: runtime/jinx_oracle_ini_builtins.c"
 if [ -n "$SODIUM_DEFINE" ]; then
     echo "Native libsodium backend: enabled"
 else
