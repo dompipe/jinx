@@ -1560,6 +1560,58 @@ if (function_exists('mime_content_type')) {
     }
 }
 
+if (function_exists('password_hash') &&
+    function_exists('password_verify') &&
+    defined('PASSWORD_BCRYPT')) {
+    $passwordAlgo = PASSWORD_BCRYPT;
+    $passwordAlgoArg = is_int($passwordAlgo)
+        ? 'i:' . $passwordAlgo
+        : 's:' . (string)$passwordAlgo;
+
+    $bcryptHash = password_hash('jinx-secret', $passwordAlgo, ['cost' => 4]);
+    if (!is_string($bcryptHash)) {
+        fail200('PHP bcrypt fixture generation failed');
+    }
+
+    expect200(
+        $jinx,
+        'password_verify',
+        ['s:jinx-secret', 's:' . $bcryptHash],
+        'bool:' . (password_verify('jinx-secret', $bcryptHash) ? 'true' : 'false')
+    );
+    expect200(
+        $jinx,
+        'password_verify',
+        ['s:wrong-secret', 's:' . $bcryptHash],
+        'bool:' . (password_verify('wrong-secret', $bcryptHash) ? 'true' : 'false')
+    );
+
+    $phpPasswordInfo = password_get_info($bcryptHash);
+    expect200(
+        $jinx,
+        'password_get_info',
+        ['s:' . $bcryptHash],
+        'zend-array:' . count($phpPasswordInfo)
+    );
+
+    expect200(
+        $jinx,
+        'password_needs_rehash',
+        ['s:' . $bcryptHash, $passwordAlgoArg],
+        'bool:' . (password_needs_rehash($bcryptHash, $passwordAlgo) ? 'true' : 'false')
+    );
+
+    $defaultHash = password_hash('jinx-secret', $passwordAlgo);
+    if (is_string($defaultHash)) {
+        expect200(
+            $jinx,
+            'password_needs_rehash',
+            ['s:' . $defaultHash, $passwordAlgoArg],
+            'bool:' . (password_needs_rehash($defaultHash, $passwordAlgo) ? 'true' : 'false')
+        );
+    }
+}
+
 /* Optional libcrypt backend likewise must either match or remain faulting. */
 $cryptProbe = jinx200($jinx, 'crypt', ['s:password', 's:xx'], false, $code);
 if ($code === 0 && !str_starts_with($cryptProbe, 'null/fault:')) {
