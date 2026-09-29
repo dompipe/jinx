@@ -187,6 +187,159 @@ sodiumExpectHexLength(
     SODIUM_CRYPTO_GENERICHASH_KEYBYTES
 );
 
+$streamKey = substr(hash('sha256', 'jinx-stream-key', true), 0, SODIUM_CRYPTO_STREAM_KEYBYTES);
+$streamNonce = substr(hash('sha256', 'jinx-stream-nonce', true), 0, SODIUM_CRYPTO_STREAM_NONCEBYTES);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_stream',
+    ['i:64', sodiumTypedString($streamNonce), sodiumTypedString($streamKey)],
+    sodium_crypto_stream(64, $streamNonce, $streamKey)
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_stream_xor',
+    [sodiumTypedString($message), sodiumTypedString($streamNonce), sodiumTypedString($streamKey)],
+    sodium_crypto_stream_xor($message, $streamNonce, $streamKey)
+);
+sodiumExpectHexLength(
+    $jinx,
+    'sodium_crypto_stream_keygen',
+    [],
+    SODIUM_CRYPTO_STREAM_KEYBYTES
+);
+
+if (function_exists('sodium_crypto_stream_xchacha20')) {
+    $xKey = substr(
+        hash('sha256', 'jinx-xchacha-key', true),
+        0,
+        SODIUM_CRYPTO_STREAM_XCHACHA20_KEYBYTES
+    );
+    $xNonce = substr(
+        hash('sha512', 'jinx-xchacha-nonce', true),
+        0,
+        SODIUM_CRYPTO_STREAM_XCHACHA20_NONCEBYTES
+    );
+
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_stream_xchacha20',
+        ['i:64', sodiumTypedString($xNonce), sodiumTypedString($xKey)],
+        sodium_crypto_stream_xchacha20(64, $xNonce, $xKey)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_stream_xchacha20_xor',
+        [sodiumTypedString($message), sodiumTypedString($xNonce), sodiumTypedString($xKey)],
+        sodium_crypto_stream_xchacha20_xor($message, $xNonce, $xKey)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_stream_xchacha20_xor_ic',
+        [sodiumTypedString($message), sodiumTypedString($xNonce), 'i:7', sodiumTypedString($xKey)],
+        sodium_crypto_stream_xchacha20_xor_ic($message, $xNonce, 7, $xKey)
+    );
+    sodiumExpectHexLength(
+        $jinx,
+        'sodium_crypto_stream_xchacha20_keygen',
+        [],
+        SODIUM_CRYPTO_STREAM_XCHACHA20_KEYBYTES
+    );
+}
+
+$boxSeedA = substr(hash('sha256', 'jinx-box-seed-a', true), 0, SODIUM_CRYPTO_BOX_SEEDBYTES);
+$boxSeedB = substr(hash('sha256', 'jinx-box-seed-b', true), 0, SODIUM_CRYPTO_BOX_SEEDBYTES);
+$boxPairA = sodium_crypto_box_seed_keypair($boxSeedA);
+$boxPairB = sodium_crypto_box_seed_keypair($boxSeedB);
+$boxSecretA = sodium_crypto_box_secretkey($boxPairA);
+$boxPublicA = sodium_crypto_box_publickey($boxPairA);
+$boxSecretB = sodium_crypto_box_secretkey($boxPairB);
+$boxPublicB = sodium_crypto_box_publickey($boxPairB);
+
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_seed_keypair',
+    [sodiumTypedString($boxSeedA)],
+    $boxPairA
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_secretkey',
+    [sodiumTypedString($boxPairA)],
+    $boxSecretA
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_publickey',
+    [sodiumTypedString($boxPairA)],
+    $boxPublicA
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_publickey_from_secretkey',
+    [sodiumTypedString($boxSecretA)],
+    sodium_crypto_box_publickey_from_secretkey($boxSecretA)
+);
+
+$boxSendPair = sodium_crypto_box_keypair_from_secretkey_and_publickey(
+    $boxSecretA,
+    $boxPublicB
+);
+$boxOpenPair = sodium_crypto_box_keypair_from_secretkey_and_publickey(
+    $boxSecretB,
+    $boxPublicA
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_keypair_from_secretkey_and_publickey',
+    [sodiumTypedString($boxSecretA), sodiumTypedString($boxPublicB)],
+    $boxSendPair
+);
+
+$boxNonce = substr(hash('sha256', 'jinx-box-nonce', true), 0, SODIUM_CRYPTO_BOX_NONCEBYTES);
+$boxCipher = sodium_crypto_box($message, $boxNonce, $boxSendPair);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box',
+    [sodiumTypedString($message), sodiumTypedString($boxNonce), sodiumTypedString($boxSendPair)],
+    $boxCipher
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_open',
+    [sodiumTypedString($boxCipher), sodiumTypedString($boxNonce), sodiumTypedString($boxOpenPair)],
+    (string)sodium_crypto_box_open($boxCipher, $boxNonce, $boxOpenPair)
+);
+sodiumExpectHexLength(
+    $jinx,
+    'sodium_crypto_box_keypair',
+    [],
+    SODIUM_CRYPTO_BOX_SECRETKEYBYTES + SODIUM_CRYPTO_BOX_PUBLICKEYBYTES
+);
+
+$phpSealed = sodium_crypto_box_seal($message, $boxPublicB);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_box_seal_open',
+    [sodiumTypedString($phpSealed), sodiumTypedString($boxPairB)],
+    (string)sodium_crypto_box_seal_open($phpSealed, $boxPairB)
+);
+
+$jinxSealedText = sodiumJinx(
+    $jinx,
+    'sodium_crypto_box_seal',
+    [sodiumTypedString($message), sodiumTypedString($boxPublicB)],
+    true,
+    $code
+);
+if ($code !== 0 || !preg_match('/^hex:([0-9a-f]+)$/', $jinxSealedText, $sealedMatch)) {
+    sodiumFail("sodium_crypto_box_seal native output invalid\nJINX: {$jinxSealedText}");
+}
+$jinxSealed = hex2bin($sealedMatch[1]);
+if ($jinxSealed === false ||
+    sodium_crypto_box_seal_open($jinxSealed, $boxPairB) !== $message) {
+    sodiumFail('sodium_crypto_box_seal output did not open with PHP sodium');
+}
+
 $secretKey = substr(hash('sha256', 'jinx-secretbox-key', true), 0, SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
 $nonce = substr(hash('sha256', 'jinx-secretbox-nonce', true), 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
 $ciphertext = sodium_crypto_secretbox($message, $nonce, $secretKey);
