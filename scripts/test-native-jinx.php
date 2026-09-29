@@ -87,6 +87,25 @@ if ($code !== 0 ||
     fail("native pack/unpack smoke failed:\n{$out}");
 }
 
+$phpScanf = sscanf('10 20.5 hello X', '%d %f %s %c');
+if (!is_array($phpScanf) ||
+    count($phpScanf) !== 4 ||
+    $phpScanf[0] !== 10 ||
+    abs((float)$phpScanf[1] - 20.5) > 1e-12 ||
+    $phpScanf[2] !== 'hello' ||
+    $phpScanf[3] !== 'X') {
+    fail('PHP sscanf contract did not match deterministic scalar fixture');
+}
+
+$out = run($jinxCommand . ' oracle-scanf-smoke', $code);
+if ($code !== 0 ||
+    !str_contains(
+        $out,
+        'PASS: native sscanf array form matches PHP scalar scan values'
+    )) {
+    fail("native sscanf smoke failed:\n{$out}");
+}
+
 $out = run($jinxCommand . ' builtin-id sqrt', $code);
 if ($code !== 0 ||
     !str_contains($out, 'Function: sqrt') ||
