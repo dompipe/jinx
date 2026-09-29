@@ -35,6 +35,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
+    printf("  %s oracle-gc-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
@@ -1310,6 +1311,83 @@ static int command_oracle_frame_smoke(void) {
     }
 
     printf("PASS: native Zend frame context drives func_num_args/func_get_arg/func_get_args/get_called_class/get_defined_vars/compact/extract/debug_backtrace/debug_print_backtrace and clears on frame leave\n");
+    return 0;
+}
+
+static int command_oracle_gc_smoke(void) {
+    JinxValue result;
+    int ok = 0;
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_enabled", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        return fail("gc_enabled did not start enabled");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_disable", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 0u) {
+        release_cli_value(result);
+        return fail("gc_disable did not return null");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_enabled", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 != 0) {
+        release_cli_value(result);
+        return fail("gc_disable did not update native GC state");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_collect_cycles", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 1u || result.as.i64 != 0) {
+        release_cli_value(result);
+        return fail("gc_collect_cycles did not report empty native cycle buffer");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_mem_caches", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 1u || result.as.i64 != 0) {
+        release_cli_value(result);
+        return fail("gc_mem_caches did not report empty native GC caches");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_enable", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 0u) {
+        release_cli_value(result);
+        return fail("gc_enable did not return null");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "gc_enabled", NULL, 0u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        return fail("gc_enable did not restore native GC state");
+    }
+    release_cli_value(result);
+
+    printf("PASS: native GC enable/disable/collect/cache state transitions match Jinx runtime semantics\n");
     return 0;
 }
 
@@ -2814,6 +2892,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-error-smoke") == 0) {
         return command_oracle_error_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-gc-smoke") == 0) {
+        return command_oracle_gc_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-error-smoke") == 0) {
