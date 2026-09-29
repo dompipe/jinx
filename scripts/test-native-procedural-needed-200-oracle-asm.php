@@ -689,6 +689,34 @@ expect200(
     zlib_get_coding_type() === false ? 'bool:false' : 'string:' . zlib_get_coding_type()
 );
 
+if (function_exists('iconv_get_encoding')) {
+    $phpIconvAll = iconv_get_encoding('all');
+    expect200(
+        $jinx,
+        'iconv_get_encoding',
+        ['s:all'],
+        is_array($phpIconvAll) ? 'zend-array:' . count($phpIconvAll) : 'bool:false'
+    );
+
+    foreach (['input_encoding', 'output_encoding', 'internal_encoding'] as $iconvType) {
+        $phpEncoding = iconv_get_encoding($iconvType);
+        expect200(
+            $jinx,
+            'iconv_get_encoding',
+            ['s:' . $iconvType],
+            $phpEncoding === false ? 'bool:false' : 'string:' . $phpEncoding
+        );
+        if ($phpEncoding !== false && function_exists('iconv_set_encoding')) {
+            expect200(
+                $jinx,
+                'iconv_set_encoding',
+                ['s:' . $iconvType, 's:' . $phpEncoding],
+                'bool:' . (iconv_set_encoding($iconvType, $phpEncoding) ? 'true' : 'false')
+            );
+        }
+    }
+}
+
 if (function_exists('iconv')) {
     $iconvInput = "Héllo";
     $phpIconv = iconv('UTF-8', 'ISO-8859-1', $iconvInput);
