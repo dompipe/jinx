@@ -7875,6 +7875,30 @@ csv_fail:
         return b2_copy(computed, strlen(computed));
     }
 
+    if (strcmp(name, "serialize") == 0) {
+        B2SerializeBuffer buffer = {0};
+        if (args == NULL || argc != 1u) return result;
+
+        if (!b2_serialize_jinx_value(&buffer, args[0])) {
+            free(buffer.data);
+            return result;
+        }
+
+        result = b2_copy(buffer.data, buffer.len);
+        free(buffer.data);
+        if (result.type == 3u && handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "unserialize") == 0) {
+        int decoded_ok = 0;
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+
+        result = b2_unserialize_to_jinx(args[0], &decoded_ok);
+        if (decoded_ok && handled != NULL) *handled = 1;
+        return result;
+    }
+
     if (strcmp(name, "password_verify") == 0) {
         char *password;
         char *hash;
