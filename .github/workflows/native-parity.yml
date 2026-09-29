@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential zlib1g-dev libssl-dev libmagic-dev \
-            libcrypt-dev libcurl4-openssl-dev libexif-dev
+            libcrypt-dev libcurl4-openssl-dev libexif-dev libsodium-dev
       - name: Build native Jinx
         run: ./scripts/build-native-jinx.sh
       - name: Run native method parity probes
