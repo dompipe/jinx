@@ -197,6 +197,7 @@ $extendedSpecs = [
     ['runtime/jinx_oracle_http_meta_builtins.c', ['jinx_oracle_http_meta_builtin']],
     ['runtime/jinx_oracle_exif_builtins.c', ['jinx_oracle_exif_builtin']],
     ['runtime/jinx_oracle_pack_builtins.c', ['jinx_oracle_pack_builtin']],
+    ['runtime/jinx_oracle_ini_builtins.c', ['jinx_oracle_ini_builtin']],
     ['runtime/jinx_oracle_sodium_builtins.c', ['jinx_oracle_sodium_builtin']],
 ];
 $contextSpecs = [
