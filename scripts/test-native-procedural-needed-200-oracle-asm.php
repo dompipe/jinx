@@ -1289,6 +1289,37 @@ expect200(
     true
 );
 
+/* Native binary pack/unpack layouts. */
+$packFixtures = [
+    ['C2nV', [1, 255, 0x1234, 0x12345678], ['i:1', 'i:255', 'i:4660', 'i:305419896']],
+    ['a5A5Z5', ['xy', 'xy', 'xy'], ['s:xy', 's:xy', 's:xy']],
+    ['H3h3', ['347', '347'], ['s:347', 's:347']],
+    ['gGeE', [1.25, -2.5, 3.75, -4.5], ['f:1.25', 'f:-2.5', 'f:3.75', 'f:-4.5']],
+    ['C2X1C@6C', [1, 2, 3, 4], ['i:1', 'i:2', 'i:3', 'i:4']],
+];
+foreach ($packFixtures as [$format, $phpValues, $typedValues]) {
+    $phpPacked = pack($format, ...$phpValues);
+    expect200(
+        $jinx,
+        'pack',
+        array_merge(['s:' . $format], $typedValues),
+        'hex:' . bin2hex($phpPacked),
+        true
+    );
+}
+
+$unpackBytes = pack('C2nV', 1, 255, 0x1234, 0x12345678);
+$phpUnpacked = unpack('C2bytes/nshort/Vlong', $unpackBytes);
+if ($phpUnpacked === false) {
+    fail200('PHP unpack rejected deterministic binary fixture');
+}
+expect200(
+    $jinx,
+    'unpack',
+    ['s:C2bytes/nshort/Vlong', 'h:' . bin2hex($unpackBytes)],
+    'zend-array:' . count($phpUnpacked)
+);
+
 /* Common image header parsing without GD. */
 $pngHeader = hex2bin('89504e470d0a1a0a0000000d4948445200000001000000010806000000');
 if ($pngHeader === false) fail200('could not build PNG header fixture');
