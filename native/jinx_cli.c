@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <locale.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -2779,6 +2780,13 @@ static int command_bench_oracle(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    /*
+     * PHP CLI reflects the process environment locale. C starts in the "C"
+     * locale unless setlocale() is called, which made nl_langinfo(CODESET)
+     * report ANSI_X3.4-1968 while PHP reported UTF-8 on the same runner.
+     */
+    (void)setlocale(LC_ALL, "");
+
     if (argc < 2) {
         usage(argv[0]);
         return 1;
