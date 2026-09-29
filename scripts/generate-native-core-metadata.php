@@ -189,19 +189,28 @@ foreach ($classes as $idx => $class) {
     $implements = array_values(class_implements($class, false) ?: []);
     $uses = array_values(class_uses($class, false) ?: []);
     $methods = array_values(get_class_methods($class) ?: []);
+    $reflection = new ReflectionClass($class);
+    $properties = [];
+    foreach ($reflection->getProperties() as $property) {
+        if ($property->getDeclaringClass()->getName() === $class) {
+            $properties[] = $property->getName();
+        }
+    }
+    sort($properties, SORT_STRING);
     $classVars = get_class_vars($class) ?: [];
-    foreach (['parents'=>$parents,'implements'=>$implements,'uses'=>$uses,'methods'=>$methods] as $kind=>$values) {
+    foreach (['parents'=>$parents,'implements'=>$implements,'uses'=>$uses,'methods'=>$methods,'properties'=>$properties] as $kind=>$values) {
         $sym = 'jinx_meta_' . $idx . '_' . $kind;
         $arrays[] = 'static const char *const ' . $sym . '[] = {' .
             ($values ? implode(', ', array_map('cstr', $values)) . ', ' : '') . 'NULL };';
     }
     $rows[] = sprintf(
-        '    { %s, jinx_meta_%d_parents, %d, jinx_meta_%d_implements, %d, jinx_meta_%d_uses, %d, jinx_meta_%d_methods, %d },',
+        '    { %s, jinx_meta_%d_parents, %d, jinx_meta_%d_implements, %d, jinx_meta_%d_uses, %d, jinx_meta_%d_methods, %d, jinx_meta_%d_properties, %d },',
         cstr($class),
         $idx, count($parents),
         $idx, count($implements),
         $idx, count($uses),
-        $idx, count($methods)
+        $idx, count($methods),
+        $idx, count($properties)
     );
 }
 
@@ -270,7 +279,7 @@ $code[] = '#define JINX_NATIVE_DATE_SUNSET_ZENITH ' . sprintf('%.17g', $dateSuns
 $code[] = '#define JINX_NATIVE_PHP_ERROR_REPORTING ' . (string)error_reporting() . 'LL';
 $code[] = '#define JINX_NATIVE_PHP_INCLUDE_PATH ' . cstr($includePath);
 $code[] = '';
-$code[] = 'typedef struct JinxNativeClassMeta { const char *name; const char *const *parents; size_t parent_count; const char *const *implements; size_t implements_count; const char *const *uses; size_t uses_count; const char *const *methods; size_t method_count; } JinxNativeClassMeta;';
+$code[] = 'typedef struct JinxNativeClassMeta { const char *name; const char *const *parents; size_t parent_count; const char *const *implements; size_t implements_count; const char *const *uses; size_t uses_count; const char *const *methods; size_t method_count; const char *const *properties; size_t property_count; } JinxNativeClassMeta;';
 $code[] = 'typedef struct JinxNativeConstantMeta { const char *name; unsigned type; long long i64; double f64; const char *str; } JinxNativeConstantMeta;';
 $code[] = 'typedef struct JinxNativeExtensionMeta { const char *name; const char *const *functions; size_t function_count; } JinxNativeExtensionMeta;';
 $code[] = 'typedef struct JinxNativeFilterMeta { const char *name; int id; } JinxNativeFilterMeta;';
