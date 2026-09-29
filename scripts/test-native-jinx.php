@@ -67,6 +67,26 @@ if ($code !== 0 ||
     fail("native GC status/state smoke failed:\n{$out}");
 }
 
+$phpPack = pack('nvc*', 0x1234, 0x5678, 65, 66);
+if (bin2hex($phpPack) !== '123478564142') {
+    fail('PHP pack contract did not match expected nvc* fixture');
+}
+$phpUnpack = unpack('Cchar/nint', "\x04\x00\xa0");
+if (!is_array($phpUnpack) ||
+    ($phpUnpack['char'] ?? null) !== 4 ||
+    ($phpUnpack['int'] ?? null) !== 160) {
+    fail('PHP unpack contract did not match expected Cchar/nint fixture');
+}
+
+$out = run($jinxCommand . ' oracle-pack-smoke', $code);
+if ($code !== 0 ||
+    !str_contains(
+        $out,
+        'PASS: native pack/unpack match PHP binary layout and named unpack values'
+    )) {
+    fail("native pack/unpack smoke failed:\n{$out}");
+}
+
 $out = run($jinxCommand . ' builtin-id sqrt', $code);
 if ($code !== 0 ||
     !str_contains($out, 'Function: sqrt') ||
