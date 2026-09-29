@@ -46,6 +46,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
     printf("  %s oracle-pcntl-async-smoke\n", argv0);
     printf("  %s oracle-session-config-smoke\n", argv0);
+    printf("  %s oracle-session-cookie-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -1965,6 +1966,114 @@ static int command_oracle_posix_error_smoke(void) {
 }
 
 
+static int print_oracle_serialized_hex(const char *label, JinxValue value) {
+    JinxValue args[1];
+    JinxValue encoded;
+    int ok = 0;
+
+    args[0] = value;
+    encoded = jinx_call_builtin_through_oracle_checked(
+        "serialize", args, 1u, &ok
+    );
+    if (!ok || encoded.type != 3u) {
+        release_cli_value(encoded);
+        return 0;
+    }
+
+    printf("%s=", label);
+    print_value_hex_line(encoded);
+    release_cli_value(encoded);
+    return 1;
+}
+
+static int command_oracle_session_cookie_smoke(void) {
+    JinxValue args[5];
+    JinxValue set_result;
+    JinxValue get_result;
+    JinxValue options_value = jinx_value_null();
+    JinxZendArray *options = NULL;
+    JinxZendString *path = NULL;
+    JinxZendString *domain = NULL;
+    JinxZendString *samesite = NULL;
+    int ok = 0;
+
+    args[0] = jinx_value_int(600);
+    args[1] = jinx_value_string("/jinx", 5u);
+    args[2] = jinx_value_string("example.test", 12u);
+    args[3] = jinx_value_bool(1);
+    args[4] = jinx_value_bool(1);
+
+    set_result = jinx_call_builtin_through_oracle_checked(
+        "session_set_cookie_params", args, 5u, &ok
+    );
+    if (!ok || set_result.type != 2u || set_result.as.i64 == 0) {
+        return fail("session_set_cookie_params positional form failed");
+    }
+    fputs("positional_set=", stdout);
+    print_value_line(set_result);
+
+    ok = 0;
+    get_result = jinx_call_builtin_through_oracle_checked(
+        "session_get_cookie_params", NULL, 0u, &ok
+    );
+    if (!ok || get_result.type != JINX_ORACLE_VALUE_ZEND_ARRAY ||
+        !print_oracle_serialized_hex("positional", get_result)) {
+        release_cli_value(get_result);
+        return fail("session cookie positional state could not be serialized");
+    }
+    release_cli_value(get_result);
+
+    options = jinx_zend_array_new_packed(6u);
+    path = jinx_zend_string_new("/array", 6u);
+    domain = jinx_zend_string_new(".example.test", 13u);
+    samesite = jinx_zend_string_new("Strict", 6u);
+    if (options == NULL || path == NULL || domain == NULL || samesite == NULL ||
+        !jinx_zend_array_add_assoc(options, "lifetime", 8u, jinx_zend_long(1200)) ||
+        !jinx_zend_array_add_assoc(options, "path", 4u, jinx_zend_string_value(path)) ||
+        !jinx_zend_array_add_assoc(options, "domain", 6u, jinx_zend_string_value(domain)) ||
+        !jinx_zend_array_add_assoc(options, "secure", 6u, jinx_zend_bool(0)) ||
+        !jinx_zend_array_add_assoc(options, "httponly", 8u, jinx_zend_bool(0)) ||
+        !jinx_zend_array_add_assoc(options, "samesite", 8u, jinx_zend_string_value(samesite))) {
+        jinx_zend_string_release(path);
+        jinx_zend_string_release(domain);
+        jinx_zend_string_release(samesite);
+        jinx_zend_array_release(options);
+        return fail("could not build session cookie options array");
+    }
+    jinx_zend_string_release(path);
+    jinx_zend_string_release(domain);
+    jinx_zend_string_release(samesite);
+    options_value = jinx_oracle_zend_array_value_retained(options);
+    jinx_zend_array_release(options);
+
+    args[0] = options_value;
+    ok = 0;
+    set_result = jinx_call_builtin_through_oracle_checked(
+        "session_set_cookie_params", args, 1u, &ok
+    );
+    if (!ok || set_result.type != 2u || set_result.as.i64 == 0) {
+        release_cli_value(options_value);
+        return fail("session_set_cookie_params options form failed");
+    }
+    fputs("array_set=", stdout);
+    print_value_line(set_result);
+
+    ok = 0;
+    get_result = jinx_call_builtin_through_oracle_checked(
+        "session_get_cookie_params", NULL, 0u, &ok
+    );
+    if (!ok || get_result.type != JINX_ORACLE_VALUE_ZEND_ARRAY ||
+        !print_oracle_serialized_hex("array", get_result)) {
+        release_cli_value(get_result);
+        release_cli_value(options_value);
+        return fail("session cookie options state could not be serialized");
+    }
+
+    release_cli_value(get_result);
+    release_cli_value(options_value);
+    return 0;
+}
+
 static int command_oracle_session_config_smoke(void) {
     JinxValue args[1];
     JinxValue value;
@@ -3526,6 +3635,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-session-config-smoke") == 0) {
         return command_oracle_session_config_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-session-cookie-smoke") == 0) {
+        return command_oracle_session_cookie_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
