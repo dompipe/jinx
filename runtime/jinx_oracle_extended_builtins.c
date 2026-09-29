@@ -1490,7 +1490,12 @@ JinxValue jinx_oracle_extended_fixture(const char *spec) {
     }
 
     if (strcmp(spec, "pp:tmp") == 0) {
-        FILE *fp = popen("printf jinx", "r");
+        /*
+         * Deterministic pclose fixture: do not leave unread child output in
+         * the pipe, because an immediate close can race the writer into
+         * SIGPIPE and make the exit status platform/scheduler dependent.
+         */
+        FILE *fp = popen("true", "r");
         return fp != NULL
             ? jinx_oracle_ext_new_process_stream(fp)
             : jinx_oracle_zero_value();
