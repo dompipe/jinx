@@ -37,6 +37,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-error-smoke\n", argv0);
     printf("  %s oracle-gc-smoke\n", argv0);
     printf("  %s oracle-pack-smoke\n", argv0);
+    printf("  %s oracle-scanf-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
@@ -1539,6 +1540,50 @@ static int command_oracle_pack_smoke(void) {
     release_cli_value(result);
 
     printf("PASS: native pack/unpack match PHP binary layout and named unpack values\n");
+    return 0;
+}
+
+static int command_oracle_scanf_smoke(void) {
+    JinxValue args[2];
+    JinxValue result;
+    JinxZendArray *array;
+    JinxZendValue *v0;
+    JinxZendValue *v1;
+    JinxZendValue *v2;
+    JinxZendValue *v3;
+    int ok = 0;
+
+    args[0] = jinx_oracle_string_value("10 20.5 hello X");
+    args[1] = jinx_oracle_string_value("%d %f %s %c");
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "sscanf", args, 2u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("sscanf did not return native array");
+    }
+
+    array = jinx_oracle_zend_array_ptr(result);
+    v0 = array != NULL ? jinx_zend_array_index(array, 0u) : NULL;
+    v1 = array != NULL ? jinx_zend_array_index(array, 1u) : NULL;
+    v2 = array != NULL ? jinx_zend_array_index(array, 2u) : NULL;
+    v3 = array != NULL ? jinx_zend_array_index(array, 3u) : NULL;
+
+    if (array == NULL ||
+        jinx_zend_array_live_count(array) != 4u ||
+        v0 == NULL || v0->type != JINX_ZEND_LONG || v0->value.lval != 10 ||
+        v1 == NULL || v1->type != JINX_ZEND_DOUBLE || fabs(v1->value.dval - 20.5) > 1e-12 ||
+        v2 == NULL || v2->type != JINX_ZEND_STRING || v2->value.str == NULL ||
+        v2->value.str->len != 5u || memcmp(v2->value.str->bytes, "hello", 5u) != 0 ||
+        v3 == NULL || v3->type != JINX_ZEND_STRING || v3->value.str == NULL ||
+        v3->value.str->len != 1u || v3->value.str->bytes[0] != 'X') {
+        release_cli_value(result);
+        return fail("sscanf values did not match PHP %d %f %s %c result");
+    }
+
+    release_cli_value(result);
+    printf("PASS: native sscanf array form matches PHP scalar scan values\n");
     return 0;
 }
 
@@ -3051,6 +3096,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pack-smoke") == 0) {
         return command_oracle_pack_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-scanf-smoke") == 0) {
+        return command_oracle_scanf_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-error-smoke") == 0) {
