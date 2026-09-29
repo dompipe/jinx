@@ -49,6 +49,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-call-hex <function> [typed-args...]\n", argv0);
     printf("  %s oracle-call-refs <function> [typed-args...]\n", argv0);
     printf("  %s native-benchmark-id\n", argv0);
+    printf("  %s builtin-id <function>\n", argv0);
     printf("  %s bench-oracle [iterations]\n", argv0);
     printf("  %s bench-call <function> <iterations> [typed-args...]\n", argv0);
     printf("  %s bench-method-call <Class::method> <iterations> <receiver-fixture> [typed-args...]\n", argv0);
@@ -1947,9 +1948,14 @@ static int command_oracle_call(int argc, char **argv, int output_mode) {
 
     name = argv[2];
 
-    if (jinx_lookup_oracle_wrapper(name) == NULL) {
+    function_id = jinx_resolve_builtin_id(name);
+    if (function_id == JINX_BUILTIN_ID_INVALID) {
         fprintf(stderr, "missing: %s\n", name);
         return 1;
+    }
+    encoded_id_len = jinx_encode_builtin_id(function_id, encoded_id);
+    if (encoded_id_len == 0u) {
+        return fail("resolved builtin ID could not be encoded");
     }
 
     supplied_argc = argc - 3;
@@ -1999,8 +2005,42 @@ static int command_oracle_call(int argc, char **argv, int output_mode) {
     return exit_code;
 }
 
+static int command_builtin_id(int argc, char **argv) {
+    JinxBuiltinId id;
+    uint8_t encoded[2] = {0u, 0u};
+    size_t encoded_len;
+
+    if (argc != 3) {
+        return fail("builtin-id requires exactly one function name");
+    }
+
+    id = jinx_resolve_builtin_id(argv[2]);
+    if (id == JINX_BUILTIN_ID_INVALID) {
+        fprintf(stderr, "missing: %s\n", argv[2]);
+        return 1;
+    }
+
+    encoded_len = jinx_encode_builtin_id(id, encoded);
+    if (encoded_len == 0u) {
+        return fail("builtin-id could not encode resolved function ID");
+    }
+
+    printf("Function: %s\n", argv[2]);
+    printf("ID: %u\n", (unsigned int)id);
+    printf("Encoded bytes: %zu\n", encoded_len);
+    printf("Encoding:");
+    for (size_t i = 0u; i < encoded_len; i++) {
+        printf(" %02x", (unsigned int)encoded[i]);
+    }
+    printf("\n");
+    return 0;
+}
+
 static int command_bench_call(int argc, char **argv) {
     const char *name;
+    JinxBuiltinId function_id;
+    uint8_t encoded_id[2] = {0u, 0u};
+    size_t encoded_id_len = 0u;
     long iterations;
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
     JinxValue result = jinx_value_null();
@@ -2037,8 +2077,8 @@ static int command_bench_call(int argc, char **argv) {
 
     {
         int oracle_ok = 0;
-        result = jinx_call_builtin_through_oracle_checked(
-            name, args, (size_t)supplied_argc, &oracle_ok
+        result = jinx_call_builtin_id_checked(
+            function_id, args, (size_t)supplied_argc, &oracle_ok
         );
         if (!oracle_ok) {
             fprintf(stderr, "null/fault: %s\n", name);
@@ -2053,8 +2093,8 @@ static int command_bench_call(int argc, char **argv) {
     clock_t start = clock();
     for (long i = 0; i < iterations; i++) {
         int oracle_ok = 0;
-        result = jinx_call_builtin_through_oracle_checked(
-            name, args, (size_t)supplied_argc, &oracle_ok
+        result = jinx_call_builtin_id_checked(
+            function_id, args, (size_t)supplied_argc, &oracle_ok
         );
         if (!oracle_ok) {
             fprintf(stderr, "null/fault during benchmark: %s\n", name);
@@ -2075,6 +2115,8 @@ static int command_bench_call(int argc, char **argv) {
         double ns_per_call = seconds * 1000000000.0 / (double) iterations;
         printf("JINX native single-function Oracle benchmark\n");
         printf("Function: %s\n", name);
+        printf("Function ID: %u\n", (unsigned int)function_id);
+        printf("Encoded bytes: %zu\n", encoded_id_len);
         printf("Iterations: %ld\n", iterations);
         printf("Elapsed ms: %.3f\n", seconds * 1000.0);
         printf("Per call ns: %.1f\n", ns_per_call);
@@ -2817,6 +2859,10 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "native-benchmark-id") == 0) {
         printf("native-root-jinx\n");
         return 0;
+    }
+
+    if (strcmp(argv[1], "builtin-id") == 0) {
+        return command_builtin_id(argc, argv);
     }
 
     if (strcmp(argv[1], "bench-call") == 0) {
