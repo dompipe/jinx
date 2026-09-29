@@ -9145,7 +9145,7 @@ static int b2_parse_ini_bytes(
 ) {
     JinxZendArray *root;
     JinxZendArray *target;
-    size_t line_start = 0u;
+    size_t cursor = 0u;
 
     if (bytes == NULL || out == NULL || scanner_mode < 0 || scanner_mode > 2) {
         return 0;
@@ -9156,27 +9156,35 @@ static int b2_parse_ini_bytes(
     if (root == NULL) return 0;
     target = root;
 
-    while (line_start <= len) {
-        size_t line_end = line_start;
+    while (cursor < len) {
+        size_t raw_end = cursor;
+        size_t logical_end;
+        size_t rel_start;
+        size_t rel_end;
         size_t a;
         size_t b;
         int quote = 0;
         int escaped = 0;
 
-        while (line_end < len && bytes[line_end] != '\n') line_end++;
-        if (line_end > line_start && bytes[line_end - 1u] == '\r') line_end--;
+        while (raw_end < len && bytes[raw_end] != '\n') raw_end++;
+        logical_end = raw_end;
+        if (logical_end > cursor && bytes[logical_end - 1u] == '\r') {
+            logical_end--;
+        }
 
         b2_ini_trim_span(
-            (const char *)bytes + line_start,
-            line_end - line_start,
-            &a,
-            &b
+            (const char *)bytes + cursor,
+            logical_end - cursor,
+            &rel_start,
+            &rel_end
         );
-        a += line_start;
-        b += line_start;
+        a = cursor + rel_start;
+        b = cursor + rel_end;
 
         if (a < b && bytes[a] != ';' && bytes[a] != '#') {
             size_t comment_end = b;
+            size_t content_start;
+            size_t content_end;
 
             for (size_t i = a; i < b; i++) {
                 char ch = (char)bytes[i];
@@ -9199,16 +9207,21 @@ static int b2_parse_ini_bytes(
                 }
             }
 
+            if (quote != 0) {
+                jinx_zend_array_release(root);
+                return 0;
+            }
+
             b2_ini_trim_span(
                 (const char *)bytes + a,
                 comment_end - a,
-                &line_start,
-                &line_end
+                &rel_start,
+                &rel_end
             );
-            line_start += a;
-            line_end += a;
-            a = line_start;
-            b = line_end;
+            content_start = a + rel_start;
+            content_end = a + rel_end;
+            a = content_start;
+            b = content_end;
 
             if (a < b && bytes[a] == '[') {
                 size_t name_start;
@@ -9220,16 +9233,15 @@ static int b2_parse_ini_bytes(
                     jinx_zend_array_release(root);
                     return 0;
                 }
-                name_start = a + 1u;
-                name_end = b - 1u;
+
                 b2_ini_trim_span(
-                    (const char *)bytes + name_start,
-                    name_end - name_start,
-                    &line_start,
-                    &line_end
+                    (const char *)bytes + a + 1u,
+                    (b - 1u) - (a + 1u),
+                    &rel_start,
+                    &rel_end
                 );
-                name_start += line_start;
-                name_end = name_start + (line_end - line_start);
+                name_start = a + 1u + rel_start;
+                name_end = a + 1u + rel_end;
                 if (name_start >= name_end) {
                     jinx_zend_array_release(root);
                     return 0;
@@ -9296,11 +9308,11 @@ static int b2_parse_ini_bytes(
                 b2_ini_trim_span(
                     (const char *)bytes + a,
                     equal - a,
-                    &key_start,
-                    &key_end
+                    &rel_start,
+                    &rel_end
                 );
-                key_start += a;
-                key_end += a;
+                key_start = a + rel_start;
+                key_end = a + rel_end;
                 if (key_start >= key_end) {
                     jinx_zend_array_release(root);
                     return 0;
@@ -9315,11 +9327,11 @@ static int b2_parse_ini_bytes(
                 b2_ini_trim_span(
                     (const char *)bytes + equal + 1u,
                     b - (equal + 1u),
-                    &value_start,
-                    &value_end
+                    &rel_start,
+                    &rel_end
                 );
-                value_start += equal + 1u;
-                value_end += equal + 1u;
+                value_start = equal + 1u + rel_start;
+                value_end = equal + 1u + rel_end;
 
                 value_status = b2_ini_value(
                     (const char *)bytes + value_start,
@@ -9347,8 +9359,7 @@ static int b2_parse_ini_bytes(
             }
         }
 
-        if (line_end >= len) break;
-        line_start = line_end + 1u;
+        cursor = raw_end < len ? raw_end + 1u : len;
     }
 
     *out = jinx_oracle_zend_array_value_owned(root);
@@ -9400,6 +9411,7 @@ static int b2_read_file_all(
 }
 
 #ifdef JINX_HAVE_ICONV
+static int b2_iconv_convert(
     const char *from_encoding,
     const char *to_encoding,
     const unsigned char *input,
