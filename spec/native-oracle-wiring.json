@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 735,
-        "extended_native_route": 437,
+        "native_named_route": 736,
+        "extended_native_route": 438,
         "context_native_route": 3,
-        "intentional_native_fault": 2792
+        "intentional_native_fault": 2791
     },
     "routes": {
         "_": "extended",
@@ -1264,7 +1264,7 @@
         "mhash_get_hash_name": "extended",
         "mhash_keygen_s2k": "extended",
         "microtime": "extended",
-        "mime_content_type": "intentional-native-fault",
+        "mime_content_type": "extended",
         "min": "asm+zend-container",
         "mkdir": "extended",
         "mktime": "extended",
