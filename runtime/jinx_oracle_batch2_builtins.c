@@ -2512,6 +2512,29 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zend_array_value_owned(array);
     }
 
+    if (strcmp(name, "token_name") == 0) {
+        int64_t token;
+        const char *token_name = "UNKNOWN";
+
+        if (args == NULL || argc != 1u) return result;
+        token = jinx_oracle_intish(args[0]);
+
+        for (size_t i = 0u; i < jinx_native_constant_metadata_count; i++) {
+            const JinxNativeConstantMeta *meta = &jinx_native_constant_metadata[i];
+            if (meta->type == 1u &&
+                meta->name != NULL &&
+                meta->name[0] == 'T' &&
+                meta->name[1] == '_' &&
+                meta->i64 == token) {
+                token_name = meta->name;
+                break;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return b2_copy(token_name, strlen(token_name));
+    }
+
     if (strcmp(name, "function_exists") == 0 ||
         strcmp(name, "enum_exists") == 0 ||
         strcmp(name, "interface_exists") == 0 ||
