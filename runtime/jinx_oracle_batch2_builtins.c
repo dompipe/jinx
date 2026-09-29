@@ -6747,6 +6747,71 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_PCRE2
+    if (strcmp(name, "preg_filter") == 0) {
+        char *subject;
+        size_t subject_len;
+        pcre2_code *code = NULL;
+        pcre2_match_data *match_data = NULL;
+        int compiled;
+        int rc;
+
+        /*
+         * Exact scalar three-string form:
+         * preg_filter(string $pattern, string $replacement, string $subject).
+         * Array forms, limits and by-reference counts remain faulting.
+         */
+        if (args == NULL || argc != 3u ||
+            args[0].type != 3u || args[1].type != 3u || args[2].type != 3u) {
+            return result;
+        }
+
+        compiled = b2_preg_compile_pattern(args[0], &code);
+        if (compiled <= 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        subject = b2_dup(args[2]);
+        if (subject == NULL) {
+            pcre2_code_free(code);
+            return result;
+        }
+        subject_len = strlen(subject);
+        match_data = pcre2_match_data_create_from_pattern(code, NULL);
+        if (match_data == NULL) {
+            pcre2_code_free(code);
+            free(subject);
+            return result;
+        }
+
+        rc = pcre2_match(
+            code,
+            (PCRE2_SPTR)subject,
+            (PCRE2_SIZE)subject_len,
+            0u,
+            0u,
+            match_data,
+            NULL
+        );
+
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(code);
+        free(subject);
+
+        if (rc == PCRE2_ERROR_NOMATCH) {
+            jinx_oracle_batch2_preg_last_error = 0;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+        if (rc < 0) {
+            jinx_oracle_batch2_preg_last_error = b2_preg_error_from_pcre2(rc);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zero_value();
+        }
+
+        return jinx_oracle_batch2_builtin("preg_replace", args, argc, handled);
+    }
+
     if (strcmp(name, "preg_last_error") == 0) {
         if (args == NULL && argc != 0u) return result;
         if (argc != 0u) return result;
