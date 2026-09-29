@@ -88,6 +88,24 @@ static int jinx_sodium_box_keypair_parts(
     if (public_key != NULL) *public_key = bytes + crypto_box_SECRETKEYBYTES;
     return 1;
 }
+static int jinx_sodium_kx_keypair_parts(
+    JinxValue value,
+    const unsigned char **secret,
+    const unsigned char **public_key
+) {
+    const unsigned char *bytes;
+    size_t len;
+    size_t expected = crypto_kx_SECRETKEYBYTES + crypto_kx_PUBLICKEYBYTES;
+
+    if (secret != NULL) *secret = NULL;
+    if (public_key != NULL) *public_key = NULL;
+    if (!jinx_sodium_string(value, &bytes, &len) || len != expected) return 0;
+
+    if (secret != NULL) *secret = bytes;
+    if (public_key != NULL) *public_key = bytes + crypto_kx_SECRETKEYBYTES;
+    return 1;
+}
+
 
 typedef int (*JinxSodiumAeadEncryptFn)(
     unsigned char *,
@@ -1824,6 +1842,45 @@ JinxValue jinx_oracle_sodium_builtin(
 
         if (handled != NULL) *handled = 1;
         return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_kx_keypair") == 0) {
+        unsigned char pk[crypto_kx_PUBLICKEYBYTES];
+        unsigned char sk[crypto_kx_SECRETKEYBYTES];
+        if (argc != 0u || crypto_kx_keypair(pk, sk) != 0) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_keypair_value(sk, sizeof(sk), pk, sizeof(pk));
+    }
+
+    if (strcmp(name, "sodium_crypto_kx_seed_keypair") == 0) {
+        const unsigned char *seed;
+        unsigned char pk[crypto_kx_PUBLICKEYBYTES];
+        unsigned char sk[crypto_kx_SECRETKEYBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(args[0], crypto_kx_SEEDBYTES, &seed) ||
+            crypto_kx_seed_keypair(pk, sk, seed) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_keypair_value(sk, sizeof(sk), pk, sizeof(pk));
+    }
+
+    if (strcmp(name, "sodium_crypto_kx_secretkey") == 0 ||
+        strcmp(name, "sodium_crypto_kx_publickey") == 0) {
+        const unsigned char *sk;
+        const unsigned char *pk;
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_kx_keypair_parts(args[0], &sk, &pk)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return strcmp(name, "sodium_crypto_kx_secretkey") == 0
+            ? jinx_sodium_copy(sk, crypto_kx_SECRETKEYBYTES)
+            : jinx_sodium_copy(pk, crypto_kx_PUBLICKEYBYTES);
     }
 
     if (strcmp(name, "sodium_crypto_kdf_keygen") == 0) {
