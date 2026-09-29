@@ -541,6 +541,240 @@ JinxValue jinx_oracle_sodium_builtin(
         return value;
     }
 
+    if (strcmp(name, "sodium_crypto_pwhash") == 0) {
+        int64_t out_len_i;
+        const unsigned char *password;
+        const unsigned char *salt;
+        size_t password_len;
+        int64_t ops_i;
+        int64_t mem_i;
+        int alg = crypto_pwhash_ALG_DEFAULT;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc < 5u || argc > 6u) return result;
+        out_len_i = jinx_oracle_intish(args[0]);
+        ops_i = jinx_oracle_intish(args[3]);
+        mem_i = jinx_oracle_intish(args[4]);
+        if (out_len_i < 0 || (uint64_t)out_len_i > UINT32_MAX ||
+            ops_i < 0 || mem_i < 0 ||
+            !jinx_sodium_string(args[1], &password, &password_len) ||
+            !jinx_sodium_exact_string(args[2], crypto_pwhash_SALTBYTES, &salt)) {
+            return result;
+        }
+        if (argc == 6u) alg = (int)jinx_oracle_intish(args[5]);
+
+        value = jinx_sodium_alloc_result((size_t)out_len_i, &out);
+        if (value.type != 3u ||
+            crypto_pwhash(
+                out,
+                (unsigned long long)out_len_i,
+                (const char *)password,
+                (unsigned long long)password_len,
+                salt,
+                (unsigned long long)ops_i,
+                (size_t)mem_i,
+                alg
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_pwhash_scryptsalsa208sha256") == 0) {
+        int64_t out_len_i;
+        const unsigned char *password;
+        const unsigned char *salt;
+        size_t password_len;
+        int64_t ops_i;
+        int64_t mem_i;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 5u) return result;
+        out_len_i = jinx_oracle_intish(args[0]);
+        ops_i = jinx_oracle_intish(args[3]);
+        mem_i = jinx_oracle_intish(args[4]);
+        if (out_len_i < 0 || (uint64_t)out_len_i > UINT32_MAX ||
+            ops_i < 0 || mem_i < 0 ||
+            !jinx_sodium_string(args[1], &password, &password_len) ||
+            !jinx_sodium_exact_string(
+                args[2],
+                crypto_pwhash_scryptsalsa208sha256_SALTBYTES,
+                &salt
+            )) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result((size_t)out_len_i, &out);
+        if (value.type != 3u ||
+            crypto_pwhash_scryptsalsa208sha256(
+                out,
+                (unsigned long long)out_len_i,
+                (const char *)password,
+                (unsigned long long)password_len,
+                salt,
+                (unsigned long long)ops_i,
+                (size_t)mem_i
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_pwhash_str") == 0) {
+        const unsigned char *password;
+        size_t password_len;
+        int64_t ops_i;
+        int64_t mem_i;
+        char hash[crypto_pwhash_STRBYTES];
+
+        if (args == NULL || argc != 3u ||
+            !jinx_sodium_string(args[0], &password, &password_len)) {
+            return result;
+        }
+        ops_i = jinx_oracle_intish(args[1]);
+        mem_i = jinx_oracle_intish(args[2]);
+        if (ops_i < 0 || mem_i < 0 ||
+            crypto_pwhash_str(
+                hash,
+                (const char *)password,
+                (unsigned long long)password_len,
+                (unsigned long long)ops_i,
+                (size_t)mem_i
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy((const unsigned char *)hash, strlen(hash));
+    }
+
+    if (strcmp(name, "sodium_crypto_pwhash_str_verify") == 0) {
+        const unsigned char *hash_bytes;
+        const unsigned char *password;
+        size_t hash_len;
+        size_t password_len;
+        char *hash;
+        int verified;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_string(args[0], &hash_bytes, &hash_len) ||
+            !jinx_sodium_string(args[1], &password, &password_len)) {
+            return result;
+        }
+
+        hash = (char *)malloc(hash_len + 1u);
+        if (hash == NULL) return result;
+        if (hash_len != 0u) memcpy(hash, hash_bytes, hash_len);
+        hash[hash_len] = '\0';
+
+        verified = crypto_pwhash_str_verify(
+            hash,
+            (const char *)password,
+            (unsigned long long)password_len
+        ) == 0;
+        free(hash);
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(verified);
+    }
+
+    if (strcmp(name, "sodium_crypto_pwhash_str_needs_rehash") == 0) {
+        const unsigned char *hash_bytes;
+        size_t hash_len;
+        int64_t ops_i;
+        int64_t mem_i;
+        char *hash;
+        int needs;
+
+        if (args == NULL || argc != 3u ||
+            !jinx_sodium_string(args[0], &hash_bytes, &hash_len)) {
+            return result;
+        }
+        ops_i = jinx_oracle_intish(args[1]);
+        mem_i = jinx_oracle_intish(args[2]);
+        if (ops_i < 0 || mem_i < 0) return result;
+
+        hash = (char *)malloc(hash_len + 1u);
+        if (hash == NULL) return result;
+        if (hash_len != 0u) memcpy(hash, hash_bytes, hash_len);
+        hash[hash_len] = '\0';
+
+        needs = crypto_pwhash_str_needs_rehash(
+            hash,
+            (unsigned long long)ops_i,
+            (size_t)mem_i
+        );
+        free(hash);
+        if (needs < 0) return result;
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(needs != 0);
+    }
+
+    if (strcmp(name, "sodium_crypto_pwhash_scryptsalsa208sha256_str") == 0) {
+        const unsigned char *password;
+        size_t password_len;
+        int64_t ops_i;
+        int64_t mem_i;
+        char hash[crypto_pwhash_scryptsalsa208sha256_STRBYTES];
+
+        if (args == NULL || argc != 3u ||
+            !jinx_sodium_string(args[0], &password, &password_len)) {
+            return result;
+        }
+        ops_i = jinx_oracle_intish(args[1]);
+        mem_i = jinx_oracle_intish(args[2]);
+        if (ops_i < 0 || mem_i < 0 ||
+            crypto_pwhash_scryptsalsa208sha256_str(
+                hash,
+                (const char *)password,
+                (unsigned long long)password_len,
+                (unsigned long long)ops_i,
+                (size_t)mem_i
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy((const unsigned char *)hash, strlen(hash));
+    }
+
+    if (strcmp(name, "sodium_crypto_pwhash_scryptsalsa208sha256_str_verify") == 0) {
+        const unsigned char *hash_bytes;
+        const unsigned char *password;
+        size_t hash_len;
+        size_t password_len;
+        char *hash;
+        int verified;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_string(args[0], &hash_bytes, &hash_len) ||
+            !jinx_sodium_string(args[1], &password, &password_len)) {
+            return result;
+        }
+
+        hash = (char *)malloc(hash_len + 1u);
+        if (hash == NULL) return result;
+        if (hash_len != 0u) memcpy(hash, hash_bytes, hash_len);
+        hash[hash_len] = '\0';
+
+        verified = crypto_pwhash_scryptsalsa208sha256_str_verify(
+            hash,
+            (const char *)password,
+            (unsigned long long)password_len
+        ) == 0;
+        free(hash);
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(verified);
+    }
+
     if (strcmp(name, "sodium_crypto_aead_chacha20poly1305_keygen") == 0) {
         unsigned char key[crypto_aead_chacha20poly1305_KEYBYTES];
         if (argc != 0u) return result;
