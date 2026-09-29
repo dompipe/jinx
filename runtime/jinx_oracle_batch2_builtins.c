@@ -10,6 +10,7 @@
 #include "jinx_oracle_http_meta_builtins.h"
 #include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_exif_builtins.h"
+#include "jinx_oracle_pack_builtins.h"
 #include "jinx_oracle_frame_context.h"
 #include "jinx_oracle_script_context.h"
 #include "jinx_oracle_zend_array_builtins.h"
@@ -5905,6 +5906,16 @@ csv_fail:
         }
     }
 
+    {
+        int pack_handled = 0;
+        JinxValue pack_result = jinx_oracle_pack_builtin(
+            name, args, argc, &pack_handled
+        );
+        if (pack_handled) {
+            if (handled != NULL) *handled = 1;
+            return pack_result;
+        }
+    }
 
     if (strcmp(name, "getimagesizefromstring") == 0) {
         JinxOracleImageInfo info;
