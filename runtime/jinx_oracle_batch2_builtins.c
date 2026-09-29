@@ -2752,6 +2752,17 @@ JinxValue jinx_oracle_batch2_builtin_with_context(
     if (handled != NULL) *handled = 0;
     if (ctx == NULL || name == NULL) return result;
 
+    {
+        int sodium_handled = 0;
+        JinxValue sodium_result = jinx_oracle_sodium_builtin_with_context(
+            ctx, name, args, argc, &sodium_handled
+        );
+        if (sodium_handled) {
+            if (handled != NULL) *handled = 1;
+            return sodium_result;
+        }
+    }
+
 #ifdef JINX_HAVE_RESOLV
     if (strcmp(name, "dns_get_mx") == 0 ||
         strcmp(name, "getmxrr") == 0) {
