@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 755,
-        "extended_native_route": 457,
+        "native_named_route": 759,
+        "extended_native_route": 461,
         "context_native_route": 3,
-        "intentional_native_fault": 2772
+        "intentional_native_fault": 2768
     },
     "routes": {
         "_": "extended",
@@ -1090,10 +1090,10 @@
         "infiniteiterator::next": "intentional-native-fault",
         "infiniteiterator::rewind": "intentional-native-fault",
         "infiniteiterator::valid": "intentional-native-fault",
-        "inflate_add": "intentional-native-fault",
-        "inflate_get_read_len": "intentional-native-fault",
-        "inflate_get_status": "intentional-native-fault",
-        "inflate_init": "intentional-native-fault",
+        "inflate_add": "extended",
+        "inflate_get_read_len": "extended",
+        "inflate_get_status": "extended",
+        "inflate_init": "extended",
         "ini_alter": "extended",
         "ini_get": "extended",
         "ini_get_all": "extended",
