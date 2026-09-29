@@ -36,6 +36,20 @@ if ($code !== 0 || trim($out) !== 'native-root-jinx') {
     fail("repository-root ./jinx did not identify as the compiled native benchmark executable:\n{$out}");
 }
 
+$out = run($jinxCommand . ' builtin-id sqrt', $code);
+if ($code !== 0 ||
+    !str_contains($out, 'Function: sqrt') ||
+    !str_contains($out, 'Encoded bytes: 1')) {
+    fail("hot builtin sqrt did not receive a one-byte compact ID:\n{$out}");
+}
+
+$out = run($jinxCommand . ' builtin-id uniqid', $code);
+if ($code !== 0 ||
+    !str_contains($out, 'Function: uniqid') ||
+    !str_contains($out, 'Encoded bytes: 2')) {
+    fail("non-hot builtin uniqid did not receive a two-byte compact ID:\n{$out}");
+}
+
 $nativeSource = (string) file_get_contents($root . '/native/jinx_cli.c');
 
 if (str_contains($nativeSource, 'command_php_frontend') ||
@@ -94,8 +108,9 @@ $out = run(sprintf(
 
 if ($code !== 0 ||
     !str_contains($out, 'Function: abs') ||
+    !str_contains($out, 'Encoded bytes: 1') ||
     !str_contains($out, 'Per call ns:')) {
-    fail("bench-call did not execute a named native implementation:\n{$out}");
+    fail("bench-call did not execute a compact-ID native implementation:\n{$out}");
 }
 
 $out = run(sprintf(
