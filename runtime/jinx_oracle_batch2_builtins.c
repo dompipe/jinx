@@ -6502,6 +6502,7 @@ csv_fail:
                 p++; continue;
             }
             jinx_zend_array_release(out);
+            free(owned_input);
             free(format);
             return result;
         }
