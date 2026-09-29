@@ -55,6 +55,42 @@ static int jinx_sodium_exact_string(
     return jinx_sodium_string(value, bytes, &len) && len == expected;
 }
 
+static JinxValue jinx_sodium_binary_pair_value(
+    const unsigned char *first,
+    size_t first_len,
+    const unsigned char *second,
+    size_t second_len
+) {
+    JinxZendArray *array;
+    JinxZendString *first_string;
+    JinxZendString *second_string;
+    int ok;
+
+    array = jinx_zend_array_new_packed(2u);
+    if (array == NULL) return jinx_oracle_zero_value();
+
+    first_string = jinx_zend_string_new((const char *)first, first_len);
+    second_string = jinx_zend_string_new((const char *)second, second_len);
+    if (first_string == NULL || second_string == NULL) {
+        jinx_zend_string_release(first_string);
+        jinx_zend_string_release(second_string);
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+
+    ok = jinx_zend_array_append(array, jinx_zend_string_value(first_string)) &&
+        jinx_zend_array_append(array, jinx_zend_string_value(second_string));
+    jinx_zend_string_release(first_string);
+    jinx_zend_string_release(second_string);
+
+    if (!ok) {
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zend_array_value_owned(array);
+}
+
 static JinxValue jinx_sodium_keypair_value(
     const unsigned char *secret,
     size_t secret_len,
@@ -1969,6 +2005,34 @@ JinxValue jinx_oracle_sodium_builtin(
         return strcmp(name, "sodium_crypto_kx_secretkey") == 0
             ? jinx_sodium_copy(sk, crypto_kx_SECRETKEYBYTES)
             : jinx_sodium_copy(pk, crypto_kx_PUBLICKEYBYTES);
+    }
+
+    if (strcmp(name, "sodium_crypto_kx_client_session_keys") == 0 ||
+        strcmp(name, "sodium_crypto_kx_server_session_keys") == 0) {
+        const unsigned char *sk;
+        const unsigned char *pk;
+        const unsigned char *peer_pk;
+        unsigned char rx[crypto_kx_SESSIONKEYBYTES];
+        unsigned char tx[crypto_kx_SESSIONKEYBYTES];
+        int rc;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_kx_keypair_parts(args[0], &sk, &pk) ||
+            !jinx_sodium_exact_string(args[1], crypto_kx_PUBLICKEYBYTES, &peer_pk)) {
+            return result;
+        }
+
+        if (strcmp(name, "sodium_crypto_kx_client_session_keys") == 0) {
+            rc = crypto_kx_client_session_keys(rx, tx, pk, sk, peer_pk);
+        } else {
+            rc = crypto_kx_server_session_keys(rx, tx, pk, sk, peer_pk);
+        }
+
+        if (handled != NULL) *handled = 1;
+        if (rc != 0) return jinx_oracle_bool_value(0);
+        return jinx_sodium_binary_pair_value(
+            rx, sizeof(rx), tx, sizeof(tx)
+        );
     }
 
     if (strcmp(name, "sodium_crypto_kdf_keygen") == 0) {
