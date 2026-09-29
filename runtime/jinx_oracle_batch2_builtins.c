@@ -2531,6 +2531,18 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
+    if (strcmp(name, "pcntl_strerror") == 0 ||
+        strcmp(name, "socket_strerror") == 0) {
+        int error_code;
+        const char *message;
+        if (args == NULL || argc != 1u) return result;
+        error_code = (int)jinx_oracle_intish(args[0]);
+        message = strerror(error_code);
+        if (message == NULL) message = "Unknown error";
+        if (handled != NULL) *handled = 1;
+        return b2_copy(message, strlen(message));
+    }
+
     if (strcmp(name, "posix_getpid") == 0) {
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value((int64_t)getpid());
