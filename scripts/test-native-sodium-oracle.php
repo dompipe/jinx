@@ -78,22 +78,6 @@ function sodiumJinxRefsHex(
     return sodiumRun($cmd, $code);
 }
 
-
-function sodiumJinxRefsHex(
-    string $jinx,
-    string $name,
-    array $args,
-    ?int &$code = null
-): string {
-    $cmd = escapeshellarg($jinx)
-        . ' oracle-call-refs-hex '
-        . escapeshellarg($name);
-    foreach ($args as $arg) {
-        $cmd .= ' ' . escapeshellarg((string)$arg);
-    }
-    return sodiumRun($cmd, $code);
-}
-
 function sodiumExpectRefHex(
     string $jinx,
     string $name,
