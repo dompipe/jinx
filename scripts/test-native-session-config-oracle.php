@@ -36,6 +36,7 @@ if (!is_file($jinx) || !is_executable($jinx)) {
 $required = [
     'session_status',
     'session_get_cookie_params',
+    'session_set_cookie_params',
     'session_name',
     'session_id',
     'session_cache_limiter',
@@ -50,6 +51,45 @@ foreach ($required as $name) {
 }
 
 $phpCookieParams = session_get_cookie_params();
+
+$phpPositionalSet = session_set_cookie_params(
+    600,
+    '/jinx',
+    'example.test',
+    true,
+    true
+);
+$phpPositionalParams = session_get_cookie_params();
+
+$phpArraySet = session_set_cookie_params([
+    'lifetime' => 1200,
+    'path' => '/array',
+    'domain' => '.example.test',
+    'secure' => false,
+    'httponly' => false,
+    'samesite' => 'Strict',
+]);
+$phpArrayParams = session_get_cookie_params();
+
+session_set_cookie_params($phpCookieParams);
+
+$jinxCookieSmoke = sessionConfigRun(
+    escapeshellarg($jinx) . ' oracle-session-cookie-smoke',
+    $cookieSmokeCode
+);
+$expectedCookieSmoke = implode(PHP_EOL, [
+    'positional_set=' . sessionConfigTyped($phpPositionalSet),
+    'positional=hex:' . bin2hex(serialize($phpPositionalParams)),
+    'array_set=' . sessionConfigTyped($phpArraySet),
+    'array=hex:' . bin2hex(serialize($phpArrayParams)),
+]);
+if ($cookieSmokeCode !== 0 || $jinxCookieSmoke !== $expectedCookieSmoke) {
+    sessionConfigFail(
+        "session_set_cookie_params parity mismatch\n" .
+        "PHP/expected:\n{$expectedCookieSmoke}\nJINX:\n{$jinxCookieSmoke}"
+    );
+}
+
 $jinxCookieParams = sessionConfigRun(
     escapeshellarg($jinx) . ' oracle-call-serialize-hex session_get_cookie_params',
     $cookieCode
@@ -132,4 +172,4 @@ if ($code !== 0 || $actual !== $expected) {
     );
 }
 
-echo "PASS: native session configuration and cookie getters match PHP\n";
+echo "PASS: native session configuration and cookie getter/setter match PHP\n";
