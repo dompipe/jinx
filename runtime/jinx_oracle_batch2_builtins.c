@@ -3446,7 +3446,7 @@ JinxValue jinx_oracle_batch2_builtin(
         }
         slot = jinx_zend_array_find(settings, "msg_qbytes", 10u);
         if (slot != NULL && slot->type == JINX_ZEND_LONG && slot->value.lval > 0) {
-            info.msg_qbytes = (msgqnum_t)slot->value.lval;
+            info.msg_qbytes = (unsigned long)slot->value.lval;
         }
 
         if (handled != NULL) *handled = 1;
