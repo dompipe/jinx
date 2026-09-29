@@ -1200,4 +1200,193 @@ sodiumExpectHexLength(
     SODIUM_CRYPTO_KDF_KEYBYTES
 );
 
-echo "PASS: native libsodium core functions match PHP sodium byte-for-byte\n";
+if (function_exists('sodium_crypto_secretstream_xchacha20poly1305_init_push')) {
+    $secretstreamKey = substr(
+        hash('sha256', 'jinx-secretstream-key', true),
+        0,
+        SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_KEYBYTES
+    );
+    $secretstreamMessage = "secretstream\0jinx";
+    $secretstreamAad = "jinx-aad\xff";
+    $secretstreamTag = SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_PUSH;
+
+    sodiumExpectHexLength(
+        $jinx,
+        'sodium_crypto_secretstream_xchacha20poly1305_keygen',
+        [],
+        SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_KEYBYTES
+    );
+
+    /*
+     * JINX producer -> PHP consumer.
+     * init_push is random, so deserialize the JINX [state, header] result,
+     * push one frame in JINX, then require PHP sodium to authenticate/decrypt it.
+     */
+    $jinxInitPush = sodiumRun(
+        escapeshellarg($jinx)
+            . ' oracle-call-serialize-hex '
+            . escapeshellarg('sodium_crypto_secretstream_xchacha20poly1305_init_push')
+            . ' ' . escapeshellarg(sodiumTypedString($secretstreamKey)),
+        $code
+    );
+    if ($code !== 0 ||
+        !preg_match('/^hex:([0-9a-f]+)$/', $jinxInitPush, $initPushMatch)) {
+        sodiumFail(
+            "secretstream init_push native output invalid\nJINX: {$jinxInitPush}"
+        );
+    }
+    $initPushSerialized = hex2bin($initPushMatch[1]);
+    $jinxPushPair = $initPushSerialized === false
+        ? false
+        : @unserialize($initPushSerialized, ['allowed_classes' => false]);
+    if (!is_array($jinxPushPair) || count($jinxPushPair) !== 2 ||
+        !is_string($jinxPushPair[0]) || !is_string($jinxPushPair[1]) ||
+        strlen($jinxPushPair[0]) === 0 ||
+        strlen($jinxPushPair[1]) !== SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_HEADERBYTES) {
+        sodiumFail('secretstream init_push did not return [state, header]');
+    }
+    [$jinxPushState, $jinxHeader] = $jinxPushPair;
+
+    $jinxPushText = sodiumJinxRefsHex(
+        $jinx,
+        'sodium_crypto_secretstream_xchacha20poly1305_push',
+        [
+            sodiumTypedString($jinxPushState),
+            sodiumTypedString($secretstreamMessage),
+            sodiumTypedString($secretstreamAad),
+            'i:' . $secretstreamTag,
+        ],
+        $code
+    );
+    if ($code !== 0 ||
+        !preg_match(
+            '/^return=hex:([0-9a-f]+)\narg0=hex:([0-9a-f]+)\narg1=hex:[0-9a-f]*\narg2=hex:[0-9a-f]*\narg3=int:[0-9]+$/',
+            $jinxPushText,
+            $pushMatch
+        )) {
+        sodiumFail(
+            "secretstream push native state/ciphertext invalid\nJINX:\n{$jinxPushText}"
+        );
+    }
+    $jinxCipher = hex2bin($pushMatch[1]);
+    if ($jinxCipher === false) {
+        sodiumFail('secretstream push ciphertext hex decode failed');
+    }
+
+    $phpPullState = sodium_crypto_secretstream_xchacha20poly1305_init_pull(
+        $jinxHeader,
+        $secretstreamKey
+    );
+    $phpPulled = sodium_crypto_secretstream_xchacha20poly1305_pull(
+        $phpPullState,
+        $jinxCipher,
+        $secretstreamAad
+    );
+    if ($phpPulled !== [$secretstreamMessage, $secretstreamTag]) {
+        sodiumFail(
+            'JINX secretstream push did not authenticate/decrypt in PHP sodium'
+        );
+    }
+
+    /*
+     * PHP producer -> JINX consumer.
+     */
+    [$phpPushState, $phpHeader] =
+        sodium_crypto_secretstream_xchacha20poly1305_init_push(
+            $secretstreamKey
+        );
+    $phpCipher = sodium_crypto_secretstream_xchacha20poly1305_push(
+        $phpPushState,
+        $secretstreamMessage,
+        $secretstreamAad,
+        SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL
+    );
+    $phpExpectedPull = [
+        $secretstreamMessage,
+        SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL,
+    ];
+
+    $jinxPullStateText = sodiumJinx(
+        $jinx,
+        'sodium_crypto_secretstream_xchacha20poly1305_init_pull',
+        [
+            sodiumTypedString($phpHeader),
+            sodiumTypedString($secretstreamKey),
+        ],
+        true,
+        $code
+    );
+    if ($code !== 0 ||
+        !preg_match('/^hex:([0-9a-f]+)$/', $jinxPullStateText, $pullStateMatch)) {
+        sodiumFail(
+            "secretstream init_pull native state invalid\nJINX: {$jinxPullStateText}"
+        );
+    }
+    $jinxPullStateHex = $pullStateMatch[1];
+
+    $jinxPullSerialized = sodiumRun(
+        escapeshellarg($jinx)
+            . ' oracle-call-serialize-hex '
+            . escapeshellarg('sodium_crypto_secretstream_xchacha20poly1305_pull')
+            . ' ' . escapeshellarg('h:' . $jinxPullStateHex)
+            . ' ' . escapeshellarg(sodiumTypedString($phpCipher))
+            . ' ' . escapeshellarg(sodiumTypedString($secretstreamAad)),
+        $code
+    );
+    $expectedPullSerialized = 'hex:' . bin2hex(serialize($phpExpectedPull));
+    if ($code !== 0 || $jinxPullSerialized !== $expectedPullSerialized) {
+        sodiumFail(
+            "secretstream PHP->JINX pull parity mismatch\n" .
+            "PHP/expected: {$expectedPullSerialized}\n" .
+            "JINX: {$jinxPullSerialized}"
+        );
+    }
+
+    /*
+     * Prove the by-reference state mutation on pull and rekey.
+     */
+    $jinxPullRefs = sodiumJinxRefsHex(
+        $jinx,
+        'sodium_crypto_secretstream_xchacha20poly1305_pull',
+        [
+            'h:' . $jinxPullStateHex,
+            sodiumTypedString($phpCipher),
+            sodiumTypedString($secretstreamAad),
+        ],
+        $code
+    );
+    if ($code !== 0 ||
+        !preg_match(
+            '/^return=zend-array:2\narg0=hex:([0-9a-f]+)\narg1=hex:[0-9a-f]+\narg2=hex:[0-9a-f]*$/',
+            $jinxPullRefs,
+            $pullRefsMatch
+        ) ||
+        $pullRefsMatch[1] === $jinxPullStateHex) {
+        sodiumFail(
+            "secretstream pull did not mutate state by reference\nJINX:\n{$jinxPullRefs}"
+        );
+    }
+
+    $phpRekeyState = sodium_crypto_secretstream_xchacha20poly1305_init_pull(
+        $phpHeader,
+        $secretstreamKey
+    );
+    sodium_crypto_secretstream_xchacha20poly1305_rekey($phpRekeyState);
+
+    $jinxRekey = sodiumJinxRefsHex(
+        $jinx,
+        'sodium_crypto_secretstream_xchacha20poly1305_rekey',
+        ['h:' . $jinxPullStateHex],
+        $code
+    );
+    $expectedRekey =
+        "return=null\narg0=hex:" . bin2hex($phpRekeyState);
+    if ($code !== 0 || $jinxRekey !== $expectedRekey) {
+        sodiumFail(
+            "secretstream rekey state parity mismatch\n" .
+            "PHP/expected:\n{$expectedRekey}\nJINX:\n{$jinxRekey}"
+        );
+    }
+}
+
+echo "PASS: native libsodium core and secretstream functions match PHP sodium byte-for-byte\n";
