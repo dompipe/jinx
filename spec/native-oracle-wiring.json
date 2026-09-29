@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 799,
-        "extended_native_route": 501,
+        "native_named_route": 800,
+        "extended_native_route": 502,
         "context_native_route": 3,
-        "intentional_native_fault": 2728
+        "intentional_native_fault": 2727
     },
     "routes": {
         "_": "extended",
@@ -1868,7 +1868,7 @@
         "preg_replace": "intentional-native-fault",
         "preg_replace_callback": "intentional-native-fault",
         "preg_replace_callback_array": "intentional-native-fault",
-        "preg_split": "intentional-native-fault",
+        "preg_split": "extended",
         "prev": "zend-container",
         "print_r": "intentional-native-fault",
         "printf": "asm",
