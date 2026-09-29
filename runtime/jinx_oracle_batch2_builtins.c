@@ -42,6 +42,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/ipc.h>
+#include <sys/msg.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -2316,6 +2317,10 @@ typedef struct JinxOracleBatch2Dir {
     DIR *dir;
 } JinxOracleBatch2Dir;
 
+typedef struct JinxOracleBatch2MessageQueue {
+    int msqid;
+} JinxOracleBatch2MessageQueue;
+
 typedef struct JinxOracleBatch2Gzip {
     gzFile gz;
 } JinxOracleBatch2Gzip;
@@ -2374,6 +2379,30 @@ static JinxOracleBatch2Dir *b2_dir(JinxValue value) {
     return (JinxOracleBatch2Dir *)b2_object_resource(
         value, "directory-stream", "__dir"
     );
+}
+
+static JinxOracleBatch2MessageQueue *b2_msg_queue(JinxValue value) {
+    return (JinxOracleBatch2MessageQueue *)b2_object_resource(
+        value, "SysvMessageQueue", "__msgq"
+    );
+}
+
+static JinxValue b2_new_msg_queue(int msqid) {
+    JinxOracleBatch2MessageQueue *queue;
+    JinxZendObject *object;
+
+    if (msqid < 0) return jinx_oracle_zero_value();
+    queue = (JinxOracleBatch2MessageQueue *)calloc(1u, sizeof(*queue));
+    if (queue == NULL) return jinx_oracle_zero_value();
+    queue->msqid = msqid;
+
+    object = jinx_zend_object_new("SysvMessageQueue");
+    if (object == NULL || !b2_object_set_resource(object, "__msgq", queue)) {
+        free(queue);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
 }
 
 static JinxValue b2_new_dir(DIR *dir) {
@@ -2864,6 +2893,138 @@ JinxValue jinx_oracle_batch2_builtin_with_context(
         }
     }
 
+    if (strcmp(name, "msg_send") == 0) {
+        JinxOracleBatch2MessageQueue *queue;
+        int64_t message_type;
+        int serialize = 1;
+        int blocking = 1;
+        const unsigned char *payload = NULL;
+        size_t payload_len = 0u;
+        B2SerializeBuffer serialized = {0};
+        unsigned char *packet;
+        int flags;
+        int sent;
+
+        if (args == NULL || argc < 3u || argc > 6u) return result;
+        queue = b2_msg_queue(args[0]);
+        if (queue == NULL) return result;
+        message_type = jinx_oracle_intish(args[1]);
+        if (message_type <= 0) return result;
+        if (argc >= 4u) serialize = jinx_oracle_boolish(args[3]);
+        if (argc >= 5u) blocking = jinx_oracle_boolish(args[4]);
+
+        if (serialize) {
+            if (!b2_serialize_jinx_value(&serialized, args[2])) {
+                free(serialized.data);
+                return result;
+            }
+            payload = (const unsigned char *)serialized.data;
+            payload_len = serialized.len;
+        } else {
+            if (args[2].type != 3u) return result;
+            payload = jinx_oracle_string_bytes(args[2]);
+            payload_len = (size_t)jinx_oracle_string_len(args[2]);
+        }
+
+        if (payload_len > SIZE_MAX - sizeof(long)) {
+            free(serialized.data);
+            return result;
+        }
+        packet = (unsigned char *)malloc(sizeof(long) + payload_len);
+        if (packet == NULL) {
+            free(serialized.data);
+            return result;
+        }
+        *(long *)packet = (long)message_type;
+        if (payload_len != 0u) memcpy(packet + sizeof(long), payload, payload_len);
+        flags = blocking ? 0 : IPC_NOWAIT;
+        errno = 0;
+        sent = msgsnd(queue->msqid, packet, payload_len, flags) == 0;
+        free(packet);
+        free(serialized.data);
+
+        if (!sent && argc >= 6u) {
+            (void)jinx_oracle_write_ref_arg(
+                ctx, 5u, jinx_oracle_int_value((int64_t)errno)
+            );
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(sent);
+    }
+
+    if (strcmp(name, "msg_receive") == 0) {
+        JinxOracleBatch2MessageQueue *queue;
+        int64_t desired_type;
+        int64_t max_size;
+        int unserialize = 1;
+        int flags = 0;
+        unsigned char *packet;
+        ssize_t received;
+        long received_type;
+        JinxValue message_value;
+
+        if (args == NULL || argc < 5u || argc > 8u) return result;
+        queue = b2_msg_queue(args[0]);
+        if (queue == NULL) return result;
+        desired_type = jinx_oracle_intish(args[1]);
+        max_size = jinx_oracle_intish(args[3]);
+        if (max_size <= 0 || (uint64_t)max_size > (uint64_t)(SIZE_MAX - sizeof(long))) {
+            return result;
+        }
+        if (argc >= 6u) unserialize = jinx_oracle_boolish(args[5]);
+        if (argc >= 7u) flags = (int)jinx_oracle_intish(args[6]);
+
+        packet = (unsigned char *)malloc(sizeof(long) + (size_t)max_size);
+        if (packet == NULL) return result;
+
+        errno = 0;
+        received = msgrcv(
+            queue->msqid,
+            packet,
+            (size_t)max_size,
+            (long)desired_type,
+            flags
+        );
+        if (received < 0) {
+            int error_code = errno;
+            free(packet);
+            if (argc >= 8u) {
+                (void)jinx_oracle_write_ref_arg(
+                    ctx, 7u, jinx_oracle_int_value((int64_t)error_code)
+                );
+            }
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        received_type = *(long *)packet;
+        message_value = b2_copy(
+            (const char *)packet + sizeof(long),
+            (size_t)received
+        );
+        free(packet);
+        if (message_value.type != 3u) return result;
+
+        if (unserialize) {
+            int decoded_ok = 0;
+            JinxValue decoded = b2_unserialize_to_jinx(message_value, &decoded_ok);
+            if (!decoded_ok) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            message_value = decoded;
+        }
+
+        if (!jinx_oracle_write_ref_arg(
+                ctx, 2u, jinx_oracle_int_value((int64_t)received_type)
+            ) ||
+            !jinx_oracle_write_ref_arg(ctx, 4u, message_value)) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "pcntl_sigwaitinfo") == 0 ||
         strcmp(name, "pcntl_sigtimedwait") == 0) {
         sigset_t set;
@@ -3164,6 +3325,134 @@ JinxValue jinx_oracle_batch2_builtin(
             if (handled != NULL) *handled = 1;
             return ini_result;
         }
+    }
+
+    if (strcmp(name, "msg_get_queue") == 0) {
+        key_t key;
+        int permissions = 0666;
+        int msqid;
+
+        if (args == NULL || argc < 1u || argc > 2u) return result;
+        key = (key_t)jinx_oracle_intish(args[0]);
+        if (argc >= 2u) permissions = (int)(jinx_oracle_intish(args[1]) & 0777);
+
+        msqid = msgget(key, IPC_CREAT | permissions);
+        if (handled != NULL) *handled = 1;
+        return msqid >= 0
+            ? b2_new_msg_queue(msqid)
+            : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "msg_queue_exists") == 0) {
+        key_t key;
+        int exists;
+        if (args == NULL || argc != 1u) return result;
+        key = (key_t)jinx_oracle_intish(args[0]);
+        errno = 0;
+        exists = msgget(key, 0) >= 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(exists);
+    }
+
+    if (strcmp(name, "msg_remove_queue") == 0) {
+        JinxOracleBatch2MessageQueue *queue;
+        JinxZendObject *object;
+        JinxZendValue *slot;
+        int removed;
+
+        if (args == NULL || argc != 1u) return result;
+        queue = b2_msg_queue(args[0]);
+        if (queue == NULL) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+
+        removed = msgctl(queue->msqid, IPC_RMID, NULL) == 0;
+        if (removed && object != NULL && object->properties != NULL) {
+            slot = jinx_zend_array_find(object->properties, "__msgq", 6u);
+            if (slot != NULL && slot->type == JINX_ZEND_RESOURCE) {
+                slot->value.ptr = NULL;
+            }
+            free(queue);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(removed);
+    }
+
+    if (strcmp(name, "msg_stat_queue") == 0) {
+        JinxOracleBatch2MessageQueue *queue;
+        struct msqid_ds info;
+        JinxZendArray *array;
+
+        if (args == NULL || argc != 1u) return result;
+        queue = b2_msg_queue(args[0]);
+        if (queue == NULL) return result;
+        if (msgctl(queue->msqid, IPC_STAT, &info) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        array = jinx_zend_array_new_packed(10u);
+        if (array == NULL) return result;
+#define B2_MSG_STAT_LONG(key, value) \
+        do { \
+            if (!jinx_zend_array_add_assoc( \
+                    array, key, sizeof(key) - 1u, \
+                    jinx_zend_long((int64_t)(value)))) { \
+                jinx_zend_array_release(array); \
+                return result; \
+            } \
+        } while (0)
+        B2_MSG_STAT_LONG("msg_perm.uid", info.msg_perm.uid);
+        B2_MSG_STAT_LONG("msg_perm.gid", info.msg_perm.gid);
+        B2_MSG_STAT_LONG("msg_perm.mode", info.msg_perm.mode);
+        B2_MSG_STAT_LONG("msg_stime", info.msg_stime);
+        B2_MSG_STAT_LONG("msg_rtime", info.msg_rtime);
+        B2_MSG_STAT_LONG("msg_ctime", info.msg_ctime);
+        B2_MSG_STAT_LONG("msg_qnum", info.msg_qnum);
+        B2_MSG_STAT_LONG("msg_qbytes", info.msg_qbytes);
+        B2_MSG_STAT_LONG("msg_lspid", info.msg_lspid);
+        B2_MSG_STAT_LONG("msg_lrpid", info.msg_lrpid);
+#undef B2_MSG_STAT_LONG
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "msg_set_queue") == 0) {
+        JinxOracleBatch2MessageQueue *queue;
+        JinxZendArray *settings;
+        struct msqid_ds info;
+        JinxZendValue *slot;
+
+        if (args == NULL || argc != 2u ||
+            args[1].type != JINX_ORACLE_VALUE_ZEND_ARRAY) return result;
+        queue = b2_msg_queue(args[0]);
+        settings = jinx_oracle_zend_array_ptr(args[1]);
+        if (queue == NULL || settings == NULL) return result;
+        if (msgctl(queue->msqid, IPC_STAT, &info) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        slot = jinx_zend_array_find(settings, "msg_perm.uid", 12u);
+        if (slot != NULL && slot->type == JINX_ZEND_LONG) {
+            info.msg_perm.uid = (uid_t)slot->value.lval;
+        }
+        slot = jinx_zend_array_find(settings, "msg_perm.gid", 12u);
+        if (slot != NULL && slot->type == JINX_ZEND_LONG) {
+            info.msg_perm.gid = (gid_t)slot->value.lval;
+        }
+        slot = jinx_zend_array_find(settings, "msg_perm.mode", 13u);
+        if (slot != NULL && slot->type == JINX_ZEND_LONG) {
+            info.msg_perm.mode = (mode_t)(slot->value.lval & 0777);
+        }
+        slot = jinx_zend_array_find(settings, "msg_qbytes", 10u);
+        if (slot != NULL && slot->type == JINX_ZEND_LONG && slot->value.lval > 0) {
+            info.msg_qbytes = (msgqnum_t)slot->value.lval;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(
+            msgctl(queue->msqid, IPC_SET, &info) == 0
+        );
     }
 
     if (strcmp(name, "session_set_cookie_params") == 0) {
