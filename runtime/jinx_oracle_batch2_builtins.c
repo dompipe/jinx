@@ -6372,8 +6372,7 @@ csv_fail:
                     ? jinx_zend_array_find(options_array, "cost", 4u)
                     : NULL;
                 if (cost_value != NULL &&
-                    (cost_value->type == JINX_ZEND_LONG ||
-                     cost_value->type == JINX_ZEND_BOOL)) {
+                    cost_value->type == JINX_ZEND_LONG) {
                     desired_cost = (int)cost_value->value.lval;
                 }
             } else {
