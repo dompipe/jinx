@@ -11,6 +11,11 @@ typedef struct JinxZendCallFrame JinxZendCallFrame;
 
 typedef JinxValue (*JinxOracleWrapper)(JinxOracleAsmContext *ctx);
 
+typedef uint16_t JinxBuiltinId;
+
+#define JINX_BUILTIN_ID_INVALID ((JinxBuiltinId)0xffffu)
+#define JINX_BUILTIN_HOT_ID_LIMIT ((JinxBuiltinId)128u)
+
 typedef struct JinxOracleDispatchEntry {
     const char *name;
     JinxOracleWrapper wrapper;
@@ -25,6 +30,29 @@ int jinx_lookup_oracle_arity(
     uint32_t *required_args,
     uint32_t *total_args,
     int *variadic
+);
+
+JinxBuiltinId jinx_resolve_builtin_id(const char *name);
+const char *jinx_builtin_name_from_id(JinxBuiltinId id);
+size_t jinx_encode_builtin_id(JinxBuiltinId id, uint8_t out[2]);
+int jinx_decode_builtin_id(
+    const uint8_t *bytes,
+    size_t length,
+    JinxBuiltinId *id,
+    size_t *consumed
+);
+
+JinxValue jinx_call_builtin_id_checked(
+    JinxBuiltinId id,
+    JinxValue *args,
+    size_t argc,
+    int *ok
+);
+
+JinxValue jinx_call_builtin_id(
+    JinxBuiltinId id,
+    JinxValue *args,
+    size_t argc
 );
 
 void jinx_oracle_set_caller_frame(JinxZendCallFrame *frame);
