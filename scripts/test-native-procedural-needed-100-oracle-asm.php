@@ -229,7 +229,7 @@ $checks = [
     ['is_callable', ['s:strlen'], 'bool:' . (is_callable('strlen') ? 'true' : 'false')],
     ['is_callable', ['s:__jinx_missing_callable'], 'bool:' . (is_callable('__jinx_missing_callable') ? 'true' : 'false')],
     ['tmpfile', [], 'zend-object:stream:1'],
-    ['popen', ['s:printf jinx', 's:r'], 'zend-object:stream:1'],
+    ['popen', ['s:true', 's:r'], 'zend-object:stream:1'],
     ['pclose', ['pp:tmp'], 'int:0'],
     ['constant', ['s:PHP_VERSION_ID'], 'int:' . PHP_VERSION_ID],
     ['defined', ['s:PHP_VERSION_ID'], 'bool:' . (defined('PHP_VERSION_ID') ? 'true' : 'false')],
