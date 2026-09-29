@@ -11,6 +11,7 @@
 #include "jinx_oracle_constant_registry.h"
 #include "jinx_oracle_exif_builtins.h"
 #include "jinx_oracle_pack_builtins.h"
+#include "jinx_oracle_sodium_builtins.h"
 #include "jinx_oracle_frame_context.h"
 #include "jinx_oracle_script_context.h"
 #include "jinx_oracle_zend_array_builtins.h"
@@ -5948,6 +5949,17 @@ csv_fail:
         if (pack_handled) {
             if (handled != NULL) *handled = 1;
             return pack_result;
+        }
+    }
+
+    {
+        int sodium_handled = 0;
+        JinxValue sodium_result = jinx_oracle_sodium_builtin(
+            name, args, argc, &sodium_handled
+        );
+        if (sodium_handled) {
+            if (handled != NULL) *handled = 1;
+            return sodium_result;
         }
     }
 
