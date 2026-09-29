@@ -1631,6 +1631,91 @@ static int b2_assoc_value(
     return ok;
 }
 
+static int b2_signal_set_from_array(
+    JinxValue value,
+    sigset_t *set
+) {
+    JinxZendArray *array;
+    size_t live;
+
+    if (set == NULL ||
+        value.type != JINX_ORACLE_VALUE_ZEND_ARRAY ||
+        sigemptyset(set) != 0) {
+        return 0;
+    }
+
+    array = jinx_oracle_zend_array_ptr(value);
+    if (array == NULL) return 0;
+    live = jinx_zend_array_live_count(array);
+
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket =
+            jinx_zend_array_live_iter_at(array, i);
+        int signal_number;
+        if (bucket == NULL || bucket->value.type != JINX_ZEND_LONG) {
+            return 0;
+        }
+        signal_number = (int)bucket->value.value.lval;
+        if (signal_number <= 0 || sigaddset(set, signal_number) != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static JinxValue b2_siginfo_value(const siginfo_t *info) {
+    JinxZendArray *array;
+    if (info == NULL) return jinx_oracle_zero_value();
+
+    array = jinx_zend_array_new_packed(8u);
+    if (array == NULL) return jinx_oracle_zero_value();
+
+    if (!b2_assoc_value(
+            array, "signo", jinx_oracle_int_value((int64_t)info->si_signo)
+        ) ||
+        !b2_assoc_value(
+            array, "errno", jinx_oracle_int_value((int64_t)info->si_errno)
+        ) ||
+        !b2_assoc_value(
+            array, "code", jinx_oracle_int_value((int64_t)info->si_code)
+        )) {
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+
+#if defined(__linux__)
+    if (!b2_assoc_value(
+            array, "pid", jinx_oracle_int_value((int64_t)info->si_pid)
+        ) ||
+        !b2_assoc_value(
+            array, "uid", jinx_oracle_int_value((int64_t)info->si_uid)
+        )) {
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+
+    if (info->si_signo == SIGCHLD) {
+        if (!b2_assoc_value(
+                array, "status",
+                jinx_oracle_int_value((int64_t)info->si_status)
+            ) ||
+            !b2_assoc_value(
+                array, "utime",
+                jinx_oracle_int_value((int64_t)info->si_utime)
+            ) ||
+            !b2_assoc_value(
+                array, "stime",
+                jinx_oracle_int_value((int64_t)info->si_stime)
+            )) {
+            jinx_zend_array_release(array);
+            return jinx_oracle_zero_value();
+        }
+    }
+#endif
+
+    return jinx_oracle_zend_array_value_owned(array);
+}
+
 static int b2_constant_time_string_equal(
     const char *left,
     const char *right
@@ -2777,6 +2862,58 @@ JinxValue jinx_oracle_batch2_builtin_with_context(
             if (handled != NULL) *handled = 1;
             return sodium_result;
         }
+    }
+
+    if (strcmp(name, "pcntl_sigwaitinfo") == 0 ||
+        strcmp(name, "pcntl_sigtimedwait") == 0) {
+        sigset_t set;
+        siginfo_t info;
+        int signal_number;
+
+        if (args == NULL || argc < 1u ||
+            (strcmp(name, "pcntl_sigwaitinfo") == 0 && argc > 2u) ||
+            (strcmp(name, "pcntl_sigtimedwait") == 0 && argc > 4u) ||
+            !b2_signal_set_from_array(args[0], &set)) {
+            return result;
+        }
+
+        memset(&info, 0, sizeof(info));
+        errno = 0;
+
+        if (strcmp(name, "pcntl_sigtimedwait") == 0) {
+            struct timespec timeout;
+            int64_t seconds = argc >= 3u ? jinx_oracle_intish(args[2]) : 0;
+            int64_t nanoseconds = argc >= 4u
+                ? jinx_oracle_intish(args[3]) : 0;
+
+            if (seconds < 0 ||
+                nanoseconds < 0 ||
+                nanoseconds >= 1000000000LL) {
+                return result;
+            }
+            timeout.tv_sec = (time_t)seconds;
+            timeout.tv_nsec = (long)nanoseconds;
+            signal_number = sigtimedwait(&set, &info, &timeout);
+        } else {
+            signal_number = sigwaitinfo(&set, &info);
+        }
+
+        if (signal_number < 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (argc >= 2u) {
+            JinxValue info_value = b2_siginfo_value(&info);
+            if (info_value.type != JINX_ORACLE_VALUE_ZEND_ARRAY ||
+                !jinx_oracle_write_ref_arg(ctx, 1u, info_value)) {
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)signal_number);
     }
 
     if (strcmp(name, "pcntl_sigprocmask") == 0) {
