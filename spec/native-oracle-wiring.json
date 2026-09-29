@@ -5,8 +5,8 @@
         "builtin": 1196,
         "method": 2331,
         "native_named_route": 911,
-        "extended_native_route": 603,
-        "context_native_route": 11,
+        "extended_native_route": 601,
+        "context_native_route": 13,
         "intentional_native_fault": 2616
     },
     "routes": {
@@ -1485,8 +1485,8 @@
         "pcntl_signal_dispatch": "intentional-native-fault",
         "pcntl_signal_get_handler": "intentional-native-fault",
         "pcntl_sigprocmask": "context",
-        "pcntl_sigtimedwait": "extended",
-        "pcntl_sigwaitinfo": "extended",
+        "pcntl_sigtimedwait": "context",
+        "pcntl_sigwaitinfo": "context",
         "pcntl_strerror": "extended",
         "pcntl_unshare": "intentional-native-fault",
         "pcntl_wait": "intentional-native-fault",
