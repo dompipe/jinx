@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 874,
+        "native_named_route": 877,
         "extended_native_route": 573,
-        "context_native_route": 4,
-        "intentional_native_fault": 2653
+        "context_native_route": 7,
+        "intentional_native_fault": 2650
     },
     "routes": {
         "_": "extended",
@@ -2896,10 +2896,10 @@
         "sodium_crypto_core_ristretto255_scalar_sub": "extended",
         "sodium_crypto_core_ristretto255_sub": "extended",
         "sodium_crypto_generichash": "extended",
-        "sodium_crypto_generichash_final": "intentional-native-fault",
-        "sodium_crypto_generichash_init": "intentional-native-fault",
+        "sodium_crypto_generichash_final": "context",
+        "sodium_crypto_generichash_init": "context",
         "sodium_crypto_generichash_keygen": "extended",
-        "sodium_crypto_generichash_update": "intentional-native-fault",
+        "sodium_crypto_generichash_update": "context",
         "sodium_crypto_kdf_derive_from_key": "extended",
         "sodium_crypto_kdf_keygen": "extended",
         "sodium_crypto_kx_client_session_keys": "extended",
