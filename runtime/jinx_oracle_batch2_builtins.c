@@ -4386,7 +4386,7 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
-    if (strcmp(name, "fsockopen") == 0) {
+    if (strcmp(name, "fsockopen") == 0 || strcmp(name, "pfsockopen") == 0) {
         char *host;
         char port_text[16];
         struct addrinfo hints;
