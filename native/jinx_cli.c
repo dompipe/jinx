@@ -45,6 +45,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-alarm-smoke\n", argv0);
     printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
     printf("  %s oracle-pcntl-async-smoke\n", argv0);
+    printf("  %s oracle-session-config-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -1964,6 +1965,84 @@ static int command_oracle_posix_error_smoke(void) {
 }
 
 
+static int command_oracle_session_config_smoke(void) {
+    JinxValue args[1];
+    JinxValue value;
+    int ok = 0;
+
+#define JINX_SESSION_QUERY(label, callable) \
+    do { \
+        ok = 0; \
+        value = jinx_call_builtin_through_oracle_checked( \
+            (callable), NULL, 0u, &ok \
+        ); \
+        if (!ok) return fail("session config query failed: " callable); \
+        printf("%s=", (label)); \
+        print_value_line(value); \
+    } while (0)
+
+#define JINX_SESSION_SET_STRING(label, callable, literal) \
+    do { \
+        args[0] = jinx_value_string((literal), (uint32_t)strlen(literal)); \
+        ok = 0; \
+        value = jinx_call_builtin_through_oracle_checked( \
+            (callable), args, 1u, &ok \
+        ); \
+        if (!ok) return fail("session config string set failed: " callable); \
+        printf("%s=", (label)); \
+        print_value_line(value); \
+    } while (0)
+
+    JINX_SESSION_QUERY("status_initial", "session_status");
+
+    JINX_SESSION_QUERY("name_initial", "session_name");
+    JINX_SESSION_SET_STRING(
+        "name_previous", "session_name", "JINXSESSID"
+    );
+    JINX_SESSION_QUERY("name_current", "session_name");
+
+    JINX_SESSION_QUERY("id_initial", "session_id");
+    JINX_SESSION_SET_STRING(
+        "id_previous", "session_id", "jinxsession123"
+    );
+    JINX_SESSION_QUERY("id_current", "session_id");
+
+    JINX_SESSION_QUERY("limiter_initial", "session_cache_limiter");
+    JINX_SESSION_SET_STRING(
+        "limiter_previous", "session_cache_limiter", "private"
+    );
+    JINX_SESSION_QUERY("limiter_current", "session_cache_limiter");
+
+    JINX_SESSION_QUERY("expire_initial", "session_cache_expire");
+    args[0] = jinx_value_int(321);
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "session_cache_expire", args, 1u, &ok
+    );
+    if (!ok) return fail("session_cache_expire set failed");
+    fputs("expire_previous=", stdout);
+    print_value_line(value);
+    JINX_SESSION_QUERY("expire_current", "session_cache_expire");
+
+    JINX_SESSION_QUERY("module_initial", "session_module_name");
+    JINX_SESSION_SET_STRING(
+        "module_previous", "session_module_name", "files"
+    );
+    JINX_SESSION_QUERY("module_current", "session_module_name");
+
+    JINX_SESSION_QUERY("path_initial", "session_save_path");
+    JINX_SESSION_SET_STRING(
+        "path_previous", "session_save_path", "/tmp/jinx-session-parity"
+    );
+    JINX_SESSION_QUERY("path_current", "session_save_path");
+
+    JINX_SESSION_QUERY("status_final", "session_status");
+
+#undef JINX_SESSION_SET_STRING
+#undef JINX_SESSION_QUERY
+    return 0;
+}
+
 static int command_oracle_pcntl_async_smoke(void) {
     JinxValue args[1];
     JinxValue query0;
@@ -3443,6 +3522,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-async-smoke") == 0) {
         return command_oracle_pcntl_async_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-session-config-smoke") == 0) {
+        return command_oracle_session_config_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
