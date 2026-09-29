@@ -86,6 +86,9 @@ static size_t jinx_oracle_batch2_strtok_pos = 0u;
 static int jinx_oracle_batch2_gc_enabled = 1;
 static int64_t jinx_oracle_batch2_gc_runs = 0;
 static int64_t jinx_oracle_batch2_gc_collected = 0;
+#ifdef JINX_HAVE_PCRE2
+static int jinx_oracle_batch2_preg_last_error = 0;
+#endif
 
 #ifdef JINX_HAVE_ICONV
 static char jinx_oracle_batch2_iconv_input_encoding[128] = JINX_NATIVE_ICONV_INPUT_ENCODING;
@@ -815,6 +818,30 @@ static int b2_constant_time_string_equal(
 }
 
 #ifdef JINX_HAVE_PCRE2
+static int b2_preg_error_from_pcre2(int rc) {
+    if (rc == PCRE2_ERROR_MATCHLIMIT) return 2;      /* PREG_BACKTRACK_LIMIT_ERROR */
+    if (rc == PCRE2_ERROR_DEPTHLIMIT) return 3;      /* PREG_RECURSION_LIMIT_ERROR */
+    if (rc == PCRE2_ERROR_BADUTFOFFSET) return 5;    /* PREG_BAD_UTF8_OFFSET_ERROR */
+    if (rc == PCRE2_ERROR_JIT_STACKLIMIT) return 6;  /* PREG_JIT_STACKLIMIT_ERROR */
+    if (rc <= PCRE2_ERROR_UTF8_ERR1 && rc >= PCRE2_ERROR_UTF8_ERR21) {
+        return 4;                                     /* PREG_BAD_UTF8_ERROR */
+    }
+    return 1;                                         /* PREG_INTERNAL_ERROR */
+}
+
+static const char *b2_preg_error_message(int code) {
+    switch (code) {
+        case 0: return "No error";
+        case 1: return "Internal error";
+        case 2: return "Backtrack limit exhausted";
+        case 3: return "Recursion limit exhausted";
+        case 4: return "Malformed UTF-8 characters, possibly incorrectly encoded";
+        case 5: return "The offset did not correspond to the beginning of a valid UTF-8 code point";
+        case 6: return "JIT stack limit exhausted";
+        default: return "Internal error";
+    }
+}
+
 static int b2_preg_compile_pattern(
     JinxValue pattern_value,
     pcre2_code **out_code
@@ -831,11 +858,13 @@ static int b2_preg_compile_pattern(
 
     if (out_code == NULL || pattern_value.type != 3u) return 0;
     *out_code = NULL;
+    jinx_oracle_batch2_preg_last_error = 0;
     pattern = b2_dup(pattern_value);
     if (pattern == NULL) return 0;
     len = strlen(pattern);
     if (len < 2u) {
         free(pattern);
+        jinx_oracle_batch2_preg_last_error = 1;
         return 0;
     }
 
@@ -843,6 +872,7 @@ static int b2_preg_compile_pattern(
     if (isalnum((unsigned char)delimiter) || delimiter == '\\' ||
         isspace((unsigned char)delimiter)) {
         free(pattern);
+        jinx_oracle_batch2_preg_last_error = 1;
         return 0;
     }
     closing = delimiter;
@@ -889,6 +919,7 @@ static int b2_preg_compile_pattern(
 
     if (end == 0u) {
         free(pattern);
+        jinx_oracle_batch2_preg_last_error = 1;
         return 0;
     }
 
@@ -901,6 +932,7 @@ static int b2_preg_compile_pattern(
             case 'u': options |= PCRE2_UTF; break;
             default:
                 free(pattern);
+                jinx_oracle_batch2_preg_last_error = 1;
                 return 0;
         }
     }
@@ -915,8 +947,12 @@ static int b2_preg_compile_pattern(
         NULL
     );
     free(pattern);
-    if (code == NULL) return -1;
+    if (code == NULL) {
+        jinx_oracle_batch2_preg_last_error = 1;
+        return -1;
+    }
     *out_code = code;
+    jinx_oracle_batch2_preg_last_error = 0;
     return 1;
 }
 #endif
@@ -6711,6 +6747,22 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_PCRE2
+    if (strcmp(name, "preg_last_error") == 0) {
+        if (args == NULL && argc != 0u) return result;
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)jinx_oracle_batch2_preg_last_error);
+    }
+
+    if (strcmp(name, "preg_last_error_msg") == 0) {
+        if (args == NULL && argc != 0u) return result;
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_string_value(
+            b2_preg_error_message(jinx_oracle_batch2_preg_last_error)
+        );
+    }
+
     if (strcmp(name, "preg_replace") == 0) {
         char *replacement;
         char *subject;
@@ -6787,10 +6839,12 @@ csv_fail:
         pcre2_code_free(code);
 
         if (rc < 0) {
+            jinx_oracle_batch2_preg_last_error = b2_preg_error_from_pcre2(rc);
             free(output);
             if (handled != NULL) *handled = 1;
             return jinx_oracle_zero_value();
         }
+        jinx_oracle_batch2_preg_last_error = 0;
 
         result = b2_copy((const char *)output, (size_t)output_len);
         free(output);
@@ -6854,6 +6908,7 @@ csv_fail:
 
             if (rc == PCRE2_ERROR_NOMATCH) break;
             if (rc < 0) {
+                jinx_oracle_batch2_preg_last_error = b2_preg_error_from_pcre2(rc);
                 pcre2_match_data_free(match_data);
                 pcre2_code_free(code);
                 jinx_zend_array_release(out);
@@ -6916,6 +6971,7 @@ csv_fail:
         pcre2_match_data_free(match_data);
         pcre2_code_free(code);
         free(subject);
+        jinx_oracle_batch2_preg_last_error = 0;
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(out);
     }
@@ -6974,8 +7030,15 @@ csv_fail:
             free(subject);
 
             if (handled != NULL) *handled = 1;
-            if (rc == PCRE2_ERROR_NOMATCH) return jinx_oracle_int_value(0);
-            if (rc < 0) return jinx_oracle_bool_value(0);
+            if (rc == PCRE2_ERROR_NOMATCH) {
+                jinx_oracle_batch2_preg_last_error = 0;
+                return jinx_oracle_int_value(0);
+            }
+            if (rc < 0) {
+                jinx_oracle_batch2_preg_last_error = b2_preg_error_from_pcre2(rc);
+                return jinx_oracle_bool_value(0);
+            }
+            jinx_oracle_batch2_preg_last_error = 0;
             return jinx_oracle_int_value(1);
         }
 
@@ -6995,6 +7058,7 @@ csv_fail:
                 );
                 if (rc == PCRE2_ERROR_NOMATCH) break;
                 if (rc < 0) {
+                    jinx_oracle_batch2_preg_last_error = b2_preg_error_from_pcre2(rc);
                     pcre2_match_data_free(match_data);
                     pcre2_code_free(code);
                     free(subject);
@@ -7021,6 +7085,7 @@ csv_fail:
             pcre2_match_data_free(match_data);
             pcre2_code_free(code);
             free(subject);
+            jinx_oracle_batch2_preg_last_error = 0;
             if (handled != NULL) *handled = 1;
             return jinx_oracle_int_value(count);
         }
