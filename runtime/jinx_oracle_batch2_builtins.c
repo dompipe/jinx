@@ -2951,6 +2951,48 @@ JinxValue jinx_oracle_batch2_builtin(
         }
     }
 
+    if (strcmp(name, "session_get_cookie_params") == 0) {
+        const JinxNativeIniMeta *lifetime_meta = b2_ini_meta("session.cookie_lifetime");
+        const JinxNativeIniMeta *path_meta = b2_ini_meta("session.cookie_path");
+        const JinxNativeIniMeta *domain_meta = b2_ini_meta("session.cookie_domain");
+        const JinxNativeIniMeta *secure_meta = b2_ini_meta("session.cookie_secure");
+        const JinxNativeIniMeta *httponly_meta = b2_ini_meta("session.cookie_httponly");
+        const JinxNativeIniMeta *samesite_meta = b2_ini_meta("session.cookie_samesite");
+        const char *lifetime = b2_ini_current(lifetime_meta);
+        const char *path = b2_ini_current(path_meta);
+        const char *domain = b2_ini_current(domain_meta);
+        const char *secure = b2_ini_current(secure_meta);
+        const char *httponly = b2_ini_current(httponly_meta);
+        const char *samesite = b2_ini_current(samesite_meta);
+        JinxZendArray *array;
+        char *end = NULL;
+        long long lifetime_value;
+
+        if (argc != 0u || lifetime == NULL || path == NULL || domain == NULL ||
+            secure == NULL || httponly == NULL || samesite == NULL) {
+            return result;
+        }
+
+        errno = 0;
+        lifetime_value = strtoll(lifetime, &end, 10);
+        if (errno != 0 || end == lifetime || *end != '\0') return result;
+
+        array = jinx_zend_array_new_packed(6u);
+        if (array == NULL) return result;
+        if (!b2_assoc_value(array, "lifetime", jinx_oracle_int_value((int64_t)lifetime_value)) ||
+            !b2_assoc_string(array, "path", path) ||
+            !b2_assoc_string(array, "domain", domain) ||
+            !b2_assoc_value(array, "secure", jinx_oracle_bool_value(strcmp(secure, "1") == 0)) ||
+            !b2_assoc_value(array, "httponly", jinx_oracle_bool_value(strcmp(httponly, "1") == 0)) ||
+            !b2_assoc_string(array, "samesite", samesite)) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
     if (strcmp(name, "session_status") == 0) {
         if (argc != 0u) return result;
         if (handled != NULL) *handled = 1;
