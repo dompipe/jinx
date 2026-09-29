@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 885,
-        "extended_native_route": 581,
+        "native_named_route": 886,
+        "extended_native_route": 582,
         "context_native_route": 7,
-        "intentional_native_fault": 2642
+        "intentional_native_fault": 2641
     },
     "routes": {
         "_": "extended",
@@ -1470,7 +1470,7 @@
         "pclose": "extended",
         "pcntl\\qosclass::cases": "intentional-native-fault",
         "pcntl_alarm": "extended",
-        "pcntl_async_signals": "intentional-native-fault",
+        "pcntl_async_signals": "extended",
         "pcntl_errno": "extended",
         "pcntl_exec": "intentional-native-fault",
         "pcntl_fork": "intentional-native-fault",
