@@ -70,6 +70,36 @@ JinxValue jinx_oracle_finfo_builtin(
     if (handled != NULL) *handled = 0;
     if (name == NULL) return result;
 
+    if (strcmp(name, "mime_content_type") == 0) {
+        magic_t cookie;
+        char *path;
+        const char *out;
+
+        if (args == NULL || argc < 1u || args[0].type != 3u) return result;
+        path = finfo_dup_string(args[0]);
+        if (path == NULL) return result;
+
+        cookie = magic_open(MAGIC_MIME_TYPE);
+        if (cookie == NULL || magic_load(cookie, NULL) != 0) {
+            if (cookie != NULL) magic_close(cookie);
+            free(path);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        out = magic_file(cookie, path);
+        free(path);
+        if (handled != NULL) *handled = 1;
+        if (out == NULL) {
+            magic_close(cookie);
+            return jinx_oracle_bool_value(0);
+        }
+
+        result = finfo_copy_string(out);
+        magic_close(cookie);
+        return result;
+    }
+
     if (strcmp(name, "finfo_open") == 0) {
         int flags = argc >= 1u ? (int)jinx_oracle_intish(args[0]) : 0;
         char *database = NULL;
