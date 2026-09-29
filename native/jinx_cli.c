@@ -2024,6 +2024,14 @@ static int command_builtin_id(int argc, char **argv) {
     if (encoded_len == 0u) {
         return fail("builtin-id could not encode resolved function ID");
     }
+    {
+        JinxBuiltinId decoded = JINX_BUILTIN_ID_INVALID;
+        size_t consumed = 0u;
+        if (!jinx_decode_builtin_id(encoded, encoded_len, &decoded, &consumed) ||
+            decoded != id || consumed != encoded_len) {
+            return fail("builtin-id compact encoding roundtrip failed");
+        }
+    }
 
     printf("Function: %s\n", argv[2]);
     printf("ID: %u\n", (unsigned int)id);
