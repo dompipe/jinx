@@ -28,6 +28,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fnmatch.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <grp.h>
 #include <libintl.h>
 #include <langinfo.h>
@@ -3453,6 +3455,150 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_bool_value(
             msgctl(queue->msqid, IPC_SET, &info) == 0
         );
+    }
+
+    if (strcmp(name, "net_get_interfaces") == 0) {
+        struct ifaddrs *interfaces = NULL;
+        struct ifaddrs *item;
+        JinxZendArray *outer;
+
+        if (args != NULL && argc != 0u) return result;
+        if (getifaddrs(&interfaces) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        outer = jinx_zend_array_new_packed(8u);
+        if (outer == NULL) {
+            freeifaddrs(interfaces);
+            return result;
+        }
+
+        for (item = interfaces; item != NULL; item = item->ifa_next) {
+            JinxZendValue *iface_slot;
+            JinxZendArray *iface_array;
+            JinxZendValue *unicast_slot;
+            JinxZendArray *unicast_array;
+
+            if (item->ifa_name == NULL) continue;
+            iface_slot = jinx_zend_array_find(
+                outer, item->ifa_name, strlen(item->ifa_name)
+            );
+
+            if (iface_slot == NULL) {
+                iface_array = jinx_zend_array_new_packed(2u);
+                unicast_array = jinx_zend_array_new_packed(4u);
+                if (iface_array == NULL || unicast_array == NULL ||
+                    !jinx_zend_array_add_assoc(
+                        iface_array, "unicast", 7u,
+                        jinx_zend_array_value(unicast_array)
+                    ) ||
+                    !jinx_zend_array_add_assoc(
+                        iface_array, "up", 2u,
+                        jinx_zend_bool((item->ifa_flags & IFF_UP) != 0)
+                    ) ||
+                    !jinx_zend_array_add_assoc(
+                        outer, item->ifa_name, strlen(item->ifa_name),
+                        jinx_zend_array_value(iface_array)
+                    )) {
+                    jinx_zend_array_release(unicast_array);
+                    jinx_zend_array_release(iface_array);
+                    jinx_zend_array_release(outer);
+                    freeifaddrs(interfaces);
+                    return result;
+                }
+                jinx_zend_array_release(unicast_array);
+                jinx_zend_array_release(iface_array);
+                iface_slot = jinx_zend_array_find(
+                    outer, item->ifa_name, strlen(item->ifa_name)
+                );
+            }
+
+            if (iface_slot == NULL || iface_slot->type != JINX_ZEND_ARRAY ||
+                iface_slot->value.array == NULL ||
+                item->ifa_addr == NULL) {
+                continue;
+            }
+
+            if (item->ifa_addr->sa_family != AF_INET &&
+                item->ifa_addr->sa_family != AF_INET6) {
+                continue;
+            }
+
+            iface_array = iface_slot->value.array;
+            unicast_slot = jinx_zend_array_find(iface_array, "unicast", 7u);
+            if (unicast_slot == NULL ||
+                unicast_slot->type != JINX_ZEND_ARRAY ||
+                unicast_slot->value.array == NULL) {
+                continue;
+            }
+            unicast_array = unicast_slot->value.array;
+
+            {
+                char address[INET6_ADDRSTRLEN] = {0};
+                char netmask[INET6_ADDRSTRLEN] = {0};
+                const void *address_ptr = NULL;
+                const void *netmask_ptr = NULL;
+                JinxZendArray *entry;
+
+                if (item->ifa_addr->sa_family == AF_INET) {
+                    address_ptr = &((struct sockaddr_in *)item->ifa_addr)->sin_addr;
+                    if (item->ifa_netmask != NULL) {
+                        netmask_ptr = &((struct sockaddr_in *)item->ifa_netmask)->sin_addr;
+                    }
+                } else {
+                    address_ptr = &((struct sockaddr_in6 *)item->ifa_addr)->sin6_addr;
+                    if (item->ifa_netmask != NULL) {
+                        netmask_ptr = &((struct sockaddr_in6 *)item->ifa_netmask)->sin6_addr;
+                    }
+                }
+
+                if (inet_ntop(
+                        item->ifa_addr->sa_family,
+                        address_ptr,
+                        address,
+                        sizeof(address)
+                    ) == NULL) {
+                    continue;
+                }
+                if (netmask_ptr != NULL) {
+                    if (inet_ntop(
+                            item->ifa_addr->sa_family,
+                            netmask_ptr,
+                            netmask,
+                            sizeof(netmask)
+                        ) == NULL) {
+                        netmask[0] = '\0';
+                    }
+                }
+
+                entry = jinx_zend_array_new_packed(4u);
+                if (entry == NULL ||
+                    !jinx_zend_array_add_assoc(
+                        entry, "flags", 5u,
+                        jinx_zend_long((int64_t)item->ifa_flags)
+                    ) ||
+                    !jinx_zend_array_add_assoc(
+                        entry, "family", 6u,
+                        jinx_zend_long((int64_t)item->ifa_addr->sa_family)
+                    ) ||
+                    !b2_assoc_string(entry, "address", address) ||
+                    !b2_assoc_string(entry, "netmask", netmask) ||
+                    !jinx_zend_array_append(
+                        unicast_array, jinx_zend_array_value(entry)
+                    )) {
+                    jinx_zend_array_release(entry);
+                    jinx_zend_array_release(outer);
+                    freeifaddrs(interfaces);
+                    return result;
+                }
+                jinx_zend_array_release(entry);
+            }
+        }
+
+        freeifaddrs(interfaces);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(outer);
     }
 
     if (strcmp(name, "session_set_cookie_params") == 0) {
