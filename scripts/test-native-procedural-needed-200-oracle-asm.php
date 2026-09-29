@@ -645,7 +645,7 @@ if ($code !== 0 ||
 
 $microFloat = jinx200($jinx, 'microtime', ['b:true'], false, $code);
 if ($code !== 0 ||
-    !preg_match('/^float:([0-9]+(?:\.[0-9]+)?)$/', $microFloat, $match) ||
+    !preg_match('/^float:([-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)$/', $microFloat, $match) ||
     abs((float)$match[1] - microtime(true)) > 5.0) {
     fail200("microtime float contract mismatch\nJINX: {$microFloat}");
 }
