@@ -6747,6 +6747,125 @@ csv_fail:
     }
 
 #ifdef JINX_HAVE_PCRE2
+    if (strcmp(name, "preg_grep") == 0) {
+        JinxZendArray *input;
+        JinxZendArray *out = NULL;
+        pcre2_code *code = NULL;
+        pcre2_match_data *match_data = NULL;
+        int compiled;
+        int invert = 0;
+
+        /*
+         * Exact string-array core:
+         * preg_grep(string $pattern, array $array, int $flags = 0).
+         * Non-string array values remain faulting instead of being loosely
+         * coerced until PHP's conversion rules are mirrored explicitly.
+         */
+        if (args == NULL || (argc != 2u && argc != 3u) ||
+            args[0].type != 3u ||
+            args[1].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            return result;
+        }
+        if (argc == 3u) {
+            int64_t flags;
+            if (args[2].type != 1u && args[2].type != 2u) return result;
+            flags = jinx_oracle_intish(args[2]);
+            if (flags != 0 && flags != 1) return result;
+            invert = flags == 1;
+        }
+
+        input = jinx_oracle_zend_array_ptr(args[1]);
+        if (input == NULL) return result;
+
+        compiled = b2_preg_compile_pattern(args[0], &code);
+        if (compiled <= 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        match_data = pcre2_match_data_create_from_pattern(code, NULL);
+        out = jinx_zend_array_new_packed(input->count == 0u ? 1u : input->count);
+        if (match_data == NULL || out == NULL) {
+            pcre2_match_data_free(match_data);
+            pcre2_code_free(code);
+            jinx_zend_array_release(out);
+            return result;
+        }
+
+        for (size_t i = 0u; i < input->count; i++) {
+            const JinxZendBucket *bucket = jinx_zend_array_iter_at(input, i);
+            const char *subject;
+            size_t subject_len;
+            int rc;
+            int matched;
+            int keep;
+            int added;
+
+            if (bucket == NULL || bucket->value.type != JINX_ZEND_STRING ||
+                bucket->value.value.str == NULL) {
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                return result;
+            }
+
+            subject = bucket->value.value.str->bytes;
+            subject_len = bucket->value.value.str->len;
+            rc = pcre2_match(
+                code,
+                (PCRE2_SPTR)subject,
+                (PCRE2_SIZE)subject_len,
+                0u,
+                0u,
+                match_data,
+                NULL
+            );
+
+            if (rc == PCRE2_ERROR_NOMATCH) {
+                matched = 0;
+            } else if (rc < 0) {
+                jinx_oracle_batch2_preg_last_error = b2_preg_error_from_pcre2(rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            } else {
+                matched = 1;
+            }
+
+            keep = invert ? !matched : matched;
+            if (!keep) continue;
+
+            if (bucket->key != NULL) {
+                added = jinx_zend_array_add_assoc(
+                    out,
+                    bucket->key->bytes,
+                    bucket->key->len,
+                    bucket->value
+                );
+            } else {
+                added = jinx_zend_array_add_index(
+                    out,
+                    (size_t)bucket->h,
+                    bucket->value
+                );
+            }
+            if (!added) {
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(code);
+                jinx_zend_array_release(out);
+                return result;
+            }
+        }
+
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(code);
+        jinx_oracle_batch2_preg_last_error = 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(out);
+    }
+
     if (strcmp(name, "preg_filter") == 0) {
         char *subject;
         size_t subject_len;
