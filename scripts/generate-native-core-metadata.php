@@ -174,6 +174,65 @@ $timezoneIdentifiers = function_exists('timezone_identifiers_list')
 $timezoneVersion = function_exists('timezone_version_get')
     ? timezone_version_get()
     : '';
+
+$timezoneAbbrResolveRows = [];
+if (function_exists('timezone_abbreviations_list') && function_exists('timezone_name_from_abbr')) {
+    $abbrTable = timezone_abbreviations_list();
+    $seenResolve = [];
+
+    foreach ($abbrTable as $abbr => $entries) {
+        $abbr = (string)$abbr;
+        $default = timezone_name_from_abbr($abbr);
+        $key = strtolower($abbr) . "|-1|-1";
+        if (!isset($seenResolve[$key])) {
+            $seenResolve[$key] = true;
+            $timezoneAbbrResolveRows[] = [$abbr, -1, -1, $default === false ? null : (string)$default];
+        }
+
+        if (!is_array($entries)) continue;
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) continue;
+            $offset = (int)($entry['offset'] ?? 0);
+            $dst = !empty($entry['dst']) ? 1 : 0;
+            $key = strtolower($abbr) . "|" . $offset . "|" . $dst;
+            if (isset($seenResolve[$key])) continue;
+            $seenResolve[$key] = true;
+            $resolved = timezone_name_from_abbr($abbr, $offset, $dst);
+            $timezoneAbbrResolveRows[] = [
+                $abbr,
+                $offset,
+                $dst,
+                $resolved === false ? null : (string)$resolved,
+            ];
+        }
+    }
+
+    $globalPairs = [];
+    foreach ($abbrTable as $entries) {
+        if (!is_array($entries)) continue;
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) continue;
+            $offset = (int)($entry['offset'] ?? 0);
+            $dst = !empty($entry['dst']) ? 1 : 0;
+            $pairKey = $offset . "|" . $dst;
+            if (isset($globalPairs[$pairKey])) continue;
+            $globalPairs[$pairKey] = true;
+            $resolved = timezone_name_from_abbr('', $offset, $dst);
+            $timezoneAbbrResolveRows[] = [
+                '',
+                $offset,
+                $dst,
+                $resolved === false ? null : (string)$resolved,
+            ];
+        }
+    }
+
+    usort(
+        $timezoneAbbrResolveRows,
+        static fn(array $a, array $b): int =>
+            [strtolower($a[0]), $a[1], $a[2]] <=> [strtolower($b[0]), $b[1], $b[2]]
+    );
+}
 $splClassRows = [];
 if (function_exists('spl_classes')) {
     foreach (spl_classes() as $classKey => $classValue) {
@@ -300,6 +359,7 @@ $code[] = 'typedef struct JinxNativeFilterMeta { const char *name; int id; } Jin
 $code[] = 'typedef struct JinxNativeStringPair { const char *name; const char *value; } JinxNativeStringPair;';
 $code[] = 'typedef struct JinxNativeIniMeta { const char *name; const char *global_value; const char *local_value; int access; const char *extension; } JinxNativeIniMeta;';
 $code[] = 'typedef struct JinxNativeClassVarsMeta { const char *class_name; const JinxNativeConstantMeta *vars; size_t var_count; int complete; } JinxNativeClassVarsMeta;';
+$code[] = 'typedef struct JinxNativeTimezoneAbbrResolve { const char *abbr; long offset; int dst; const char *timezone_id; } JinxNativeTimezoneAbbrResolve;';
 $code[] = '';
 array_push($code, ...$arrays);
 $code[] = '';
@@ -332,6 +392,20 @@ $emitStringArray('jinx_native_stream_transports', $streamTransports);
 $emitStringArray('jinx_native_stream_filters', $streamFilters);
 $emitStringArray('jinx_native_password_algos', $passwordAlgos);
 $emitStringArray('jinx_native_timezone_identifiers', $timezoneIdentifiers);
+
+$code[] = 'static const JinxNativeTimezoneAbbrResolve jinx_native_timezone_abbr_resolve[] = {';
+foreach ($timezoneAbbrResolveRows as [$abbr, $offset, $dst, $timezoneId]) {
+    $code[] = sprintf(
+        '    { %s, %dL, %d, %s },',
+        cstr((string)$abbr),
+        (int)$offset,
+        (int)$dst,
+        $timezoneId === null ? 'NULL' : cstr((string)$timezoneId)
+    );
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_timezone_abbr_resolve_count = ' . count($timezoneAbbrResolveRows) . 'u;';
+$code[] = '';
 
 $extensionSymbols = [];
 foreach ($extensionFunctionRows as $extension => $funcs) {
