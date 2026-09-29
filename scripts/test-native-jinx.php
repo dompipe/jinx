@@ -36,13 +36,35 @@ if ($code !== 0 || trim($out) !== 'native-root-jinx') {
     fail("repository-root ./jinx did not identify as the compiled native benchmark executable:\n{$out}");
 }
 
+$phpGcStatus = gc_status();
+$phpGcFields = [
+    'running' => 'bool',
+    'protected' => 'bool',
+    'full' => 'bool',
+    'runs' => 'int',
+    'collected' => 'int',
+    'threshold' => 'int',
+    'buffer_size' => 'int',
+    'roots' => 'int',
+    'application_time' => 'float',
+    'collector_time' => 'float',
+    'destructor_time' => 'float',
+    'free_time' => 'float',
+];
+foreach ($phpGcFields as $field => $type) {
+    if (!array_key_exists($field, $phpGcStatus) ||
+        get_debug_type($phpGcStatus[$field]) !== $type) {
+        fail("PHP 8.4 gc_status contract missing {$field}:{$type}");
+    }
+}
+
 $out = run($jinxCommand . ' oracle-gc-smoke', $code);
 if ($code !== 0 ||
     !str_contains(
         $out,
-        'PASS: native GC enable/disable/collect/cache state transitions match Jinx runtime semantics'
+        'PASS: native GC enable/disable/collect/cache/status state transitions match PHP 8.4-shaped Jinx runtime semantics'
     )) {
-    fail("native GC state smoke failed:\n{$out}");
+    fail("native GC status/state smoke failed:\n{$out}");
 }
 
 $out = run($jinxCommand . ' builtin-id sqrt', $code);
