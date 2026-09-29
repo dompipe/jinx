@@ -20,6 +20,7 @@
 #include <strings.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/shm.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -40,6 +41,13 @@ typedef struct JinxOracleExtInterval {
     int invert;
     int64_t total_days;
 } JinxOracleExtInterval;
+
+typedef struct JinxOracleExtShmop {
+    int shmid;
+    size_t size;
+    int readonly;
+    int64_t key;
+} JinxOracleExtShmop;
 
 typedef struct JinxOracleExtTzScope {
     char *old_tz;
@@ -582,6 +590,48 @@ static JinxValue jinx_oracle_ext_new_timezone(const char *timezone) {
         return jinx_oracle_zero_value();
     }
     return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxValue jinx_oracle_ext_new_shmop(
+    int shmid,
+    size_t size,
+    int readonly,
+    int64_t key
+) {
+    JinxZendObject *object = jinx_zend_object_new("Shmop");
+    if (object == NULL) return jinx_oracle_zero_value();
+    if (!jinx_oracle_ext_object_set_long(object, "shmid", (int64_t)shmid) ||
+        !jinx_oracle_ext_object_set_long(object, "size", (int64_t)size) ||
+        !jinx_oracle_ext_object_set_long(object, "readonly", readonly ? 1 : 0) ||
+        !jinx_oracle_ext_object_set_long(object, "key", key)) {
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static int jinx_oracle_ext_shmop_parts(
+    JinxValue value,
+    JinxOracleExtShmop *parts
+) {
+    JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
+    int64_t shmid;
+    int64_t size;
+
+    if (parts == NULL || object == NULL || object->class_name == NULL ||
+        strcmp(object->class_name, "Shmop") != 0) {
+        return 0;
+    }
+
+    shmid = jinx_oracle_ext_object_long(object, "shmid", -1);
+    size = jinx_oracle_ext_object_long(object, "size", -1);
+    if (shmid < 0 || size < 0) return 0;
+
+    parts->shmid = (int)shmid;
+    parts->size = (size_t)size;
+    parts->readonly = jinx_oracle_ext_object_long(object, "readonly", 0) != 0;
+    parts->key = jinx_oracle_ext_object_long(object, "key", 0);
+    return 1;
 }
 
 static JinxValue jinx_oracle_ext_new_interval(const JinxOracleExtInterval *parts) {
@@ -3074,6 +3124,151 @@ JinxValue jinx_oracle_extended_builtin(
         fclose(fp);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "shmop_open") == 0) {
+        key_t key;
+        char *mode;
+        int permissions;
+        int64_t requested_size;
+        int flags = 0;
+        size_t shm_size;
+        int shmid;
+        struct shmid_ds info;
+        int readonly = 0;
+
+        if (args == NULL || argc != 4u ||
+            args[1].type != 3u) return result;
+
+        key = (key_t)jinx_oracle_intish(args[0]);
+        mode = jinx_oracle_ext_dup_string_value(args[1]);
+        if (mode == NULL) return result;
+        permissions = (int)(jinx_oracle_intish(args[2]) & 0777);
+        requested_size = jinx_oracle_intish(args[3]);
+
+        if (strcmp(mode, "a") == 0) {
+            readonly = 1;
+            shm_size = 1u;
+        } else if (strcmp(mode, "w") == 0) {
+            shm_size = 1u;
+        } else if (strcmp(mode, "c") == 0) {
+            if (requested_size <= 0) {
+                free(mode);
+                return result;
+            }
+            shm_size = (size_t)requested_size;
+            flags = IPC_CREAT | permissions;
+        } else if (strcmp(mode, "n") == 0) {
+            if (requested_size <= 0) {
+                free(mode);
+                return result;
+            }
+            shm_size = (size_t)requested_size;
+            flags = IPC_CREAT | IPC_EXCL | permissions;
+        } else {
+            free(mode);
+            return result;
+        }
+        free(mode);
+
+        shmid = shmget(key, shm_size, flags);
+        if (handled != NULL) *handled = 1;
+        if (shmid < 0 || shmctl(shmid, IPC_STAT, &info) != 0) {
+            return jinx_oracle_bool_value(0);
+        }
+        return jinx_oracle_ext_new_shmop(
+            shmid,
+            (size_t)info.shm_segsz,
+            readonly,
+            (int64_t)key
+        );
+    }
+
+    if (strcmp(name, "shmop_size") == 0) {
+        JinxOracleExtShmop shmop;
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_ext_shmop_parts(args[0], &shmop)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)shmop.size);
+    }
+
+    if (strcmp(name, "shmop_read") == 0) {
+        JinxOracleExtShmop shmop;
+        int64_t offset;
+        int64_t length;
+        void *memory;
+        JinxValue value;
+
+        if (args == NULL || argc != 3u ||
+            !jinx_oracle_ext_shmop_parts(args[0], &shmop)) return result;
+        offset = jinx_oracle_intish(args[1]);
+        length = jinx_oracle_intish(args[2]);
+        if (offset < 0 || length < 0 ||
+            (uint64_t)offset > (uint64_t)shmop.size ||
+            (uint64_t)length > (uint64_t)(shmop.size - (size_t)offset)) {
+            return result;
+        }
+
+        memory = shmat(shmop.shmid, NULL, SHM_RDONLY);
+        if (handled != NULL) *handled = 1;
+        if (memory == (void *)-1) return jinx_oracle_bool_value(0);
+        value = jinx_oracle_ext_copy_string(
+            (const char *)memory + (size_t)offset,
+            (size_t)length
+        );
+        (void)shmdt(memory);
+        return value;
+    }
+
+    if (strcmp(name, "shmop_write") == 0) {
+        JinxOracleExtShmop shmop;
+        int64_t offset;
+        uint32_t input_len;
+        size_t writable;
+        void *memory;
+
+        if (args == NULL || argc != 3u ||
+            args[1].type != 3u ||
+            !jinx_oracle_ext_shmop_parts(args[0], &shmop)) return result;
+        if (shmop.readonly) return result;
+        offset = jinx_oracle_intish(args[2]);
+        if (offset < 0 || (uint64_t)offset > (uint64_t)shmop.size) return result;
+
+        input_len = jinx_oracle_string_len(args[1]);
+        writable = shmop.size - (size_t)offset;
+        if (writable > (size_t)input_len) writable = (size_t)input_len;
+
+        memory = shmat(shmop.shmid, NULL, 0);
+        if (handled != NULL) *handled = 1;
+        if (memory == (void *)-1) return jinx_oracle_bool_value(0);
+        if (writable != 0u) {
+            memcpy(
+                (char *)memory + (size_t)offset,
+                jinx_oracle_string_bytes(args[1]),
+                writable
+            );
+        }
+        (void)shmdt(memory);
+        return jinx_oracle_int_value((int64_t)writable);
+    }
+
+    if (strcmp(name, "shmop_delete") == 0) {
+        JinxOracleExtShmop shmop;
+        int deleted;
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_ext_shmop_parts(args[0], &shmop)) return result;
+        deleted = shmctl(shmop.shmid, IPC_RMID, NULL) == 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(deleted);
+    }
+
+    if (strcmp(name, "shmop_close") == 0) {
+        JinxOracleExtShmop shmop;
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_ext_shmop_parts(args[0], &shmop)) return result;
+        (void)shmop;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
     }
 
     if (strcmp(name, "popen") == 0) {
