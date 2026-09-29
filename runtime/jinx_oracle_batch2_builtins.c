@@ -959,14 +959,22 @@ static int b2_unserialize_zend_value(
         for (size_t i = 0u; i < count; i++) {
             JinxZendValue key = jinx_zend_null();
             JinxZendValue value = jinx_zend_null();
+            int key_status;
+            int value_status;
             int added = 0;
 
-            if (!b2_unserialize_zend_value(parser, &key, depth + 1u) ||
-                !b2_unserialize_zend_value(parser, &value, depth + 1u)) {
+            key_status = b2_unserialize_zend_value(parser, &key, depth + 1u);
+            if (key_status <= 0) {
+                jinx_zend_value_release(key);
+                jinx_zend_array_release(array);
+                return key_status;
+            }
+            value_status = b2_unserialize_zend_value(parser, &value, depth + 1u);
+            if (value_status <= 0) {
                 jinx_zend_value_release(key);
                 jinx_zend_value_release(value);
                 jinx_zend_array_release(array);
-                return 0;
+                return value_status;
             }
 
             if (key.type == JINX_ZEND_LONG) {
@@ -1000,6 +1008,10 @@ static int b2_unserialize_zend_value(
         return 1;
     }
 
+    if (type == 'O' || type == 'C' || type == 'R' ||
+        type == 'r' || type == 'E') {
+        return -1;
+    }
     return 0;
 }
 
@@ -1015,11 +1027,17 @@ static JinxValue b2_unserialize_to_jinx(JinxValue input, int *ok) {
     parser.len = jinx_oracle_string_len(input);
     parser.pos = 0u;
 
-    if (!b2_unserialize_zend_value(&parser, &decoded, 0u) ||
-        parser.pos != parser.len) {
-        jinx_zend_value_release(decoded);
-        if (ok != NULL) *ok = 1;
-        return jinx_oracle_bool_value(0);
+    {
+        int status = b2_unserialize_zend_value(&parser, &decoded, 0u);
+        if (status < 0) {
+            jinx_zend_value_release(decoded);
+            return jinx_oracle_zero_value();
+        }
+        if (status == 0 || parser.pos != parser.len) {
+            jinx_zend_value_release(decoded);
+            if (ok != NULL) *ok = 1;
+            return jinx_oracle_bool_value(0);
+        }
     }
 
     switch (decoded.type) {
