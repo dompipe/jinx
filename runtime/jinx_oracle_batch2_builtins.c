@@ -2515,6 +2515,7 @@ JinxValue jinx_oracle_batch2_builtin(
     if (strcmp(name, "function_exists") == 0 ||
         strcmp(name, "enum_exists") == 0 ||
         strcmp(name, "interface_exists") == 0 ||
+        strcmp(name, "trait_exists") == 0 ||
         strcmp(name, "extension_loaded") == 0) {
         char *query;
         int found;
@@ -2534,6 +2535,10 @@ JinxValue jinx_oracle_batch2_builtin(
         } else if (strcmp(name, "interface_exists") == 0) {
             found = b2_name_in_list(
                 query, jinx_native_interface_names, jinx_native_interface_names_count
+            );
+        } else if (strcmp(name, "trait_exists") == 0) {
+            found = b2_name_in_list(
+                query, jinx_native_trait_names, jinx_native_trait_names_count
             );
         } else {
             found = b2_extension(query) != NULL;
