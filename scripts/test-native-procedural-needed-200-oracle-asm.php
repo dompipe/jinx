@@ -641,6 +641,13 @@ if (function_exists('sys_getloadavg')) {
     );
 }
 
+if (function_exists('pcntl_strerror')) {
+    expect200($jinx, 'pcntl_strerror', ['i:2'], 'string:' . pcntl_strerror(2));
+}
+if (function_exists('socket_strerror')) {
+    expect200($jinx, 'socket_strerror', ['i:2'], 'string:' . socket_strerror(2));
+}
+
 if (function_exists('posix_getpid')) {
     foreach (['posix_getpid', 'posix_getppid'] as $name) {
         $actual = jinx200($jinx, $name, [], false, $code);
