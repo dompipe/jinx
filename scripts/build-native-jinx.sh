@@ -83,6 +83,16 @@ elif printf '%s\n' '#include <iconv.h>' 'int main(void){iconv_t c=iconv_open("UT
 fi
 rm -f "$ICONV_PROBE"
 
+SODIUM_DEFINE=""
+SODIUM_LIBS=""
+SODIUM_PROBE="${OUT_DIR}/jinx-libsodium-probe"
+if printf '%s\n' '#include <sodium.h>' 'int main(void){return sodium_init()<0;}' | \
+    "$CC_BIN" -x c - -lsodium -o "$SODIUM_PROBE" >/dev/null 2>&1; then
+    SODIUM_DEFINE="-DJINX_HAVE_SODIUM=1"
+    SODIUM_LIBS="-lsodium"
+fi
+rm -f "$SODIUM_PROBE"
+
 php "${ROOT_DIR}/scripts/audit-oracle-dispatch-duplicates.php" \
     "${ROOT_DIR}/build/oracle-asm/oracle_asm_index.json"
 
@@ -104,6 +114,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CURL_DEFINE} \
     ${EXIF_DEFINE} \
     ${ICONV_DEFINE} \
+    ${SODIUM_DEFINE} \
     -O2 \
     -Wall \
     -Wextra \
@@ -129,6 +140,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_http_meta_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_exif_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_pack_builtins.c" \
+    "${ROOT_DIR}/runtime/jinx_oracle_sodium_builtins.c" \
     "${ROOT_DIR}/runtime/jinx_builtin_dispatch.generated.c" \
     "${ROOT_DIR}/runtime/jinx_pasm_machine.c" \
     -lm \
@@ -140,6 +152,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CURL_LIBS} \
     ${EXIF_LIBS} \
     ${ICONV_LIBS} \
+    ${SODIUM_LIBS} \
     -o "$OUT"
 
 "$CC_BIN" \
@@ -252,6 +265,11 @@ echo "Native FTP backend compiled: runtime/jinx_oracle_curl_ftp_builtins.c"
 echo "Native HTTP/meta backend compiled: runtime/jinx_oracle_http_meta_builtins.c"
 echo "Native EXIF backend compiled: runtime/jinx_oracle_exif_builtins.c"
 echo "Native pack/unpack backend compiled: runtime/jinx_oracle_pack_builtins.c"
+if [ -n "$SODIUM_DEFINE" ]; then
+    echo "Native libsodium backend: enabled"
+else
+    echo "Native libsodium backend: unavailable; sodium family remains faulting"
+fi
 if [ -n "$CRYPTO_DEFINE" ]; then
     echo "Native OpenSSL hash backend: enabled"
 else
