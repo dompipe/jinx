@@ -939,7 +939,6 @@ static int b2_unserialize_zend_value(
             return 0;
         }
         *out = jinx_zend_string_value(string);
-        jinx_zend_string_release(string);
         return 1;
     }
 
