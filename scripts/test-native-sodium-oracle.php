@@ -915,6 +915,39 @@ sodiumExpectHex(
     (string)sodium_crypto_scalarmult($scalarA, $pointB)
 );
 
+$kxSeed = substr(
+    hash('sha256', 'jinx-kx-seed', true),
+    0,
+    SODIUM_CRYPTO_KX_SEEDBYTES
+);
+$kxPair = sodium_crypto_kx_seed_keypair($kxSeed);
+$kxSecret = sodium_crypto_kx_secretkey($kxPair);
+$kxPublic = sodium_crypto_kx_publickey($kxPair);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_kx_seed_keypair',
+    [sodiumTypedString($kxSeed)],
+    $kxPair
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_kx_secretkey',
+    [sodiumTypedString($kxPair)],
+    $kxSecret
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_kx_publickey',
+    [sodiumTypedString($kxPair)],
+    $kxPublic
+);
+sodiumExpectHexLength(
+    $jinx,
+    'sodium_crypto_kx_keypair',
+    [],
+    SODIUM_CRYPTO_KX_SECRETKEYBYTES + SODIUM_CRYPTO_KX_PUBLICKEYBYTES
+);
+
 $kdfKey = substr(hash('sha256', 'jinx-kdf-key', true), 0, SODIUM_CRYPTO_KDF_KEYBYTES);
 $context = 'JINXTEST';
 $derived = sodium_crypto_kdf_derive_from_key(32, 7, $context, $kdfKey);
