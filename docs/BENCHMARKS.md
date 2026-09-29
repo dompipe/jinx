@@ -78,6 +78,7 @@ Fast rerun after the native binary is already built:
 
 ```bash
 JINX_SKIP_BUILD=1 php scripts/benchmark-native-jinx-vs-php.php 1000
+php scripts/benchmark-php-vs-native-paired.php 200000 --mode=serial --only=abs,acos,acosh,asin,atan,atan2,ceil,cos,cosh,exp,expm1,fdiv,fmod,hypot,intdiv,log,log1p,pi,pow,round,sin,sinh,sqrt,tan,tanh
 ```
 
 The comparison script builds `./jinx` unless `JINX_SKIP_BUILD=1` is set, validates PHP-side direct builtin calls where possible, and then calls:
@@ -88,6 +89,46 @@ The comparison script builds `./jinx` unless `JINX_SKIP_BUILD=1` is set, validat
 ```
 
 It does **not** use `php scripts/jinx-web-tools.php` for the native JINX timing path.
+
+## Compact Callable-ID Hot Path
+
+Native callable names are resolved once into a compact `JinxBuiltinId`.
+
+Encoding contract:
+
+- IDs `0..127` use one byte.
+- IDs `128..32767` use two bytes.
+- the generated table currently contains 3527 callable wrappers, so every
+  current callable fits in at most two bytes.
+
+Inspect an assignment directly:
+
+```bash
+./jinx builtin-id sqrt
+./jinx builtin-id uniqid
+```
+
+`sqrt` is covered by the one-byte hot set; a non-hot callable such as
+`uniqid` uses the two-byte form. The CLI verifies encode/decode round-trip
+before printing an ID.
+
+`./jinx bench-call` resolves the function name before timing and executes the
+timed loop through `jinx_call_builtin_id_checked()`. The direct hot math/scalar
+set bypasses the second runtime string-dispatch chain as well, so the timed
+loop is compact-ID -> native handler.
+
+CI snapshot after direct hot-ID execution, 200000 iterations per side over 25
+scalar/math functions:
+
+```text
+mode       PHP mean ns/op   JINX mean ns/op   JINX/PHP
+parallel            48.7              22.7       0.47x
+serial              45.1              20.9       0.46x
+```
+
+Before the inner name-dispatch bypass, the same serial native set averaged
+about 1133.5 ns/op. The direct compact-ID hot path reduced that to 20.9 ns/op
+on the CI runner.
 
 ## Implemented-Function PHP vs Native Benchmark
 
@@ -347,6 +388,7 @@ Native timing path:
 ./jinx oracle-smoke
 ./jinx functions-smoke
 ./jinx bench-oracle 1000000
+./jinx builtin-id sqrt
 ./jinx bench-call abs 1000000 i:-42
 ./jinx bench-method-call 'DateTime::format' 100000 'dt:2024-01-02 03:04:05' 's:Y-m-d'
 ./jinx bench-first100 100000
