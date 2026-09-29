@@ -1,3 +1,7 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "jinx_oracle_batch2_builtins.h"
 #include "jinx_oracle_extended_builtins.h"
 #include "jinx_oracle_hash_builtins.h"
