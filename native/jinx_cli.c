@@ -608,6 +608,7 @@ static JinxValue parse_cli_value(const char *text, void **owned) {
         strcmp(text, "pp:tmp") == 0 ||
         strcmp(text, "gz:tmp") == 0 ||
         strncmp(text, "deflate:", 8) == 0 ||
+        strncmp(text, "inflate:", 8) == 0 ||
         strncmp(text, "hash:", 5) == 0 ||
         strcmp(text, "finfo:default") == 0 ||
         strcmp(text, "dir:tmp") == 0) {
