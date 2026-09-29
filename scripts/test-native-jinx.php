@@ -36,6 +36,15 @@ if ($code !== 0 || trim($out) !== 'native-root-jinx') {
     fail("repository-root ./jinx did not identify as the compiled native benchmark executable:\n{$out}");
 }
 
+$out = run($jinxCommand . ' oracle-gc-smoke', $code);
+if ($code !== 0 ||
+    !str_contains(
+        $out,
+        'PASS: native GC enable/disable/collect/cache state transitions match Jinx runtime semantics'
+    )) {
+    fail("native GC state smoke failed:\n{$out}");
+}
+
 $out = run($jinxCommand . ' builtin-id sqrt', $code);
 if ($code !== 0 ||
     !str_contains($out, 'Function: sqrt') ||
