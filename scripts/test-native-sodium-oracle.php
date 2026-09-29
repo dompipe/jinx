@@ -338,6 +338,86 @@ sodiumExpectHexLength(
     SODIUM_CRYPTO_GENERICHASH_KEYBYTES
 );
 
+$streamMessageA = "stream-A\0jinx";
+$streamMessageB = "stream-B\xff";
+$phpStreamState = sodium_crypto_generichash_init($genericKey, 32);
+$phpInitialStateLength = strlen($phpStreamState);
+sodium_crypto_generichash_update($phpStreamState, $streamMessageA);
+sodium_crypto_generichash_update($phpStreamState, $streamMessageB);
+$phpStreamDigest = sodium_crypto_generichash_final($phpStreamState, 32);
+
+$jinxStateText = sodiumJinx(
+    $jinx,
+    'sodium_crypto_generichash_init',
+    [sodiumTypedString($genericKey), 'i:32'],
+    true,
+    $code
+);
+if ($code !== 0 ||
+    !preg_match('/^hex:([0-9a-f]+)$/', $jinxStateText, $stateMatch) ||
+    strlen($stateMatch[1]) !== $phpInitialStateLength * 2) {
+    sodiumFail(
+        "sodium_crypto_generichash_init state contract mismatch\n" .
+        "PHP state bytes: {$phpInitialStateLength}\nJINX: {$jinxStateText}"
+    );
+}
+$jinxStateHex = $stateMatch[1];
+
+$updateA = sodiumJinxRefsHex(
+    $jinx,
+    'sodium_crypto_generichash_update',
+    ['h:' . $jinxStateHex, sodiumTypedString($streamMessageA)],
+    $code
+);
+if ($code !== 0 ||
+    !preg_match(
+        '/^return=bool:true\narg0=hex:([0-9a-f]+)\narg1=hex:[0-9a-f]*$/',
+        $updateA,
+        $updateMatch
+    )) {
+    sodiumFail(
+        "sodium_crypto_generichash_update first state mutation mismatch\nJINX:\n{$updateA}"
+    );
+}
+$jinxStateHex = $updateMatch[1];
+
+$updateB = sodiumJinxRefsHex(
+    $jinx,
+    'sodium_crypto_generichash_update',
+    ['h:' . $jinxStateHex, sodiumTypedString($streamMessageB)],
+    $code
+);
+if ($code !== 0 ||
+    !preg_match(
+        '/^return=bool:true\narg0=hex:([0-9a-f]+)\narg1=hex:[0-9a-f]*$/',
+        $updateB,
+        $updateMatch
+    )) {
+    sodiumFail(
+        "sodium_crypto_generichash_update second state mutation mismatch\nJINX:\n{$updateB}"
+    );
+}
+$jinxStateHex = $updateMatch[1];
+
+$finalText = sodiumJinxRefsHex(
+    $jinx,
+    'sodium_crypto_generichash_final',
+    ['h:' . $jinxStateHex, 'i:32'],
+    $code
+);
+if ($code !== 0 ||
+    !preg_match(
+        '/^return=hex:([0-9a-f]+)\narg0=hex:[0-9a-f]+\narg1=int:32$/',
+        $finalText,
+        $finalMatch
+    ) ||
+    $finalMatch[1] !== bin2hex($phpStreamDigest)) {
+    sodiumFail(
+        "sodium_crypto_generichash_final digest parity mismatch\n" .
+        "PHP/expected: " . bin2hex($phpStreamDigest) . "\nJINX:\n{$finalText}"
+    );
+}
+
 $aad = "jinx\0aad";
 
 $chachaKey = substr(
