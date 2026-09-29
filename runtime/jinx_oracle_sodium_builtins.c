@@ -71,6 +71,24 @@ static JinxValue jinx_sodium_keypair_value(
     return result;
 }
 
+static int jinx_sodium_box_keypair_parts(
+    JinxValue value,
+    const unsigned char **secret,
+    const unsigned char **public_key
+) {
+    const unsigned char *bytes;
+    size_t len;
+    size_t expected = crypto_box_SECRETKEYBYTES + crypto_box_PUBLICKEYBYTES;
+
+    if (secret != NULL) *secret = NULL;
+    if (public_key != NULL) *public_key = NULL;
+    if (!jinx_sodium_string(value, &bytes, &len) || len != expected) return 0;
+
+    if (secret != NULL) *secret = bytes;
+    if (public_key != NULL) *public_key = bytes + crypto_box_SECRETKEYBYTES;
+    return 1;
+}
+
 JinxValue jinx_oracle_sodium_builtin(
     const char *name,
     JinxValue *args,
@@ -390,6 +408,175 @@ JinxValue jinx_oracle_sodium_builtin(
         return value;
     }
 
+    if (strcmp(name, "sodium_crypto_stream_keygen") == 0) {
+        unsigned char key[crypto_stream_KEYBYTES];
+        if (argc != 0u) return result;
+        randombytes_buf(key, sizeof(key));
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_stream") == 0) {
+        int64_t requested;
+        const unsigned char *nonce;
+        const unsigned char *key;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 3u) return result;
+        requested = jinx_oracle_intish(args[0]);
+        if (requested < 0 || (uint64_t)requested > UINT32_MAX ||
+            !jinx_sodium_exact_string(args[1], crypto_stream_NONCEBYTES, &nonce) ||
+            !jinx_sodium_exact_string(args[2], crypto_stream_KEYBYTES, &key)) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result((size_t)requested, &out);
+        if (value.type != 3u ||
+            crypto_stream(
+                out,
+                (unsigned long long)requested,
+                nonce,
+                key
+            ) != 0) return result;
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_stream_xor") == 0) {
+        const unsigned char *message;
+        const unsigned char *nonce;
+        const unsigned char *key;
+        size_t message_len;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 3u ||
+            !jinx_sodium_string(args[0], &message, &message_len) ||
+            !jinx_sodium_exact_string(args[1], crypto_stream_NONCEBYTES, &nonce) ||
+            !jinx_sodium_exact_string(args[2], crypto_stream_KEYBYTES, &key)) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result(message_len, &out);
+        if (value.type != 3u ||
+            crypto_stream_xor(
+                out,
+                message,
+                (unsigned long long)message_len,
+                nonce,
+                key
+            ) != 0) return result;
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+#ifdef crypto_stream_xchacha20_KEYBYTES
+    if (strcmp(name, "sodium_crypto_stream_xchacha20_keygen") == 0) {
+        unsigned char key[crypto_stream_xchacha20_KEYBYTES];
+        if (argc != 0u) return result;
+        randombytes_buf(key, sizeof(key));
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_stream_xchacha20") == 0) {
+        int64_t requested;
+        const unsigned char *nonce;
+        const unsigned char *key;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 3u) return result;
+        requested = jinx_oracle_intish(args[0]);
+        if (requested < 0 || (uint64_t)requested > UINT32_MAX ||
+            !jinx_sodium_exact_string(
+                args[1], crypto_stream_xchacha20_NONCEBYTES, &nonce
+            ) ||
+            !jinx_sodium_exact_string(
+                args[2], crypto_stream_xchacha20_KEYBYTES, &key
+            )) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result((size_t)requested, &out);
+        if (value.type != 3u ||
+            crypto_stream_xchacha20(
+                out,
+                (unsigned long long)requested,
+                nonce,
+                key
+            ) != 0) return result;
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_stream_xchacha20_xor") == 0 ||
+        strcmp(name, "sodium_crypto_stream_xchacha20_xor_ic") == 0) {
+        const unsigned char *message;
+        const unsigned char *nonce;
+        const unsigned char *key;
+        size_t message_len;
+        uint64_t counter = 0u;
+        unsigned char *out;
+        JinxValue value;
+        int with_counter =
+            strcmp(name, "sodium_crypto_stream_xchacha20_xor_ic") == 0;
+
+        if (args == NULL ||
+            argc != (with_counter ? 4u : 3u) ||
+            !jinx_sodium_string(args[0], &message, &message_len) ||
+            !jinx_sodium_exact_string(
+                args[1], crypto_stream_xchacha20_NONCEBYTES, &nonce
+            )) {
+            return result;
+        }
+
+        if (with_counter) {
+            int64_t counter_i = jinx_oracle_intish(args[2]);
+            if (counter_i < 0 ||
+                !jinx_sodium_exact_string(
+                    args[3], crypto_stream_xchacha20_KEYBYTES, &key
+                )) {
+                return result;
+            }
+            counter = (uint64_t)counter_i;
+        } else if (!jinx_sodium_exact_string(
+                args[2], crypto_stream_xchacha20_KEYBYTES, &key
+            )) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result(message_len, &out);
+        if (value.type != 3u) return result;
+
+        if (with_counter) {
+            if (crypto_stream_xchacha20_xor_ic(
+                    out,
+                    message,
+                    (unsigned long long)message_len,
+                    nonce,
+                    counter,
+                    key
+                ) != 0) return result;
+        } else if (crypto_stream_xchacha20_xor(
+                out,
+                message,
+                (unsigned long long)message_len,
+                nonce,
+                key
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+#endif
+
     if (strcmp(name, "sodium_crypto_secretbox_keygen") == 0) {
         unsigned char key[crypto_secretbox_KEYBYTES];
         if (argc != 0u) return result;
@@ -484,6 +671,215 @@ JinxValue jinx_oracle_sodium_builtin(
 
         if (handled != NULL) *handled = 1;
         return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_box_keypair") == 0) {
+        unsigned char pk[crypto_box_PUBLICKEYBYTES];
+        unsigned char sk[crypto_box_SECRETKEYBYTES];
+        if (argc != 0u || crypto_box_keypair(pk, sk) != 0) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_keypair_value(sk, sizeof(sk), pk, sizeof(pk));
+    }
+
+    if (strcmp(name, "sodium_crypto_box_seed_keypair") == 0) {
+        const unsigned char *seed;
+        unsigned char pk[crypto_box_PUBLICKEYBYTES];
+        unsigned char sk[crypto_box_SECRETKEYBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(args[0], crypto_box_SEEDBYTES, &seed) ||
+            crypto_box_seed_keypair(pk, sk, seed) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_keypair_value(sk, sizeof(sk), pk, sizeof(pk));
+    }
+
+    if (strcmp(name, "sodium_crypto_box_keypair_from_secretkey_and_publickey") == 0) {
+        const unsigned char *sk;
+        const unsigned char *pk;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_exact_string(args[0], crypto_box_SECRETKEYBYTES, &sk) ||
+            !jinx_sodium_exact_string(args[1], crypto_box_PUBLICKEYBYTES, &pk)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_keypair_value(
+            sk, crypto_box_SECRETKEYBYTES,
+            pk, crypto_box_PUBLICKEYBYTES
+        );
+    }
+
+    if (strcmp(name, "sodium_crypto_box_secretkey") == 0 ||
+        strcmp(name, "sodium_crypto_box_publickey") == 0) {
+        const unsigned char *sk;
+        const unsigned char *pk;
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_box_keypair_parts(args[0], &sk, &pk)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return strcmp(name, "sodium_crypto_box_secretkey") == 0
+            ? jinx_sodium_copy(sk, crypto_box_SECRETKEYBYTES)
+            : jinx_sodium_copy(pk, crypto_box_PUBLICKEYBYTES);
+    }
+
+    if (strcmp(name, "sodium_crypto_box_publickey_from_secretkey") == 0) {
+        const unsigned char *sk;
+        unsigned char pk[crypto_box_PUBLICKEYBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(args[0], crypto_box_SECRETKEYBYTES, &sk) ||
+            crypto_scalarmult_base(pk, sk) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(pk, sizeof(pk));
+    }
+
+    if (strcmp(name, "sodium_crypto_box") == 0) {
+        const unsigned char *message;
+        const unsigned char *nonce;
+        const unsigned char *sk;
+        const unsigned char *pk;
+        size_t message_len;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 3u ||
+            !jinx_sodium_string(args[0], &message, &message_len) ||
+            !jinx_sodium_exact_string(args[1], crypto_box_NONCEBYTES, &nonce) ||
+            !jinx_sodium_box_keypair_parts(args[2], &sk, &pk) ||
+            message_len > UINT32_MAX - crypto_box_MACBYTES) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result(
+            message_len + crypto_box_MACBYTES, &out
+        );
+        if (value.type != 3u ||
+            crypto_box_easy(
+                out,
+                message,
+                (unsigned long long)message_len,
+                nonce,
+                pk,
+                sk
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_box_open") == 0) {
+        const unsigned char *ciphertext;
+        const unsigned char *nonce;
+        const unsigned char *sk;
+        const unsigned char *pk;
+        size_t ciphertext_len;
+        size_t message_len;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 3u ||
+            !jinx_sodium_string(args[0], &ciphertext, &ciphertext_len) ||
+            ciphertext_len < crypto_box_MACBYTES ||
+            !jinx_sodium_exact_string(args[1], crypto_box_NONCEBYTES, &nonce) ||
+            !jinx_sodium_box_keypair_parts(args[2], &sk, &pk)) {
+            return result;
+        }
+
+        message_len = ciphertext_len - crypto_box_MACBYTES;
+        value = jinx_sodium_alloc_result(message_len, &out);
+        if (value.type != 3u) return result;
+
+        if (crypto_box_open_easy(
+                out,
+                ciphertext,
+                (unsigned long long)ciphertext_len,
+                nonce,
+                pk,
+                sk
+            ) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_box_seal") == 0) {
+        const unsigned char *message;
+        const unsigned char *pk;
+        size_t message_len;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_string(args[0], &message, &message_len) ||
+            !jinx_sodium_exact_string(args[1], crypto_box_PUBLICKEYBYTES, &pk) ||
+            message_len > UINT32_MAX - crypto_box_SEALBYTES) {
+            return result;
+        }
+
+        value = jinx_sodium_alloc_result(
+            message_len + crypto_box_SEALBYTES, &out
+        );
+        if (value.type != 3u ||
+            crypto_box_seal(
+                out,
+                message,
+                (unsigned long long)message_len,
+                pk
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
+    }
+
+    if (strcmp(name, "sodium_crypto_box_seal_open") == 0) {
+        const unsigned char *ciphertext;
+        const unsigned char *sk;
+        const unsigned char *pk;
+        size_t ciphertext_len;
+        size_t message_len;
+        unsigned char *out;
+        JinxValue value;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_string(args[0], &ciphertext, &ciphertext_len) ||
+            ciphertext_len < crypto_box_SEALBYTES ||
+            !jinx_sodium_box_keypair_parts(args[1], &sk, &pk)) {
+            return result;
+        }
+
+        message_len = ciphertext_len - crypto_box_SEALBYTES;
+        value = jinx_sodium_alloc_result(message_len, &out);
+        if (value.type != 3u) return result;
+
+        if (crypto_box_seal_open(
+                out,
+                ciphertext,
+                (unsigned long long)ciphertext_len,
+                pk,
+                sk
+            ) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return value;
     }
 
     if (strcmp(name, "sodium_crypto_sign_keypair") == 0) {
