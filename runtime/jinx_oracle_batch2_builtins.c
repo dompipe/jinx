@@ -2264,15 +2264,24 @@ JinxValue jinx_oracle_batch2_builtin(
         if (args == NULL || argc < 2u ||
             args[0].type != 3u || args[1].type != 3u) return result;
 
-        if (argc >= 4u && args[3].type != 0u) {
-            if (args[3].type != 3u) return result;
-            encoding = b2_dup(args[3]);
+        if (strcmp(name, "iconv_strpos") == 0) {
+            if (argc >= 4u && args[3].type != 0u) {
+                if (args[3].type != 3u) return result;
+                encoding = b2_dup(args[3]);
+            } else {
+                encoding = strdup("UTF-8");
+            }
+            if (argc >= 3u) offset = jinx_oracle_intish(args[2]);
         } else {
-            encoding = strdup("UTF-8");
+            if (argc >= 3u && args[2].type != 0u) {
+                if (args[2].type != 3u) return result;
+                encoding = b2_dup(args[2]);
+            } else {
+                encoding = strdup("UTF-8");
+            }
+            offset = 0;
         }
         if (encoding == NULL) return result;
-
-        if (argc >= 3u) offset = jinx_oracle_intish(args[2]);
 
         if (!b2_iconv_utf32(args[0], encoding, &haystack, &haystack_len) ||
             !b2_iconv_utf32(args[1], encoding, &needle, &needle_len) ||
