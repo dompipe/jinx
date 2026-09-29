@@ -4,6 +4,14 @@
 #include "jinx_oracle_asm_context.h"
 #include <stddef.h>
 
+JinxValue jinx_oracle_sodium_builtin_with_context(
+    JinxOracleAsmContext *ctx,
+    const char *name,
+    JinxValue *args,
+    size_t argc,
+    int *handled
+);
+
 JinxValue jinx_oracle_sodium_builtin(
     const char *name,
     JinxValue *args,
