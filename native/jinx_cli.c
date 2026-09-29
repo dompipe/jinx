@@ -42,6 +42,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-scanf-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-pcntl-error-smoke\n", argv0);
+    printf("  %s oracle-pcntl-alarm-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -1961,6 +1962,42 @@ static int command_oracle_posix_error_smoke(void) {
 }
 
 
+static int command_oracle_pcntl_alarm_smoke(void) {
+    JinxValue args[1];
+    JinxValue set_result;
+    JinxValue cancel_result;
+    int ok = 0;
+
+    args[0] = jinx_value_int(3);
+    set_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_alarm", args, 1u, &ok
+    );
+    if (!ok || set_result.type != 1u || set_result.as.i64 != 0) {
+        release_cli_value(set_result);
+        return fail("pcntl_alarm initial schedule did not return 0");
+    }
+
+    args[0] = jinx_value_int(0);
+    ok = 0;
+    cancel_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_alarm", args, 1u, &ok
+    );
+    if (!ok || cancel_result.type != 1u ||
+        cancel_result.as.i64 < 1 || cancel_result.as.i64 > 3) {
+        release_cli_value(set_result);
+        release_cli_value(cancel_result);
+        return fail("pcntl_alarm cancel did not report remaining scheduled time");
+    }
+
+    printf(
+        "set=int:0\ncancel=int:%lld\n",
+        (long long)cancel_result.as.i64
+    );
+    release_cli_value(set_result);
+    release_cli_value(cancel_result);
+    return 0;
+}
+
 static int command_oracle_pcntl_error_smoke(void) {
     JinxValue args[2];
     JinxValue priority_result;
@@ -3291,6 +3328,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-error-smoke") == 0) {
         return command_oracle_pcntl_error_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pcntl-alarm-smoke") == 0) {
+        return command_oracle_pcntl_alarm_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
