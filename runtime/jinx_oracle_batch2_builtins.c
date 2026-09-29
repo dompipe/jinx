@@ -86,6 +86,7 @@ static char *jinx_oracle_batch2_assert_callback = NULL;
 static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
 static int jinx_oracle_batch2_pcntl_last_error = 0;
+static int jinx_oracle_batch2_pcntl_async_signals = 0;
 static char *jinx_oracle_batch2_syslog_ident = NULL;
 static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
 static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
@@ -3781,6 +3782,17 @@ JinxValue jinx_oracle_batch2_builtin(
          */
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(0);
+    }
+
+    if (strcmp(name, "pcntl_async_signals") == 0) {
+        int previous = jinx_oracle_batch2_pcntl_async_signals;
+        if (argc > 1u) return result;
+        if (argc == 1u && args[0].type != 0u) {
+            jinx_oracle_batch2_pcntl_async_signals =
+                jinx_oracle_boolish(args[0]) ? 1 : 0;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(previous);
     }
 
     if (strcmp(name, "pcntl_alarm") == 0) {
