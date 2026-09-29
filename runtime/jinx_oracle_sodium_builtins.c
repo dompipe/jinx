@@ -92,6 +92,40 @@ static JinxValue jinx_sodium_binary_pair_value(
     return jinx_oracle_zend_array_value_owned(array);
 }
 
+static JinxValue jinx_sodium_message_tag_value(
+    const unsigned char *message,
+    size_t message_len,
+    unsigned char tag
+) {
+    JinxZendArray *array;
+    JinxZendString *message_string;
+    int ok;
+
+    array = jinx_zend_array_new_packed(2u);
+    if (array == NULL) return jinx_oracle_zero_value();
+
+    message_string = jinx_zend_string_new(
+        (const char *)(message != NULL ? message : (const unsigned char *)""),
+        message_len
+    );
+    if (message_string == NULL) {
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+
+    ok = jinx_zend_array_append(
+            array, jinx_zend_string_value(message_string)
+        ) &&
+        jinx_zend_array_append(array, jinx_zend_long((int64_t)tag));
+    jinx_zend_string_release(message_string);
+
+    if (!ok) {
+        jinx_zend_array_release(array);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_array_value_owned(array);
+}
+
 static JinxValue jinx_sodium_keypair_value(
     const unsigned char *secret,
     size_t secret_len,
@@ -289,6 +323,161 @@ JinxValue jinx_oracle_sodium_builtin_with_context(
     if (handled != NULL) *handled = 0;
     if (ctx == NULL || name == NULL || !jinx_sodium_ready()) return result;
 
+    if (strcmp(name, "sodium_crypto_secretstream_xchacha20poly1305_push") == 0) {
+        const unsigned char *state_bytes;
+        const unsigned char *message;
+        const unsigned char *aad = (const unsigned char *)"";
+        size_t state_len;
+        size_t message_len;
+        size_t aad_len = 0u;
+        int64_t tag_value = crypto_secretstream_xchacha20poly1305_TAG_MESSAGE;
+        crypto_secretstream_xchacha20poly1305_state state;
+        unsigned long long ciphertext_len = 0u;
+        unsigned char *ciphertext;
+        JinxValue ciphertext_value;
+        JinxValue updated_state;
+
+        if (args == NULL || argc < 2u || argc > 4u ||
+            !jinx_sodium_string(args[0], &state_bytes, &state_len) ||
+            state_len != sizeof(state) ||
+            !jinx_sodium_string(args[1], &message, &message_len)) {
+            return result;
+        }
+        if (argc >= 3u &&
+            !jinx_sodium_string(args[2], &aad, &aad_len)) {
+            return result;
+        }
+        if (argc >= 4u) tag_value = jinx_oracle_intish(args[3]);
+        if (tag_value < 0 || tag_value > UCHAR_MAX ||
+            message_len > UINT32_MAX - crypto_secretstream_xchacha20poly1305_ABYTES) {
+            return result;
+        }
+
+        memcpy(&state, state_bytes, sizeof(state));
+        ciphertext_value = jinx_sodium_alloc_result(
+            message_len + crypto_secretstream_xchacha20poly1305_ABYTES,
+            &ciphertext
+        );
+        if (ciphertext_value.type != 3u ||
+            crypto_secretstream_xchacha20poly1305_push(
+                &state,
+                ciphertext,
+                &ciphertext_len,
+                message,
+                (unsigned long long)message_len,
+                aad_len == 0u ? NULL : aad,
+                (unsigned long long)aad_len,
+                (unsigned char)tag_value
+            ) != 0 ||
+            ciphertext_len > UINT32_MAX) {
+            return result;
+        }
+        ciphertext_value.flags = (uint32_t)ciphertext_len;
+
+        updated_state = jinx_sodium_copy(
+            (const unsigned char *)&state, sizeof(state)
+        );
+        if (updated_state.type != 3u ||
+            !jinx_oracle_write_ref_arg(ctx, 0u, updated_state)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return ciphertext_value;
+    }
+
+    if (strcmp(name, "sodium_crypto_secretstream_xchacha20poly1305_pull") == 0) {
+        const unsigned char *state_bytes;
+        const unsigned char *ciphertext;
+        const unsigned char *aad = (const unsigned char *)"";
+        size_t state_len;
+        size_t ciphertext_len;
+        size_t aad_len = 0u;
+        crypto_secretstream_xchacha20poly1305_state state;
+        unsigned char *message = NULL;
+        unsigned long long message_len = 0u;
+        unsigned char tag = 0u;
+        JinxValue updated_state;
+        JinxValue pair;
+
+        if (args == NULL || argc < 2u || argc > 3u ||
+            !jinx_sodium_string(args[0], &state_bytes, &state_len) ||
+            state_len != sizeof(state) ||
+            !jinx_sodium_string(args[1], &ciphertext, &ciphertext_len) ||
+            ciphertext_len < crypto_secretstream_xchacha20poly1305_ABYTES) {
+            return result;
+        }
+        if (argc == 3u &&
+            !jinx_sodium_string(args[2], &aad, &aad_len)) {
+            return result;
+        }
+
+        message = (unsigned char *)malloc(
+            ciphertext_len - crypto_secretstream_xchacha20poly1305_ABYTES + 1u
+        );
+        if (message == NULL) return result;
+
+        memcpy(&state, state_bytes, sizeof(state));
+        if (crypto_secretstream_xchacha20poly1305_pull(
+                &state,
+                message,
+                &message_len,
+                &tag,
+                ciphertext,
+                (unsigned long long)ciphertext_len,
+                aad_len == 0u ? NULL : aad,
+                (unsigned long long)aad_len
+            ) != 0) {
+            free(message);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        updated_state = jinx_sodium_copy(
+            (const unsigned char *)&state, sizeof(state)
+        );
+        if (updated_state.type != 3u ||
+            !jinx_oracle_write_ref_arg(ctx, 0u, updated_state)) {
+            free(message);
+            return result;
+        }
+
+        pair = jinx_sodium_message_tag_value(
+            message, (size_t)message_len, tag
+        );
+        free(message);
+        if (pair.type == 0u) return result;
+
+        if (handled != NULL) *handled = 1;
+        return pair;
+    }
+
+    if (strcmp(name, "sodium_crypto_secretstream_xchacha20poly1305_rekey") == 0) {
+        const unsigned char *state_bytes;
+        size_t state_len;
+        crypto_secretstream_xchacha20poly1305_state state;
+        JinxValue updated_state;
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_string(args[0], &state_bytes, &state_len) ||
+            state_len != sizeof(state)) {
+            return result;
+        }
+
+        memcpy(&state, state_bytes, sizeof(state));
+        crypto_secretstream_xchacha20poly1305_rekey(&state);
+        updated_state = jinx_sodium_copy(
+            (const unsigned char *)&state, sizeof(state)
+        );
+        if (updated_state.type != 3u ||
+            !jinx_oracle_write_ref_arg(ctx, 0u, updated_state)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zero_value();
+    }
+
     if (strcmp(name, "sodium_crypto_generichash_init") == 0) {
         const unsigned char *key = NULL;
         size_t key_len = 0u;
@@ -442,6 +631,73 @@ JinxValue jinx_oracle_sodium_builtin(
 
     if (handled != NULL) *handled = 0;
     if (name == NULL || !jinx_sodium_ready()) return result;
+
+    if (strcmp(name, "sodium_crypto_secretstream_xchacha20poly1305_keygen") == 0) {
+        unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
+        if (argc != 0u) return result;
+        crypto_secretstream_xchacha20poly1305_keygen(key);
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(key, sizeof(key));
+    }
+
+    if (strcmp(name, "sodium_crypto_secretstream_xchacha20poly1305_init_push") == 0) {
+        const unsigned char *key;
+        crypto_secretstream_xchacha20poly1305_state state;
+        unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0],
+                crypto_secretstream_xchacha20poly1305_KEYBYTES,
+                &key
+            )) {
+            return result;
+        }
+        if (crypto_secretstream_xchacha20poly1305_init_push(
+                &state, header, key
+            ) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_binary_pair_value(
+            (const unsigned char *)&state,
+            sizeof(state),
+            header,
+            sizeof(header)
+        );
+    }
+
+    if (strcmp(name, "sodium_crypto_secretstream_xchacha20poly1305_init_pull") == 0) {
+        const unsigned char *header;
+        const unsigned char *key;
+        crypto_secretstream_xchacha20poly1305_state state;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_exact_string(
+                args[0],
+                crypto_secretstream_xchacha20poly1305_HEADERBYTES,
+                &header
+            ) ||
+            !jinx_sodium_exact_string(
+                args[1],
+                crypto_secretstream_xchacha20poly1305_KEYBYTES,
+                &key
+            )) {
+            return result;
+        }
+        if (crypto_secretstream_xchacha20poly1305_init_pull(
+                &state, header, key
+            ) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(
+            (const unsigned char *)&state, sizeof(state)
+        );
+    }
 
     if (strcmp(name, "sodium_bin2hex") == 0) {
         const unsigned char *input;
