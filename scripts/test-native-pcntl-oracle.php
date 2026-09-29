@@ -42,6 +42,7 @@ foreach ([
     'pcntl_get_last_error',
     'pcntl_errno',
     'pcntl_strerror',
+    'pcntl_alarm',
 ] as $name) {
     if (!function_exists($name)) {
         pcntlFail("PHP {$name} is required for native parity");
@@ -80,6 +81,26 @@ $jinxSet = pcntlJinx(
 if ($code !== 0 || $jinxSet !== 'bool:true') {
     pcntlFail(
         "pcntl_setpriority no-op parity mismatch\nJINX: {$jinxSet}"
+    );
+}
+
+$phpAlarmSet = pcntl_alarm(3);
+$phpAlarmCancel = pcntl_alarm(0);
+if ($phpAlarmSet !== 0 || $phpAlarmCancel < 1 || $phpAlarmCancel > 3) {
+    pcntlFail(
+        "PHP pcntl_alarm fixture failed\n" .
+        "set={$phpAlarmSet} cancel={$phpAlarmCancel}"
+    );
+}
+
+$jinxAlarm = pcntlRun(
+    escapeshellarg($jinx) . ' oracle-pcntl-alarm-smoke',
+    $code
+);
+if ($code !== 0 ||
+    !preg_match('/^set=int:0\ncancel=int:([1-3])$/', $jinxAlarm, $alarmMatch)) {
+    pcntlFail(
+        "pcntl_alarm scheduling contract mismatch\nJINX:\n{$jinxAlarm}"
     );
 }
 
@@ -132,4 +153,4 @@ if ($code !== 0 || $jinxErrorText !== 'string:' . $phpErrorText) {
     );
 }
 
-echo "PASS: native PCNTL priority, CPU, and error helpers match PHP\n";
+echo "PASS: native PCNTL alarm, priority, CPU, and error helpers match PHP\n";
