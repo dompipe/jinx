@@ -53,6 +53,23 @@ function oraclePregSplit(string $jinx, string $pattern, string $subject, ?int &$
     );
 }
 
+function oraclePregReplace(
+    string $jinx,
+    string $pattern,
+    string $replacement,
+    string $subject,
+    ?int &$code = null
+): string {
+    return runPreg(
+        escapeshellarg($jinx)
+        . ' oracle-call preg_replace '
+        . escapeshellarg('s:' . $pattern)
+        . ' ' . escapeshellarg('s:' . $replacement)
+        . ' ' . escapeshellarg('s:' . $subject),
+        $code
+    );
+}
+
 if (!is_file($jinx) || !is_executable($jinx)) {
     failPreg('repository-root native ./jinx missing');
 }
@@ -135,4 +152,26 @@ if ($invalidSplitCode !== 0 || trim($invalidSplit) !== 'bool:false') {
     failPreg("preg_split invalid-pattern contract mismatch\nJINX: {$invalidSplit}");
 }
 
-echo "PASS: native PCRE2 preg_match, preg_match_all, and preg_split core forms match PHP" . PHP_EOL;
+$replaceCases = [
+    ['/cat/', 'dog', 'cat cat'],
+    ['/jinx/i', 'native', 'JINX + jinx'],
+    ['/([0-9]+)/', '[$1]', 'a12b34'],
+];
+
+foreach ($replaceCases as [$pattern, $replacement, $subject]) {
+    $php = @preg_replace($pattern, $replacement, $subject);
+    if (!is_string($php)) {
+        failPreg("PHP preg_replace fixture unexpectedly failed: {$pattern}");
+    }
+    $actual = oraclePregReplace($jinx, $pattern, $replacement, $subject, $code);
+    $expected = 'string:' . $php;
+    if ($code !== 0 || trim($actual) !== $expected) {
+        failPreg(
+            "preg_replace parity mismatch\n"
+            . "pattern={$pattern}\nreplacement={$replacement}\nsubject={$subject}\n"
+            . "PHP/expected: {$expected}\nJINX: {$actual}"
+        );
+    }
+}
+
+echo "PASS: native PCRE2 preg_match, preg_match_all, preg_split, and preg_replace core forms match PHP" . PHP_EOL;
