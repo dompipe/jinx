@@ -4,10 +4,10 @@
     "registered": 3527,
     "builtin": 1196,
     "method": 2331,
-    "native_named_route": 763,
-    "extended_native_route": 465,
+    "native_named_route": 764,
+    "extended_native_route": 466,
     "context_native_route": 3,
-    "intentional_native_fault": 2764
+    "intentional_native_fault": 2763
   },
   "routes": {
     "_": "extended",
@@ -1546,7 +1546,7 @@
     "pdostatement::rowcount": "intentional-native-fault",
     "pdostatement::setattribute": "intentional-native-fault",
     "pdostatement::setfetchmode": "intentional-native-fault",
-    "pfsockopen": "intentional-native-fault",
+    "pfsockopen": "extended",
     "phar::__construct": "intentional-native-fault",
     "phar::__debuginfo": "intentional-native-fault",
     "phar::__destruct": "intentional-native-fault",
