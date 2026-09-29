@@ -6402,35 +6402,60 @@ csv_fail:
         return jinx_oracle_zend_array_value_owned(out);
     }
 
-    if (strcmp(name, "fscanf") == 0) {
-        JinxOracleBatch2Stream *stream;
+    if (strcmp(name, "fscanf") == 0 || strcmp(name, "sscanf") == 0) {
+        JinxOracleBatch2Stream *stream = NULL;
         char *format;
         char line[8192];
+        char *owned_input = NULL;
         JinxZendArray *out;
         const char *p;
         const char *s;
+
         if (args == NULL || argc != 2u || args[1].type != 3u) return result;
-        stream = b2_stream(args[0]);
-        if (stream == NULL || stream->fp == NULL) return result;
+
         format = b2_dup(args[1]);
         if (format == NULL) return result;
-        if (fgets(line, sizeof(line), stream->fp) == NULL) {
-            free(format);
-            if (handled != NULL) *handled = 1;
-            return jinx_oracle_bool_value(0);
+
+        if (strcmp(name, "fscanf") == 0) {
+            stream = b2_stream(args[0]);
+            if (stream == NULL || stream->fp == NULL) {
+                free(format);
+                return result;
+            }
+            if (fgets(line, sizeof(line), stream->fp) == NULL) {
+                free(format);
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            s = line;
+        } else {
+            if (args[0].type != 3u) {
+                free(format);
+                return result;
+            }
+            owned_input = b2_dup(args[0]);
+            if (owned_input == NULL) {
+                free(format);
+                return result;
+            }
+            s = owned_input;
         }
+
         out = jinx_zend_array_new_packed(8u);
-        if (out == NULL) { free(format); return result; }
+        if (out == NULL) {
+            free(owned_input);
+            free(format);
+            return result;
+        }
         p = format;
-        s = line;
         while (*p != '\0') {
             if (*p != '%') {
-                if (*s != *p) { jinx_zend_array_release(out); free(format); return result; }
+                if (*s != *p) { jinx_zend_array_release(out); free(owned_input); free(format); return result; }
                 p++; s++; continue;
             }
             p++;
             if (*p == '%') {
-                if (*s != '%') { jinx_zend_array_release(out); free(format); return result; }
+                if (*s != '%') { jinx_zend_array_release(out); free(owned_input); free(format); return result; }
                 p++; s++; continue;
             }
             if (*p == 'c') {
@@ -6439,7 +6464,7 @@ csv_fail:
                 if (*s == '\0' || zs == NULL ||
                     !jinx_zend_array_append(out, jinx_zend_string_value(zs))) {
                     jinx_zend_string_release(zs);
-                    jinx_zend_array_release(out); free(format); return result;
+                    jinx_zend_array_release(out); free(owned_input); free(format); return result;
                 }
                 jinx_zend_string_release(zs);
                 s++; p++; continue;
@@ -6449,7 +6474,7 @@ csv_fail:
                 long long value = strtoll(s, &end, 10);
                 if (end == s ||
                     !jinx_zend_array_append(out, jinx_zend_long((int64_t)value))) {
-                    jinx_zend_array_release(out); free(format); return result;
+                    jinx_zend_array_release(out); free(owned_input); free(format); return result;
                 }
                 s = end; p++; continue;
             }
@@ -6458,7 +6483,7 @@ csv_fail:
                 double value = strtod(s, &end);
                 if (end == s ||
                     !jinx_zend_array_append(out, jinx_zend_double(value))) {
-                    jinx_zend_array_release(out); free(format); return result;
+                    jinx_zend_array_release(out); free(owned_input); free(format); return result;
                 }
                 s = end; p++; continue;
             }
@@ -6471,7 +6496,7 @@ csv_fail:
                 if (zs == NULL ||
                     !jinx_zend_array_append(out, jinx_zend_string_value(zs))) {
                     jinx_zend_string_release(zs);
-                    jinx_zend_array_release(out); free(format); return result;
+                    jinx_zend_array_release(out); free(owned_input); free(format); return result;
                 }
                 jinx_zend_string_release(zs);
                 p++; continue;
@@ -6480,6 +6505,7 @@ csv_fail:
             free(format);
             return result;
         }
+        free(owned_input);
         free(format);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(out);
