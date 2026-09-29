@@ -1967,6 +1967,40 @@ JinxValue jinx_oracle_batch2_builtin(
         );
     }
 
+    if (strcmp(name, "timezone_name_from_abbr") == 0) {
+        char *abbr;
+        long offset = -1L;
+        int dst = -1;
+        const char *resolved = NULL;
+
+        if (args == NULL || argc < 1u || argc > 3u || args[0].type != 3u) {
+            return result;
+        }
+        if (argc >= 2u) offset = (long)jinx_oracle_intish(args[1]);
+        if (argc >= 3u) dst = (int)jinx_oracle_intish(args[2]);
+
+        abbr = b2_dup(args[0]);
+        if (abbr == NULL) return result;
+
+        for (size_t i = 0u; i < jinx_native_timezone_abbr_resolve_count; i++) {
+            const JinxNativeTimezoneAbbrResolve *row =
+                &jinx_native_timezone_abbr_resolve[i];
+            if (strcasecmp(row->abbr, abbr) != 0 ||
+                row->offset != offset ||
+                row->dst != dst) {
+                continue;
+            }
+            resolved = row->timezone_id;
+            break;
+        }
+
+        free(abbr);
+        if (handled != NULL) *handled = 1;
+        return resolved != NULL
+            ? b2_copy(resolved, strlen(resolved))
+            : jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "spl_classes") == 0) {
         JinxZendArray *array;
         if (argc != 0u) return result;
