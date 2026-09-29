@@ -48,6 +48,7 @@
 #include <sys/wait.h>
 #include <syslog.h>
 #ifdef __linux__
+#include <sched.h>
 #include <sys/prctl.h>
 #endif
 #include <time.h>
@@ -80,6 +81,7 @@ static int jinx_oracle_batch2_assert_exception = JINX_NATIVE_ASSERT_EXCEPTION;
 static char *jinx_oracle_batch2_assert_callback = NULL;
 static char *jinx_oracle_batch2_process_title = NULL;
 static int jinx_oracle_batch2_posix_last_error = 0;
+static int jinx_oracle_batch2_pcntl_last_error = 0;
 static char *jinx_oracle_batch2_syslog_ident = NULL;
 static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
 static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
@@ -3775,6 +3777,76 @@ JinxValue jinx_oracle_batch2_builtin(
          */
         if (handled != NULL) *handled = 1;
         return jinx_oracle_int_value(0);
+    }
+
+    if (strcmp(name, "pcntl_errno") == 0 ||
+        strcmp(name, "pcntl_get_last_error") == 0) {
+        if (argc != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(
+            (int64_t)jinx_oracle_batch2_pcntl_last_error
+        );
+    }
+
+#ifdef __linux__
+    if (strcmp(name, "pcntl_getcpu") == 0) {
+        int cpu;
+        if (argc != 0u) return result;
+        errno = 0;
+        cpu = sched_getcpu();
+        if (cpu < 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)cpu);
+    }
+#endif
+
+    if (strcmp(name, "pcntl_getpriority") == 0) {
+        id_t who = 0;
+        int which = PRIO_PROCESS;
+        int priority;
+
+        if (argc > 2u) return result;
+        if (argc >= 1u && args[0].type != 0u) {
+            who = (id_t)jinx_oracle_intish(args[0]);
+        }
+        if (argc >= 2u) which = (int)jinx_oracle_intish(args[1]);
+
+        errno = 0;
+        priority = getpriority(which, who);
+        if (priority == -1 && errno != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)priority);
+    }
+
+    if (strcmp(name, "pcntl_setpriority") == 0) {
+        int priority;
+        id_t who = 0;
+        int which = PRIO_PROCESS;
+
+        if (args == NULL || argc < 1u || argc > 3u) return result;
+        priority = (int)jinx_oracle_intish(args[0]);
+        if (argc >= 2u && args[1].type != 0u) {
+            who = (id_t)jinx_oracle_intish(args[1]);
+        }
+        if (argc >= 3u) which = (int)jinx_oracle_intish(args[2]);
+
+        if (setpriority(which, who, priority) != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
     }
 
     if (strcmp(name, "pcntl_strerror") == 0 ||
