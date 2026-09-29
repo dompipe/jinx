@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 800,
-        "extended_native_route": 502,
+        "native_named_route": 801,
+        "extended_native_route": 503,
         "context_native_route": 3,
-        "intentional_native_fault": 2727
+        "intentional_native_fault": 2726
     },
     "routes": {
         "_": "extended",
@@ -1865,7 +1865,7 @@
         "preg_match": "extended",
         "preg_match_all": "extended",
         "preg_quote": "extended",
-        "preg_replace": "intentional-native-fault",
+        "preg_replace": "extended",
         "preg_replace_callback": "intentional-native-fault",
         "preg_replace_callback_array": "intentional-native-fault",
         "preg_split": "extended",
