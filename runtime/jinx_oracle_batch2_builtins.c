@@ -3779,6 +3779,14 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_int_value(0);
     }
 
+    if (strcmp(name, "pcntl_alarm") == 0) {
+        unsigned int previous;
+        if (args == NULL || argc != 1u) return result;
+        previous = alarm((unsigned int)jinx_oracle_intish(args[0]));
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value((int64_t)previous);
+    }
+
     if (strcmp(name, "pcntl_errno") == 0 ||
         strcmp(name, "pcntl_get_last_error") == 0) {
         if (argc != 0u) return result;
