@@ -46,6 +46,7 @@ foreach ([
     'pcntl_async_signals',
     'pcntl_getcpuaffinity',
     'pcntl_setcpuaffinity',
+    'pcntl_sigprocmask',
 ] as $name) {
     if (!function_exists($name)) {
         pcntlFail("PHP {$name} is required for native parity");
@@ -182,6 +183,57 @@ if ($code !== 0 || $jinxAffinitySet !== $expectedAffinitySet) {
     );
 }
 
+$phpOldMask = [];
+if (!pcntl_sigprocmask(SIG_BLOCK, [SIGUSR1], $phpOldMask)) {
+    pcntlFail('PHP pcntl_sigprocmask block failed');
+}
+$phpInitialContains = in_array(SIGUSR1, $phpOldMask, true);
+
+$phpBlockedMask = [];
+if (!pcntl_sigprocmask(SIG_BLOCK, [], $phpBlockedMask)) {
+    pcntl_sigprocmask(SIG_SETMASK, $phpOldMask);
+    pcntlFail('PHP pcntl_sigprocmask blocked-state query failed');
+}
+
+$phpUnblockOld = [];
+if (!pcntl_sigprocmask(SIG_UNBLOCK, [SIGUSR1], $phpUnblockOld)) {
+    pcntl_sigprocmask(SIG_SETMASK, $phpOldMask);
+    pcntlFail('PHP pcntl_sigprocmask unblock failed');
+}
+
+$phpFinalMask = [];
+if (!pcntl_sigprocmask(SIG_BLOCK, [], $phpFinalMask)) {
+    pcntl_sigprocmask(SIG_SETMASK, $phpOldMask);
+    pcntlFail('PHP pcntl_sigprocmask final-state query failed');
+}
+if (!pcntl_sigprocmask(SIG_SETMASK, $phpOldMask)) {
+    pcntlFail('PHP pcntl_sigprocmask restore failed');
+}
+
+$expectedSigmask = implode(PHP_EOL, [
+    'initial_sigusr1=bool:' . ($phpInitialContains ? 'true' : 'false'),
+    'blocked_sigusr1=bool:' . (
+        in_array(SIGUSR1, $phpBlockedMask, true) ? 'true' : 'false'
+    ),
+    'unblock_old_sigusr1=bool:' . (
+        in_array(SIGUSR1, $phpUnblockOld, true) ? 'true' : 'false'
+    ),
+    'final_sigusr1=bool:' . (
+        in_array(SIGUSR1, $phpFinalMask, true) ? 'true' : 'false'
+    ),
+]);
+
+$jinxSigmask = pcntlRun(
+    escapeshellarg($jinx) . ' oracle-pcntl-sigmask-smoke',
+    $code
+);
+if ($code !== 0 || $jinxSigmask !== $expectedSigmask) {
+    pcntlFail(
+        "pcntl_sigprocmask parity mismatch\n" .
+        "PHP/expected:\n{$expectedSigmask}\nJINX:\n{$jinxSigmask}"
+    );
+}
+
 $phpCpu = pcntl_getcpu();
 $jinxCpu = pcntlJinx($jinx, 'pcntl_getcpu', [], $code);
 if (!is_int($phpCpu) || $phpCpu < 0 ||
@@ -231,4 +283,4 @@ if ($code !== 0 || $jinxErrorText !== 'string:' . $phpErrorText) {
     );
 }
 
-echo "PASS: native PCNTL alarm, async-signals, affinity, priority, CPU, and error helpers match PHP\n";
+echo "PASS: native PCNTL alarm, async-signals, signal-mask, affinity, priority, CPU, and error helpers match PHP\n";
