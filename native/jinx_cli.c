@@ -36,6 +36,7 @@ static void usage(const char *argv0) {
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s shmop-smoke\n", argv0);
+    printf("  %s sem-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
@@ -2777,6 +2778,103 @@ static int command_oracle_smoke(void) {
     return 0;
 }
 
+static int command_sem_smoke(void) {
+    JinxValue get_args[4];
+    JinxValue acquire_args[2];
+    JinxValue one_arg[1];
+    JinxValue semaphore;
+    JinxValue result;
+    int ok = 0;
+
+    get_args[0] = jinx_value_int(0);
+    get_args[1] = jinx_value_int(1);
+    get_args[2] = jinx_value_int(0600);
+    get_args[3] = jinx_value_bool(0);
+
+    semaphore = jinx_call_builtin_through_oracle_checked(
+        "sem_get", get_args, 4u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_object(semaphore)) {
+        release_cli_value(semaphore);
+        return fail("native sem_get did not create a SysvSemaphore object");
+    }
+
+    acquire_args[0] = semaphore;
+    acquire_args[1] = jinx_value_bool(0);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "sem_acquire", acquire_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(semaphore);
+        return fail("native sem_acquire did not acquire semaphore");
+    }
+    release_cli_value(result);
+
+    acquire_args[1] = jinx_value_bool(1);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "sem_acquire", acquire_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 != 0) {
+        release_cli_value(result);
+        release_cli_value(semaphore);
+        return fail("native nonblocking sem_acquire did not report contention");
+    }
+    release_cli_value(result);
+
+    one_arg[0] = semaphore;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "sem_release", one_arg, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(semaphore);
+        return fail("native sem_release did not release semaphore");
+    }
+    release_cli_value(result);
+
+    acquire_args[1] = jinx_value_bool(1);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "sem_acquire", acquire_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(semaphore);
+        return fail("native nonblocking sem_acquire did not reacquire released semaphore");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "sem_release", one_arg, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(semaphore);
+        return fail("native second sem_release failed");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "sem_remove", one_arg, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(semaphore);
+        return fail("native sem_remove failed");
+    }
+    release_cli_value(result);
+    release_cli_value(semaphore);
+
+    printf("PASS: native sem get/acquire/nonblock/release/remove lifecycle\n");
+    return 0;
+}
+
 static int command_shmop_smoke(void) {
     JinxValue open_args[4];
     JinxValue size_args[1];
@@ -3825,6 +3923,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "shmop-smoke") == 0) {
         return command_shmop_smoke();
+    }
+
+    if (strcmp(argv[1], "sem-smoke") == 0) {
+        return command_sem_smoke();
     }
 
     if (strcmp(argv[1], "oracle-constant-smoke") == 0) {
