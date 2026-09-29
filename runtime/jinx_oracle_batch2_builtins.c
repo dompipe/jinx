@@ -77,6 +77,12 @@ static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
 static size_t jinx_oracle_batch2_strtok_len = 0u;
 static size_t jinx_oracle_batch2_strtok_pos = 0u;
 
+#ifdef JINX_HAVE_ICONV
+static char jinx_oracle_batch2_iconv_input_encoding[128] = JINX_NATIVE_ICONV_INPUT_ENCODING;
+static char jinx_oracle_batch2_iconv_output_encoding[128] = JINX_NATIVE_ICONV_OUTPUT_ENCODING;
+static char jinx_oracle_batch2_iconv_internal_encoding[128] = JINX_NATIVE_ICONV_INTERNAL_ENCODING;
+#endif
+
 typedef struct JinxOracleBatch2IniOverride {
     char *name;
     char *value;
@@ -642,6 +648,15 @@ static int64_t b2_iconv_normalize_offset(int64_t offset, size_t units) {
     int64_t total = units > (size_t)INT64_MAX ? INT64_MAX : (int64_t)units;
     if (offset < 0) offset = total + offset;
     return offset;
+}
+
+static int b2_iconv_encoding_supported(const char *encoding) {
+    iconv_t cd;
+    if (encoding == NULL || *encoding == '\0') return 0;
+    cd = iconv_open("UTF-8", encoding);
+    if (cd == (iconv_t)-1) return 0;
+    iconv_close(cd);
+    return 1;
 }
 #endif
 
@@ -2105,6 +2120,99 @@ JinxValue jinx_oracle_batch2_builtin(
     }
 
 #ifdef JINX_HAVE_ICONV
+    if (strcmp(name, "iconv_get_encoding") == 0) {
+        const char *type = "all";
+        char *type_owned = NULL;
+
+        if (argc >= 1u && args != NULL && args[0].type != 0u) {
+            if (args[0].type != 3u) return result;
+            type_owned = b2_dup(args[0]);
+            if (type_owned == NULL) return result;
+            type = type_owned;
+        }
+
+        if (strcmp(type, "all") == 0) {
+            JinxZendArray *array = jinx_zend_array_new_packed(3u);
+            if (array == NULL ||
+                !b2_assoc_string(array, "input_encoding", jinx_oracle_batch2_iconv_input_encoding) ||
+                !b2_assoc_string(array, "output_encoding", jinx_oracle_batch2_iconv_output_encoding) ||
+                !b2_assoc_string(array, "internal_encoding", jinx_oracle_batch2_iconv_internal_encoding)) {
+                jinx_zend_array_release(array);
+                free(type_owned);
+                return result;
+            }
+            free(type_owned);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_zend_array_value_owned(array);
+        }
+
+        if (strcmp(type, "input_encoding") == 0) {
+            result = b2_copy(
+                jinx_oracle_batch2_iconv_input_encoding,
+                strlen(jinx_oracle_batch2_iconv_input_encoding)
+            );
+        } else if (strcmp(type, "output_encoding") == 0) {
+            result = b2_copy(
+                jinx_oracle_batch2_iconv_output_encoding,
+                strlen(jinx_oracle_batch2_iconv_output_encoding)
+            );
+        } else if (strcmp(type, "internal_encoding") == 0) {
+            result = b2_copy(
+                jinx_oracle_batch2_iconv_internal_encoding,
+                strlen(jinx_oracle_batch2_iconv_internal_encoding)
+            );
+        } else {
+            result = jinx_oracle_bool_value(0);
+        }
+
+        free(type_owned);
+        if (handled != NULL) *handled = 1;
+        return result;
+    }
+
+    if (strcmp(name, "iconv_set_encoding") == 0) {
+        char *type;
+        char *encoding;
+        char *target = NULL;
+        size_t target_size = 0u;
+
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+
+        type = b2_dup(args[0]);
+        encoding = b2_dup(args[1]);
+        if (type == NULL || encoding == NULL) {
+            free(type);
+            free(encoding);
+            return result;
+        }
+
+        if (strcmp(type, "input_encoding") == 0) {
+            target = jinx_oracle_batch2_iconv_input_encoding;
+            target_size = sizeof(jinx_oracle_batch2_iconv_input_encoding);
+        } else if (strcmp(type, "output_encoding") == 0) {
+            target = jinx_oracle_batch2_iconv_output_encoding;
+            target_size = sizeof(jinx_oracle_batch2_iconv_output_encoding);
+        } else if (strcmp(type, "internal_encoding") == 0) {
+            target = jinx_oracle_batch2_iconv_internal_encoding;
+            target_size = sizeof(jinx_oracle_batch2_iconv_internal_encoding);
+        }
+
+        if (target == NULL || !b2_iconv_encoding_supported(encoding) ||
+            strlen(encoding) >= target_size) {
+            free(type);
+            free(encoding);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        memcpy(target, encoding, strlen(encoding) + 1u);
+        free(type);
+        free(encoding);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "iconv") == 0) {
         char *from_encoding;
         char *to_encoding;
@@ -2156,7 +2264,7 @@ JinxValue jinx_oracle_batch2_builtin(
             encoding = b2_dup(args[1]);
             if (encoding == NULL) return result;
         } else {
-            encoding = strdup("UTF-8");
+            encoding = strdup(jinx_oracle_batch2_iconv_internal_encoding);
             if (encoding == NULL) return result;
         }
 
@@ -2192,7 +2300,7 @@ JinxValue jinx_oracle_batch2_builtin(
             if (args[3].type != 3u) return result;
             encoding = b2_dup(args[3]);
         } else {
-            encoding = strdup("UTF-8");
+            encoding = strdup(jinx_oracle_batch2_iconv_internal_encoding);
         }
         if (encoding == NULL) return result;
 
@@ -2269,7 +2377,7 @@ JinxValue jinx_oracle_batch2_builtin(
                 if (args[3].type != 3u) return result;
                 encoding = b2_dup(args[3]);
             } else {
-                encoding = strdup("UTF-8");
+                encoding = strdup(jinx_oracle_batch2_iconv_internal_encoding);
             }
             if (argc >= 3u) offset = jinx_oracle_intish(args[2]);
         } else {
@@ -2277,7 +2385,7 @@ JinxValue jinx_oracle_batch2_builtin(
                 if (args[2].type != 3u) return result;
                 encoding = b2_dup(args[2]);
             } else {
-                encoding = strdup("UTF-8");
+                encoding = strdup(jinx_oracle_batch2_iconv_internal_encoding);
             }
             offset = 0;
         }
