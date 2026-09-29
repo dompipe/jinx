@@ -566,6 +566,123 @@ sodiumExpectHexLength(
     SODIUM_CRYPTO_SHORTHASH_KEYBYTES
 );
 
+if (function_exists('sodium_crypto_core_ristretto255_from_hash')) {
+    $ristrettoHashA = hash('sha512', 'jinx-ristretto-point-a', true);
+    $ristrettoHashB = hash('sha512', 'jinx-ristretto-point-b', true);
+    $ristrettoPointA = sodium_crypto_core_ristretto255_from_hash($ristrettoHashA);
+    $ristrettoPointB = sodium_crypto_core_ristretto255_from_hash($ristrettoHashB);
+
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_from_hash',
+        [sodiumTypedString($ristrettoHashA)],
+        $ristrettoPointA
+    );
+    sodiumExpect(
+        $jinx,
+        'sodium_crypto_core_ristretto255_is_valid_point',
+        [sodiumTypedString($ristrettoPointA)],
+        'bool:true'
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_add',
+        [sodiumTypedString($ristrettoPointA), sodiumTypedString($ristrettoPointB)],
+        sodium_crypto_core_ristretto255_add($ristrettoPointA, $ristrettoPointB)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_sub',
+        [sodiumTypedString($ristrettoPointA), sodiumTypedString($ristrettoPointB)],
+        sodium_crypto_core_ristretto255_sub($ristrettoPointA, $ristrettoPointB)
+    );
+
+    $wideA = hash('sha512', 'jinx-ristretto-scalar-a', true);
+    $wideB = hash('sha512', 'jinx-ristretto-scalar-b', true);
+    $scalarA = sodium_crypto_core_ristretto255_scalar_reduce($wideA);
+    $scalarB = sodium_crypto_core_ristretto255_scalar_reduce($wideB);
+
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_reduce',
+        [sodiumTypedString($wideA)],
+        $scalarA
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_add',
+        [sodiumTypedString($scalarA), sodiumTypedString($scalarB)],
+        sodium_crypto_core_ristretto255_scalar_add($scalarA, $scalarB)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_sub',
+        [sodiumTypedString($scalarA), sodiumTypedString($scalarB)],
+        sodium_crypto_core_ristretto255_scalar_sub($scalarA, $scalarB)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_mul',
+        [sodiumTypedString($scalarA), sodiumTypedString($scalarB)],
+        sodium_crypto_core_ristretto255_scalar_mul($scalarA, $scalarB)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_complement',
+        [sodiumTypedString($scalarA)],
+        sodium_crypto_core_ristretto255_scalar_complement($scalarA)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_negate',
+        [sodiumTypedString($scalarA)],
+        sodium_crypto_core_ristretto255_scalar_negate($scalarA)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_invert',
+        [sodiumTypedString($scalarA)],
+        sodium_crypto_core_ristretto255_scalar_invert($scalarA)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_scalarmult_ristretto255_base',
+        [sodiumTypedString($scalarA)],
+        sodium_crypto_scalarmult_ristretto255_base($scalarA)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_scalarmult_ristretto255',
+        [sodiumTypedString($scalarA), sodiumTypedString($ristrettoPointB)],
+        (string)sodium_crypto_scalarmult_ristretto255($scalarA, $ristrettoPointB)
+    );
+
+    sodiumExpectHexLength(
+        $jinx,
+        'sodium_crypto_core_ristretto255_scalar_random',
+        [],
+        SODIUM_CRYPTO_CORE_RISTRETTO255_SCALARBYTES
+    );
+
+    $randomPointText = sodiumJinx(
+        $jinx,
+        'sodium_crypto_core_ristretto255_random',
+        [],
+        true,
+        $code
+    );
+    if ($code !== 0 ||
+        !preg_match('/^hex:([0-9a-f]+)$/', $randomPointText, $randomPointMatch)) {
+        sodiumFail("sodium_crypto_core_ristretto255_random native output invalid\nJINX: {$randomPointText}");
+    }
+    $randomPoint = hex2bin($randomPointMatch[1]);
+    if ($randomPoint === false ||
+        strlen($randomPoint) !== SODIUM_CRYPTO_CORE_RISTRETTO255_BYTES ||
+        !sodium_crypto_core_ristretto255_is_valid_point($randomPoint)) {
+        sodiumFail('JINX Ristretto random point is not PHP-sodium valid');
+    }
+}
+
 $seed = substr(hash('sha256', 'jinx-sign-seed', true), 0, SODIUM_CRYPTO_SIGN_SEEDBYTES);
 $keypair = sodium_crypto_sign_seed_keypair($seed);
 $signSecret = sodium_crypto_sign_secretkey($keypair);
@@ -595,6 +712,21 @@ sodiumExpectHex(
     [sodiumTypedString($signSecret)],
     sodium_crypto_sign_publickey_from_secretkey($signSecret)
 );
+
+if (function_exists('sodium_crypto_sign_ed25519_pk_to_curve25519')) {
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_sign_ed25519_pk_to_curve25519',
+        [sodiumTypedString($signPublic)],
+        sodium_crypto_sign_ed25519_pk_to_curve25519($signPublic)
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_sign_ed25519_sk_to_curve25519',
+        [sodiumTypedString($signSecret)],
+        sodium_crypto_sign_ed25519_sk_to_curve25519($signSecret)
+    );
+}
 sodiumExpectHex(
     $jinx,
     'sodium_crypto_sign_keypair_from_secretkey_and_publickey',
