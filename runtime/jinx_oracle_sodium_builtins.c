@@ -1168,6 +1168,223 @@ JinxValue jinx_oracle_sodium_builtin(
         return value;
     }
 
+    if (strcmp(name, "sodium_crypto_core_ristretto255_add") == 0 ||
+        strcmp(name, "sodium_crypto_core_ristretto255_sub") == 0) {
+        const unsigned char *left;
+        const unsigned char *right;
+        unsigned char out[crypto_core_ristretto255_BYTES];
+        int rc;
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_exact_string(args[0], crypto_core_ristretto255_BYTES, &left) ||
+            !jinx_sodium_exact_string(args[1], crypto_core_ristretto255_BYTES, &right)) {
+            return result;
+        }
+
+        rc = strcmp(name, "sodium_crypto_core_ristretto255_add") == 0
+            ? crypto_core_ristretto255_add(out, left, right)
+            : crypto_core_ristretto255_sub(out, left, right);
+        if (rc != 0) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_from_hash") == 0) {
+        const unsigned char *hash;
+        unsigned char out[crypto_core_ristretto255_BYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_core_ristretto255_HASHBYTES, &hash
+            ) ||
+            crypto_core_ristretto255_from_hash(out, hash) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_is_valid_point") == 0) {
+        const unsigned char *point;
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_core_ristretto255_BYTES, &point
+            )) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(
+            crypto_core_ristretto255_is_valid_point(point) == 1
+        );
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_random") == 0) {
+        unsigned char out[crypto_core_ristretto255_BYTES];
+        if (argc != 0u) return result;
+        crypto_core_ristretto255_random(out);
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_add") == 0 ||
+        strcmp(name, "sodium_crypto_core_ristretto255_scalar_sub") == 0 ||
+        strcmp(name, "sodium_crypto_core_ristretto255_scalar_mul") == 0) {
+        const unsigned char *left;
+        const unsigned char *right;
+        unsigned char out[crypto_core_ristretto255_SCALARBYTES];
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_core_ristretto255_SCALARBYTES, &left
+            ) ||
+            !jinx_sodium_exact_string(
+                args[1], crypto_core_ristretto255_SCALARBYTES, &right
+            )) {
+            return result;
+        }
+
+        if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_add") == 0) {
+            crypto_core_ristretto255_scalar_add(out, left, right);
+        } else if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_sub") == 0) {
+            crypto_core_ristretto255_scalar_sub(out, left, right);
+        } else {
+            crypto_core_ristretto255_scalar_mul(out, left, right);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_complement") == 0 ||
+        strcmp(name, "sodium_crypto_core_ristretto255_scalar_negate") == 0) {
+        const unsigned char *scalar;
+        unsigned char out[crypto_core_ristretto255_SCALARBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_core_ristretto255_SCALARBYTES, &scalar
+            )) {
+            return result;
+        }
+
+        if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_complement") == 0) {
+            crypto_core_ristretto255_scalar_complement(out, scalar);
+        } else {
+            crypto_core_ristretto255_scalar_negate(out, scalar);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_invert") == 0) {
+        const unsigned char *scalar;
+        unsigned char out[crypto_core_ristretto255_SCALARBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_core_ristretto255_SCALARBYTES, &scalar
+            ) ||
+            crypto_core_ristretto255_scalar_invert(out, scalar) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_random") == 0) {
+        unsigned char out[crypto_core_ristretto255_SCALARBYTES];
+        if (argc != 0u) return result;
+        crypto_core_ristretto255_scalar_random(out);
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_core_ristretto255_scalar_reduce") == 0) {
+        const unsigned char *wide;
+        unsigned char out[crypto_core_ristretto255_SCALARBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_core_ristretto255_NONREDUCEDSCALARBYTES, &wide
+            )) {
+            return result;
+        }
+
+        crypto_core_ristretto255_scalar_reduce(out, wide);
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_scalarmult_ristretto255") == 0) {
+        const unsigned char *scalar;
+        const unsigned char *point;
+        unsigned char out[crypto_scalarmult_ristretto255_BYTES];
+
+        if (args == NULL || argc != 2u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_scalarmult_ristretto255_SCALARBYTES, &scalar
+            ) ||
+            !jinx_sodium_exact_string(
+                args[1], crypto_scalarmult_ristretto255_BYTES, &point
+            )) {
+            return result;
+        }
+
+        if (crypto_scalarmult_ristretto255(out, scalar, point) != 0) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_scalarmult_ristretto255_base") == 0) {
+        const unsigned char *scalar;
+        unsigned char out[crypto_scalarmult_ristretto255_BYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(
+                args[0], crypto_scalarmult_ristretto255_SCALARBYTES, &scalar
+            ) ||
+            crypto_scalarmult_ristretto255_base(out, scalar) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_sign_ed25519_pk_to_curve25519") == 0) {
+        const unsigned char *pk;
+        unsigned char out[crypto_box_PUBLICKEYBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(args[0], crypto_sign_PUBLICKEYBYTES, &pk) ||
+            crypto_sign_ed25519_pk_to_curve25519(out, pk) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
+    if (strcmp(name, "sodium_crypto_sign_ed25519_sk_to_curve25519") == 0) {
+        const unsigned char *sk;
+        unsigned char out[crypto_box_SECRETKEYBYTES];
+
+        if (args == NULL || argc != 1u ||
+            !jinx_sodium_exact_string(args[0], crypto_sign_SECRETKEYBYTES, &sk) ||
+            crypto_sign_ed25519_sk_to_curve25519(out, sk) != 0) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_sodium_copy(out, sizeof(out));
+    }
+
     if (strcmp(name, "sodium_crypto_sign_keypair") == 0) {
         unsigned char pk[crypto_sign_PUBLICKEYBYTES];
         unsigned char sk[crypto_sign_SECRETKEYBYTES];
