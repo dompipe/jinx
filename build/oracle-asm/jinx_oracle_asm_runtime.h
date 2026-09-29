@@ -7011,6 +7011,87 @@ static inline int jinx_oracle_json_validate_bytes(
     return 1;
 }
 
+static inline JinxValue jinx_oracle_sodium_add_ref_value(
+    JinxOracleAsmContext *ctx,
+    JinxValue left,
+    JinxValue right
+) {
+    uint32_t left_len;
+    uint32_t right_len;
+    const unsigned char *left_bytes;
+    const unsigned char *right_bytes;
+    unsigned char *out;
+    unsigned int carry = 0u;
+    JinxValue updated;
+
+    if (left.type != 3u || right.type != 3u) {
+        ctx->fault = "sodium_add requires two strings";
+        return jinx_oracle_zero_value();
+    }
+
+    left_len = jinx_oracle_string_len(left);
+    right_len = jinx_oracle_string_len(right);
+    if (left_len != right_len) {
+        ctx->fault = "sodium_add arguments must have the same length";
+        return jinx_oracle_zero_value();
+    }
+
+    left_bytes = jinx_oracle_string_bytes(left);
+    right_bytes = jinx_oracle_string_bytes(right);
+    out = (unsigned char *)jinx_oracle_scratch_string(left_len);
+
+    for (uint32_t i = 0u; i < left_len; i++) {
+        unsigned int sum =
+            (unsigned int)left_bytes[i] +
+            (unsigned int)right_bytes[i] +
+            carry;
+        out[i] = (unsigned char)(sum & 0xffu);
+        carry = sum >> 8u;
+    }
+
+    updated = jinx_oracle_string_value_len((const char *)out, left_len);
+    if (!jinx_oracle_write_ref_arg(ctx, 0u, updated)) {
+        ctx->fault = "sodium_add first argument is not writable by reference";
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zero_value();
+}
+
+static inline JinxValue jinx_oracle_sodium_increment_ref_value(
+    JinxOracleAsmContext *ctx,
+    JinxValue value
+) {
+    uint32_t len;
+    const unsigned char *bytes;
+    unsigned char *out;
+    unsigned int carry = 1u;
+    JinxValue updated;
+
+    if (value.type != 3u) {
+        ctx->fault = "sodium_increment requires a string";
+        return jinx_oracle_zero_value();
+    }
+
+    len = jinx_oracle_string_len(value);
+    bytes = jinx_oracle_string_bytes(value);
+    out = (unsigned char *)jinx_oracle_scratch_string(len);
+
+    for (uint32_t i = 0u; i < len; i++) {
+        unsigned int sum = (unsigned int)bytes[i] + carry;
+        out[i] = (unsigned char)(sum & 0xffu);
+        carry = sum >> 8u;
+    }
+
+    updated = jinx_oracle_string_value_len((const char *)out, len);
+    if (!jinx_oracle_write_ref_arg(ctx, 0u, updated)) {
+        ctx->fault = "sodium_increment argument is not writable by reference";
+        return jinx_oracle_zero_value();
+    }
+
+    return jinx_oracle_zero_value();
+}
+
 static inline JinxValue jinx_oracle_asm_call_builtin(
     JinxOracleAsmContext *ctx,
     const char *name,
@@ -7031,6 +7112,20 @@ static inline JinxValue jinx_oracle_asm_call_builtin(
     argc = ctx->call_argc;
     arg0 = jinx_oracle_call_arg(ctx, 0u);
     arg1 = jinx_oracle_call_arg(ctx, 1u);
+
+    if (jinx_oracle_name_is(name, "sodium_add")) {
+        ret = jinx_oracle_sodium_add_ref_value(ctx, arg0, arg1);
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
+
+    if (jinx_oracle_name_is(name, "sodium_increment")) {
+        ret = jinx_oracle_sodium_increment_ref_value(ctx, arg0);
+        if (ctx->fault != NULL) return jinx_oracle_zero_value();
+        jinx_oracle_return(ctx, ret);
+        return ret;
+    }
 
     if (jinx_oracle_name_is(name, "json_last_error")) {
         ret = jinx_oracle_int_value((int64_t)jinx_oracle_json_error_code);
