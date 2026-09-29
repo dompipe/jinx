@@ -21,6 +21,7 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/shm.h>
+#include <sys/sem.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -48,6 +49,18 @@ typedef struct JinxOracleExtShmop {
     int readonly;
     int64_t key;
 } JinxOracleExtShmop;
+
+typedef struct JinxOracleExtSemaphore {
+    int semid;
+    int auto_release;
+    int64_t key;
+} JinxOracleExtSemaphore;
+
+union JinxOracleExtSemun {
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+};
 
 typedef struct JinxOracleExtTzScope {
     char *old_tz;
@@ -630,6 +643,43 @@ static int jinx_oracle_ext_shmop_parts(
     parts->shmid = (int)shmid;
     parts->size = (size_t)size;
     parts->readonly = jinx_oracle_ext_object_long(object, "readonly", 0) != 0;
+    parts->key = jinx_oracle_ext_object_long(object, "key", 0);
+    return 1;
+}
+
+static JinxValue jinx_oracle_ext_new_semaphore(
+    int semid,
+    int auto_release,
+    int64_t key
+) {
+    JinxZendObject *object = jinx_zend_object_new("SysvSemaphore");
+    if (object == NULL) return jinx_oracle_zero_value();
+    if (!jinx_oracle_ext_object_set_long(object, "semid", (int64_t)semid) ||
+        !jinx_oracle_ext_object_set_long(object, "auto_release", auto_release ? 1 : 0) ||
+        !jinx_oracle_ext_object_set_long(object, "key", key)) {
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static int jinx_oracle_ext_semaphore_parts(
+    JinxValue value,
+    JinxOracleExtSemaphore *parts
+) {
+    JinxZendObject *object = jinx_oracle_zend_object_ptr(value);
+    int64_t semid;
+
+    if (parts == NULL || object == NULL || object->class_name == NULL ||
+        strcmp(object->class_name, "SysvSemaphore") != 0) {
+        return 0;
+    }
+
+    semid = jinx_oracle_ext_object_long(object, "semid", -1);
+    if (semid < 0) return 0;
+    parts->semid = (int)semid;
+    parts->auto_release =
+        jinx_oracle_ext_object_long(object, "auto_release", 1) != 0;
     parts->key = jinx_oracle_ext_object_long(object, "key", 0);
     return 1;
 }
@@ -3124,6 +3174,97 @@ JinxValue jinx_oracle_extended_builtin(
         fclose(fp);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "sem_get") == 0) {
+        key_t key;
+        int max_acquire = 1;
+        int permissions = 0666;
+        int auto_release = 1;
+        int semid;
+        int created = 0;
+        union JinxOracleExtSemun arg;
+
+        if (args == NULL || argc < 1u || argc > 4u) return result;
+        key = (key_t)jinx_oracle_intish(args[0]);
+        if (argc >= 2u) max_acquire = (int)jinx_oracle_intish(args[1]);
+        if (argc >= 3u) permissions = (int)(jinx_oracle_intish(args[2]) & 0777);
+        if (argc >= 4u) auto_release = jinx_oracle_boolish(args[3]);
+        if (max_acquire <= 0) return result;
+
+        errno = 0;
+        semid = semget(key, 1, IPC_CREAT | IPC_EXCL | permissions);
+        if (semid >= 0) {
+            created = 1;
+        } else if (errno == EEXIST && key != IPC_PRIVATE) {
+            semid = semget(key, 1, 0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        if (semid < 0) return jinx_oracle_bool_value(0);
+
+        if (created) {
+            arg.val = max_acquire;
+            if (semctl(semid, 0, SETVAL, arg) < 0) {
+                (void)semctl(semid, 0, IPC_RMID, arg);
+                return jinx_oracle_bool_value(0);
+            }
+        }
+
+        return jinx_oracle_ext_new_semaphore(
+            semid, auto_release, (int64_t)key
+        );
+    }
+
+    if (strcmp(name, "sem_acquire") == 0) {
+        JinxOracleExtSemaphore semaphore;
+        struct sembuf operation;
+        int non_blocking = 0;
+        int acquired;
+
+        if (args == NULL || argc < 1u || argc > 2u ||
+            !jinx_oracle_ext_semaphore_parts(args[0], &semaphore)) return result;
+        if (argc >= 2u) non_blocking = jinx_oracle_boolish(args[1]);
+
+        operation.sem_num = 0;
+        operation.sem_op = -1;
+        operation.sem_flg = (short)(
+            (semaphore.auto_release ? SEM_UNDO : 0) |
+            (non_blocking ? IPC_NOWAIT : 0)
+        );
+        acquired = semop(semaphore.semid, &operation, 1u) == 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(acquired);
+    }
+
+    if (strcmp(name, "sem_release") == 0) {
+        JinxOracleExtSemaphore semaphore;
+        struct sembuf operation;
+        int released;
+
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_ext_semaphore_parts(args[0], &semaphore)) return result;
+
+        operation.sem_num = 0;
+        operation.sem_op = 1;
+        operation.sem_flg = (short)(semaphore.auto_release ? SEM_UNDO : 0);
+        released = semop(semaphore.semid, &operation, 1u) == 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(released);
+    }
+
+    if (strcmp(name, "sem_remove") == 0) {
+        JinxOracleExtSemaphore semaphore;
+        union JinxOracleExtSemun arg;
+        int removed;
+
+        if (args == NULL || argc != 1u ||
+            !jinx_oracle_ext_semaphore_parts(args[0], &semaphore)) return result;
+
+        memset(&arg, 0, sizeof(arg));
+        removed = semctl(semaphore.semid, 0, IPC_RMID, arg) == 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(removed);
     }
 
     if (strcmp(name, "shmop_open") == 0) {
