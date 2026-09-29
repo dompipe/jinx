@@ -6,6 +6,7 @@
 #include <locale.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 
 #include "../runtime/jinx_function_list.generated.h"
@@ -40,6 +41,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pack-smoke\n", argv0);
     printf("  %s oracle-scanf-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
+    printf("  %s oracle-pcntl-error-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -1959,6 +1961,58 @@ static int command_oracle_posix_error_smoke(void) {
 }
 
 
+static int command_oracle_pcntl_error_smoke(void) {
+    JinxValue args[2];
+    JinxValue priority_result;
+    JinxValue last_result;
+    JinxValue errno_result;
+    int ok = 0;
+
+    args[0] = jinx_value_int(2147483647LL);
+    args[1] = jinx_value_int((int64_t)PRIO_PROCESS);
+
+    priority_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_getpriority", args, 2u, &ok
+    );
+    if (!ok || priority_result.type != 2u || priority_result.as.i64 != 0) {
+        release_cli_value(priority_result);
+        return fail("pcntl_getpriority invalid pid did not produce false");
+    }
+
+    ok = 0;
+    last_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_get_last_error", NULL, 0u, &ok
+    );
+    if (!ok || last_result.type != 1u || last_result.as.i64 <= 0) {
+        release_cli_value(priority_result);
+        release_cli_value(last_result);
+        return fail("pcntl_get_last_error did not retain errno");
+    }
+
+    ok = 0;
+    errno_result = jinx_call_builtin_through_oracle_checked(
+        "pcntl_errno", NULL, 0u, &ok
+    );
+    if (!ok || errno_result.type != 1u ||
+        errno_result.as.i64 != last_result.as.i64) {
+        release_cli_value(priority_result);
+        release_cli_value(last_result);
+        release_cli_value(errno_result);
+        return fail("pcntl_errno did not alias pcntl_get_last_error");
+    }
+
+    printf(
+        "priority=bool:false\nlast=int:%lld\nerrno=int:%lld\n",
+        (long long)last_result.as.i64,
+        (long long)errno_result.as.i64
+    );
+
+    release_cli_value(priority_result);
+    release_cli_value(last_result);
+    release_cli_value(errno_result);
+    return 0;
+}
+
 static int command_oracle_posix_state_smoke(void) {
     pid_t child;
     int status = 0;
@@ -3233,6 +3287,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-posix-error-smoke") == 0) {
         return command_oracle_posix_error_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pcntl-error-smoke") == 0) {
+        return command_oracle_pcntl_error_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
