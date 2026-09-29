@@ -45,6 +45,7 @@
 #include <strings.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/shm.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -2323,6 +2324,27 @@ typedef struct JinxOracleBatch2MessageQueue {
     int msqid;
 } JinxOracleBatch2MessageQueue;
 
+typedef struct JinxOracleBatch2SysvShm {
+    int shmid;
+    size_t size;
+    int attached;
+} JinxOracleBatch2SysvShm;
+
+typedef struct JinxOracleBatch2ShmHeader {
+    uint32_t magic;
+    uint32_t version;
+    uint64_t used;
+} JinxOracleBatch2ShmHeader;
+
+typedef struct JinxOracleBatch2ShmRecord {
+    int64_t key;
+    uint32_t length;
+    uint32_t active;
+} JinxOracleBatch2ShmRecord;
+
+#define JINX_ORACLE_BATCH2_SHM_MAGIC 0x4a585348u
+#define JINX_ORACLE_BATCH2_SHM_VERSION 1u
+
 typedef struct JinxOracleBatch2Gzip {
     gzFile gz;
 } JinxOracleBatch2Gzip;
@@ -2405,6 +2427,74 @@ static JinxValue b2_new_msg_queue(int msqid) {
         return jinx_oracle_zero_value();
     }
     return jinx_oracle_zend_object_value_owned(object);
+}
+
+static JinxOracleBatch2SysvShm *b2_sysv_shm(JinxValue value) {
+    return (JinxOracleBatch2SysvShm *)b2_object_resource(
+        value, "SysvSharedMemory", "__sysvshm"
+    );
+}
+
+static JinxValue b2_new_sysv_shm(int shmid, size_t size) {
+    JinxOracleBatch2SysvShm *memory;
+    JinxZendObject *object;
+
+    if (shmid < 0 || size < sizeof(JinxOracleBatch2ShmHeader)) {
+        return jinx_oracle_zero_value();
+    }
+    memory = (JinxOracleBatch2SysvShm *)calloc(1u, sizeof(*memory));
+    if (memory == NULL) return jinx_oracle_zero_value();
+    memory->shmid = shmid;
+    memory->size = size;
+    memory->attached = 1;
+
+    object = jinx_zend_object_new("SysvSharedMemory");
+    if (object == NULL ||
+        !b2_object_set_resource(object, "__sysvshm", memory)) {
+        free(memory);
+        jinx_zend_object_release(object);
+        return jinx_oracle_zero_value();
+    }
+    return jinx_oracle_zend_object_value_owned(object);
+}
+
+static int b2_sysv_shm_valid_header(
+    JinxOracleBatch2SysvShm *memory,
+    JinxOracleBatch2ShmHeader *header
+) {
+    return memory != NULL && memory->attached && header != NULL &&
+        header->magic == JINX_ORACLE_BATCH2_SHM_MAGIC &&
+        header->version == JINX_ORACLE_BATCH2_SHM_VERSION &&
+        header->used <= memory->size - sizeof(*header);
+}
+
+static JinxOracleBatch2ShmRecord *b2_sysv_shm_find_record(
+    JinxOracleBatch2SysvShm *memory,
+    JinxOracleBatch2ShmHeader *header,
+    int64_t key
+) {
+    unsigned char *base;
+    size_t pos = 0u;
+    JinxOracleBatch2ShmRecord *found = NULL;
+
+    if (!b2_sysv_shm_valid_header(memory, header)) return NULL;
+    base = (unsigned char *)(header + 1);
+
+    while (pos < (size_t)header->used) {
+        JinxOracleBatch2ShmRecord *record;
+        size_t record_size;
+
+        if ((size_t)header->used - pos < sizeof(*record)) return NULL;
+        record = (JinxOracleBatch2ShmRecord *)(base + pos);
+        record_size = sizeof(*record) + (size_t)record->length;
+        if (record_size < sizeof(*record) ||
+            record_size > (size_t)header->used - pos) {
+            return NULL;
+        }
+        if (record->active && record->key == key) found = record;
+        pos += record_size;
+    }
+    return found;
 }
 
 static JinxValue b2_new_dir(DIR *dir) {
@@ -3327,6 +3417,250 @@ JinxValue jinx_oracle_batch2_builtin(
             if (handled != NULL) *handled = 1;
             return ini_result;
         }
+    }
+
+    if (strcmp(name, "shm_attach") == 0) {
+        key_t key;
+        int64_t requested_size = 10000;
+        int permissions = 0666;
+        int shmid;
+        int created = 0;
+        struct shmid_ds info;
+
+        if (args == NULL || argc < 1u || argc > 3u) return result;
+        key = (key_t)jinx_oracle_intish(args[0]);
+        if (argc >= 2u) requested_size = jinx_oracle_intish(args[1]);
+        if (argc >= 3u) permissions = (int)(jinx_oracle_intish(args[2]) & 0777);
+        if (requested_size <= (int64_t)sizeof(JinxOracleBatch2ShmHeader)) {
+            return result;
+        }
+
+        errno = 0;
+        shmid = shmget(
+            key,
+            (size_t)requested_size,
+            IPC_CREAT | IPC_EXCL | permissions
+        );
+        if (shmid >= 0) {
+            created = 1;
+        } else if (errno == EEXIST && key != IPC_PRIVATE) {
+            shmid = shmget(key, 1u, 0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        if (shmid < 0 || shmctl(shmid, IPC_STAT, &info) != 0) {
+            return jinx_oracle_bool_value(0);
+        }
+
+        {
+            void *address = shmat(shmid, NULL, 0);
+            JinxOracleBatch2ShmHeader *header;
+            if (address == (void *)-1) {
+                if (created) (void)shmctl(shmid, IPC_RMID, NULL);
+                return jinx_oracle_bool_value(0);
+            }
+            header = (JinxOracleBatch2ShmHeader *)address;
+            if (created) {
+                memset(address, 0, (size_t)info.shm_segsz);
+                header->magic = JINX_ORACLE_BATCH2_SHM_MAGIC;
+                header->version = JINX_ORACLE_BATCH2_SHM_VERSION;
+                header->used = 0u;
+            } else if (header->magic != JINX_ORACLE_BATCH2_SHM_MAGIC ||
+                       header->version != JINX_ORACLE_BATCH2_SHM_VERSION ||
+                       header->used > (uint64_t)(
+                           (size_t)info.shm_segsz - sizeof(*header)
+                       )) {
+                (void)shmdt(address);
+                return jinx_oracle_bool_value(0);
+            }
+            (void)shmdt(address);
+        }
+
+        return b2_new_sysv_shm(shmid, (size_t)info.shm_segsz);
+    }
+
+    if (strcmp(name, "shm_put_var") == 0) {
+        JinxOracleBatch2SysvShm *memory;
+        int64_t key;
+        B2SerializeBuffer serialized = {0};
+        void *address;
+        JinxOracleBatch2ShmHeader *header;
+        JinxOracleBatch2ShmRecord *existing;
+        JinxOracleBatch2ShmRecord *record;
+        size_t needed;
+        unsigned char *base;
+
+        if (args == NULL || argc != 3u) return result;
+        memory = b2_sysv_shm(args[0]);
+        if (memory == NULL || !memory->attached) return result;
+        key = jinx_oracle_intish(args[1]);
+        if (!b2_serialize_jinx_value(&serialized, args[2])) {
+            free(serialized.data);
+            return result;
+        }
+        if (serialized.len > UINT32_MAX) {
+            free(serialized.data);
+            return result;
+        }
+
+        address = shmat(memory->shmid, NULL, 0);
+        if (address == (void *)-1) {
+            free(serialized.data);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        header = (JinxOracleBatch2ShmHeader *)address;
+        if (!b2_sysv_shm_valid_header(memory, header)) {
+            (void)shmdt(address);
+            free(serialized.data);
+            return result;
+        }
+
+        existing = b2_sysv_shm_find_record(memory, header, key);
+        if (existing != NULL) existing->active = 0u;
+
+        needed = sizeof(*record) + serialized.len;
+        if (needed > memory->size - sizeof(*header) - (size_t)header->used) {
+            (void)shmdt(address);
+            free(serialized.data);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        base = (unsigned char *)(header + 1);
+        record = (JinxOracleBatch2ShmRecord *)(base + (size_t)header->used);
+        record->key = key;
+        record->length = (uint32_t)serialized.len;
+        record->active = 1u;
+        if (serialized.len != 0u) {
+            memcpy(record + 1, serialized.data, serialized.len);
+        }
+        header->used += (uint64_t)needed;
+
+        (void)shmdt(address);
+        free(serialized.data);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "shm_has_var") == 0) {
+        JinxOracleBatch2SysvShm *memory;
+        int64_t key;
+        void *address;
+        JinxOracleBatch2ShmHeader *header;
+        int found;
+
+        if (args == NULL || argc != 2u) return result;
+        memory = b2_sysv_shm(args[0]);
+        if (memory == NULL || !memory->attached) return result;
+        key = jinx_oracle_intish(args[1]);
+
+        address = shmat(memory->shmid, NULL, SHM_RDONLY);
+        if (address == (void *)-1) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        header = (JinxOracleBatch2ShmHeader *)address;
+        found = b2_sysv_shm_find_record(memory, header, key) != NULL;
+        (void)shmdt(address);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(found);
+    }
+
+    if (strcmp(name, "shm_get_var") == 0) {
+        JinxOracleBatch2SysvShm *memory;
+        int64_t key;
+        void *address;
+        JinxOracleBatch2ShmHeader *header;
+        JinxOracleBatch2ShmRecord *record;
+        JinxValue serialized_value;
+        JinxValue decoded;
+        int decoded_ok = 0;
+
+        if (args == NULL || argc != 2u) return result;
+        memory = b2_sysv_shm(args[0]);
+        if (memory == NULL || !memory->attached) return result;
+        key = jinx_oracle_intish(args[1]);
+
+        address = shmat(memory->shmid, NULL, SHM_RDONLY);
+        if (address == (void *)-1) return result;
+        header = (JinxOracleBatch2ShmHeader *)address;
+        record = b2_sysv_shm_find_record(memory, header, key);
+        if (record == NULL) {
+            (void)shmdt(address);
+            return result;
+        }
+
+        serialized_value = b2_copy((const char *)(record + 1), record->length);
+        (void)shmdt(address);
+        decoded = b2_unserialize_to_jinx(serialized_value, &decoded_ok);
+        if (!decoded_ok) return result;
+        if (handled != NULL) *handled = 1;
+        return decoded;
+    }
+
+    if (strcmp(name, "shm_remove_var") == 0) {
+        JinxOracleBatch2SysvShm *memory;
+        int64_t key;
+        void *address;
+        JinxOracleBatch2ShmHeader *header;
+        JinxOracleBatch2ShmRecord *record;
+
+        if (args == NULL || argc != 2u) return result;
+        memory = b2_sysv_shm(args[0]);
+        if (memory == NULL || !memory->attached) return result;
+        key = jinx_oracle_intish(args[1]);
+
+        address = shmat(memory->shmid, NULL, 0);
+        if (address == (void *)-1) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        header = (JinxOracleBatch2ShmHeader *)address;
+        record = b2_sysv_shm_find_record(memory, header, key);
+        if (record == NULL) {
+            (void)shmdt(address);
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        record->active = 0u;
+        (void)shmdt(address);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "shm_remove") == 0) {
+        JinxOracleBatch2SysvShm *memory;
+        int removed;
+        if (args == NULL || argc != 1u) return result;
+        memory = b2_sysv_shm(args[0]);
+        if (memory == NULL) return result;
+        removed = shmctl(memory->shmid, IPC_RMID, NULL) == 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(removed);
+    }
+
+    if (strcmp(name, "shm_detach") == 0) {
+        JinxOracleBatch2SysvShm *memory;
+        JinxZendObject *object;
+        JinxZendValue *slot;
+
+        if (args == NULL || argc != 1u) return result;
+        memory = b2_sysv_shm(args[0]);
+        if (memory == NULL) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        memory->attached = 0;
+        if (object != NULL && object->properties != NULL) {
+            slot = jinx_zend_array_find(
+                object->properties, "__sysvshm", 9u
+            );
+            if (slot != NULL && slot->type == JINX_ZEND_RESOURCE) {
+                slot->value.ptr = NULL;
+            }
+        }
+        free(memory);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
     }
 
     if (strcmp(name, "msg_get_queue") == 0) {
