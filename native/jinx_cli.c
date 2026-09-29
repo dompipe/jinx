@@ -35,6 +35,7 @@ static void usage(const char *argv0) {
     printf("Usage:\n");
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
+    printf("  %s shmop-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
@@ -2776,6 +2777,98 @@ static int command_oracle_smoke(void) {
     return 0;
 }
 
+static int command_shmop_smoke(void) {
+    JinxValue open_args[4];
+    JinxValue size_args[1];
+    JinxValue write_args[3];
+    JinxValue read_args[3];
+    JinxValue one_arg[1];
+    JinxValue shmop;
+    JinxValue result;
+    int ok = 0;
+
+    open_args[0] = jinx_value_int(0);
+    open_args[1] = jinx_value_string("n", 1u);
+    open_args[2] = jinx_value_int(0600);
+    open_args[3] = jinx_value_int(64);
+
+    shmop = jinx_call_builtin_through_oracle_checked(
+        "shmop_open", open_args, 4u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_object(shmop)) {
+        release_cli_value(shmop);
+        return fail("native shmop_open did not create a Shmop object");
+    }
+
+    size_args[0] = shmop;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shmop_size", size_args, 1u, &ok
+    );
+    if (!ok || result.type != 1u || result.as.i64 != 64) {
+        release_cli_value(result);
+        release_cli_value(shmop);
+        return fail("native shmop_size did not return 64");
+    }
+    release_cli_value(result);
+
+    write_args[0] = shmop;
+    write_args[1] = jinx_value_string("JINX", 4u);
+    write_args[2] = jinx_value_int(4);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shmop_write", write_args, 3u, &ok
+    );
+    if (!ok || result.type != 1u || result.as.i64 != 4) {
+        release_cli_value(result);
+        release_cli_value(shmop);
+        return fail("native shmop_write did not write four bytes");
+    }
+    release_cli_value(result);
+
+    read_args[0] = shmop;
+    read_args[1] = jinx_value_int(4);
+    read_args[2] = jinx_value_int(4);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shmop_read", read_args, 3u, &ok
+    );
+    if (!ok || result.type != 3u || jinx_oracle_string_len(result) != 4u ||
+        memcmp(jinx_oracle_string_bytes(result), "JINX", 4u) != 0) {
+        release_cli_value(result);
+        release_cli_value(shmop);
+        return fail("native shmop_read did not return written bytes");
+    }
+    release_cli_value(result);
+
+    one_arg[0] = shmop;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shmop_delete", one_arg, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(shmop);
+        return fail("native shmop_delete did not mark the segment for removal");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shmop_close", one_arg, 1u, &ok
+    );
+    if (!ok || result.type != 0u) {
+        release_cli_value(result);
+        release_cli_value(shmop);
+        return fail("native shmop_close did not return null");
+    }
+    release_cli_value(result);
+    release_cli_value(shmop);
+
+    printf("PASS: native shmop open/write/read/size/delete/close lifecycle\n");
+    return 0;
+}
+
 static int command_oracle_call(int argc, char **argv, int output_mode) {
     const char *name;
     JinxValue args[JINX_NATIVE_SAMPLE_ARGC];
@@ -3728,6 +3821,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-smoke") == 0) {
         return command_oracle_smoke();
+    }
+
+    if (strcmp(argv[1], "shmop-smoke") == 0) {
+        return command_shmop_smoke();
     }
 
     if (strcmp(argv[1], "oracle-constant-smoke") == 0) {
