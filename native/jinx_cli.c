@@ -36,6 +36,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-frame-smoke\n", argv0);
     printf("  %s oracle-error-smoke\n", argv0);
     printf("  %s oracle-gc-smoke\n", argv0);
+    printf("  %s oracle-pack-smoke\n", argv0);
     printf("  %s oracle-posix-error-smoke\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
@@ -1466,6 +1467,78 @@ static int command_oracle_gc_smoke(void) {
     release_cli_value(result);
 
     printf("PASS: native GC enable/disable/collect/cache/status state transitions match PHP 8.4-shaped Jinx runtime semantics\n");
+    return 0;
+}
+
+static int command_oracle_pack_smoke(void) {
+    static const unsigned char expected_pack[] = {
+        0x12u, 0x34u, 0x78u, 0x56u, 0x41u, 0x42u
+    };
+    static const unsigned char unpack_bytes[] = {
+        0x04u, 0x00u, 0xa0u
+    };
+    JinxValue pack_args[5];
+    JinxValue unpack_args[2];
+    JinxValue result;
+    int ok = 0;
+
+    pack_args[0] = jinx_oracle_string_value("nvc*");
+    pack_args[1] = jinx_oracle_int_value(0x1234);
+    pack_args[2] = jinx_oracle_int_value(0x5678);
+    pack_args[3] = jinx_oracle_int_value(65);
+    pack_args[4] = jinx_oracle_int_value(66);
+
+    result = jinx_call_builtin_through_oracle_checked(
+        "pack", pack_args, 5u, &ok
+    );
+    if (!ok || result.type != 3u ||
+        jinx_oracle_string_len(result) != sizeof(expected_pack) ||
+        memcmp(
+            jinx_oracle_string_bytes(result),
+            expected_pack,
+            sizeof(expected_pack)
+        ) != 0) {
+        release_cli_value(result);
+        return fail("pack did not match PHP nvc* byte layout");
+    }
+    release_cli_value(result);
+
+    unpack_args[0] = jinx_oracle_string_value("Cchar/nint");
+    unpack_args[1] = jinx_oracle_string_value_len(
+        (const char *)unpack_bytes,
+        (uint32_t)sizeof(unpack_bytes)
+    );
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "unpack", unpack_args, 2u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        return fail("unpack did not return native associative array");
+    }
+    {
+        JinxZendArray *array = jinx_oracle_zend_array_ptr(result);
+        JinxZendValue *char_value = array != NULL
+            ? jinx_zend_array_find(array, "char", sizeof("char") - 1u)
+            : NULL;
+        JinxZendValue *int_value = array != NULL
+            ? jinx_zend_array_find(array, "int", sizeof("int") - 1u)
+            : NULL;
+
+        if (array == NULL ||
+            jinx_zend_array_live_count(array) != 2u ||
+            char_value == NULL || char_value->type != JINX_ZEND_LONG ||
+            char_value->value.lval != 4 ||
+            int_value == NULL || int_value->type != JINX_ZEND_LONG ||
+            int_value->value.lval != 160) {
+            release_cli_value(result);
+            return fail("unpack did not match PHP Cchar/nint values");
+        }
+    }
+    release_cli_value(result);
+
+    printf("PASS: native pack/unpack match PHP binary layout and named unpack values\n");
     return 0;
 }
 
@@ -2974,6 +3047,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-gc-smoke") == 0) {
         return command_oracle_gc_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pack-smoke") == 0) {
+        return command_oracle_pack_smoke();
     }
 
     if (strcmp(argv[1], "oracle-posix-error-smoke") == 0) {
