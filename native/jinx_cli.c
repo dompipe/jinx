@@ -2057,9 +2057,14 @@ static int command_bench_call(int argc, char **argv) {
         iterations = 1;
     }
 
-    if (jinx_lookup_oracle_wrapper(name) == NULL) {
+    function_id = jinx_resolve_builtin_id(name);
+    if (function_id == JINX_BUILTIN_ID_INVALID) {
         fprintf(stderr, "missing: %s\n", name);
         return 1;
+    }
+    encoded_id_len = jinx_encode_builtin_id(function_id, encoded_id);
+    if (encoded_id_len == 0u) {
+        return fail("resolved builtin ID could not be encoded");
     }
 
     supplied_argc = argc - 4;
