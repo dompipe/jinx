@@ -181,6 +181,7 @@ wiringSame($allScalarNames, $scalar, 'scalar outer guards versus named implement
 $container = wiringNamesInConditions(wiringBody(wiringRead($root . '/runtime/jinx_oracle_zend_array_builtins.h'), 'jinx_oracle_zend_array_dispatch_builtin'));
 $gates = wiringNamesInConditions(wiringBody($dispatch, 'jinx_oracle_name_is_zend_array_builtin')) +
     wiringNamesInConditions(wiringBody($dispatch, 'jinx_oracle_name_is_zend_container_builtin')) +
+    wiringNamesInConditions(wiringBody($dispatch, 'jinx_call_builtin_entry_checked')) +
     wiringNamesInConditions(wiringBody($dispatch, 'jinx_call_builtin_through_oracle_checked'));
 wiringSame($container, $gates, 'Zend container routes versus implementations');
 
