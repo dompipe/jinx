@@ -40,6 +40,16 @@ if printf '%s\n' '#include <crypt.h>' 'int main(void){return crypt("x","xx")==0;
 fi
 rm -f "$CRYPT_PROBE"
 
+PCRE2_DEFINE=""
+PCRE2_LIBS=""
+PCRE2_PROBE="${OUT_DIR}/jinx-pcre2-probe"
+if printf '%s\n' '#define PCRE2_CODE_UNIT_WIDTH 8' '#include <pcre2.h>' 'int main(void){int e=0; PCRE2_SIZE o=0; pcre2_code *c=pcre2_compile((PCRE2_SPTR)"x",1,0,&e,&o,0); if(c) pcre2_code_free(c); return c==0;}' | \
+    "$CC_BIN" -x c - -lpcre2-8 -o "$PCRE2_PROBE" >/dev/null 2>&1; then
+    PCRE2_DEFINE="-DJINX_HAVE_PCRE2=1"
+    PCRE2_LIBS="-lpcre2-8"
+fi
+rm -f "$PCRE2_PROBE"
+
 RESOLV_DEFINE=""
 RESOLV_LIBS=""
 RESOLV_PROBE="${OUT_DIR}/jinx-resolv-probe"
@@ -110,6 +120,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CRYPTO_DEFINE} \
     ${MAGIC_DEFINE} \
     ${CRYPT_DEFINE} \
+    ${PCRE2_DEFINE} \
     ${RESOLV_DEFINE} \
     ${CURL_DEFINE} \
     ${EXIF_DEFINE} \
@@ -148,6 +159,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     ${CRYPTO_LIBS} \
     ${MAGIC_LIBS} \
     ${CRYPT_LIBS} \
+    ${PCRE2_LIBS} \
     ${RESOLV_LIBS} \
     ${CURL_LIBS} \
     ${EXIF_LIBS} \
@@ -284,6 +296,11 @@ if [ -n "$CRYPT_DEFINE" ]; then
     echo "Native libcrypt backend: enabled"
 else
     echo "Native libcrypt backend: unavailable; crypt remains faulting"
+fi
+if [ -n "$PCRE2_DEFINE" ]; then
+    echo "Native PCRE2 regex backend: enabled"
+else
+    echo "Native PCRE2 regex backend: unavailable; preg family remains faulting"
 fi
 if [ -n "$RESOLV_DEFINE" ]; then
     echo "Native libresolv DNS backend: enabled"
