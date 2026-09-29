@@ -187,6 +187,195 @@ sodiumExpectHexLength(
     SODIUM_CRYPTO_GENERICHASH_KEYBYTES
 );
 
+$aad = "jinx\0aad";
+
+$chachaKey = substr(
+    hash('sha256', 'jinx-aead-chacha-key', true),
+    0,
+    SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_KEYBYTES
+);
+$chachaNonce = substr(
+    hash('sha256', 'jinx-aead-chacha-nonce', true),
+    0,
+    SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_NPUBBYTES
+);
+$chachaCipher = sodium_crypto_aead_chacha20poly1305_encrypt(
+    $message, $aad, $chachaNonce, $chachaKey
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_aead_chacha20poly1305_encrypt',
+    [
+        sodiumTypedString($message),
+        sodiumTypedString($aad),
+        sodiumTypedString($chachaNonce),
+        sodiumTypedString($chachaKey),
+    ],
+    $chachaCipher
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_aead_chacha20poly1305_decrypt',
+    [
+        sodiumTypedString($chachaCipher),
+        sodiumTypedString($aad),
+        sodiumTypedString($chachaNonce),
+        sodiumTypedString($chachaKey),
+    ],
+    (string)sodium_crypto_aead_chacha20poly1305_decrypt(
+        $chachaCipher, $aad, $chachaNonce, $chachaKey
+    )
+);
+sodiumExpectHexLength(
+    $jinx,
+    'sodium_crypto_aead_chacha20poly1305_keygen',
+    [],
+    SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_KEYBYTES
+);
+
+$ietfKey = substr(
+    hash('sha256', 'jinx-aead-ietf-key', true),
+    0,
+    SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_KEYBYTES
+);
+$ietfNonce = substr(
+    hash('sha256', 'jinx-aead-ietf-nonce', true),
+    0,
+    SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_NPUBBYTES
+);
+$ietfCipher = sodium_crypto_aead_chacha20poly1305_ietf_encrypt(
+    $message, $aad, $ietfNonce, $ietfKey
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_aead_chacha20poly1305_ietf_encrypt',
+    [
+        sodiumTypedString($message),
+        sodiumTypedString($aad),
+        sodiumTypedString($ietfNonce),
+        sodiumTypedString($ietfKey),
+    ],
+    $ietfCipher
+);
+sodiumExpectHex(
+    $jinx,
+    'sodium_crypto_aead_chacha20poly1305_ietf_decrypt',
+    [
+        sodiumTypedString($ietfCipher),
+        sodiumTypedString($aad),
+        sodiumTypedString($ietfNonce),
+        sodiumTypedString($ietfKey),
+    ],
+    (string)sodium_crypto_aead_chacha20poly1305_ietf_decrypt(
+        $ietfCipher, $aad, $ietfNonce, $ietfKey
+    )
+);
+sodiumExpectHexLength(
+    $jinx,
+    'sodium_crypto_aead_chacha20poly1305_ietf_keygen',
+    [],
+    SODIUM_CRYPTO_AEAD_CHACHA20POLY1305_IETF_KEYBYTES
+);
+
+if (function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_encrypt')) {
+    $xAeadKey = substr(
+        hash('sha256', 'jinx-aead-xchacha-key', true),
+        0,
+        SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES
+    );
+    $xAeadNonce = substr(
+        hash('sha512', 'jinx-aead-xchacha-nonce', true),
+        0,
+        SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES
+    );
+    $xAeadCipher = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
+        $message, $aad, $xAeadNonce, $xAeadKey
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_aead_xchacha20poly1305_ietf_encrypt',
+        [
+            sodiumTypedString($message),
+            sodiumTypedString($aad),
+            sodiumTypedString($xAeadNonce),
+            sodiumTypedString($xAeadKey),
+        ],
+        $xAeadCipher
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_aead_xchacha20poly1305_ietf_decrypt',
+        [
+            sodiumTypedString($xAeadCipher),
+            sodiumTypedString($aad),
+            sodiumTypedString($xAeadNonce),
+            sodiumTypedString($xAeadKey),
+        ],
+        (string)sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
+            $xAeadCipher, $aad, $xAeadNonce, $xAeadKey
+        )
+    );
+    sodiumExpectHexLength(
+        $jinx,
+        'sodium_crypto_aead_xchacha20poly1305_ietf_keygen',
+        [],
+        SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES
+    );
+}
+
+$aesAvailable = sodium_crypto_aead_aes256gcm_is_available();
+sodiumExpect(
+    $jinx,
+    'sodium_crypto_aead_aes256gcm_is_available',
+    [],
+    'bool:' . ($aesAvailable ? 'true' : 'false')
+);
+sodiumExpectHexLength(
+    $jinx,
+    'sodium_crypto_aead_aes256gcm_keygen',
+    [],
+    SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES
+);
+if ($aesAvailable) {
+    $aesKey = substr(
+        hash('sha256', 'jinx-aead-aes-key', true),
+        0,
+        SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES
+    );
+    $aesNonce = substr(
+        hash('sha256', 'jinx-aead-aes-nonce', true),
+        0,
+        SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES
+    );
+    $aesCipher = sodium_crypto_aead_aes256gcm_encrypt(
+        $message, $aad, $aesNonce, $aesKey
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_aead_aes256gcm_encrypt',
+        [
+            sodiumTypedString($message),
+            sodiumTypedString($aad),
+            sodiumTypedString($aesNonce),
+            sodiumTypedString($aesKey),
+        ],
+        $aesCipher
+    );
+    sodiumExpectHex(
+        $jinx,
+        'sodium_crypto_aead_aes256gcm_decrypt',
+        [
+            sodiumTypedString($aesCipher),
+            sodiumTypedString($aad),
+            sodiumTypedString($aesNonce),
+            sodiumTypedString($aesKey),
+        ],
+        (string)sodium_crypto_aead_aes256gcm_decrypt(
+            $aesCipher, $aad, $aesNonce, $aesKey
+        )
+    );
+}
+
 $streamKey = substr(hash('sha256', 'jinx-stream-key', true), 0, SODIUM_CRYPTO_STREAM_KEYBYTES);
 $streamNonce = substr(hash('sha256', 'jinx-stream-nonce', true), 0, SODIUM_CRYPTO_STREAM_NONCEBYTES);
 sodiumExpectHex(
