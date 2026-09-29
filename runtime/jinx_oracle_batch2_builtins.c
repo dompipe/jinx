@@ -76,6 +76,7 @@ static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
 static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
 static size_t jinx_oracle_batch2_strtok_len = 0u;
 static size_t jinx_oracle_batch2_strtok_pos = 0u;
+static int jinx_oracle_batch2_gc_enabled = 1;
 
 #ifdef JINX_HAVE_ICONV
 static char jinx_oracle_batch2_iconv_input_encoding[128] = JINX_NATIVE_ICONV_INPUT_ENCODING;
@@ -2583,6 +2584,42 @@ JinxValue jinx_oracle_batch2_builtin(
         free(buffer);
         if (handled != NULL) *handled = 1;
         return result;
+    }
+
+    if (strcmp(name, "gc_enabled") == 0) {
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(jinx_oracle_batch2_gc_enabled);
+    }
+
+    if (strcmp(name, "gc_enable") == 0) {
+        jinx_oracle_batch2_gc_enabled = 1;
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
+    }
+
+    if (strcmp(name, "gc_disable") == 0) {
+        jinx_oracle_batch2_gc_enabled = 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
+    }
+
+    if (strcmp(name, "gc_collect_cycles") == 0) {
+        /*
+         * Jinx's native carried values are reference-counted and currently
+         * maintain no separate cyclic-garbage root buffer. Therefore there
+         * are no queued cycles for this collector to reclaim.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(0);
+    }
+
+    if (strcmp(name, "gc_mem_caches") == 0) {
+        /*
+         * The native runtime does not retain Zend-style GC allocator caches.
+         * Nothing is held for this API to release.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(0);
     }
 
     if (strcmp(name, "pcntl_strerror") == 0 ||
