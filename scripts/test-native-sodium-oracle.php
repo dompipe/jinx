@@ -56,6 +56,22 @@ function sodiumJinxRefsHex(
     return sodiumRun($cmd, $code);
 }
 
+
+function sodiumJinxRefsHex(
+    string $jinx,
+    string $name,
+    array $args,
+    ?int &$code = null
+): string {
+    $cmd = escapeshellarg($jinx)
+        . ' oracle-call-refs-hex '
+        . escapeshellarg($name);
+    foreach ($args as $arg) {
+        $cmd .= ' ' . escapeshellarg((string)$arg);
+    }
+    return sodiumRun($cmd, $code);
+}
+
 function sodiumExpectRefHex(
     string $jinx,
     string $name,
@@ -170,6 +186,63 @@ foreach ([SODIUM_BASE64_VARIANT_ORIGINAL, SODIUM_BASE64_VARIANT_URLSAFE_NO_PADDI
         'sodium_base642bin',
         ['s:' . $encoded, 'i:' . $variant],
         sodium_base642bin($encoded, $variant)
+    );
+}
+
+$addLeft = "\xfe\xff\x00\x00";
+$addRight = "\x05\x00\x00\x00";
+$phpAdd = $addLeft;
+sodium_add($phpAdd, $addRight);
+$addRefs = sodiumJinxRefsHex(
+    $jinx,
+    'sodium_add',
+    [sodiumTypedString($addLeft), sodiumTypedString($addRight)],
+    $code
+);
+$expectedAddRefs = "return=null\n"
+    . "arg0=hex:" . bin2hex($phpAdd) . "\n"
+    . "arg1=hex:" . bin2hex($addRight);
+if ($code !== 0 || $addRefs !== $expectedAddRefs) {
+    sodiumFail(
+        "sodium_add by-reference parity mismatch\n"
+        . "PHP/expected:\n{$expectedAddRefs}\nJINX:\n{$addRefs}"
+    );
+}
+
+$incrementInput = "\xff\xff\x00\x7f";
+$phpIncrement = $incrementInput;
+sodium_increment($phpIncrement);
+$incrementRefs = sodiumJinxRefsHex(
+    $jinx,
+    'sodium_increment',
+    [sodiumTypedString($incrementInput)],
+    $code
+);
+$expectedIncrementRefs = "return=null\narg0=hex:" . bin2hex($phpIncrement);
+if ($code !== 0 || $incrementRefs !== $expectedIncrementRefs) {
+    sodiumFail(
+        "sodium_increment by-reference parity mismatch\n"
+        . "PHP/expected:\n{$expectedIncrementRefs}\nJINX:\n{$incrementRefs}"
+    );
+}
+
+$memzeroInput = "secret\0bytes";
+$phpMemzero = $memzeroInput;
+sodium_memzero($phpMemzero);
+$memzeroRefs = sodiumJinxRefsHex(
+    $jinx,
+    'sodium_memzero',
+    [sodiumTypedString($memzeroInput)],
+    $code
+);
+$expectedMemzeroRefs = "return=null\narg0=null";
+if ($phpMemzero !== null ||
+    $code !== 0 ||
+    $memzeroRefs !== $expectedMemzeroRefs) {
+    sodiumFail(
+        "sodium_memzero by-reference parity mismatch\n"
+        . "PHP variable type: " . get_debug_type($phpMemzero)
+        . "\nExpected:\n{$expectedMemzeroRefs}\nJINX:\n{$memzeroRefs}"
     );
 }
 
