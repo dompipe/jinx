@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 869,
+        "native_named_route": 871,
         "extended_native_route": 571,
         "context_native_route": 3,
-        "intentional_native_fault": 2658
+        "intentional_native_fault": 2656
     },
     "routes": {
         "_": "extended",
@@ -2851,7 +2851,7 @@
         "socket_shutdown": "intentional-native-fault",
         "socket_strerror": "extended",
         "socket_write": "intentional-native-fault",
-        "sodium_add": "intentional-native-fault",
+        "sodium_add": "asm",
         "sodium_base642bin": "extended",
         "sodium_bin2base64": "extended",
         "sodium_bin2hex": "extended",
@@ -2950,7 +2950,7 @@
         "sodium_crypto_stream_xchacha20_xor_ic": "extended",
         "sodium_crypto_stream_xor": "extended",
         "sodium_hex2bin": "extended",
-        "sodium_increment": "intentional-native-fault",
+        "sodium_increment": "asm",
         "sodium_memcmp": "extended",
         "sodium_memzero": "intentional-native-fault",
         "sodium_pad": "extended",
