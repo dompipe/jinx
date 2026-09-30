@@ -47,6 +47,9 @@ foreach ([
     'pcntl_getcpuaffinity',
     'pcntl_setcpuaffinity',
     'pcntl_sigprocmask',
+    'pcntl_signal',
+    'pcntl_signal_get_handler',
+    'pcntl_signal_dispatch',
 ] as $name) {
     if (!function_exists($name)) {
         pcntlFail("PHP {$name} is required for native parity");
@@ -234,6 +237,33 @@ if ($code !== 0 || $jinxSigmask !== $expectedSigmask) {
     );
 }
 
+$phpSetDefault = pcntl_signal(SIGUSR1, SIG_DFL);
+$phpGetDefault = pcntl_signal_get_handler(SIGUSR1);
+$phpSetIgnore = pcntl_signal(SIGUSR1, SIG_IGN);
+$phpGetIgnore = pcntl_signal_get_handler(SIGUSR1);
+$phpDispatch = pcntl_signal_dispatch();
+$phpRestoreDefault = pcntl_signal(SIGUSR1, SIG_DFL);
+
+$expectedSignal = implode(PHP_EOL, [
+    'set_default=bool:' . ($phpSetDefault ? 'true' : 'false'),
+    'get_default=int:' . $phpGetDefault,
+    'set_ignore=bool:' . ($phpSetIgnore ? 'true' : 'false'),
+    'get_ignore=int:' . $phpGetIgnore,
+    'dispatch=bool:' . ($phpDispatch ? 'true' : 'false'),
+    'restore_default=bool:' . ($phpRestoreDefault ? 'true' : 'false'),
+]);
+
+$jinxSignal = pcntlRun(
+    escapeshellarg($jinx) . ' oracle-pcntl-signal-smoke',
+    $code
+);
+if ($code !== 0 || $jinxSignal !== $expectedSignal) {
+    pcntlFail(
+        "pcntl_signal integer-handler parity mismatch\n" .
+        "PHP/expected:\n{$expectedSignal}\nJINX:\n{$jinxSignal}"
+    );
+}
+
 $phpCpu = pcntl_getcpu();
 $jinxCpu = pcntlJinx($jinx, 'pcntl_getcpu', [], $code);
 if (!is_int($phpCpu) || $phpCpu < 0 ||
@@ -283,4 +313,4 @@ if ($code !== 0 || $jinxErrorText !== 'string:' . $phpErrorText) {
     );
 }
 
-echo "PASS: native PCNTL alarm, async-signals, signal-mask, affinity, priority, CPU, and error helpers match PHP\n";
+echo "PASS: native PCNTL alarm, async-signals, signal handlers, signal-mask, affinity, priority, CPU, and error helpers match PHP\n";
