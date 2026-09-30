@@ -39,11 +39,15 @@ foreach ($interfaces as $name => $interface) {
     }
     foreach ($interface['unicast'] as $unicast) {
         if (!is_array($unicast) ||
-            !isset($unicast['flags'], $unicast['family'], $unicast['address'], $unicast['netmask']) ||
+            !array_key_exists('flags', $unicast) ||
+            !array_key_exists('family', $unicast) ||
+            !array_key_exists('address', $unicast) ||
             !is_int($unicast['flags']) ||
             !is_int($unicast['family']) ||
             !is_string($unicast['address']) ||
-            !is_string($unicast['netmask'])) {
+            (array_key_exists('netmask', $unicast) &&
+                $unicast['netmask'] !== null &&
+                !is_string($unicast['netmask']))) {
             failNet('PHP net_get_interfaces unicast shape mismatch');
         }
         ++$unicastCount;
