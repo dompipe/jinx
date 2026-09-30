@@ -4253,6 +4253,69 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_bool_value(1);
     }
 
+    if (strcmp(name, "session_destroy") == 0) {
+        if (argc != 0u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        /*
+         * PHP destroys persisted session data but keeps the current in-memory
+         * session active and leaves the session ID untouched.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "session_unset") == 0 ||
+        strcmp(name, "session_reset") == 0) {
+        if (argc != 0u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        /*
+         * The current native session store is empty; unsetting or resetting
+         * therefore has no payload mutation, but the active-session contract
+         * and return value are still exact.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "session_regenerate_id") == 0) {
+        int create_handled = 0;
+        int saved_active;
+        JinxValue created;
+        char *copy;
+
+        if (argc > 1u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        saved_active = jinx_oracle_batch2_session_active;
+        jinx_oracle_batch2_session_active = 0;
+        created = jinx_oracle_batch2_builtin(
+            "session_create_id", NULL, 0u, &create_handled
+        );
+        jinx_oracle_batch2_session_active = saved_active;
+
+        if (!create_handled || created.type != 3u) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        copy = b2_dup(created);
+        if (copy == NULL) return result;
+        free(jinx_oracle_batch2_session_id);
+        jinx_oracle_batch2_session_id = copy;
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "session_set_cookie_params") == 0) {
         if (args == NULL || argc < 1u || argc > 5u ||
             jinx_oracle_batch2_session_active) {
