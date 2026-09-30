@@ -185,6 +185,26 @@ $timezoneVersion = function_exists('timezone_version_get')
     ? timezone_version_get()
     : '';
 
+$timezoneLocationRows = [];
+if (function_exists('timezone_location_get') && class_exists('DateTimeZone')) {
+    foreach ($timezoneIdentifiers as $timezoneId) {
+        try {
+            $timezone = new DateTimeZone((string)$timezoneId);
+            $location = timezone_location_get($timezone);
+        } catch (Throwable) {
+            $location = false;
+        }
+        if (!is_array($location)) continue;
+        $timezoneLocationRows[] = [
+            (string)$timezoneId,
+            (string)($location['country_code'] ?? ''),
+            (float)($location['latitude'] ?? 0.0),
+            (float)($location['longitude'] ?? 0.0),
+            (string)($location['comments'] ?? ''),
+        ];
+    }
+}
+
 $timezoneAbbrResolveRows = [];
 $timezoneAbbrRows = [];
 if (function_exists('timezone_abbreviations_list') && function_exists('timezone_name_from_abbr')) {
@@ -383,6 +403,7 @@ $code[] = 'typedef struct JinxNativeIniMeta { const char *name; const char *glob
 $code[] = 'typedef struct JinxNativeClassVarsMeta { const char *class_name; const JinxNativeConstantMeta *vars; size_t var_count; int complete; } JinxNativeClassVarsMeta;';
 $code[] = 'typedef struct JinxNativeTimezoneAbbrResolve { const char *abbr; long offset; int dst; const char *timezone_id; } JinxNativeTimezoneAbbrResolve;';
 $code[] = 'typedef struct JinxNativeTimezoneAbbrEntry { const char *abbr; int dst; long offset; const char *timezone_id; } JinxNativeTimezoneAbbrEntry;';
+$code[] = 'typedef struct JinxNativeTimezoneLocation { const char *timezone_id; const char *country_code; double latitude; double longitude; const char *comments; } JinxNativeTimezoneLocation;';
 $code[] = '';
 array_push($code, ...$arrays);
 $code[] = '';
@@ -441,6 +462,20 @@ foreach ($timezoneAbbrRows as [$abbr, $dst, $offset, $timezoneId]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_timezone_abbr_entries_count = ' . count($timezoneAbbrRows) . 'u;';
+$code[] = '';
+$code[] = 'static const JinxNativeTimezoneLocation jinx_native_timezone_locations[] = {';
+foreach ($timezoneLocationRows as [$timezoneId, $countryCode, $latitude, $longitude, $comments]) {
+    $code[] = sprintf(
+        '    { %s, %s, %.17g, %.17g, %s },',
+        cstr((string)$timezoneId),
+        cstr((string)$countryCode),
+        (float)$latitude,
+        (float)$longitude,
+        cstr((string)$comments)
+    );
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_timezone_locations_count = ' . count($timezoneLocationRows) . 'u;';
 $code[] = '';
 
 $extensionSymbols = [];
