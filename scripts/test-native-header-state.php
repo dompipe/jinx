@@ -34,6 +34,7 @@ if (!is_file($jinx) || !is_executable($jinx)) {
     headerStateFail('repository-root native ./jinx missing or not executable');
 }
 
+$lastResponseInitial = http_get_last_response_headers();
 $headersSentInitial = headers_sent();
 $headersInitial = headers_list();
 $responseInitial = http_response_code();
@@ -51,9 +52,12 @@ $setRawCookie = setrawcookie('jinxraw', 'value');
 $headerRemove = header_remove();
 $headersFinal = headers_list();
 $headersSentFinal = headers_sent();
+$clearLastResponse = http_clear_last_response_headers();
+$lastResponseFinal = http_get_last_response_headers();
 $responseFinal = http_response_code();
 
 $expected = implode(PHP_EOL, [
+    'last_response_initial=' . headerStateValue($lastResponseInitial),
     'headers_sent_initial=' . headerStateValue($headersSentInitial),
     'headers_initial=' . headerStateValue($headersInitial),
     'response_initial=' . headerStateValue($responseInitial),
@@ -67,6 +71,8 @@ $expected = implode(PHP_EOL, [
     'header_remove=' . headerStateValue($headerRemove),
     'headers_final=' . headerStateValue($headersFinal),
     'headers_sent_final=' . headerStateValue($headersSentFinal),
+    'clear_last_response=' . headerStateValue($clearLastResponse),
+    'last_response_final=' . headerStateValue($lastResponseFinal),
     'response_final=' . headerStateValue($responseFinal),
 ]);
 
