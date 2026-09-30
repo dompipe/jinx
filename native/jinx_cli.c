@@ -7,6 +7,7 @@
 #include <locale.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
 
@@ -2847,11 +2848,20 @@ static int command_net_interfaces_smoke(void) {
             address = jinx_zend_array_find(entry, "address", 7u);
             netmask = jinx_zend_array_find(entry, "netmask", 7u);
             if (flags == NULL || flags->type != JINX_ZEND_LONG ||
-                family == NULL || family->type != JINX_ZEND_LONG ||
-                address == NULL || address->type != JINX_ZEND_STRING ||
-                netmask == NULL || netmask->type != JINX_ZEND_STRING) {
+                family == NULL || family->type != JINX_ZEND_LONG) {
                 release_cli_value(result);
                 return fail("native net_get_interfaces unicast shape mismatch");
+            }
+
+            if (family->value.lval == AF_INET ||
+                family->value.lval == AF_INET6) {
+                if (address == NULL ||
+                    address->type != JINX_ZEND_STRING ||
+                    netmask == NULL ||
+                    netmask->type != JINX_ZEND_STRING) {
+                    release_cli_value(result);
+                    return fail("native net_get_interfaces IP unicast shape mismatch");
+                }
             }
         }
     }
