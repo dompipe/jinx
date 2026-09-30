@@ -4260,9 +4260,10 @@ JinxValue jinx_oracle_batch2_builtin(
             return jinx_oracle_bool_value(0);
         }
         /*
-         * PHP destroys persisted session data but keeps the current in-memory
-         * session active and leaves the session ID untouched.
+         * PHP 8.4 deactivates the session after destroying the persisted
+         * session record while leaving the current session ID value intact.
          */
+        jinx_oracle_batch2_session_active = 0;
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(1);
     }
