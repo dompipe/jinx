@@ -87,6 +87,8 @@ $afterRegenerate = session_id();
 $idChanged = $afterRegenerate !== $beforeRegenerate;
 $unset = session_unset();
 $reset = session_reset();
+$encode = session_encode();
+$decodeEmpty = session_decode('');
 $destroy = session_destroy();
 $statusAfterDestroy = session_status();
 $finalWriteClose = session_write_close();
@@ -111,6 +113,8 @@ $expected = implode(PHP_EOL, [
     'id_changed=' . sessionLifecycleValue($idChanged),
     'unset=' . sessionLifecycleValue($unset),
     'reset=' . sessionLifecycleValue($reset),
+    'encode=' . sessionLifecycleValue($encode),
+    'decode_empty=' . sessionLifecycleValue($decodeEmpty),
     'destroy=' . sessionLifecycleValue($destroy),
     'status_after_destroy=' . sessionLifecycleValue($statusAfterDestroy),
     'final_write_close=' . sessionLifecycleValue($finalWriteClose),
