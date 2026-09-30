@@ -154,6 +154,7 @@ $tests = [
     'scripts/test-native-procedural-needed-200-oracle-asm.php' => 'PASS: second-wave procedural Oracle handlers preserve deterministic PHP return contracts',
     'scripts/test-native-password-hash.php' => 'PASS: native password_hash bcrypt output verifies in PHP and Jinx',
     'scripts/test-native-filter-input.php' => 'PASS: native filter input empty-context semantics match PHP CLI',
+    'scripts/test-native-header-state.php' => 'PASS: native CLI header and response state matches PHP',
     'scripts/test-native-preg-match.php' => 'PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_filter, preg_grep, preg_last_error, and preg_last_error_msg core forms match PHP',
     'scripts/test-native-serialize.php' => 'PASS: native serialize/unserialize scalar, binary-string, mixed-array, and nested-array core matches PHP',
     'scripts/test-native-timezone-abbr-oracle.php' => 'PASS: native timezone_name_from_abbr matches PHP abbreviation resolution',
