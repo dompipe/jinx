@@ -156,6 +156,7 @@ $tests = [
     'scripts/test-native-preg-match.php' => 'PASS: native PCRE2 preg_match, preg_match_all, preg_split, preg_replace, preg_filter, preg_grep, preg_last_error, and preg_last_error_msg core forms match PHP',
     'scripts/test-native-serialize.php' => 'PASS: native serialize/unserialize scalar, binary-string, mixed-array, and nested-array core matches PHP',
     'scripts/test-native-timezone-abbr-oracle.php' => 'PASS: native timezone_name_from_abbr matches PHP abbreviation resolution',
+    'scripts/test-native-timezone-abbreviations.php' => 'PASS: native timezone_abbreviations_list exactly matches PHP JSON shape',
     'scripts/test-native-pfsockopen-oracle.php' => 'PASS: native pfsockopen matches bounded PHP socket behavior',
     'scripts/test-native-pcntl-oracle.php' => 'PASS: native PCNTL alarm, async-signals, signal-mask, affinity, priority, CPU, and error helpers match PHP',
     'scripts/test-native-session-config-oracle.php' => 'PASS: native session configuration, ID generation, and cookie getter/setter match PHP',
