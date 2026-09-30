@@ -2280,6 +2280,7 @@ static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
     } while (0)
 
     JINX_SESSION_LIFECYCLE_CALL0("status_initial", "session_status");
+    JINX_SESSION_LIFECYCLE_CALL0("gc_inactive", "session_gc");
 
     args[0] = jinx_value_string(argv[2], (uint32_t)strlen(argv[2]));
     ok = 0;
@@ -2305,6 +2306,7 @@ static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
     JINX_SESSION_LIFECYCLE_CALL0("status_after_commit", "session_status");
 
     JINX_SESSION_LIFECYCLE_CALL0("restart_active_ops", "session_start");
+    JINX_SESSION_LIFECYCLE_CALL0("gc_active", "session_gc");
 
     ok = 0;
     value = jinx_call_builtin_through_oracle_checked(
