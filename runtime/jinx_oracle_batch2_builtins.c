@@ -4316,6 +4316,35 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_bool_value(1);
     }
 
+    if (strcmp(name, "session_encode") == 0) {
+        if (argc != 0u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        /*
+         * Native session-variable storage is currently empty. PHP's default
+         * "php" session serializer encodes an empty active session as "".
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_string_value("");
+    }
+
+    if (strcmp(name, "session_decode") == 0) {
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        /*
+         * Empty payload parity is complete; non-empty session payloads wait
+         * for the native $_SESSION variable store instead of being fabricated.
+         */
+        if (jinx_oracle_string_len(args[0]) != 0u) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "session_set_cookie_params") == 0) {
         if (args == NULL || argc < 1u || argc > 5u ||
             jinx_oracle_batch2_session_active) {
