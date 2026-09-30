@@ -5555,6 +5555,28 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_bool_value(previous);
     }
 
+    if (strcmp(name, "set_time_limit") == 0) {
+        int64_t seconds;
+        JinxValue seconds_value;
+
+        if (args == NULL || argc != 1u ||
+            (args[0].type != 1u && args[0].type != 2u)) {
+            return result;
+        }
+
+        seconds = jinx_oracle_intish(args[0]);
+        if (seconds < 0 || (uint64_t)seconds > UINT_MAX) return result;
+
+        seconds_value = jinx_oracle_int_value(seconds);
+        if (!b2_ini_assign_value("max_execution_time", seconds_value)) {
+            return result;
+        }
+
+        (void)alarm((unsigned int)seconds);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "pcntl_alarm") == 0) {
         unsigned int previous;
         if (args == NULL || argc != 1u) return result;
