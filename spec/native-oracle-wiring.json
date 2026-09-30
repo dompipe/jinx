@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 940,
-        "extended_native_route": 628,
+        "native_named_route": 941,
+        "extended_native_route": 629,
         "context_native_route": 15,
-        "intentional_native_fault": 2587
+        "intentional_native_fault": 2586
     },
     "routes": {
         "_": "extended",
@@ -2783,7 +2783,7 @@
         "set_exception_handler": "intentional-native-fault",
         "set_file_buffer": "extended",
         "set_include_path": "extended",
-        "set_time_limit": "intentional-native-fault",
+        "set_time_limit": "extended",
         "setcookie": "intentional-native-fault",
         "setlocale": "extended",
         "setrawcookie": "intentional-native-fault",
