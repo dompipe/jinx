@@ -46,6 +46,9 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/shm.h>
+#ifdef __linux__
+#include <sys/sysmacros.h>
+#endif
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -6388,6 +6391,35 @@ JinxValue jinx_oracle_batch2_builtin(
         if (handled != NULL) *handled = 1;
         return jinx_oracle_bool_value(rc == 0);
     }
+    if (strcmp(name, "posix_mknod") == 0) {
+        char *path;
+        mode_t mode;
+        dev_t device = (dev_t)0;
+        int rc;
+        if (args == NULL || argc < 2u || argc > 4u ||
+            args[0].type != 3u) return result;
+        path = b2_dup(args[0]);
+        if (path == NULL) return result;
+        mode = (mode_t)jinx_oracle_intish(args[1]);
+#ifdef __linux__
+        if (argc >= 3u) {
+            unsigned int major_number =
+                (unsigned int)jinx_oracle_intish(args[2]);
+            unsigned int minor_number = argc >= 4u
+                ? (unsigned int)jinx_oracle_intish(args[3]) : 0u;
+            device = makedev(major_number, minor_number);
+        }
+#else
+        (void)argc;
+#endif
+        errno = 0;
+        rc = mknod(path, mode, device);
+        if (rc != 0) jinx_oracle_batch2_posix_last_error = errno;
+        free(path);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(rc == 0);
+    }
+
     if (strcmp(name, "posix_mkfifo") == 0) {
         char *path;
         int rc;
