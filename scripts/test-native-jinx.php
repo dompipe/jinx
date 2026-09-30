@@ -162,6 +162,7 @@ $tests = [
     'scripts/test-native-pfsockopen-oracle.php' => 'PASS: native pfsockopen matches bounded PHP socket behavior',
     'scripts/test-native-pcntl-oracle.php' => 'PASS: native PCNTL alarm, async-signals, signal-mask, affinity, priority, CPU, and error helpers match PHP',
     'scripts/test-native-session-config-oracle.php' => 'PASS: native session configuration, ID generation, and cookie getter/setter match PHP',
+    'scripts/test-native-session-lifecycle.php' => 'PASS: native session lifecycle start, close, abort, and commit match PHP',
     'scripts/test-native-shmop-oracle.php' => 'PASS: native shmop shared-memory lifecycle matches PHP',
     'scripts/test-native-shm-oracle.php' => 'PASS: native SysV shared-memory variable lifecycle matches PHP',
     'scripts/test-native-sem-oracle.php' => 'PASS: native SysV semaphore lifecycle matches PHP',
