@@ -57,7 +57,11 @@ $originalName = session_name();
 $originalId = session_id();
 
 $sessionId = 'jinxlifecycle' . getmypid();
-$savePath = sys_get_temp_dir();
+$savePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR .
+    'jinx-session-life-' . getmypid();
+if (!is_dir($savePath) && !mkdir($savePath, 0700, true) && !is_dir($savePath)) {
+    sessionLifecycleFail('could not create dedicated session save directory');
+}
 
 session_save_path($savePath);
 ini_set('session.use_cookies', '0');
@@ -66,6 +70,7 @@ session_name('JINXLIFE');
 $idPrevious = session_id($sessionId);
 
 $statusInitial = session_status();
+$gcInactive = @session_gc();
 $start = @session_start();
 $statusActive = session_status();
 $idActive = session_id();
@@ -81,6 +86,7 @@ $commit = session_commit();
 $statusAfterCommit = session_status();
 
 $restartActiveOps = @session_start();
+$gcActive = session_gc();
 $beforeRegenerate = session_id();
 $regenerateId = session_regenerate_id();
 $afterRegenerate = session_id();
@@ -96,6 +102,7 @@ $statusFinal = session_status();
 
 $expected = implode(PHP_EOL, [
     'status_initial=' . sessionLifecycleValue($statusInitial),
+    'gc_inactive=' . sessionLifecycleValue($gcInactive),
     'id_previous=' . sessionLifecycleValue($idPrevious),
     'start=' . sessionLifecycleValue($start),
     'status_active=' . sessionLifecycleValue($statusActive),
@@ -109,6 +116,7 @@ $expected = implode(PHP_EOL, [
     'commit=' . sessionLifecycleValue($commit),
     'status_after_commit=' . sessionLifecycleValue($statusAfterCommit),
     'restart_active_ops=' . sessionLifecycleValue($restartActiveOps),
+    'gc_active=' . sessionLifecycleValue($gcActive),
     'regenerate_id=' . sessionLifecycleValue($regenerateId),
     'id_changed=' . sessionLifecycleValue($idChanged),
     'unset=' . sessionLifecycleValue($unset),
@@ -129,6 +137,10 @@ $actual = sessionLifecycleRun(
 );
 
 @unlink($savePath . DIRECTORY_SEPARATOR . 'sess_' . $sessionId);
+if (isset($afterRegenerate) && is_string($afterRegenerate)) {
+    @unlink($savePath . DIRECTORY_SEPARATOR . 'sess_' . $afterRegenerate);
+}
+@rmdir($savePath);
 session_id($originalId);
 session_name($originalName);
 session_cache_limiter($originalCacheLimiter);
