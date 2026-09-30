@@ -2101,6 +2101,9 @@ static int command_oracle_header_state_smoke(void) {
         print_value_line(value); \
     } while (0)
 
+    JINX_HEADER_CALL0(
+        "last_response_initial", "http_get_last_response_headers"
+    );
     JINX_HEADER_CALL0("headers_sent_initial", "headers_sent");
     JINX_HEADER_CALL0("headers_initial", "headers_list");
     JINX_HEADER_CALL0("response_initial", "http_response_code");
@@ -2159,6 +2162,13 @@ static int command_oracle_header_state_smoke(void) {
 
     JINX_HEADER_CALL0("headers_final", "headers_list");
     JINX_HEADER_CALL0("headers_sent_final", "headers_sent");
+
+    JINX_HEADER_CALL0(
+        "clear_last_response", "http_clear_last_response_headers"
+    );
+    JINX_HEADER_CALL0(
+        "last_response_final", "http_get_last_response_headers"
+    );
     JINX_HEADER_CALL0("response_final", "http_response_code");
 
 #undef JINX_HEADER_CALL0
