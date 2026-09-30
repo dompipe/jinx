@@ -2399,6 +2399,240 @@ static void *b2_registered_resource_pointer(JinxValue value) {
     return NULL;
 }
 
+static JinxZendObject *b2_default_stream_context = NULL;
+
+static JinxZendArray *b2_stream_context_array(
+    JinxZendObject *object,
+    const char *property
+) {
+    JinxZendValue *slot;
+    if (object == NULL || object->properties == NULL || property == NULL ||
+        object->class_name == NULL ||
+        strcmp(object->class_name, "stream-context") != 0) {
+        return NULL;
+    }
+    slot = jinx_zend_array_find(
+        object->properties, property, strlen(property)
+    );
+    if (slot == NULL || slot->type != JINX_ZEND_ARRAY ||
+        slot->value.array == NULL) {
+        return NULL;
+    }
+    return slot->value.array;
+}
+
+static JinxZendObject *b2_new_stream_context_object(
+    JinxZendArray *options,
+    JinxZendArray *params
+) {
+    JinxZendObject *object;
+    JinxZendArray *owned_options;
+    JinxZendArray *owned_params;
+    int ok;
+
+    owned_options = options != NULL
+        ? jinx_oracle_zend_clone_live_array(options)
+        : jinx_zend_array_new_packed(1u);
+    owned_params = params != NULL
+        ? jinx_oracle_zend_clone_live_array(params)
+        : jinx_zend_array_new_packed(1u);
+    if (owned_options == NULL || owned_params == NULL) {
+        jinx_zend_array_release(owned_options);
+        jinx_zend_array_release(owned_params);
+        return NULL;
+    }
+
+    object = jinx_zend_object_new("stream-context");
+    if (object == NULL) {
+        jinx_zend_array_release(owned_options);
+        jinx_zend_array_release(owned_params);
+        return NULL;
+    }
+
+    ok = jinx_zend_array_add_assoc(
+        object->properties,
+        "__options",
+        9u,
+        jinx_zend_array_value(owned_options)
+    ) && jinx_zend_array_add_assoc(
+        object->properties,
+        "__params",
+        8u,
+        jinx_zend_array_value(owned_params)
+    );
+    jinx_zend_array_release(owned_options);
+    jinx_zend_array_release(owned_params);
+
+    if (!ok) {
+        jinx_zend_object_release(object);
+        return NULL;
+    }
+    return object;
+}
+
+static int b2_stream_context_merge_shallow(
+    JinxZendArray *target,
+    JinxZendArray *source
+) {
+    size_t live;
+    if (target == NULL || source == NULL) return 0;
+    live = jinx_zend_array_live_count(source);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *bucket =
+            jinx_zend_array_live_iter_at(source, i);
+        if (bucket == NULL ||
+            !jinx_oracle_zend_array_store_bucket_key(
+                target, bucket, bucket->value
+            )) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int b2_stream_context_merge_options(
+    JinxZendArray *target,
+    JinxZendArray *source
+) {
+    size_t live;
+    if (target == NULL || source == NULL) return 0;
+
+    live = jinx_zend_array_live_count(source);
+    for (size_t i = 0u; i < live; i++) {
+        const JinxZendBucket *wrapper =
+            jinx_zend_array_live_iter_at(source, i);
+        JinxZendValue *existing;
+        JinxZendArray *merged;
+        size_t option_live;
+
+        if (wrapper == NULL || wrapper->key == NULL ||
+            wrapper->value.type != JINX_ZEND_ARRAY ||
+            wrapper->value.value.array == NULL) {
+            return 0;
+        }
+
+        existing = jinx_zend_array_find(
+            target, wrapper->key->bytes, wrapper->key->len
+        );
+        if (existing != NULL &&
+            existing->type == JINX_ZEND_ARRAY &&
+            existing->value.array != NULL) {
+            merged = jinx_oracle_zend_clone_live_array(
+                existing->value.array
+            );
+        } else {
+            merged = jinx_zend_array_new_packed(1u);
+        }
+        if (merged == NULL) return 0;
+
+        option_live =
+            jinx_zend_array_live_count(wrapper->value.value.array);
+        for (size_t j = 0u; j < option_live; j++) {
+            const JinxZendBucket *option =
+                jinx_zend_array_live_iter_at(
+                    wrapper->value.value.array, j
+                );
+            if (option == NULL ||
+                !jinx_oracle_zend_array_store_bucket_key(
+                    merged, option, option->value
+                )) {
+                jinx_zend_array_release(merged);
+                return 0;
+            }
+        }
+
+        if (!jinx_zend_array_add_assoc(
+                target,
+                wrapper->key->bytes,
+                wrapper->key->len,
+                jinx_zend_array_value(merged)
+            )) {
+            jinx_zend_array_release(merged);
+            return 0;
+        }
+        jinx_zend_array_release(merged);
+    }
+    return 1;
+}
+
+static int b2_stream_context_set_single_option(
+    JinxZendObject *object,
+    JinxValue wrapper_value,
+    JinxValue option_value,
+    JinxValue new_value
+) {
+    JinxZendArray *options;
+    JinxZendValue *existing;
+    JinxZendArray *wrapper_options;
+    JinxZendValue zend_value;
+    JinxZendString *owned_string = NULL;
+    char *wrapper = NULL;
+    char *option = NULL;
+    int ok = 0;
+
+    if (object == NULL ||
+        wrapper_value.type != 3u ||
+        option_value.type != 3u) {
+        return 0;
+    }
+    options = b2_stream_context_array(object, "__options");
+    if (options == NULL) return 0;
+
+    wrapper = b2_dup(wrapper_value);
+    option = b2_dup(option_value);
+    if (wrapper == NULL || option == NULL) goto done;
+
+    existing = jinx_zend_array_find(
+        options, wrapper, strlen(wrapper)
+    );
+    if (existing != NULL &&
+        existing->type == JINX_ZEND_ARRAY &&
+        existing->value.array != NULL) {
+        wrapper_options = jinx_oracle_zend_clone_live_array(
+            existing->value.array
+        );
+    } else {
+        wrapper_options = jinx_zend_array_new_packed(1u);
+    }
+    if (wrapper_options == NULL) goto done;
+
+    if (!jinx_oracle_jinx_value_to_zend(
+            new_value, &zend_value, &owned_string) ||
+        !jinx_zend_array_add_assoc(
+            wrapper_options,
+            option,
+            strlen(option),
+            zend_value
+        ) ||
+        !jinx_zend_array_add_assoc(
+            options,
+            wrapper,
+            strlen(wrapper),
+            jinx_zend_array_value(wrapper_options)
+        )) {
+        jinx_zend_string_release(owned_string);
+        jinx_zend_array_release(wrapper_options);
+        goto done;
+    }
+
+    jinx_zend_string_release(owned_string);
+    jinx_zend_array_release(wrapper_options);
+    ok = 1;
+
+done:
+    free(wrapper);
+    free(option);
+    return ok;
+}
+
+static JinxZendObject *b2_stream_context_default_object(void) {
+    if (b2_default_stream_context == NULL) {
+        b2_default_stream_context =
+            b2_new_stream_context_object(NULL, NULL);
+    }
+    return b2_default_stream_context;
+}
+
 static JinxOracleBatch2Dir *b2_dir(JinxValue value) {
     return (JinxOracleBatch2Dir *)b2_object_resource(
         value, "directory-stream", "__dir"
@@ -5848,6 +6082,163 @@ JinxValue jinx_oracle_batch2_builtin(
 
         if (handled != NULL) *handled = 1;
         return b2_copy(token_name, strlen(token_name));
+    }
+
+    if (strcmp(name, "stream_context_create") == 0) {
+        JinxZendArray *options = NULL;
+        JinxZendArray *params = NULL;
+        JinxZendObject *object;
+
+        if (argc > 2u) return result;
+        if (argc >= 1u && args[0].type != 0u) {
+            options = jinx_oracle_zend_array_ptr(args[0]);
+            if (options == NULL) return result;
+        }
+        if (argc >= 2u && args[1].type != 0u) {
+            params = jinx_oracle_zend_array_ptr(args[1]);
+            if (params == NULL) return result;
+        }
+
+        object = b2_new_stream_context_object(options, params);
+        if (object == NULL) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_object_value_owned(object);
+    }
+
+    if (strcmp(name, "stream_context_get_options") == 0) {
+        JinxZendObject *object;
+        JinxZendArray *options;
+        JinxZendArray *copy;
+
+        if (args == NULL || argc != 1u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        options = b2_stream_context_array(object, "__options");
+        if (options == NULL) return result;
+        copy = jinx_oracle_zend_clone_live_array(options);
+        if (copy == NULL) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(copy);
+    }
+
+    if (strcmp(name, "stream_context_get_params") == 0) {
+        JinxZendObject *object;
+        JinxZendArray *options;
+        JinxZendArray *params;
+        JinxZendArray *copy;
+        JinxZendArray *options_copy;
+
+        if (args == NULL || argc != 1u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        options = b2_stream_context_array(object, "__options");
+        params = b2_stream_context_array(object, "__params");
+        if (options == NULL || params == NULL) return result;
+
+        copy = jinx_oracle_zend_clone_live_array(params);
+        options_copy = jinx_oracle_zend_clone_live_array(options);
+        if (copy == NULL || options_copy == NULL ||
+            !jinx_zend_array_add_assoc(
+                copy, "options", 7u,
+                jinx_zend_array_value(options_copy)
+            )) {
+            jinx_zend_array_release(copy);
+            jinx_zend_array_release(options_copy);
+            return result;
+        }
+        jinx_zend_array_release(options_copy);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(copy);
+    }
+
+    if (strcmp(name, "stream_context_set_option") == 0) {
+        JinxZendObject *object;
+        JinxZendArray *options;
+        int changed = 0;
+
+        if (args == NULL || argc < 2u || argc > 4u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        options = b2_stream_context_array(object, "__options");
+        if (options == NULL) return result;
+
+        if (args[1].type == JINX_ORACLE_VALUE_ZEND_ARRAY &&
+            argc == 2u) {
+            changed = b2_stream_context_merge_options(
+                options, jinx_oracle_zend_array_ptr(args[1])
+            );
+        } else if (argc == 4u) {
+            changed = b2_stream_context_set_single_option(
+                object, args[1], args[2], args[3]
+            );
+        } else {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(changed);
+    }
+
+    if (strcmp(name, "stream_context_set_options") == 0) {
+        JinxZendObject *object;
+        JinxZendArray *options;
+        JinxZendArray *source;
+        int changed;
+
+        if (args == NULL || argc != 2u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        options = b2_stream_context_array(object, "__options");
+        source = jinx_oracle_zend_array_ptr(args[1]);
+        if (options == NULL || source == NULL) return result;
+
+        changed = b2_stream_context_merge_options(options, source);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(changed);
+    }
+
+    if (strcmp(name, "stream_context_set_params") == 0) {
+        JinxZendObject *object;
+        JinxZendArray *params;
+        JinxZendArray *source;
+        int changed;
+
+        if (args == NULL || argc != 2u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        params = b2_stream_context_array(object, "__params");
+        source = jinx_oracle_zend_array_ptr(args[1]);
+        if (params == NULL || source == NULL) return result;
+
+        changed = b2_stream_context_merge_shallow(params, source);
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(changed);
+    }
+
+    if (strcmp(name, "stream_context_get_default") == 0 ||
+        strcmp(name, "stream_context_set_default") == 0) {
+        JinxZendObject *object = b2_stream_context_default_object();
+        JinxZendArray *options;
+        JinxZendArray *source = NULL;
+
+        if (object == NULL) return result;
+        options = b2_stream_context_array(object, "__options");
+        if (options == NULL) return result;
+
+        if (strcmp(name, "stream_context_set_default") == 0) {
+            if (args == NULL || argc != 1u) return result;
+            source = jinx_oracle_zend_array_ptr(args[0]);
+            if (source == NULL) return result;
+        } else {
+            if (argc > 1u) return result;
+            if (argc == 1u && args[0].type != 0u) {
+                source = jinx_oracle_zend_array_ptr(args[0]);
+                if (source == NULL) return result;
+            }
+        }
+
+        if (source != NULL &&
+            !b2_stream_context_merge_options(options, source)) {
+            return result;
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_object_value_retained(object);
     }
 
     if (strcmp(name, "function_exists") == 0 ||
