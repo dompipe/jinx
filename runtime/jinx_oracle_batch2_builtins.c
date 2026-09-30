@@ -4197,6 +4197,44 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zend_array_value_owned(outer);
     }
 
+    if (strcmp(name, "opcache_get_status") == 0 ||
+        strcmp(name, "opcache_reset") == 0 ||
+        strcmp(name, "opcache_invalidate") == 0 ||
+        strcmp(name, "opcache_is_script_cached") == 0 ||
+        strcmp(name, "opcache_compile_file") == 0) {
+        const JinxNativeIniMeta *meta = b2_ini_meta("opcache.enable_cli");
+        const char *enabled = b2_ini_current(meta);
+        int disabled;
+
+        if (enabled == NULL) return result;
+        disabled =
+            strcmp(enabled, "0") == 0 ||
+            strcasecmp(enabled, "off") == 0 ||
+            strcasecmp(enabled, "false") == 0 ||
+            strcasecmp(enabled, "no") == 0 ||
+            *enabled == '\0';
+        if (!disabled) {
+            /* Enabled OPcache requires a real native cache backend. */
+            return result;
+        }
+
+        if (strcmp(name, "opcache_get_status") == 0) {
+            if (argc > 1u) return result;
+        } else if (strcmp(name, "opcache_reset") == 0) {
+            if (argc != 0u) return result;
+        } else if (strcmp(name, "opcache_invalidate") == 0) {
+            if (args == NULL || argc < 1u || argc > 2u ||
+                args[0].type != 3u) return result;
+        } else {
+            if (args == NULL || argc != 1u || args[0].type != 3u) {
+                return result;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "http_get_last_response_headers") == 0 ||
         strcmp(name, "http_clear_last_response_headers") == 0) {
         if (argc != 0u) return result;
