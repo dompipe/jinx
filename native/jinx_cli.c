@@ -54,6 +54,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
     printf("  %s oracle-pcntl-async-smoke\n", argv0);
     printf("  %s oracle-pcntl-sigmask-smoke\n", argv0);
+    printf("  %s oracle-header-state-smoke\n", argv0);
     printf("  %s oracle-session-config-smoke\n", argv0);
     printf("  %s oracle-session-cookie-smoke\n", argv0);
     printf("  %s oracle-session-lifecycle-smoke <session-id>\n", argv0);
@@ -2081,6 +2082,86 @@ static int command_oracle_session_cookie_smoke(void) {
 
     release_cli_value(get_result);
     release_cli_value(options_value);
+    return 0;
+}
+
+static int command_oracle_header_state_smoke(void) {
+    JinxValue args[3];
+    JinxValue value;
+    int ok = 0;
+
+#define JINX_HEADER_CALL0(label, callable) \
+    do { \
+        ok = 0; \
+        value = jinx_call_builtin_through_oracle_checked( \
+            (callable), NULL, 0u, &ok \
+        ); \
+        if (!ok) return fail("header state call failed: " callable); \
+        printf("%s=", (label)); \
+        print_value_line(value); \
+    } while (0)
+
+    JINX_HEADER_CALL0("headers_sent_initial", "headers_sent");
+    JINX_HEADER_CALL0("headers_initial", "headers_list");
+    JINX_HEADER_CALL0("response_initial", "http_response_code");
+
+    args[0] = jinx_value_string("X-Jinx: yes", 11u);
+    args[1] = jinx_value_bool(1);
+    args[2] = jinx_value_int(418);
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "header", args, 3u, &ok
+    );
+    if (!ok) return fail("header state header() failed");
+    fputs("header_result=", stdout);
+    print_value_line(value);
+
+    JINX_HEADER_CALL0("headers_after_header", "headers_list");
+    JINX_HEADER_CALL0("response_after_header", "http_response_code");
+
+    args[0] = jinx_value_int(404);
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "http_response_code", args, 1u, &ok
+    );
+    if (!ok) return fail("header state response-code set failed");
+    fputs("response_previous=", stdout);
+    print_value_line(value);
+    JINX_HEADER_CALL0("response_current", "http_response_code");
+
+    args[0] = jinx_value_string("jinx", 4u);
+    args[1] = jinx_value_string("value", 5u);
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "setcookie", args, 2u, &ok
+    );
+    if (!ok) return fail("header state setcookie failed");
+    fputs("setcookie=", stdout);
+    print_value_line(value);
+
+    args[0] = jinx_value_string("jinxraw", 7u);
+    args[1] = jinx_value_string("value", 5u);
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "setrawcookie", args, 2u, &ok
+    );
+    if (!ok) return fail("header state setrawcookie failed");
+    fputs("setrawcookie=", stdout);
+    print_value_line(value);
+
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "header_remove", NULL, 0u, &ok
+    );
+    if (!ok) return fail("header state header_remove failed");
+    fputs("header_remove=", stdout);
+    print_value_line(value);
+
+    JINX_HEADER_CALL0("headers_final", "headers_list");
+    JINX_HEADER_CALL0("headers_sent_final", "headers_sent");
+    JINX_HEADER_CALL0("response_final", "http_response_code");
+
+#undef JINX_HEADER_CALL0
     return 0;
 }
 
@@ -4821,6 +4902,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-sigmask-smoke") == 0) {
         return command_oracle_pcntl_sigmask_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-header-state-smoke") == 0) {
+        return command_oracle_header_state_smoke();
     }
 
     if (strcmp(argv[1], "oracle-session-config-smoke") == 0) {
