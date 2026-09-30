@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 952,
-        "extended_native_route": 640,
+        "native_named_route": 954,
+        "extended_native_route": 642,
         "context_native_route": 15,
-        "intentional_native_fault": 2575
+        "intentional_native_fault": 2573
     },
     "routes": {
         "_": "extended",
@@ -2745,9 +2745,9 @@
         "session_cache_limiter": "extended",
         "session_commit": "extended",
         "session_create_id": "extended",
-        "session_decode": "intentional-native-fault",
+        "session_decode": "extended",
         "session_destroy": "extended",
-        "session_encode": "intentional-native-fault",
+        "session_encode": "extended",
         "session_gc": "intentional-native-fault",
         "session_get_cookie_params": "extended",
         "session_id": "extended",
