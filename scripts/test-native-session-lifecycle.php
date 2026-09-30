@@ -63,10 +63,9 @@ session_save_path($savePath);
 ini_set('session.use_cookies', '0');
 session_cache_limiter('');
 session_name('JINXLIFE');
-session_id($sessionId);
+$idPrevious = session_id($sessionId);
 
 $statusInitial = session_status();
-$idPrevious = '';
 $start = @session_start();
 $statusActive = session_status();
 $idActive = session_id();
