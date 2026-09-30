@@ -4197,6 +4197,17 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zend_array_value_owned(outer);
     }
 
+    if (strcmp(name, "http_get_last_response_headers") == 0 ||
+        strcmp(name, "http_clear_last_response_headers") == 0) {
+        if (argc != 0u) return result;
+        /*
+         * No native HTTP stream response has populated request headers in the
+         * current CLI execution context, matching PHP's null pre-request state.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
+    }
+
     if (strcmp(name, "headers_list") == 0) {
         JinxZendArray *array;
         if (argc != 0u) return result;
