@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 963,
-        "extended_native_route": 651,
+        "native_named_route": 965,
+        "extended_native_route": 653,
         "context_native_route": 15,
-        "intentional_native_fault": 2564
+        "intentional_native_fault": 2562
     },
     "routes": {
         "_": "extended",
@@ -1148,7 +1148,7 @@
         "is_scalar": "asm",
         "is_string": "asm",
         "is_subclass_of": "extended",
-        "is_uploaded_file": "intentional-native-fault",
+        "is_uploaded_file": "extended",
         "is_writable": "extended",
         "is_writeable": "extended",
         "iterator::current": "intentional-native-fault",
@@ -1268,7 +1268,7 @@
         "min": "asm+zend-container",
         "mkdir": "extended",
         "mktime": "extended",
-        "move_uploaded_file": "intentional-native-fault",
+        "move_uploaded_file": "extended",
         "msg_get_queue": "extended",
         "msg_queue_exists": "extended",
         "msg_receive": "context",
