@@ -80,6 +80,18 @@ $restartCommit = @session_start();
 $commit = session_commit();
 $statusAfterCommit = session_status();
 
+$restartActiveOps = @session_start();
+$beforeRegenerate = session_id();
+$regenerateId = session_regenerate_id();
+$afterRegenerate = session_id();
+$idChanged = $afterRegenerate !== $beforeRegenerate;
+$unset = session_unset();
+$reset = session_reset();
+$destroy = session_destroy();
+$statusAfterDestroy = session_status();
+$finalWriteClose = session_write_close();
+$statusFinal = session_status();
+
 $expected = implode(PHP_EOL, [
     'status_initial=' . sessionLifecycleValue($statusInitial),
     'id_previous=' . sessionLifecycleValue($idPrevious),
@@ -94,6 +106,15 @@ $expected = implode(PHP_EOL, [
     'restart_commit=' . sessionLifecycleValue($restartCommit),
     'commit=' . sessionLifecycleValue($commit),
     'status_after_commit=' . sessionLifecycleValue($statusAfterCommit),
+    'restart_active_ops=' . sessionLifecycleValue($restartActiveOps),
+    'regenerate_id=' . sessionLifecycleValue($regenerateId),
+    'id_changed=' . sessionLifecycleValue($idChanged),
+    'unset=' . sessionLifecycleValue($unset),
+    'reset=' . sessionLifecycleValue($reset),
+    'destroy=' . sessionLifecycleValue($destroy),
+    'status_after_destroy=' . sessionLifecycleValue($statusAfterDestroy),
+    'final_write_close=' . sessionLifecycleValue($finalWriteClose),
+    'status_final=' . sessionLifecycleValue($statusFinal),
 ]);
 
 $actual = sessionLifecycleRun(
