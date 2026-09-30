@@ -4454,6 +4454,20 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_bool_value(1);
     }
 
+    if (strcmp(name, "session_gc") == 0) {
+        if (argc != 0u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        /*
+         * The native session backend currently persists no files, so there
+         * are no expired records to collect in an active session.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_int_value(0);
+    }
+
     if (strcmp(name, "session_encode") == 0) {
         if (argc != 0u) return result;
         if (!jinx_oracle_batch2_session_active) {
