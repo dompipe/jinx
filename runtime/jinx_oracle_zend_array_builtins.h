@@ -6271,6 +6271,47 @@ static inline int jinx_oracle_json_encode_string_bytes(
     return jinx_oracle_json_encode_char(buffer, '"');
 }
 
+static inline int jinx_oracle_json_format_double(
+    char *out,
+    size_t capacity,
+    double value
+) {
+    char candidate[64];
+    int best = -1;
+
+    if (out == 0 || capacity == 0u || !isfinite(value)) return -1;
+
+    /*
+     * PHP's default serialize_precision=-1 emits the shortest decimal that
+     * round-trips to the original IEEE-754 double. libc %g with a fixed 17
+     * digits preserves the value but exposes binary noise. Find the first
+     * precision that round-trips exactly and keep libc's compact %g spelling.
+     */
+    for (int precision = 1; precision <= 17; precision++) {
+        char *end = 0;
+        double parsed;
+        int n = snprintf(
+            candidate,
+            sizeof(candidate),
+            "%.*g",
+            precision,
+            value
+        );
+        if (n < 0 || (size_t)n >= sizeof(candidate)) return -1;
+
+        parsed = strtod(candidate, &end);
+        if (end == candidate || *end != '\0') continue;
+        if (memcmp(&parsed, &value, sizeof(value)) != 0) continue;
+
+        best = n;
+        break;
+    }
+
+    if (best < 0 || (size_t)best >= capacity) return -1;
+    memcpy(out, candidate, (size_t)best + 1u);
+    return best;
+}
+
 static inline int jinx_oracle_json_encode_zend_value(
     JinxOracleJsonEncodeBuffer *buffer,
     JinxZendValue value,
@@ -6370,7 +6411,9 @@ static inline int jinx_oracle_json_encode_zend_value(
                 buffer->error = JINX_JSON_ERROR_INF_OR_NAN;
                 return 0;
             }
-            n = snprintf(number, sizeof(number), "%.17g", value.value.dval);
+            n = jinx_oracle_json_format_double(
+                number, sizeof(number), value.value.dval
+            );
             return n >= 0 && (size_t)n < sizeof(number) &&
                 jinx_oracle_json_encode_append(buffer, number, (size_t)n);
         case JINX_ZEND_STRING:
@@ -6460,7 +6503,9 @@ static inline int jinx_oracle_json_encode_jinx_value(
             buffer->error = JINX_JSON_ERROR_INF_OR_NAN;
             return 0;
         }
-        n = snprintf(number, sizeof(number), "%.17g", value.as.f64);
+        n = jinx_oracle_json_format_double(
+            number, sizeof(number), value.as.f64
+        );
         return n >= 0 && (size_t)n < sizeof(number) &&
             jinx_oracle_json_encode_append(buffer, number, (size_t)n);
     }
