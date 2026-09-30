@@ -4196,6 +4196,63 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zend_array_value_owned(outer);
     }
 
+    if (strcmp(name, "session_start") == 0) {
+        if (argc > 1u) return result;
+        if (argc == 1u && args != NULL && args[0].type != 0u &&
+            args[0].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            return result;
+        }
+
+        if (jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(1);
+        }
+
+        if (jinx_oracle_batch2_session_id == NULL ||
+            *jinx_oracle_batch2_session_id == '\0') {
+            int create_handled = 0;
+            JinxValue created = jinx_oracle_batch2_builtin(
+                "session_create_id", NULL, 0u, &create_handled
+            );
+            char *copy;
+            if (!create_handled || created.type != 3u) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            copy = b2_dup(created);
+            if (copy == NULL) return result;
+            free(jinx_oracle_batch2_session_id);
+            jinx_oracle_batch2_session_id = copy;
+        }
+
+        jinx_oracle_batch2_session_active = 1;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "session_write_close") == 0 ||
+        strcmp(name, "session_commit") == 0) {
+        if (argc != 0u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        jinx_oracle_batch2_session_active = 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "session_abort") == 0) {
+        if (argc != 0u) return result;
+        if (!jinx_oracle_batch2_session_active) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+        jinx_oracle_batch2_session_active = 0;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "session_set_cookie_params") == 0) {
         if (args == NULL || argc < 1u || argc > 5u ||
             jinx_oracle_batch2_session_active) {
