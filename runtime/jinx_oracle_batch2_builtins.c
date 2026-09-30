@@ -7590,7 +7590,6 @@ JinxValue jinx_oracle_batch2_builtin(
         strcmp(name, "stream_supports_lock") == 0 ||
         strcmp(name, "stream_set_blocking") == 0 ||
         strcmp(name, "socket_set_blocking") == 0 ||
-        strcmp(name, "socket_set_block") == 0 ||
         strcmp(name, "stream_set_read_buffer") == 0 ||
         strcmp(name, "stream_set_write_buffer") == 0 ||
         strcmp(name, "set_file_buffer") == 0) {
@@ -7615,8 +7614,7 @@ JinxValue jinx_oracle_batch2_builtin(
         }
 
         if (strcmp(name, "stream_set_blocking") == 0 ||
-            strcmp(name, "socket_set_blocking") == 0 ||
-            strcmp(name, "socket_set_block") == 0) {
+            strcmp(name, "socket_set_blocking") == 0) {
             int flags;
             int block;
             if (argc != 2u) return result;
