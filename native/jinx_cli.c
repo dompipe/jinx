@@ -56,6 +56,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-sigmask-smoke\n", argv0);
     printf("  %s oracle-session-config-smoke\n", argv0);
     printf("  %s oracle-session-cookie-smoke\n", argv0);
+    printf("  %s oracle-session-lifecycle-smoke <session-id>\n", argv0);
     printf("  %s oracle-posix-state-smoke\n", argv0);
     printf("  %s oracle-ini-smoke\n", argv0);
     printf("  %s oracle-runtime-state-smoke\n", argv0);
@@ -2158,6 +2159,55 @@ static int command_oracle_session_config_smoke(void) {
 
 #undef JINX_SESSION_SET_STRING
 #undef JINX_SESSION_QUERY
+    return 0;
+}
+
+static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
+    JinxValue args[1];
+    JinxValue value;
+    int ok = 0;
+
+    if (argc != 3) {
+        return fail("oracle-session-lifecycle-smoke requires one session ID");
+    }
+
+#define JINX_SESSION_LIFECYCLE_CALL0(label, callable) \
+    do { \
+        ok = 0; \
+        value = jinx_call_builtin_through_oracle_checked( \
+            (callable), NULL, 0u, &ok \
+        ); \
+        if (!ok) return fail("session lifecycle call failed: " callable); \
+        printf("%s=", (label)); \
+        print_value_line(value); \
+    } while (0)
+
+    JINX_SESSION_LIFECYCLE_CALL0("status_initial", "session_status");
+
+    args[0] = jinx_value_string(argv[2], (uint32_t)strlen(argv[2]));
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "session_id", args, 1u, &ok
+    );
+    if (!ok) return fail("session lifecycle ID setup failed");
+    fputs("id_previous=", stdout);
+    print_value_line(value);
+
+    JINX_SESSION_LIFECYCLE_CALL0("start", "session_start");
+    JINX_SESSION_LIFECYCLE_CALL0("status_active", "session_status");
+    JINX_SESSION_LIFECYCLE_CALL0("id_active", "session_id");
+    JINX_SESSION_LIFECYCLE_CALL0("write_close", "session_write_close");
+    JINX_SESSION_LIFECYCLE_CALL0("status_after_write", "session_status");
+
+    JINX_SESSION_LIFECYCLE_CALL0("restart_abort", "session_start");
+    JINX_SESSION_LIFECYCLE_CALL0("abort", "session_abort");
+    JINX_SESSION_LIFECYCLE_CALL0("status_after_abort", "session_status");
+
+    JINX_SESSION_LIFECYCLE_CALL0("restart_commit", "session_start");
+    JINX_SESSION_LIFECYCLE_CALL0("commit", "session_commit");
+    JINX_SESSION_LIFECYCLE_CALL0("status_after_commit", "session_status");
+
+#undef JINX_SESSION_LIFECYCLE_CALL0
     return 0;
 }
 
@@ -4712,6 +4762,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-session-cookie-smoke") == 0) {
         return command_oracle_session_cookie_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-session-lifecycle-smoke") == 0) {
+        return command_oracle_session_lifecycle_smoke(argc, argv);
     }
 
     if (strcmp(argv[1], "oracle-posix-state-smoke") == 0) {
