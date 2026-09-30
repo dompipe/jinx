@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 965,
-        "extended_native_route": 653,
+        "native_named_route": 968,
+        "extended_native_route": 656,
         "context_native_route": 15,
-        "intentional_native_fault": 2562
+        "intentional_native_fault": 2559
     },
     "routes": {
         "_": "extended",
@@ -1481,9 +1481,9 @@
         "pcntl_setcpuaffinity": "extended",
         "pcntl_setns": "intentional-native-fault",
         "pcntl_setpriority": "extended",
-        "pcntl_signal": "intentional-native-fault",
-        "pcntl_signal_dispatch": "intentional-native-fault",
-        "pcntl_signal_get_handler": "intentional-native-fault",
+        "pcntl_signal": "extended",
+        "pcntl_signal_dispatch": "extended",
+        "pcntl_signal_get_handler": "extended",
         "pcntl_sigprocmask": "context",
         "pcntl_sigtimedwait": "context",
         "pcntl_sigwaitinfo": "context",
