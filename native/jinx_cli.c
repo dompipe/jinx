@@ -39,6 +39,7 @@ static void usage(const char *argv0) {
     printf("  %s shm-smoke\n", argv0);
     printf("  %s sem-smoke\n", argv0);
     printf("  %s msg-smoke\n", argv0);
+    printf("  %s stream-context-smoke\n", argv0);
     printf("  %s net-interfaces-smoke\n", argv0);
     printf("  %s oracle-constant-smoke\n", argv0);
     printf("  %s oracle-frame-smoke\n", argv0);
@@ -3008,6 +3009,250 @@ static int command_shm_smoke(void) {
     return 0;
 }
 
+static int command_stream_context_smoke(void) {
+    JinxZendArray *http = NULL;
+    JinxZendArray *options = NULL;
+    JinxZendArray *ssl = NULL;
+    JinxZendArray *extra_options = NULL;
+    JinxZendArray *empty_params = NULL;
+    JinxZendArray *default_http = NULL;
+    JinxZendArray *default_options = NULL;
+    JinxValue create_args[1];
+    JinxValue context = jinx_value_null();
+    JinxValue result = jinx_value_null();
+    JinxValue set_args[4];
+    JinxValue one_arg[1];
+    JinxValue two_args[2];
+    int ok = 0;
+
+    http = jinx_zend_array_new_packed(2u);
+    options = jinx_zend_array_new_packed(1u);
+    if (http == NULL || options == NULL ||
+        !jinx_zend_array_add_assoc(
+            http, "method", 6u,
+            jinx_zend_string_value(jinx_zend_string_new("GET", 3u))
+        ) ||
+        !jinx_zend_array_add_assoc(
+            http, "timeout", 7u, jinx_zend_double(3.5)
+        ) ||
+        !jinx_zend_array_add_assoc(
+            options, "http", 4u, jinx_zend_array_value(http)
+        )) {
+        jinx_zend_array_release(http);
+        jinx_zend_array_release(options);
+        return fail("stream context option fixture allocation failed");
+    }
+    jinx_zend_array_release(http);
+
+    create_args[0] = jinx_oracle_zend_array_value_owned(options);
+    context = jinx_call_builtin_through_oracle_checked(
+        "stream_context_create", create_args, 1u, &ok
+    );
+    release_cli_value(create_args[0]);
+    if (!ok || !jinx_oracle_value_is_zend_object(context)) {
+        release_cli_value(context);
+        return fail("native stream_context_create failed");
+    }
+
+    one_arg[0] = context;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_get_options", one_arg, 1u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result)) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_get_options failed");
+    }
+    {
+        JinxZendValue *http_slot = jinx_zend_array_find(
+            jinx_oracle_zend_array_ptr(result), "http", 4u
+        );
+        JinxZendValue *method_slot = http_slot != NULL &&
+            http_slot->type == JINX_ZEND_ARRAY
+            ? jinx_zend_array_find(http_slot->value.array, "method", 6u)
+            : NULL;
+        if (method_slot == NULL ||
+            method_slot->type != JINX_ZEND_STRING ||
+            method_slot->value.str == NULL ||
+            method_slot->value.str->len != 3u ||
+            memcmp(method_slot->value.str->bytes, "GET", 3u) != 0) {
+            release_cli_value(result);
+            release_cli_value(context);
+            return fail("native stream context initial options mismatch");
+        }
+    }
+    release_cli_value(result);
+
+    set_args[0] = context;
+    set_args[1] = jinx_value_string("http", 4u);
+    set_args[2] = jinx_value_string("header", 6u);
+    set_args[3] = jinx_value_string("X-Test: 1", 9u);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_set_option", set_args, 4u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_set_option failed");
+    }
+    release_cli_value(result);
+
+    ssl = jinx_zend_array_new_packed(1u);
+    extra_options = jinx_zend_array_new_packed(1u);
+    if (ssl == NULL || extra_options == NULL ||
+        !jinx_zend_array_add_assoc(
+            ssl, "verify_peer", 11u, jinx_zend_bool(0)
+        ) ||
+        !jinx_zend_array_add_assoc(
+            extra_options, "ssl", 3u, jinx_zend_array_value(ssl)
+        )) {
+        jinx_zend_array_release(ssl);
+        jinx_zend_array_release(extra_options);
+        release_cli_value(context);
+        return fail("stream context set-options fixture allocation failed");
+    }
+    jinx_zend_array_release(ssl);
+    two_args[0] = context;
+    two_args[1] = jinx_oracle_zend_array_value_owned(extra_options);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_set_options", two_args, 2u, &ok
+    );
+    release_cli_value(two_args[1]);
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_set_options failed");
+    }
+    release_cli_value(result);
+
+    empty_params = jinx_zend_array_new_packed(1u);
+    if (empty_params == NULL) {
+        release_cli_value(context);
+        return fail("stream context params fixture allocation failed");
+    }
+    two_args[0] = context;
+    two_args[1] = jinx_oracle_zend_array_value_owned(empty_params);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_set_params", two_args, 2u, &ok
+    );
+    release_cli_value(two_args[1]);
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_set_params failed");
+    }
+    release_cli_value(result);
+
+    one_arg[0] = context;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_get_params", one_arg, 1u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+        jinx_zend_array_find(
+            jinx_oracle_zend_array_ptr(result), "options", 7u
+        ) == NULL) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_get_params options payload missing");
+    }
+    release_cli_value(result);
+
+    default_http = jinx_zend_array_new_packed(1u);
+    default_options = jinx_zend_array_new_packed(1u);
+    if (default_http == NULL || default_options == NULL ||
+        !jinx_zend_array_add_assoc(
+            default_http, "user_agent", 10u,
+            jinx_zend_string_value(jinx_zend_string_new("jinx", 4u))
+        ) ||
+        !jinx_zend_array_add_assoc(
+            default_options, "http", 4u,
+            jinx_zend_array_value(default_http)
+        )) {
+        jinx_zend_array_release(default_http);
+        jinx_zend_array_release(default_options);
+        release_cli_value(context);
+        return fail("stream default-context fixture allocation failed");
+    }
+    jinx_zend_array_release(default_http);
+
+    one_arg[0] = jinx_oracle_zend_array_value_owned(default_options);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_set_default", one_arg, 1u, &ok
+    );
+    release_cli_value(one_arg[0]);
+    if (!ok || !jinx_oracle_value_is_zend_object(result)) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_set_default failed");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "stream_context_get_default", NULL, 0u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_object(result)) {
+        release_cli_value(result);
+        release_cli_value(context);
+        return fail("native stream_context_get_default failed");
+    }
+    {
+        JinxValue default_context = result;
+        JinxValue default_args[1] = { default_context };
+        JinxValue default_values;
+        int default_ok = 0;
+
+        default_values = jinx_call_builtin_through_oracle_checked(
+            "stream_context_get_options",
+            default_args,
+            1u,
+            &default_ok
+        );
+        if (!default_ok ||
+            !jinx_oracle_value_is_zend_array(default_values)) {
+            release_cli_value(default_values);
+            release_cli_value(default_context);
+            release_cli_value(context);
+            return fail("native default stream context options missing");
+        }
+        {
+            JinxZendValue *http_slot = jinx_zend_array_find(
+                jinx_oracle_zend_array_ptr(default_values),
+                "http",
+                4u
+            );
+            JinxZendValue *agent = http_slot != NULL &&
+                http_slot->type == JINX_ZEND_ARRAY
+                ? jinx_zend_array_find(
+                    http_slot->value.array, "user_agent", 10u
+                )
+                : NULL;
+            if (agent == NULL ||
+                agent->type != JINX_ZEND_STRING ||
+                agent->value.str == NULL ||
+                agent->value.str->len != 4u ||
+                memcmp(agent->value.str->bytes, "jinx", 4u) != 0) {
+                release_cli_value(default_values);
+                release_cli_value(default_context);
+                release_cli_value(context);
+                return fail("native default stream context did not persist options");
+            }
+        }
+        release_cli_value(default_values);
+        release_cli_value(default_context);
+    }
+
+    release_cli_value(context);
+    printf("PASS: native stream_context create/get/set/default lifecycle\n");
+    return 0;
+}
+
 static int command_msg_smoke(void) {
     long long key = (long long)(0x4a000000u | ((unsigned int)getpid() & 0xffffu));
     JinxValue exists_args[1];
@@ -4393,6 +4638,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "msg-smoke") == 0) {
         return command_msg_smoke();
+    }
+
+    if (strcmp(argv[1], "stream-context-smoke") == 0) {
+        return command_stream_context_smoke();
     }
 
     if (strcmp(argv[1], "net-interfaces-smoke") == 0) {
