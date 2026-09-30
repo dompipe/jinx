@@ -4691,6 +4691,64 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_zend_array_value_owned(outer);
     }
 
+    if (strcmp(name, "timezone_location_get") == 0) {
+        JinxZendObject *object;
+        JinxZendValue *timezone_slot;
+        const char *timezone_id = NULL;
+        const JinxNativeTimezoneLocation *location = NULL;
+        JinxZendArray *array;
+
+        if (args == NULL || argc != 1u) return result;
+        object = jinx_oracle_zend_object_ptr(args[0]);
+        if (object == NULL || object->class_name == NULL ||
+            strcmp(object->class_name, "DateTimeZone") != 0 ||
+            object->properties == NULL) {
+            return result;
+        }
+
+        timezone_slot = jinx_zend_array_find(
+            object->properties, "timezone", 8u
+        );
+        if (timezone_slot == NULL ||
+            timezone_slot->type != JINX_ZEND_STRING ||
+            timezone_slot->value.str == NULL) {
+            return result;
+        }
+        timezone_id = timezone_slot->value.str->bytes;
+
+        for (size_t i = 0u; i < jinx_native_timezone_locations_count; i++) {
+            if (strcmp(
+                    jinx_native_timezone_locations[i].timezone_id,
+                    timezone_id
+                ) == 0) {
+                location = &jinx_native_timezone_locations[i];
+                break;
+            }
+        }
+
+        if (handled != NULL) *handled = 1;
+        if (location == NULL) return jinx_oracle_bool_value(0);
+
+        array = jinx_zend_array_new_packed(4u);
+        if (array == NULL ||
+            !b2_assoc_string(
+                array, "country_code", location->country_code
+            ) ||
+            !jinx_zend_array_add_assoc(
+                array, "latitude", 8u,
+                jinx_zend_double(location->latitude)
+            ) ||
+            !jinx_zend_array_add_assoc(
+                array, "longitude", 9u,
+                jinx_zend_double(location->longitude)
+            ) ||
+            !b2_assoc_string(array, "comments", location->comments)) {
+            jinx_zend_array_release(array);
+            return result;
+        }
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
     if (strcmp(name, "timezone_identifiers_list") == 0) {
         if (argc != 0u) return result;
         result = b2_string_list(
