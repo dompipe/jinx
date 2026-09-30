@@ -4602,6 +4602,95 @@ JinxValue jinx_oracle_batch2_builtin(
         return result;
     }
 
+    if (strcmp(name, "timezone_abbreviations_list") == 0) {
+        JinxZendArray *outer;
+
+        if (argc != 0u) return result;
+        outer = jinx_zend_array_new_packed(256u);
+        if (outer == NULL) return result;
+
+        for (size_t i = 0u;
+             i < jinx_native_timezone_abbr_entries_count;
+             i++) {
+            const JinxNativeTimezoneAbbrEntry *row =
+                &jinx_native_timezone_abbr_entries[i];
+            JinxZendValue *group_slot = jinx_zend_array_find(
+                outer, row->abbr, strlen(row->abbr)
+            );
+            JinxZendArray *group;
+            JinxZendArray *entry;
+
+            if (group_slot == NULL) {
+                group = jinx_zend_array_new_packed(4u);
+                if (group == NULL ||
+                    !jinx_zend_array_add_assoc(
+                        outer,
+                        row->abbr,
+                        strlen(row->abbr),
+                        jinx_zend_array_value(group)
+                    )) {
+                    jinx_zend_array_release(group);
+                    jinx_zend_array_release(outer);
+                    return result;
+                }
+                jinx_zend_array_release(group);
+                group_slot = jinx_zend_array_find(
+                    outer, row->abbr, strlen(row->abbr)
+                );
+            }
+
+            if (group_slot == NULL ||
+                group_slot->type != JINX_ZEND_ARRAY ||
+                group_slot->value.array == NULL) {
+                jinx_zend_array_release(outer);
+                return result;
+            }
+            group = group_slot->value.array;
+
+            entry = jinx_zend_array_new_packed(3u);
+            if (entry == NULL ||
+                !jinx_zend_array_add_assoc(
+                    entry, "dst", 3u, jinx_zend_bool(row->dst != 0)
+                ) ||
+                !jinx_zend_array_add_assoc(
+                    entry, "offset", 6u,
+                    jinx_zend_long((int64_t)row->offset)
+                )) {
+                jinx_zend_array_release(entry);
+                jinx_zend_array_release(outer);
+                return result;
+            }
+
+            if (row->timezone_id != NULL) {
+                if (!b2_assoc_string(
+                        entry, "timezone_id", row->timezone_id
+                    )) {
+                    jinx_zend_array_release(entry);
+                    jinx_zend_array_release(outer);
+                    return result;
+                }
+            } else if (!jinx_zend_array_add_assoc(
+                    entry, "timezone_id", 11u, jinx_zend_null()
+                )) {
+                jinx_zend_array_release(entry);
+                jinx_zend_array_release(outer);
+                return result;
+            }
+
+            if (!jinx_zend_array_append(
+                    group, jinx_zend_array_value(entry)
+                )) {
+                jinx_zend_array_release(entry);
+                jinx_zend_array_release(outer);
+                return result;
+            }
+            jinx_zend_array_release(entry);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(outer);
+    }
+
     if (strcmp(name, "timezone_identifiers_list") == 0) {
         if (argc != 0u) return result;
         result = b2_string_list(
