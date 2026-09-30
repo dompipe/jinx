@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 938,
-        "extended_native_route": 626,
+        "native_named_route": 939,
+        "extended_native_route": 627,
         "context_native_route": 15,
-        "intentional_native_fault": 2589
+        "intentional_native_fault": 2588
     },
     "routes": {
         "_": "extended",
@@ -3432,7 +3432,7 @@
         "time": "extended",
         "time_nanosleep": "extended",
         "time_sleep_until": "extended",
-        "timezone_abbreviations_list": "intentional-native-fault",
+        "timezone_abbreviations_list": "extended",
         "timezone_identifiers_list": "extended",
         "timezone_location_get": "intentional-native-fault",
         "timezone_name_from_abbr": "extended",
