@@ -163,6 +163,7 @@ $tests = [
     'scripts/test-native-shm-oracle.php' => 'PASS: native SysV shared-memory variable lifecycle matches PHP',
     'scripts/test-native-sem-oracle.php' => 'PASS: native SysV semaphore lifecycle matches PHP',
     'scripts/test-native-msg-oracle.php' => 'PASS: native SysV message queue lifecycle matches PHP',
+    'scripts/test-native-stream-context.php' => 'PASS: native stream_context family matches PHP lifecycle semantics',
     'scripts/test-native-net-interfaces.php' => 'PASS: native net_get_interfaces shape and live interface counts match PHP',
     'scripts/test-native-method-oracle-asm.php' => 'PASS: native Oracle method receiver proves 500 newly added callable routes',
     'scripts/test-native-zlib-oracle-asm.php' => 'PASS: native Oracle zlib helpers match PHP for covered one-shot semantics',
