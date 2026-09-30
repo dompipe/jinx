@@ -94,6 +94,7 @@ static int jinx_oracle_batch2_pcntl_last_error = 0;
 static int jinx_oracle_batch2_pcntl_async_signals = 0;
 static char *jinx_oracle_batch2_session_id = NULL;
 static int jinx_oracle_batch2_session_active = 0;
+static int jinx_oracle_batch2_response_code = 0;
 static char *jinx_oracle_batch2_syslog_ident = NULL;
 static struct timeval jinx_oracle_batch2_uniqid_prev = {0, 0};
 static unsigned char *jinx_oracle_batch2_strtok_string = NULL;
@@ -4194,6 +4195,93 @@ JinxValue jinx_oracle_batch2_builtin(
         freeifaddrs(interfaces);
         if (handled != NULL) *handled = 1;
         return jinx_oracle_zend_array_value_owned(outer);
+    }
+
+    if (strcmp(name, "headers_list") == 0) {
+        JinxZendArray *array;
+        if (argc != 0u) return result;
+        array = jinx_zend_array_new_packed(1u);
+        if (array == NULL) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_zend_array_value_owned(array);
+    }
+
+    if (strcmp(name, "headers_sent") == 0) {
+        if (argc != 0u) return result;
+        /*
+         * oracle-call/header-state execution reaches the builtin before any
+         * CLI output is emitted, matching PHP CLI's pre-output false state.
+         * By-reference filename/line outputs are intentionally not claimed.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "http_response_code") == 0) {
+        if (argc > 1u) return result;
+        if (argc == 0u || args == NULL || args[0].type == 0u) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_batch2_response_code == 0
+                ? jinx_oracle_bool_value(0)
+                : jinx_oracle_int_value(jinx_oracle_batch2_response_code);
+        }
+        if (args[0].type != 1u && args[0].type != 2u) return result;
+        {
+            int next = (int)jinx_oracle_intish(args[0]);
+            int previous = jinx_oracle_batch2_response_code;
+            if (next < 100 || next > 599) {
+                if (handled != NULL) *handled = 1;
+                return jinx_oracle_bool_value(0);
+            }
+            jinx_oracle_batch2_response_code = next;
+            if (handled != NULL) *handled = 1;
+            return previous == 0
+                ? jinx_oracle_bool_value(1)
+                : jinx_oracle_int_value(previous);
+        }
+    }
+
+    if (strcmp(name, "header") == 0) {
+        if (args == NULL || argc < 1u || argc > 3u || args[0].type != 3u) {
+            return result;
+        }
+        if (argc >= 3u && args[2].type != 0u) {
+            int code;
+            if (args[2].type != 1u && args[2].type != 2u) return result;
+            code = (int)jinx_oracle_intish(args[2]);
+            if (code != 0) {
+                if (code < 100 || code > 599) return result;
+                jinx_oracle_batch2_response_code = code;
+            }
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
+    }
+
+    if (strcmp(name, "header_remove") == 0) {
+        if (argc > 1u) return result;
+        if (argc == 1u && args != NULL &&
+            args[0].type != 0u && args[0].type != 3u) {
+            return result;
+        }
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
+    }
+
+    if (strcmp(name, "setcookie") == 0 ||
+        strcmp(name, "setrawcookie") == 0) {
+        if (args == NULL || argc < 1u || argc > 7u || args[0].type != 3u) {
+            return result;
+        }
+        if (argc >= 2u && args[1].type != 0u && args[1].type != 3u) {
+            return result;
+        }
+        /*
+         * CLI SAPI accepts a syntactically valid cookie call but exposes no
+         * outgoing header rows through headers_list().
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
     }
 
     if (strcmp(name, "session_start") == 0) {
