@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 941,
-        "extended_native_route": 629,
+        "native_named_route": 944,
+        "extended_native_route": 632,
         "context_native_route": 15,
-        "intentional_native_fault": 2586
+        "intentional_native_fault": 2583
     },
     "routes": {
         "_": "extended",
@@ -804,10 +804,10 @@
         "filesystemiterator::setinfoclass": "intentional-native-fault",
         "filesystemiterator::valid": "intentional-native-fault",
         "filetype": "extended",
-        "filter_has_var": "intentional-native-fault",
+        "filter_has_var": "extended",
         "filter_id": "extended",
-        "filter_input": "intentional-native-fault",
-        "filter_input_array": "intentional-native-fault",
+        "filter_input": "extended",
+        "filter_input_array": "extended",
         "filter_list": "extended",
         "filter_var": "extended",
         "filter_var_array": "extended",
