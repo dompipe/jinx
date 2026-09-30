@@ -4412,11 +4412,13 @@ JinxValue jinx_oracle_batch2_builtin(
             return jinx_oracle_bool_value(0);
         }
         /*
-         * Native session-variable storage is currently empty. PHP's default
-         * "php" session serializer encodes an empty active session as "".
+         * No native $_SESSION variable table exists yet. PHP 8.4 returns
+         * false from session_encode() in that state, even with an active
+         * session. Non-empty serialization will be promoted with the native
+         * session-variable store rather than fabricated here.
          */
         if (handled != NULL) *handled = 1;
-        return jinx_oracle_string_value("");
+        return jinx_oracle_bool_value(0);
     }
 
     if (strcmp(name, "session_decode") == 0) {
