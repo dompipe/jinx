@@ -36,6 +36,7 @@ static void usage(const char *argv0) {
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s shmop-smoke\n", argv0);
+    printf("  %s shm-smoke\n", argv0);
     printf("  %s sem-smoke\n", argv0);
     printf("  %s msg-smoke\n", argv0);
     printf("  %s net-interfaces-smoke\n", argv0);
@@ -2861,6 +2862,152 @@ static int command_net_interfaces_smoke(void) {
     return 0;
 }
 
+static int command_shm_smoke(void) {
+    JinxValue attach_args[3];
+    JinxValue memory = jinx_value_null();
+    JinxValue call_args[3];
+    JinxValue result = jinx_value_null();
+    JinxValue array_value = jinx_value_null();
+    JinxZendArray *array = NULL;
+    int ok = 0;
+
+    attach_args[0] = jinx_value_int(0);
+    attach_args[1] = jinx_value_int(8192);
+    attach_args[2] = jinx_value_int(0600);
+
+    memory = jinx_call_builtin_through_oracle_checked(
+        "shm_attach", attach_args, 3u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_object(memory)) {
+        release_cli_value(memory);
+        return fail("native shm_attach did not create a SysvSharedMemory object");
+    }
+
+    call_args[0] = memory;
+    call_args[1] = jinx_value_int(11);
+    call_args[2] = jinx_value_string("hello", 5u);
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_put_var", call_args, 3u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_put_var string write failed");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_has_var", call_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_has_var did not find written key");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_get_var", call_args, 2u, &ok
+    );
+    if (!ok || result.type != 3u ||
+        jinx_oracle_string_len(result) != 5u ||
+        memcmp(jinx_oracle_string_bytes(result), "hello", 5u) != 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_get_var string roundtrip mismatch");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_remove_var", call_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_remove_var failed");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_has_var", call_args, 2u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 != 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_has_var still saw removed key");
+    }
+    release_cli_value(result);
+
+    array = jinx_zend_array_new_packed(2u);
+    if (array == NULL ||
+        !jinx_zend_array_append(array, jinx_zend_long(7)) ||
+        !jinx_zend_array_append(array, jinx_zend_long(9))) {
+        jinx_zend_array_release(array);
+        release_cli_value(memory);
+        return fail("native shm array fixture allocation failed");
+    }
+    array_value = jinx_oracle_zend_array_value_owned(array);
+    call_args[1] = jinx_value_int(22);
+    call_args[2] = array_value;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_put_var", call_args, 3u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(array_value);
+        release_cli_value(memory);
+        return fail("native shm_put_var array write failed");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_get_var", call_args, 2u, &ok
+    );
+    if (!ok || !jinx_oracle_value_is_zend_array(result) ||
+        jinx_zend_array_live_count(jinx_oracle_zend_array_ptr(result)) != 2u) {
+        release_cli_value(result);
+        release_cli_value(array_value);
+        release_cli_value(memory);
+        return fail("native shm_get_var array roundtrip mismatch");
+    }
+    release_cli_value(result);
+    release_cli_value(array_value);
+
+    call_args[0] = memory;
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_remove", call_args, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_remove failed");
+    }
+    release_cli_value(result);
+
+    ok = 0;
+    result = jinx_call_builtin_through_oracle_checked(
+        "shm_detach", call_args, 1u, &ok
+    );
+    if (!ok || result.type != 2u || result.as.i64 == 0) {
+        release_cli_value(result);
+        release_cli_value(memory);
+        return fail("native shm_detach failed");
+    }
+    release_cli_value(result);
+    release_cli_value(memory);
+
+    printf("PASS: native SysV shared-memory attach/put/get/has/remove/detach lifecycle\n");
+    return 0;
+}
+
 static int command_msg_smoke(void) {
     long long key = (long long)(0x4a000000u | ((unsigned int)getpid() & 0xffffu));
     JinxValue exists_args[1];
@@ -4234,6 +4381,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "shmop-smoke") == 0) {
         return command_shmop_smoke();
+    }
+
+    if (strcmp(argv[1], "shm-smoke") == 0) {
+        return command_shm_smoke();
     }
 
     if (strcmp(argv[1], "sem-smoke") == 0) {
