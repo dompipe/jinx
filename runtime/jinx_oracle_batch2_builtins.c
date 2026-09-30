@@ -4088,11 +4088,6 @@ JinxValue jinx_oracle_batch2_builtin(
                 continue;
             }
 
-            if (item->ifa_addr->sa_family != AF_INET &&
-                item->ifa_addr->sa_family != AF_INET6) {
-                continue;
-            }
-
             iface_array = iface_slot->value.array;
             unicast_slot = jinx_zend_array_find(iface_array, "unicast", 7u);
             if (unicast_slot == NULL ||
@@ -4103,42 +4098,12 @@ JinxValue jinx_oracle_batch2_builtin(
             unicast_array = unicast_slot->value.array;
 
             {
+                int family = item->ifa_addr->sa_family;
                 char address[INET6_ADDRSTRLEN] = {0};
                 char netmask[INET6_ADDRSTRLEN] = {0};
                 const void *address_ptr = NULL;
                 const void *netmask_ptr = NULL;
                 JinxZendArray *entry;
-
-                if (item->ifa_addr->sa_family == AF_INET) {
-                    address_ptr = &((struct sockaddr_in *)item->ifa_addr)->sin_addr;
-                    if (item->ifa_netmask != NULL) {
-                        netmask_ptr = &((struct sockaddr_in *)item->ifa_netmask)->sin_addr;
-                    }
-                } else {
-                    address_ptr = &((struct sockaddr_in6 *)item->ifa_addr)->sin6_addr;
-                    if (item->ifa_netmask != NULL) {
-                        netmask_ptr = &((struct sockaddr_in6 *)item->ifa_netmask)->sin6_addr;
-                    }
-                }
-
-                if (inet_ntop(
-                        item->ifa_addr->sa_family,
-                        address_ptr,
-                        address,
-                        sizeof(address)
-                    ) == NULL) {
-                    continue;
-                }
-                if (netmask_ptr != NULL) {
-                    if (inet_ntop(
-                            item->ifa_addr->sa_family,
-                            netmask_ptr,
-                            netmask,
-                            sizeof(netmask)
-                        ) == NULL) {
-                        netmask[0] = '\0';
-                    }
-                }
 
                 entry = jinx_zend_array_new_packed(4u);
                 if (entry == NULL ||
@@ -4148,11 +4113,60 @@ JinxValue jinx_oracle_batch2_builtin(
                     ) ||
                     !jinx_zend_array_add_assoc(
                         entry, "family", 6u,
-                        jinx_zend_long((int64_t)item->ifa_addr->sa_family)
-                    ) ||
-                    !b2_assoc_string(entry, "address", address) ||
-                    !b2_assoc_string(entry, "netmask", netmask) ||
-                    !jinx_zend_array_append(
+                        jinx_zend_long((int64_t)family)
+                    )) {
+                    jinx_zend_array_release(entry);
+                    jinx_zend_array_release(outer);
+                    freeifaddrs(interfaces);
+                    return result;
+                }
+
+                if (family == AF_INET || family == AF_INET6) {
+                    if (family == AF_INET) {
+                        address_ptr =
+                            &((struct sockaddr_in *)item->ifa_addr)->sin_addr;
+                        if (item->ifa_netmask != NULL) {
+                            netmask_ptr =
+                                &((struct sockaddr_in *)item->ifa_netmask)->sin_addr;
+                        }
+                    } else {
+                        address_ptr =
+                            &((struct sockaddr_in6 *)item->ifa_addr)->sin6_addr;
+                        if (item->ifa_netmask != NULL) {
+                            netmask_ptr =
+                                &((struct sockaddr_in6 *)item->ifa_netmask)->sin6_addr;
+                        }
+                    }
+
+                    if (inet_ntop(
+                            family,
+                            address_ptr,
+                            address,
+                            sizeof(address)
+                        ) == NULL) {
+                        jinx_zend_array_release(entry);
+                        continue;
+                    }
+                    if (netmask_ptr != NULL &&
+                        inet_ntop(
+                            family,
+                            netmask_ptr,
+                            netmask,
+                            sizeof(netmask)
+                        ) == NULL) {
+                        netmask[0] = '\0';
+                    }
+
+                    if (!b2_assoc_string(entry, "address", address) ||
+                        !b2_assoc_string(entry, "netmask", netmask)) {
+                        jinx_zend_array_release(entry);
+                        jinx_zend_array_release(outer);
+                        freeifaddrs(interfaces);
+                        return result;
+                    }
+                }
+
+                if (!jinx_zend_array_append(
                         unicast_array, jinx_zend_array_value(entry)
                     )) {
                     jinx_zend_array_release(entry);
