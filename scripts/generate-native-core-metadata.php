@@ -186,6 +186,7 @@ $timezoneVersion = function_exists('timezone_version_get')
     : '';
 
 $timezoneAbbrResolveRows = [];
+$timezoneAbbrRows = [];
 if (function_exists('timezone_abbreviations_list') && function_exists('timezone_name_from_abbr')) {
     $abbrTable = timezone_abbreviations_list();
     $seenResolve = [];
@@ -204,6 +205,16 @@ if (function_exists('timezone_abbreviations_list') && function_exists('timezone_
             if (!is_array($entry)) continue;
             $offset = (int)($entry['offset'] ?? 0);
             $dst = !empty($entry['dst']) ? 1 : 0;
+            $timezoneId = array_key_exists('timezone_id', $entry) &&
+                $entry['timezone_id'] !== null
+                ? (string)$entry['timezone_id']
+                : null;
+            $timezoneAbbrRows[] = [
+                $abbr,
+                $dst,
+                $offset,
+                $timezoneId,
+            ];
             $key = strtolower($abbr) . "|" . $offset . "|" . $dst;
             if (isset($seenResolve[$key])) continue;
             $seenResolve[$key] = true;
@@ -371,6 +382,7 @@ $code[] = 'typedef struct JinxNativeStringPair { const char *name; const char *v
 $code[] = 'typedef struct JinxNativeIniMeta { const char *name; const char *global_value; const char *local_value; int access; const char *extension; } JinxNativeIniMeta;';
 $code[] = 'typedef struct JinxNativeClassVarsMeta { const char *class_name; const JinxNativeConstantMeta *vars; size_t var_count; int complete; } JinxNativeClassVarsMeta;';
 $code[] = 'typedef struct JinxNativeTimezoneAbbrResolve { const char *abbr; long offset; int dst; const char *timezone_id; } JinxNativeTimezoneAbbrResolve;';
+$code[] = 'typedef struct JinxNativeTimezoneAbbrEntry { const char *abbr; int dst; long offset; const char *timezone_id; } JinxNativeTimezoneAbbrEntry;';
 $code[] = '';
 array_push($code, ...$arrays);
 $code[] = '';
@@ -416,6 +428,19 @@ foreach ($timezoneAbbrResolveRows as [$abbr, $offset, $dst, $timezoneId]) {
 }
 $code[] = '};';
 $code[] = 'static const size_t jinx_native_timezone_abbr_resolve_count = ' . count($timezoneAbbrResolveRows) . 'u;';
+$code[] = '';
+$code[] = 'static const JinxNativeTimezoneAbbrEntry jinx_native_timezone_abbr_entries[] = {';
+foreach ($timezoneAbbrRows as [$abbr, $dst, $offset, $timezoneId]) {
+    $code[] = sprintf(
+        '    { %s, %d, %dL, %s },',
+        cstr((string)$abbr),
+        (int)$dst,
+        (int)$offset,
+        $timezoneId === null ? 'NULL' : cstr((string)$timezoneId)
+    );
+}
+$code[] = '};';
+$code[] = 'static const size_t jinx_native_timezone_abbr_entries_count = ' . count($timezoneAbbrRows) . 'u;';
 $code[] = '';
 
 $extensionSymbols = [];
