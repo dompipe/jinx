@@ -2252,6 +2252,19 @@ static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
 
     JINX_SESSION_LIFECYCLE_CALL0("unset", "session_unset");
     JINX_SESSION_LIFECYCLE_CALL0("reset", "session_reset");
+    JINX_SESSION_LIFECYCLE_CALL0("encode", "session_encode");
+
+    args[0] = jinx_value_string("", 0u);
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "session_decode", args, 1u, &ok
+    );
+    if (!ok) {
+        return fail("session lifecycle empty decode failed");
+    }
+    fputs("decode_empty=", stdout);
+    print_value_line(value);
+
     JINX_SESSION_LIFECYCLE_CALL0("destroy", "session_destroy");
     JINX_SESSION_LIFECYCLE_CALL0(
         "status_after_destroy", "session_status"
