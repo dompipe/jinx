@@ -4,10 +4,10 @@
         "registered": 3527,
         "builtin": 1196,
         "method": 2331,
-        "native_named_route": 961,
-        "extended_native_route": 649,
+        "native_named_route": 963,
+        "extended_native_route": 651,
         "context_native_route": 15,
-        "intentional_native_fault": 2566
+        "intentional_native_fault": 2564
     },
     "routes": {
         "_": "extended",
@@ -1061,8 +1061,8 @@
         "htmlspecialchars": "asm",
         "htmlspecialchars_decode": "asm",
         "http_build_query": "zend-container",
-        "http_clear_last_response_headers": "intentional-native-fault",
-        "http_get_last_response_headers": "intentional-native-fault",
+        "http_clear_last_response_headers": "extended",
+        "http_get_last_response_headers": "extended",
         "http_response_code": "extended",
         "hypot": "asm",
         "iconv": "extended",
