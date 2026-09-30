@@ -54,6 +54,7 @@ static void usage(const char *argv0) {
     printf("  %s oracle-pcntl-affinity-smoke\n", argv0);
     printf("  %s oracle-pcntl-async-smoke\n", argv0);
     printf("  %s oracle-pcntl-sigmask-smoke\n", argv0);
+    printf("  %s oracle-pcntl-signal-smoke\n", argv0);
     printf("  %s oracle-header-state-smoke\n", argv0);
     printf("  %s oracle-session-config-smoke\n", argv0);
     printf("  %s oracle-session-cookie-smoke\n", argv0);
@@ -2568,6 +2569,71 @@ static int command_oracle_pcntl_async_smoke(void) {
     return 0;
 }
 
+static int command_oracle_pcntl_signal_smoke(void) {
+    JinxValue args[2];
+    JinxValue value;
+    int ok = 0;
+
+#define JINX_PCNTL_SIGNAL_CALL1(label, callable, arg0) \
+    do { \
+        args[0] = (arg0); \
+        ok = 0; \
+        value = jinx_call_builtin_through_oracle_checked( \
+            (callable), args, 1u, &ok \
+        ); \
+        if (!ok) return fail("PCNTL signal call failed: " callable); \
+        printf("%s=", (label)); \
+        print_value_line(value); \
+    } while (0)
+
+#define JINX_PCNTL_SIGNAL_CALL2(label, callable, arg0, arg1) \
+    do { \
+        args[0] = (arg0); \
+        args[1] = (arg1); \
+        ok = 0; \
+        value = jinx_call_builtin_through_oracle_checked( \
+            (callable), args, 2u, &ok \
+        ); \
+        if (!ok) return fail("PCNTL signal call failed: " callable); \
+        printf("%s=", (label)); \
+        print_value_line(value); \
+    } while (0)
+
+    JINX_PCNTL_SIGNAL_CALL2(
+        "set_default", "pcntl_signal",
+        jinx_value_int(SIGUSR1), jinx_value_int(0)
+    );
+    JINX_PCNTL_SIGNAL_CALL1(
+        "get_default", "pcntl_signal_get_handler",
+        jinx_value_int(SIGUSR1)
+    );
+    JINX_PCNTL_SIGNAL_CALL2(
+        "set_ignore", "pcntl_signal",
+        jinx_value_int(SIGUSR1), jinx_value_int(1)
+    );
+    JINX_PCNTL_SIGNAL_CALL1(
+        "get_ignore", "pcntl_signal_get_handler",
+        jinx_value_int(SIGUSR1)
+    );
+
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "pcntl_signal_dispatch", NULL, 0u, &ok
+    );
+    if (!ok) return fail("PCNTL signal dispatch failed");
+    fputs("dispatch=", stdout);
+    print_value_line(value);
+
+    JINX_PCNTL_SIGNAL_CALL2(
+        "restore_default", "pcntl_signal",
+        jinx_value_int(SIGUSR1), jinx_value_int(0)
+    );
+
+#undef JINX_PCNTL_SIGNAL_CALL2
+#undef JINX_PCNTL_SIGNAL_CALL1
+    return 0;
+}
+
 static int command_oracle_pcntl_affinity_smoke(void) {
     JinxValue affinity;
     JinxValue set_args[2];
@@ -4912,6 +4978,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "oracle-pcntl-sigmask-smoke") == 0) {
         return command_oracle_pcntl_sigmask_smoke();
+    }
+
+    if (strcmp(argv[1], "oracle-pcntl-signal-smoke") == 0) {
+        return command_oracle_pcntl_signal_smoke();
     }
 
     if (strcmp(argv[1], "oracle-header-state-smoke") == 0) {
