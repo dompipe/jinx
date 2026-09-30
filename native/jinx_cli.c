@@ -2165,6 +2165,8 @@ static int command_oracle_session_config_smoke(void) {
 static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
     JinxValue args[1];
     JinxValue value;
+    char *before_regenerate = NULL;
+    size_t before_regenerate_len = 0u;
     int ok = 0;
 
     if (argc != 3) {
@@ -2177,7 +2179,10 @@ static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
         value = jinx_call_builtin_through_oracle_checked( \
             (callable), NULL, 0u, &ok \
         ); \
-        if (!ok) return fail("session lifecycle call failed: " callable); \
+        if (!ok) { \
+            free(before_regenerate); \
+            return fail("session lifecycle call failed: " callable); \
+        } \
         printf("%s=", (label)); \
         print_value_line(value); \
     } while (0)
@@ -2206,6 +2211,55 @@ static int command_oracle_session_lifecycle_smoke(int argc, char **argv) {
     JINX_SESSION_LIFECYCLE_CALL0("restart_commit", "session_start");
     JINX_SESSION_LIFECYCLE_CALL0("commit", "session_commit");
     JINX_SESSION_LIFECYCLE_CALL0("status_after_commit", "session_status");
+
+    JINX_SESSION_LIFECYCLE_CALL0("restart_active_ops", "session_start");
+
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "session_id", NULL, 0u, &ok
+    );
+    if (!ok || value.type != 3u) {
+        return fail("session ID query before regeneration failed");
+    }
+    before_regenerate_len = (size_t)value.flags;
+    before_regenerate = (char *)malloc(before_regenerate_len + 1u);
+    if (before_regenerate == NULL) {
+        return fail("session ID snapshot allocation failed");
+    }
+    if (before_regenerate_len != 0u) {
+        memcpy(before_regenerate, value.as.ptr, before_regenerate_len);
+    }
+    before_regenerate[before_regenerate_len] = '\0';
+
+    JINX_SESSION_LIFECYCLE_CALL0("regenerate_id", "session_regenerate_id");
+
+    ok = 0;
+    value = jinx_call_builtin_through_oracle_checked(
+        "session_id", NULL, 0u, &ok
+    );
+    if (!ok || value.type != 3u) {
+        free(before_regenerate);
+        return fail("session ID query after regeneration failed");
+    }
+    printf(
+        "id_changed=bool:%s\n",
+        value.flags != before_regenerate_len ||
+        memcmp(value.as.ptr, before_regenerate, before_regenerate_len) != 0
+            ? "true" : "false"
+    );
+    free(before_regenerate);
+    before_regenerate = NULL;
+
+    JINX_SESSION_LIFECYCLE_CALL0("unset", "session_unset");
+    JINX_SESSION_LIFECYCLE_CALL0("reset", "session_reset");
+    JINX_SESSION_LIFECYCLE_CALL0("destroy", "session_destroy");
+    JINX_SESSION_LIFECYCLE_CALL0(
+        "status_after_destroy", "session_status"
+    );
+    JINX_SESSION_LIFECYCLE_CALL0(
+        "final_write_close", "session_write_close"
+    );
+    JINX_SESSION_LIFECYCLE_CALL0("status_final", "session_status");
 
 #undef JINX_SESSION_LIFECYCLE_CALL0
     return 0;
