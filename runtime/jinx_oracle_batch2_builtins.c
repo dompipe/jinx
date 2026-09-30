@@ -8893,6 +8893,28 @@ JinxValue jinx_oracle_batch2_builtin(
             : jinx_oracle_bool_value(0);
     }
 
+    if (strcmp(name, "is_uploaded_file") == 0) {
+        if (args == NULL || argc != 1u || args[0].type != 3u) return result;
+        /*
+         * Native CLI execution has no HTTP upload registry. Ordinary files
+         * are therefore never considered uploaded files, matching PHP CLI.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "move_uploaded_file") == 0) {
+        if (args == NULL || argc != 2u ||
+            args[0].type != 3u || args[1].type != 3u) return result;
+        /*
+         * Without an uploaded-file registry the source is not eligible for
+         * move_uploaded_file(); leave the filesystem untouched and return
+         * false exactly as PHP CLI does for an ordinary file.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
     if (strcmp(name, "filter_has_var") == 0) {
         int64_t type;
         if (args == NULL || argc != 2u ||
