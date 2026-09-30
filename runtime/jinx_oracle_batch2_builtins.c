@@ -2247,6 +2247,19 @@ static JinxValue b2_constant_value(const JinxNativeConstantMeta *meta) {
     return jinx_oracle_zero_value();
 }
 
+static int b2_filter_input_type_supported(int64_t type) {
+    static const char *const names[] = {
+        "INPUT_GET", "INPUT_POST", "INPUT_COOKIE", "INPUT_SERVER", "INPUT_ENV"
+    };
+    for (size_t i = 0u; i < sizeof(names) / sizeof(names[0]); i++) {
+        const JinxNativeConstantMeta *meta = b2_constant_meta(names[i]);
+        if (meta != NULL && meta->type == 1u && (int64_t)meta->i64 == type) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static JinxValue b2_defined_constants(void) {
     JinxZendArray *array = jinx_zend_array_new_packed(
         jinx_native_constant_metadata_count == 0u ? 1u : jinx_native_constant_metadata_count
@@ -8627,6 +8640,42 @@ JinxValue jinx_oracle_batch2_builtin(
         return meta != NULL
             ? b2_string_list(meta->methods, meta->method_count)
             : jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "filter_has_var") == 0) {
+        int64_t type;
+        if (args == NULL || argc != 2u ||
+            (args[0].type != 1u && args[0].type != 2u) ||
+            args[1].type != 3u) return result;
+        type = jinx_oracle_intish(args[0]);
+        if (!b2_filter_input_type_supported(type)) return result;
+        /*
+         * Native CLI execution has no request input source populated yet.
+         * Match PHP CLI's empty request input tables exactly.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(0);
+    }
+
+    if (strcmp(name, "filter_input") == 0) {
+        int64_t type;
+        if (args == NULL || argc < 2u || argc > 4u ||
+            (args[0].type != 1u && args[0].type != 2u) ||
+            args[1].type != 3u) return result;
+        type = jinx_oracle_intish(args[0]);
+        if (!b2_filter_input_type_supported(type)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
+    }
+
+    if (strcmp(name, "filter_input_array") == 0) {
+        int64_t type;
+        if (args == NULL || argc < 1u || argc > 3u ||
+            (args[0].type != 1u && args[0].type != 2u)) return result;
+        type = jinx_oracle_intish(args[0]);
+        if (!b2_filter_input_type_supported(type)) return result;
+        if (handled != NULL) *handled = 1;
+        return jinx_value_null();
     }
 
     if (strcmp(name, "filter_list") == 0) {
