@@ -5808,6 +5808,86 @@ JinxValue jinx_oracle_batch2_builtin(
         return jinx_oracle_int_value(0);
     }
 
+    if (strcmp(name, "pcntl_signal") == 0) {
+        struct sigaction action;
+        int signal_number;
+        int64_t handler_value;
+        int restart_syscalls = 1;
+
+        if (args == NULL || argc < 2u || argc > 3u ||
+            (args[0].type != 1u && args[0].type != 2u) ||
+            (args[1].type != 1u && args[1].type != 2u)) {
+            return result;
+        }
+
+        signal_number = (int)jinx_oracle_intish(args[0]);
+        handler_value = jinx_oracle_intish(args[1]);
+        if (handler_value != 0 && handler_value != 1) {
+            /* Callable handlers need the Oracle callable registry. */
+            return result;
+        }
+        if (argc >= 3u && args[2].type != 0u) {
+            restart_syscalls = jinx_oracle_boolish(args[2]) ? 1 : 0;
+        }
+
+        memset(&action, 0, sizeof(action));
+        if (sigemptyset(&action.sa_mask) != 0) return result;
+        action.sa_handler = handler_value == 0 ? SIG_DFL : SIG_IGN;
+#ifdef SA_RESTART
+        if (restart_syscalls) action.sa_flags |= SA_RESTART;
+#endif
+        errno = 0;
+        if (sigaction(signal_number, &action, NULL) != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
+    if (strcmp(name, "pcntl_signal_get_handler") == 0) {
+        struct sigaction action;
+        int signal_number;
+
+        if (args == NULL || argc != 1u ||
+            (args[0].type != 1u && args[0].type != 2u)) {
+            return result;
+        }
+
+        signal_number = (int)jinx_oracle_intish(args[0]);
+        memset(&action, 0, sizeof(action));
+        errno = 0;
+        if (sigaction(signal_number, NULL, &action) != 0) {
+            jinx_oracle_batch2_pcntl_last_error = errno;
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_bool_value(0);
+        }
+
+        if (action.sa_handler == SIG_DFL) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(0);
+        }
+        if (action.sa_handler == SIG_IGN) {
+            if (handled != NULL) *handled = 1;
+            return jinx_oracle_int_value(1);
+        }
+
+        /* Native/C handlers are not PHP callables; don't fabricate one. */
+        return result;
+    }
+
+    if (strcmp(name, "pcntl_signal_dispatch") == 0) {
+        if (argc != 0u) return result;
+        /*
+         * SIG_DFL/SIG_IGN handlers require no queued PHP callback dispatch.
+         * Callable-handler dispatch is promoted with callable registration.
+         */
+        if (handled != NULL) *handled = 1;
+        return jinx_oracle_bool_value(1);
+    }
+
     if (strcmp(name, "pcntl_async_signals") == 0) {
         int previous = jinx_oracle_batch2_pcntl_async_signals;
         if (argc > 1u) return result;
