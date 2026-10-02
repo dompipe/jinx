@@ -146,6 +146,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx scripts/test-oracle-foreach-execution.php
 ./jinx scripts/test-oracle-for-execution.php
 ./jinx scripts/test-oracle-do-while-execution.php
+./jinx scripts/test-oracle-global-scope-execution.php
 ./jinx scripts/test-oracle-execution-families.php
 ./jinx scripts/test-oracle-jinx-island-server-execution.php
 php scripts/report-php-families.php

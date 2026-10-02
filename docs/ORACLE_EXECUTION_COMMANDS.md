@@ -110,6 +110,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `do-while-loops` | `scripts/test-oracle-do-while-execution.php` |
 | `arrays` | `scripts/test-oracle-array-execution.php` |
 | `functions` | `scripts/test-oracle-function-execution.php` |
+| `global-scope` | `scripts/test-oracle-global-scope-execution.php` |
 | `request-globals` | `scripts/test-oracle-request-globals-execution.php` |
 | `include-require` | `scripts/test-oracle-include-require-execution.php` |
 | `exit-die` | `scripts/test-oracle-exit-die-execution.php` |
