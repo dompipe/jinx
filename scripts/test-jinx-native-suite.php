@@ -46,6 +46,7 @@ $scriptTests = [
     'string interpolation facets' => ['scripts/test-oracle-string-interpolation-facets.php', 'PASS: Oracle string interpolation facets resolve every tested PHP form'],
     'coalesced string interpolation' => ['scripts/test-oracle-string-interpolation-coalesced.php', 'PASS: Coalesced Oracle compiles PHP string interpolation'],
     'conditionals family' => ['scripts/test-oracle-conditional-execution.php', 'PASS: Oracle executes conditional PHP subset'],
+    'switch family' => ['scripts/test-oracle-switch-execution.php', 'PASS: Oracle executes switch/case/default PHP subset'],
     'loops family' => ['scripts/test-oracle-loop-execution.php', 'PASS: Oracle executes loop PHP subset'],
     'arrays family' => ['scripts/test-oracle-array-execution.php', 'PASS: Oracle executes array PHP subset'],
     'functions family' => ['scripts/test-oracle-function-execution.php', 'PASS: Oracle executes function PHP subset'],
