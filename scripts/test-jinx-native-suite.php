@@ -47,6 +47,7 @@ $scriptTests = [
     'coalesced string interpolation' => ['scripts/test-oracle-string-interpolation-coalesced.php', 'PASS: Coalesced Oracle compiles PHP string interpolation'],
     'conditionals family' => ['scripts/test-oracle-conditional-execution.php', 'PASS: Oracle executes conditional PHP subset'],
     'switch family' => ['scripts/test-oracle-switch-execution.php', 'PASS: Oracle executes switch/case/default PHP subset'],
+    'match family' => ['scripts/test-oracle-match-execution.php', 'PASS: Oracle executes match-expression PHP subset'],
     'exceptions family' => ['scripts/test-oracle-exception-execution.php', 'PASS: Oracle executes try/throw/catch/finally PHP subset'],
     'loops family' => ['scripts/test-oracle-loop-execution.php', 'PASS: Oracle executes loop PHP subset'],
     'foreach family' => ['scripts/test-oracle-foreach-execution.php', 'PASS: Oracle executes foreach PHP subset'],

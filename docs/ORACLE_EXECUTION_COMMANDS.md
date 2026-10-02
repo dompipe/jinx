@@ -102,6 +102,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `string-interpolation` | `scripts/test-oracle-string-interpolation-execution.php` |
 | `conditionals` | `scripts/test-oracle-conditional-execution.php` |
 | `switch` | `scripts/test-oracle-switch-execution.php` |
+| `match-expressions` | `scripts/test-oracle-match-execution.php` |
 | `exceptions` | `scripts/test-oracle-exception-execution.php` |
 | `loops` | `scripts/test-oracle-loop-execution.php` |
 | `foreach-loops` | `scripts/test-oracle-foreach-execution.php` |

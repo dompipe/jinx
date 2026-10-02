@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/runtime/OracleStraightLineExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleConditionalExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleSwitchExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleMatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExceptionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleForeachExecutor.php';
