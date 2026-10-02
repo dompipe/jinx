@@ -51,6 +51,7 @@ $scriptTests = [
     'loops family' => ['scripts/test-oracle-loop-execution.php', 'PASS: Oracle executes loop PHP subset'],
     'foreach family' => ['scripts/test-oracle-foreach-execution.php', 'PASS: Oracle executes foreach PHP subset'],
     'for-loop family' => ['scripts/test-oracle-for-execution.php', 'PASS: Oracle executes for-loop PHP subset'],
+    'do-while family' => ['scripts/test-oracle-do-while-execution.php', 'PASS: Oracle executes do-while PHP subset'],
     'arrays family' => ['scripts/test-oracle-array-execution.php', 'PASS: Oracle executes array PHP subset'],
     'functions family' => ['scripts/test-oracle-function-execution.php', 'PASS: Oracle executes function PHP subset'],
     'request globals family' => ['scripts/test-oracle-request-globals-execution.php', 'PASS: Oracle executes request globals PHP subset'],
