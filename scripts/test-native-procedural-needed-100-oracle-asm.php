@@ -373,7 +373,6 @@ $fsChecks = [
     ['is_writable', [$typedSource], 'bool:' . (is_writable($source) ? 'true' : 'false')],
     ['is_writeable', [$typedSource], 'bool:' . (is_writeable($source) ? 'true' : 'false')],
     ['is_executable', [$typedSource], 'bool:' . (is_executable($source) ? 'true' : 'false')],
-    ['fileatime', [$typedSource], 'int:' . fileatime($source)],
     ['filectime', [$typedSource], 'int:' . filectime($source)],
     ['filegroup', [$typedSource], 'int:' . filegroup($source)],
     ['fileinode', [$typedSource], 'int:' . fileinode($source)],
