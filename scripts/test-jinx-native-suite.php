@@ -56,6 +56,7 @@ $scriptTests = [
     'arrays family' => ['scripts/test-oracle-array-execution.php', 'PASS: Oracle executes array PHP subset'],
     'functions family' => ['scripts/test-oracle-function-execution.php', 'PASS: Oracle executes function PHP subset'],
     'global scope family' => ['scripts/test-oracle-global-scope-execution.php', 'PASS: Oracle executes global-scope PHP subset'],
+    'static locals family' => ['scripts/test-oracle-static-local-execution.php', 'PASS: Oracle executes static-local PHP subset'],
     'request globals family' => ['scripts/test-oracle-request-globals-execution.php', 'PASS: Oracle executes request globals PHP subset'],
     'include require family' => ['scripts/test-oracle-include-require-execution.php', 'PASS: Oracle executes include/require PHP subset'],
     'exit die family' => ['scripts/test-oracle-exit-die-execution.php', 'PASS: Oracle executes exit/die PHP subset'],
