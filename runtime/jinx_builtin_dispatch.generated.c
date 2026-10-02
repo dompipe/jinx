@@ -147,12 +147,136 @@ static int jinx_oracle_zend_dispatch_result_ok(const char *name, JinxValue *args
 }
 
 static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
-    { "_", jinx_ora_unknown, 1u, 1u, 0 },
     { "abs", jinx_ora_abs, 1u, 1u, 0 },
     { "acos", jinx_ora_acos, 1u, 1u, 0 },
     { "acosh", jinx_ora_acosh, 1u, 1u, 0 },
-    { "addcslashes", jinx_ora_addcslashes, 2u, 2u, 0 },
+    { "asin", jinx_ora_asin, 1u, 1u, 0 },
+    { "asinh", jinx_ora_asinh, 1u, 1u, 0 },
+    { "atan", jinx_ora_atan, 1u, 1u, 0 },
+    { "atan2", jinx_ora_atan2, 2u, 2u, 0 },
+    { "atanh", jinx_ora_atanh, 1u, 1u, 0 },
+    { "ceil", jinx_ora_ceil, 1u, 1u, 0 },
+    { "cos", jinx_ora_cos, 1u, 1u, 0 },
+    { "cosh", jinx_ora_cosh, 1u, 1u, 0 },
+    { "exp", jinx_ora_exp, 1u, 1u, 0 },
+    { "expm1", jinx_ora_expm1, 1u, 1u, 0 },
+    { "fdiv", jinx_ora_fdiv, 2u, 2u, 0 },
+    { "floor", jinx_ora_floor, 1u, 1u, 0 },
+    { "fmod", jinx_ora_fmod, 2u, 2u, 0 },
+    { "hypot", jinx_ora_hypot, 2u, 2u, 0 },
+    { "intdiv", jinx_ora_intdiv, 2u, 2u, 0 },
+    { "log", jinx_ora_log, 1u, 2u, 0 },
+    { "log10", jinx_ora_log10, 1u, 1u, 0 },
+    { "log1p", jinx_ora_log1p, 1u, 1u, 0 },
+    { "pi", jinx_ora_pi, 0u, 0u, 0 },
+    { "pow", jinx_ora_pow, 2u, 2u, 0 },
+    { "fpow", jinx_ora_fpow, 2u, 2u, 0 },
+    { "round", jinx_ora_round, 1u, 3u, 0 },
+    { "sin", jinx_ora_sin, 1u, 1u, 0 },
+    { "sinh", jinx_ora_sinh, 1u, 1u, 0 },
+    { "sqrt", jinx_ora_sqrt, 1u, 1u, 0 },
+    { "tan", jinx_ora_tan, 1u, 1u, 0 },
+    { "tanh", jinx_ora_tanh, 1u, 1u, 0 },
+    { "strlen", jinx_ora_strlen, 1u, 1u, 0 },
+    { "count", jinx_ora_count, 1u, 2u, 0 },
+    { "sizeof", jinx_ora_sizeof, 1u, 2u, 0 },
+    { "is_null", jinx_ora_is_null, 1u, 1u, 0 },
+    { "is_bool", jinx_ora_is_bool, 1u, 1u, 0 },
+    { "is_int", jinx_ora_is_int, 1u, 1u, 0 },
+    { "is_integer", jinx_ora_is_integer, 1u, 1u, 0 },
+    { "is_long", jinx_ora_is_long, 1u, 1u, 0 },
+    { "is_float", jinx_ora_is_float, 1u, 1u, 0 },
+    { "is_double", jinx_ora_is_double, 1u, 1u, 0 },
+    { "is_string", jinx_ora_is_string, 1u, 1u, 0 },
+    { "is_array", jinx_ora_is_array, 1u, 1u, 0 },
+    { "is_object", jinx_ora_is_object, 1u, 1u, 0 },
+    { "is_resource", jinx_ora_is_resource, 1u, 1u, 0 },
+    { "is_scalar", jinx_ora_is_scalar, 1u, 1u, 0 },
+    { "is_numeric", jinx_ora_is_numeric, 1u, 1u, 0 },
+    { "boolval", jinx_ora_boolval, 1u, 1u, 0 },
+    { "intval", jinx_ora_intval, 1u, 2u, 0 },
+    { "floatval", jinx_ora_floatval, 1u, 1u, 0 },
+    { "doubleval", jinx_ora_doubleval, 1u, 1u, 0 },
+    { "strval", jinx_ora_strval, 1u, 1u, 0 },
+    { "strcmp", jinx_ora_strcmp, 2u, 2u, 0 },
+    { "strcasecmp", jinx_ora_strcasecmp, 2u, 2u, 0 },
+    { "strncmp", jinx_ora_strncmp, 3u, 3u, 0 },
+    { "strncasecmp", jinx_ora_strncasecmp, 3u, 3u, 0 },
+    { "str_contains", jinx_ora_str_contains, 2u, 2u, 0 },
+    { "str_starts_with", jinx_ora_str_starts_with, 2u, 2u, 0 },
+    { "str_ends_with", jinx_ora_str_ends_with, 2u, 2u, 0 },
+    { "strpos", jinx_ora_strpos, 2u, 3u, 0 },
+    { "stripos", jinx_ora_stripos, 2u, 3u, 0 },
+    { "strrpos", jinx_ora_strrpos, 2u, 3u, 0 },
+    { "strripos", jinx_ora_strripos, 2u, 3u, 0 },
+    { "substr", jinx_ora_substr, 2u, 3u, 0 },
+    { "substr_count", jinx_ora_substr_count, 2u, 4u, 0 },
+    { "substr_compare", jinx_ora_substr_compare, 3u, 5u, 0 },
+    { "strtolower", jinx_ora_strtolower, 1u, 1u, 0 },
+    { "strtoupper", jinx_ora_strtoupper, 1u, 1u, 0 },
+    { "lcfirst", jinx_ora_lcfirst, 1u, 1u, 0 },
+    { "ucfirst", jinx_ora_ucfirst, 1u, 1u, 0 },
+    { "ucwords", jinx_ora_ucwords, 1u, 2u, 0 },
+    { "trim", jinx_ora_trim, 1u, 2u, 0 },
+    { "ltrim", jinx_ora_ltrim, 1u, 2u, 0 },
+    { "rtrim", jinx_ora_rtrim, 1u, 2u, 0 },
+    { "explode", jinx_ora_explode, 2u, 3u, 0 },
+    { "implode", jinx_ora_implode, 1u, 2u, 0 },
+    { "join", jinx_ora_join, 1u, 2u, 0 },
+    { "str_split", jinx_ora_str_split, 1u, 2u, 0 },
+    { "str_getcsv", jinx_ora_str_getcsv, 1u, 4u, 0 },
+    { "str_replace", jinx_ora_str_replace, 3u, 4u, 0 },
+    { "str_ireplace", jinx_ora_str_ireplace, 3u, 4u, 0 },
+    { "substr_replace", jinx_ora_substr_replace, 3u, 4u, 0 },
     { "addslashes", jinx_ora_addslashes, 1u, 1u, 0 },
+    { "stripslashes", jinx_ora_stripslashes, 1u, 1u, 0 },
+    { "htmlspecialchars", jinx_ora_htmlspecialchars, 1u, 4u, 0 },
+    { "htmlspecialchars_decode", jinx_ora_htmlspecialchars_decode, 1u, 2u, 0 },
+    { "htmlentities", jinx_ora_htmlentities, 1u, 4u, 0 },
+    { "html_entity_decode", jinx_ora_html_entity_decode, 1u, 3u, 0 },
+    { "base64_encode", jinx_ora_base64_encode, 1u, 1u, 0 },
+    { "base64_decode", jinx_ora_base64_decode, 1u, 2u, 0 },
+    { "urlencode", jinx_ora_urlencode, 1u, 1u, 0 },
+    { "urldecode", jinx_ora_urldecode, 1u, 1u, 0 },
+    { "rawurlencode", jinx_ora_rawurlencode, 1u, 1u, 0 },
+    { "rawurldecode", jinx_ora_rawurldecode, 1u, 1u, 0 },
+    { "json_encode", jinx_ora_json_encode, 1u, 3u, 0 },
+    { "json_decode", jinx_ora_json_decode, 1u, 4u, 0 },
+    { "json_validate", jinx_ora_json_validate, 1u, 3u, 0 },
+    { "json_last_error", jinx_ora_json_last_error, 0u, 0u, 0 },
+    { "json_last_error_msg", jinx_ora_json_last_error_msg, 0u, 0u, 0 },
+    { "array_key_exists", jinx_ora_array_key_exists, 2u, 2u, 0 },
+    { "in_array", jinx_ora_in_array, 2u, 3u, 0 },
+    { "array_search", jinx_ora_array_search, 2u, 3u, 0 },
+    { "array_values", jinx_ora_array_values, 1u, 1u, 0 },
+    { "array_keys", jinx_ora_array_keys, 1u, 3u, 0 },
+    { "array_sum", jinx_ora_array_sum, 1u, 1u, 0 },
+    { "array_product", jinx_ora_array_product, 1u, 1u, 0 },
+    { "array_slice", jinx_ora_array_slice, 2u, 4u, 0 },
+    { "array_merge", jinx_ora_array_merge, 0u, 1u, 1 },
+    { "array_merge_recursive", jinx_ora_array_merge_recursive, 0u, 1u, 1 },
+    { "array_replace", jinx_ora_array_replace, 1u, 2u, 1 },
+    { "array_replace_recursive", jinx_ora_array_replace_recursive, 1u, 2u, 1 },
+    { "array_reverse", jinx_ora_array_reverse, 1u, 2u, 0 },
+    { "array_flip", jinx_ora_array_flip, 1u, 1u, 0 },
+    { "array_chunk", jinx_ora_array_chunk, 2u, 3u, 0 },
+    { "array_column", jinx_ora_array_column, 2u, 3u, 0 },
+    { "array_unique", jinx_ora_array_unique, 1u, 2u, 0 },
+    { "array_filter", jinx_ora_array_filter, 1u, 3u, 0 },
+    { "array_map", jinx_ora_array_map, 2u, 3u, 1 },
+    { "array_reduce", jinx_ora_array_reduce, 2u, 3u, 0 },
+    { "array_push", jinx_ora_array_push, 1u, 2u, 1 },
+    { "array_pop", jinx_ora_array_pop, 1u, 1u, 0 },
+    { "array_shift", jinx_ora_array_shift, 1u, 1u, 0 },
+    { "array_unshift", jinx_ora_array_unshift, 1u, 2u, 1 },
+    { "array_splice", jinx_ora_array_splice, 2u, 4u, 0 },
+    { "min", jinx_ora_min, 1u, 2u, 1 },
+    { "max", jinx_ora_max, 1u, 2u, 1 },
+    { "range", jinx_ora_range, 2u, 3u, 0 },
+    { "sort", jinx_ora_sort, 1u, 2u, 0 },
+    { "rsort", jinx_ora_rsort, 1u, 2u, 0 },
+    { "_", jinx_ora_unknown, 1u, 1u, 0 },
+    { "addcslashes", jinx_ora_addcslashes, 2u, 2u, 0 },
     { "AllowDynamicProperties::__construct", jinx_ora_AllowDynamicProperties___construct, 0u, 0u, 0 },
     { "AppendIterator::__construct", jinx_ora_AppendIterator___construct, 0u, 0u, 0 },
     { "AppendIterator::append", jinx_ora_AppendIterator_append, 1u, 1u, 0 },
@@ -187,8 +311,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "array_all", jinx_ora_array_all, 2u, 2u, 0 },
     { "array_any", jinx_ora_array_any, 2u, 2u, 0 },
     { "array_change_key_case", jinx_ora_array_change_key_case, 1u, 2u, 0 },
-    { "array_chunk", jinx_ora_array_chunk, 2u, 3u, 0 },
-    { "array_column", jinx_ora_array_column, 2u, 3u, 0 },
     { "array_combine", jinx_ora_array_combine, 2u, 2u, 0 },
     { "array_count_values", jinx_ora_array_count_values, 1u, 1u, 0 },
     { "array_diff", jinx_ora_array_diff, 1u, 2u, 1 },
@@ -198,47 +320,25 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "array_diff_ukey", jinx_ora_array_diff_ukey, 1u, 2u, 1 },
     { "array_fill", jinx_ora_array_fill, 3u, 3u, 0 },
     { "array_fill_keys", jinx_ora_array_fill_keys, 2u, 2u, 0 },
-    { "array_filter", jinx_ora_array_filter, 1u, 3u, 0 },
     { "array_find", jinx_ora_array_find, 2u, 2u, 0 },
     { "array_find_key", jinx_ora_array_find_key, 2u, 2u, 0 },
-    { "array_flip", jinx_ora_array_flip, 1u, 1u, 0 },
     { "array_intersect", jinx_ora_array_intersect, 1u, 2u, 1 },
     { "array_intersect_assoc", jinx_ora_array_intersect_assoc, 1u, 2u, 1 },
     { "array_intersect_key", jinx_ora_array_intersect_key, 1u, 2u, 1 },
     { "array_intersect_uassoc", jinx_ora_array_intersect_uassoc, 1u, 2u, 1 },
     { "array_intersect_ukey", jinx_ora_array_intersect_ukey, 1u, 2u, 1 },
     { "array_is_list", jinx_ora_array_is_list, 1u, 1u, 0 },
-    { "array_key_exists", jinx_ora_array_key_exists, 2u, 2u, 0 },
     { "array_key_first", jinx_ora_array_key_first, 1u, 1u, 0 },
     { "array_key_last", jinx_ora_array_key_last, 1u, 1u, 0 },
-    { "array_keys", jinx_ora_array_keys, 1u, 3u, 0 },
-    { "array_map", jinx_ora_array_map, 2u, 3u, 1 },
-    { "array_merge", jinx_ora_array_merge, 0u, 1u, 1 },
-    { "array_merge_recursive", jinx_ora_array_merge_recursive, 0u, 1u, 1 },
     { "array_multisort", jinx_ora_array_multisort, 1u, 2u, 1 },
     { "array_pad", jinx_ora_array_pad, 3u, 3u, 0 },
-    { "array_pop", jinx_ora_array_pop, 1u, 1u, 0 },
-    { "array_product", jinx_ora_array_product, 1u, 1u, 0 },
-    { "array_push", jinx_ora_array_push, 1u, 2u, 1 },
     { "array_rand", jinx_ora_array_rand, 1u, 2u, 0 },
-    { "array_reduce", jinx_ora_array_reduce, 2u, 3u, 0 },
-    { "array_replace", jinx_ora_array_replace, 1u, 2u, 1 },
-    { "array_replace_recursive", jinx_ora_array_replace_recursive, 1u, 2u, 1 },
-    { "array_reverse", jinx_ora_array_reverse, 1u, 2u, 0 },
-    { "array_search", jinx_ora_array_search, 2u, 3u, 0 },
-    { "array_shift", jinx_ora_array_shift, 1u, 1u, 0 },
-    { "array_slice", jinx_ora_array_slice, 2u, 4u, 0 },
-    { "array_splice", jinx_ora_array_splice, 2u, 4u, 0 },
-    { "array_sum", jinx_ora_array_sum, 1u, 1u, 0 },
     { "array_udiff", jinx_ora_array_udiff, 1u, 2u, 1 },
     { "array_udiff_assoc", jinx_ora_array_udiff_assoc, 1u, 2u, 1 },
     { "array_udiff_uassoc", jinx_ora_array_udiff_uassoc, 1u, 2u, 1 },
     { "array_uintersect", jinx_ora_array_uintersect, 1u, 2u, 1 },
     { "array_uintersect_assoc", jinx_ora_array_uintersect_assoc, 1u, 2u, 1 },
     { "array_uintersect_uassoc", jinx_ora_array_uintersect_uassoc, 1u, 2u, 1 },
-    { "array_unique", jinx_ora_array_unique, 1u, 2u, 0 },
-    { "array_unshift", jinx_ora_array_unshift, 1u, 2u, 1 },
-    { "array_values", jinx_ora_array_values, 1u, 1u, 0 },
     { "array_walk", jinx_ora_array_walk, 2u, 3u, 0 },
     { "array_walk_recursive", jinx_ora_array_walk_recursive, 2u, 3u, 0 },
     { "ArrayAccess::offsetExists", jinx_ora_ArrayAccess_offsetExists, 1u, 1u, 0 },
@@ -298,8 +398,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "ArrayObject::uksort", jinx_ora_ArrayObject_uksort, 1u, 1u, 0 },
     { "ArrayObject::unserialize", jinx_ora_ArrayObject_unserialize, 1u, 1u, 0 },
     { "arsort", jinx_ora_arsort, 1u, 2u, 0 },
-    { "asin", jinx_ora_asin, 1u, 1u, 0 },
-    { "asinh", jinx_ora_asinh, 1u, 1u, 0 },
     { "asort", jinx_ora_asort, 1u, 2u, 0 },
     { "assert", jinx_ora_assert, 1u, 2u, 0 },
     { "assert_options", jinx_ora_assert_options, 1u, 2u, 0 },
@@ -313,9 +411,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "AssertionError::getPrevious", jinx_ora_AssertionError_getPrevious, 0u, 0u, 0 },
     { "AssertionError::getTrace", jinx_ora_AssertionError_getTrace, 0u, 0u, 0 },
     { "AssertionError::getTraceAsString", jinx_ora_AssertionError_getTraceAsString, 0u, 0u, 0 },
-    { "atan", jinx_ora_atan, 1u, 1u, 0 },
-    { "atan2", jinx_ora_atan2, 2u, 2u, 0 },
-    { "atanh", jinx_ora_atanh, 1u, 1u, 0 },
     { "Attribute::__construct", jinx_ora_Attribute___construct, 0u, 1u, 0 },
     { "BackedEnum::cases", jinx_ora_BackedEnum_cases, 0u, 0u, 0 },
     { "BackedEnum::from", jinx_ora_BackedEnum_from, 1u, 1u, 0 },
@@ -340,15 +435,12 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "BadMethodCallException::getPrevious", jinx_ora_BadMethodCallException_getPrevious, 0u, 0u, 0 },
     { "BadMethodCallException::getTrace", jinx_ora_BadMethodCallException_getTrace, 0u, 0u, 0 },
     { "BadMethodCallException::getTraceAsString", jinx_ora_BadMethodCallException_getTraceAsString, 0u, 0u, 0 },
-    { "base64_decode", jinx_ora_base64_decode, 1u, 2u, 0 },
-    { "base64_encode", jinx_ora_base64_encode, 1u, 1u, 0 },
     { "base_convert", jinx_ora_base_convert, 3u, 3u, 0 },
     { "basename", jinx_ora_basename, 1u, 2u, 0 },
     { "bin2hex", jinx_ora_bin2hex, 1u, 1u, 0 },
     { "bind_textdomain_codeset", jinx_ora_bind_textdomain_codeset, 1u, 2u, 0 },
     { "bindec", jinx_ora_bindec, 1u, 1u, 0 },
     { "bindtextdomain", jinx_ora_bindtextdomain, 1u, 2u, 0 },
-    { "boolval", jinx_ora_boolval, 1u, 1u, 0 },
     { "CachingIterator::__construct", jinx_ora_CachingIterator___construct, 1u, 2u, 0 },
     { "CachingIterator::__toString", jinx_ora_CachingIterator___toString, 0u, 0u, 0 },
     { "CachingIterator::count", jinx_ora_CachingIterator_count, 0u, 0u, 0 },
@@ -380,7 +472,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "CallbackFilterIterator::next", jinx_ora_CallbackFilterIterator_next, 0u, 0u, 0 },
     { "CallbackFilterIterator::rewind", jinx_ora_CallbackFilterIterator_rewind, 0u, 0u, 0 },
     { "CallbackFilterIterator::valid", jinx_ora_CallbackFilterIterator_valid, 0u, 0u, 0 },
-    { "ceil", jinx_ora_ceil, 1u, 1u, 0 },
     { "chdir", jinx_ora_chdir, 1u, 1u, 0 },
     { "checkdate", jinx_ora_checkdate, 3u, 3u, 0 },
     { "checkdnsrr", jinx_ora_checkdnsrr, 1u, 2u, 0 },
@@ -434,9 +525,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "convert_uudecode", jinx_ora_convert_uudecode, 1u, 1u, 0 },
     { "convert_uuencode", jinx_ora_convert_uuencode, 1u, 1u, 0 },
     { "copy", jinx_ora_copy, 2u, 3u, 0 },
-    { "cos", jinx_ora_cos, 1u, 1u, 0 },
-    { "cosh", jinx_ora_cosh, 1u, 1u, 0 },
-    { "count", jinx_ora_count, 1u, 2u, 0 },
     { "count_chars", jinx_ora_count_chars, 1u, 2u, 0 },
     { "Countable::count", jinx_ora_Countable_count, 0u, 0u, 0 },
     { "crc32", jinx_ora_crc32, 1u, 1u, 0 },
@@ -746,7 +834,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "DomainException::getPrevious", jinx_ora_DomainException_getPrevious, 0u, 0u, 0 },
     { "DomainException::getTrace", jinx_ora_DomainException_getTrace, 0u, 0u, 0 },
     { "DomainException::getTraceAsString", jinx_ora_DomainException_getTraceAsString, 0u, 0u, 0 },
-    { "doubleval", jinx_ora_doubleval, 1u, 1u, 0 },
     { "easter_date", jinx_ora_easter_date, 0u, 2u, 0 },
     { "easter_days", jinx_ora_easter_days, 0u, 2u, 0 },
     { "EmptyIterator::current", jinx_ora_EmptyIterator_current, 0u, 0u, 0 },
@@ -801,14 +888,10 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "exif_tagname", jinx_ora_exif_tagname, 1u, 1u, 0 },
     { "exif_thumbnail", jinx_ora_exif_thumbnail, 1u, 4u, 0 },
     { "exit", jinx_ora_exit, 0u, 1u, 0 },
-    { "exp", jinx_ora_exp, 1u, 1u, 0 },
-    { "explode", jinx_ora_explode, 2u, 3u, 0 },
-    { "expm1", jinx_ora_expm1, 1u, 1u, 0 },
     { "extension_loaded", jinx_ora_extension_loaded, 1u, 1u, 0 },
     { "extract", jinx_ora_extract, 1u, 3u, 0 },
     { "fclose", jinx_ora_fclose, 1u, 1u, 0 },
     { "fdatasync", jinx_ora_fdatasync, 1u, 1u, 0 },
-    { "fdiv", jinx_ora_fdiv, 2u, 2u, 0 },
     { "feof", jinx_ora_feof, 1u, 1u, 0 },
     { "FFI::addr", jinx_ora_FFI_addr, 1u, 1u, 0 },
     { "FFI::alignof", jinx_ora_FFI_alignof, 1u, 1u, 0 },
@@ -965,17 +1048,13 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "finfo_file", jinx_ora_finfo_file__2, 2u, 4u, 0 },
     { "finfo_open", jinx_ora_finfo_open, 0u, 2u, 0 },
     { "finfo_set_flags", jinx_ora_finfo_set_flags__2, 2u, 2u, 0 },
-    { "floatval", jinx_ora_floatval, 1u, 1u, 0 },
     { "flock", jinx_ora_flock, 2u, 3u, 0 },
-    { "floor", jinx_ora_floor, 1u, 1u, 0 },
     { "flush", jinx_ora_flush, 0u, 0u, 0 },
-    { "fmod", jinx_ora_fmod, 2u, 2u, 0 },
     { "fnmatch", jinx_ora_fnmatch, 2u, 3u, 0 },
     { "fopen", jinx_ora_fopen, 2u, 4u, 0 },
     { "forward_static_call", jinx_ora_forward_static_call, 1u, 2u, 1 },
     { "forward_static_call_array", jinx_ora_forward_static_call_array, 2u, 2u, 0 },
     { "fpassthru", jinx_ora_fpassthru, 1u, 1u, 0 },
-    { "fpow", jinx_ora_fpow, 2u, 2u, 0 },
     { "fprintf", jinx_ora_fprintf, 2u, 3u, 1 },
     { "fputcsv", jinx_ora_fputcsv, 2u, 6u, 0 },
     { "fputs", jinx_ora_fputs, 2u, 3u, 0 },
@@ -1193,15 +1272,10 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "highlight_file", jinx_ora_highlight_file, 1u, 2u, 0 },
     { "highlight_string", jinx_ora_highlight_string, 1u, 2u, 0 },
     { "hrtime", jinx_ora_hrtime, 0u, 1u, 0 },
-    { "html_entity_decode", jinx_ora_html_entity_decode, 1u, 3u, 0 },
-    { "htmlentities", jinx_ora_htmlentities, 1u, 4u, 0 },
-    { "htmlspecialchars", jinx_ora_htmlspecialchars, 1u, 4u, 0 },
-    { "htmlspecialchars_decode", jinx_ora_htmlspecialchars_decode, 1u, 2u, 0 },
     { "http_build_query", jinx_ora_http_build_query, 1u, 4u, 0 },
     { "http_clear_last_response_headers", jinx_ora_http_clear_last_response_headers, 0u, 0u, 0 },
     { "http_get_last_response_headers", jinx_ora_http_get_last_response_headers, 0u, 0u, 0 },
     { "http_response_code", jinx_ora_http_response_code, 0u, 1u, 0 },
-    { "hypot", jinx_ora_hypot, 2u, 2u, 0 },
     { "iconv", jinx_ora_iconv, 3u, 3u, 0 },
     { "iconv_get_encoding", jinx_ora_iconv_get_encoding, 0u, 1u, 0 },
     { "iconv_mime_decode", jinx_ora_iconv_mime_decode, 1u, 3u, 0 },
@@ -1216,8 +1290,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "ignore_user_abort", jinx_ora_ignore_user_abort, 0u, 1u, 0 },
     { "image_type_to_extension", jinx_ora_image_type_to_extension, 1u, 2u, 0 },
     { "image_type_to_mime_type", jinx_ora_image_type_to_mime_type, 1u, 1u, 0 },
-    { "implode", jinx_ora_implode, 1u, 2u, 0 },
-    { "in_array", jinx_ora_in_array, 2u, 3u, 0 },
     { "inet_ntop", jinx_ora_inet_ntop, 1u, 1u, 0 },
     { "inet_pton", jinx_ora_inet_pton, 1u, 1u, 0 },
     { "InfiniteIterator::__construct", jinx_ora_InfiniteIterator___construct, 1u, 1u, 0 },
@@ -1237,7 +1309,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "ini_parse_quantity", jinx_ora_ini_parse_quantity, 1u, 1u, 0 },
     { "ini_restore", jinx_ora_ini_restore, 1u, 1u, 0 },
     { "ini_set", jinx_ora_ini_set, 2u, 2u, 0 },
-    { "intdiv", jinx_ora_intdiv, 2u, 2u, 0 },
     { "interface_exists", jinx_ora_interface_exists, 1u, 2u, 0 },
     { "InternalIterator::__construct", jinx_ora_InternalIterator___construct, 0u, 0u, 0 },
     { "InternalIterator::current", jinx_ora_InternalIterator_current, 0u, 0u, 0 },
@@ -1245,7 +1316,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "InternalIterator::next", jinx_ora_InternalIterator_next, 0u, 0u, 0 },
     { "InternalIterator::rewind", jinx_ora_InternalIterator_rewind, 0u, 0u, 0 },
     { "InternalIterator::valid", jinx_ora_InternalIterator_valid, 0u, 0u, 0 },
-    { "intval", jinx_ora_intval, 1u, 2u, 0 },
     { "InvalidArgumentException::__construct", jinx_ora_InvalidArgumentException___construct, 0u, 3u, 0 },
     { "InvalidArgumentException::__toString", jinx_ora_InvalidArgumentException___toString, 0u, 0u, 0 },
     { "InvalidArgumentException::__wakeup", jinx_ora_InvalidArgumentException___wakeup, 0u, 0u, 0 },
@@ -1260,30 +1330,17 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "iptcembed", jinx_ora_iptcembed, 2u, 3u, 0 },
     { "iptcparse", jinx_ora_iptcparse, 1u, 1u, 0 },
     { "is_a", jinx_ora_is_a, 2u, 3u, 0 },
-    { "is_array", jinx_ora_is_array, 1u, 1u, 0 },
-    { "is_bool", jinx_ora_is_bool, 1u, 1u, 0 },
     { "is_callable", jinx_ora_is_callable, 1u, 3u, 0 },
     { "is_countable", jinx_ora_is_countable, 1u, 1u, 0 },
     { "is_dir", jinx_ora_is_dir, 1u, 1u, 0 },
-    { "is_double", jinx_ora_is_double, 1u, 1u, 0 },
     { "is_executable", jinx_ora_is_executable, 1u, 1u, 0 },
     { "is_file", jinx_ora_is_file, 1u, 1u, 0 },
     { "is_finite", jinx_ora_is_finite, 1u, 1u, 0 },
-    { "is_float", jinx_ora_is_float, 1u, 1u, 0 },
     { "is_infinite", jinx_ora_is_infinite, 1u, 1u, 0 },
-    { "is_int", jinx_ora_is_int, 1u, 1u, 0 },
-    { "is_integer", jinx_ora_is_integer, 1u, 1u, 0 },
     { "is_iterable", jinx_ora_is_iterable, 1u, 1u, 0 },
     { "is_link", jinx_ora_is_link, 1u, 1u, 0 },
-    { "is_long", jinx_ora_is_long, 1u, 1u, 0 },
     { "is_nan", jinx_ora_is_nan, 1u, 1u, 0 },
-    { "is_null", jinx_ora_is_null, 1u, 1u, 0 },
-    { "is_numeric", jinx_ora_is_numeric, 1u, 1u, 0 },
-    { "is_object", jinx_ora_is_object, 1u, 1u, 0 },
     { "is_readable", jinx_ora_is_readable, 1u, 1u, 0 },
-    { "is_resource", jinx_ora_is_resource, 1u, 1u, 0 },
-    { "is_scalar", jinx_ora_is_scalar, 1u, 1u, 0 },
-    { "is_string", jinx_ora_is_string, 1u, 1u, 0 },
     { "is_subclass_of", jinx_ora_is_subclass_of, 2u, 3u, 0 },
     { "is_uploaded_file", jinx_ora_is_uploaded_file, 1u, 1u, 0 },
     { "is_writable", jinx_ora_is_writable, 1u, 1u, 0 },
@@ -1312,12 +1369,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "jdtojulian", jinx_ora_jdtojulian, 1u, 1u, 0 },
     { "jdtounix", jinx_ora_jdtounix, 1u, 1u, 0 },
     { "jewishtojd", jinx_ora_jewishtojd, 3u, 3u, 0 },
-    { "join", jinx_ora_join, 1u, 2u, 0 },
-    { "json_decode", jinx_ora_json_decode, 1u, 4u, 0 },
-    { "json_encode", jinx_ora_json_encode, 1u, 3u, 0 },
-    { "json_last_error", jinx_ora_json_last_error, 0u, 0u, 0 },
-    { "json_last_error_msg", jinx_ora_json_last_error_msg, 0u, 0u, 0 },
-    { "json_validate", jinx_ora_json_validate, 1u, 3u, 0 },
     { "JsonException::__construct", jinx_ora_JsonException___construct, 0u, 3u, 0 },
     { "JsonException::__toString", jinx_ora_JsonException___toString, 0u, 0u, 0 },
     { "JsonException::__wakeup", jinx_ora_JsonException___wakeup, 0u, 0u, 0 },
@@ -1334,7 +1385,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "key_exists", jinx_ora_key_exists, 2u, 2u, 0 },
     { "krsort", jinx_ora_krsort, 1u, 2u, 0 },
     { "ksort", jinx_ora_ksort, 1u, 2u, 0 },
-    { "lcfirst", jinx_ora_lcfirst, 1u, 1u, 0 },
     { "lcg_value", jinx_ora_lcg_value, 0u, 0u, 0 },
     { "lchgrp", jinx_ora_lchgrp, 2u, 2u, 0 },
     { "lchown", jinx_ora_lchown, 2u, 2u, 0 },
@@ -1370,9 +1420,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "linkinfo", jinx_ora_linkinfo, 1u, 1u, 0 },
     { "localeconv", jinx_ora_localeconv, 0u, 0u, 0 },
     { "localtime", jinx_ora_localtime, 0u, 2u, 0 },
-    { "log", jinx_ora_log, 1u, 2u, 0 },
-    { "log10", jinx_ora_log10, 1u, 1u, 0 },
-    { "log1p", jinx_ora_log1p, 1u, 1u, 0 },
     { "LogicException::__construct", jinx_ora_LogicException___construct, 0u, 3u, 0 },
     { "LogicException::__toString", jinx_ora_LogicException___toString, 0u, 0u, 0 },
     { "LogicException::__wakeup", jinx_ora_LogicException___wakeup, 0u, 0u, 0 },
@@ -1385,9 +1432,7 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "LogicException::getTraceAsString", jinx_ora_LogicException_getTraceAsString, 0u, 0u, 0 },
     { "long2ip", jinx_ora_long2ip, 1u, 1u, 0 },
     { "lstat", jinx_ora_lstat, 1u, 1u, 0 },
-    { "ltrim", jinx_ora_ltrim, 1u, 2u, 0 },
     { "mail", jinx_ora_mail, 3u, 5u, 0 },
-    { "max", jinx_ora_max, 1u, 2u, 1 },
     { "md5", jinx_ora_md5, 1u, 2u, 0 },
     { "md5_file", jinx_ora_md5_file, 1u, 2u, 0 },
     { "memory_get_peak_usage", jinx_ora_memory_get_peak_usage, 0u, 1u, 0 },
@@ -1402,7 +1447,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "mhash_keygen_s2k", jinx_ora_mhash_keygen_s2k, 4u, 4u, 0 },
     { "microtime", jinx_ora_microtime, 0u, 1u, 0 },
     { "mime_content_type", jinx_ora_mime_content_type, 1u, 1u, 0 },
-    { "min", jinx_ora_min, 1u, 2u, 1 },
     { "mkdir", jinx_ora_mkdir, 1u, 4u, 0 },
     { "mktime", jinx_ora_mktime, 1u, 6u, 0 },
     { "move_uploaded_file", jinx_ora_move_uploaded_file, 2u, 2u, 0 },
@@ -1950,7 +1994,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "PhpToken::isIgnorable", jinx_ora_PhpToken_isIgnorable, 0u, 0u, 0 },
     { "PhpToken::tokenize", jinx_ora_PhpToken_tokenize, 1u, 2u, 0 },
     { "phpversion", jinx_ora_phpversion, 0u, 1u, 0 },
-    { "pi", jinx_ora_pi, 0u, 0u, 0 },
     { "popen", jinx_ora_popen, 2u, 2u, 0 },
     { "pos", jinx_ora_pos, 1u, 1u, 0 },
     { "posix_access", jinx_ora_posix_access, 1u, 2u, 0 },
@@ -1994,7 +2037,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "posix_times", jinx_ora_posix_times, 0u, 0u, 0 },
     { "posix_ttyname", jinx_ora_posix_ttyname, 1u, 1u, 0 },
     { "posix_uname", jinx_ora_posix_uname, 0u, 0u, 0 },
-    { "pow", jinx_ora_pow, 2u, 2u, 0 },
     { "preg_filter", jinx_ora_preg_filter, 3u, 5u, 0 },
     { "preg_grep", jinx_ora_preg_grep, 2u, 3u, 0 },
     { "preg_last_error", jinx_ora_preg_last_error, 0u, 0u, 0 },
@@ -2090,7 +2132,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "Random\\Randomizer::shuffleBytes", jinx_ora_Random_Randomizer_shuffleBytes, 1u, 1u, 0 },
     { "random_bytes", jinx_ora_random_bytes, 1u, 1u, 0 },
     { "random_int", jinx_ora_random_int, 2u, 2u, 0 },
-    { "range", jinx_ora_range, 2u, 3u, 0 },
     { "RangeException::__construct", jinx_ora_RangeException___construct, 0u, 3u, 0 },
     { "RangeException::__toString", jinx_ora_RangeException___toString, 0u, 0u, 0 },
     { "RangeException::__wakeup", jinx_ora_RangeException___wakeup, 0u, 0u, 0 },
@@ -2101,8 +2142,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "RangeException::getPrevious", jinx_ora_RangeException_getPrevious, 0u, 0u, 0 },
     { "RangeException::getTrace", jinx_ora_RangeException_getTrace, 0u, 0u, 0 },
     { "RangeException::getTraceAsString", jinx_ora_RangeException_getTraceAsString, 0u, 0u, 0 },
-    { "rawurldecode", jinx_ora_rawurldecode, 1u, 1u, 0 },
-    { "rawurlencode", jinx_ora_rawurlencode, 1u, 1u, 0 },
     { "readdir", jinx_ora_readdir, 0u, 1u, 0 },
     { "readfile", jinx_ora_readfile, 1u, 3u, 0 },
     { "readgzfile", jinx_ora_readgzfile, 1u, 2u, 0 },
@@ -2845,10 +2884,7 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "rewind", jinx_ora_rewind, 1u, 1u, 0 },
     { "rewinddir", jinx_ora_rewinddir, 0u, 1u, 0 },
     { "rmdir", jinx_ora_rmdir, 1u, 2u, 0 },
-    { "round", jinx_ora_round, 1u, 3u, 0 },
     { "RoundingMode::cases", jinx_ora_RoundingMode_cases, 0u, 0u, 0 },
-    { "rsort", jinx_ora_rsort, 1u, 2u, 0 },
-    { "rtrim", jinx_ora_rtrim, 1u, 2u, 0 },
     { "RuntimeException::__construct", jinx_ora_RuntimeException___construct, 0u, 3u, 0 },
     { "RuntimeException::__toString", jinx_ora_RuntimeException___toString, 0u, 0u, 0 },
     { "RuntimeException::__wakeup", jinx_ora_RuntimeException___wakeup, 0u, 0u, 0 },
@@ -2944,9 +2980,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "show_source", jinx_ora_show_source, 1u, 2u, 0 },
     { "shuffle", jinx_ora_shuffle, 1u, 1u, 0 },
     { "similar_text", jinx_ora_similar_text, 2u, 3u, 0 },
-    { "sin", jinx_ora_sin, 1u, 1u, 0 },
-    { "sinh", jinx_ora_sinh, 1u, 1u, 0 },
-    { "sizeof", jinx_ora_sizeof, 1u, 2u, 0 },
     { "sleep", jinx_ora_sleep, 1u, 1u, 0 },
     { "socket_accept", jinx_ora_socket_accept, 1u, 1u, 0 },
     { "socket_addrinfo_bind", jinx_ora_socket_addrinfo_bind, 1u, 1u, 0 },
@@ -3102,7 +3135,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "SodiumException::getPrevious", jinx_ora_SodiumException_getPrevious, 0u, 0u, 0 },
     { "SodiumException::getTrace", jinx_ora_SodiumException_getTrace, 0u, 0u, 0 },
     { "SodiumException::getTraceAsString", jinx_ora_SodiumException_getTraceAsString, 0u, 0u, 0 },
-    { "sort", jinx_ora_sort, 1u, 2u, 0 },
     { "soundex", jinx_ora_soundex, 1u, 1u, 0 },
     { "spl_autoload", jinx_ora_spl_autoload, 1u, 2u, 0 },
     { "spl_autoload_call", jinx_ora_spl_autoload_call, 1u, 1u, 0 },
@@ -3449,27 +3481,17 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "SplTempFileObject::setMaxLineLen", jinx_ora_SplTempFileObject_setMaxLineLen, 1u, 1u, 0 },
     { "SplTempFileObject::valid", jinx_ora_SplTempFileObject_valid, 0u, 0u, 0 },
     { "sprintf", jinx_ora_sprintf, 1u, 2u, 1 },
-    { "sqrt", jinx_ora_sqrt, 1u, 1u, 0 },
     { "srand", jinx_ora_srand, 0u, 2u, 0 },
     { "sscanf", jinx_ora_sscanf, 2u, 3u, 1 },
     { "stat", jinx_ora_stat, 1u, 1u, 0 },
-    { "str_contains", jinx_ora_str_contains, 2u, 2u, 0 },
     { "str_decrement", jinx_ora_str_decrement, 1u, 1u, 0 },
-    { "str_ends_with", jinx_ora_str_ends_with, 2u, 2u, 0 },
-    { "str_getcsv", jinx_ora_str_getcsv, 1u, 4u, 0 },
     { "str_increment", jinx_ora_str_increment, 1u, 1u, 0 },
-    { "str_ireplace", jinx_ora_str_ireplace, 3u, 4u, 0 },
     { "str_pad", jinx_ora_str_pad, 2u, 4u, 0 },
     { "str_repeat", jinx_ora_str_repeat, 2u, 2u, 0 },
-    { "str_replace", jinx_ora_str_replace, 3u, 4u, 0 },
     { "str_rot13", jinx_ora_str_rot13, 1u, 1u, 0 },
     { "str_shuffle", jinx_ora_str_shuffle, 1u, 1u, 0 },
-    { "str_split", jinx_ora_str_split, 1u, 2u, 0 },
-    { "str_starts_with", jinx_ora_str_starts_with, 2u, 2u, 0 },
     { "str_word_count", jinx_ora_str_word_count, 1u, 3u, 0 },
-    { "strcasecmp", jinx_ora_strcasecmp, 2u, 2u, 0 },
     { "strchr", jinx_ora_strchr, 2u, 3u, 0 },
-    { "strcmp", jinx_ora_strcmp, 2u, 2u, 0 },
     { "strcoll", jinx_ora_strcoll, 2u, 2u, 0 },
     { "strcspn", jinx_ora_strcspn, 2u, 4u, 0 },
     { "stream_bucket_append", jinx_ora_stream_bucket_append, 2u, 2u, 0 },
@@ -3522,40 +3544,23 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "Stringable::__toString", jinx_ora_Stringable___toString, 0u, 0u, 0 },
     { "strip_tags", jinx_ora_strip_tags, 1u, 2u, 0 },
     { "stripcslashes", jinx_ora_stripcslashes, 1u, 1u, 0 },
-    { "stripos", jinx_ora_stripos, 2u, 3u, 0 },
-    { "stripslashes", jinx_ora_stripslashes, 1u, 1u, 0 },
     { "stristr", jinx_ora_stristr, 2u, 3u, 0 },
-    { "strlen", jinx_ora_strlen, 1u, 1u, 0 },
     { "strnatcasecmp", jinx_ora_strnatcasecmp, 2u, 2u, 0 },
     { "strnatcmp", jinx_ora_strnatcmp, 2u, 2u, 0 },
-    { "strncasecmp", jinx_ora_strncasecmp, 3u, 3u, 0 },
-    { "strncmp", jinx_ora_strncmp, 3u, 3u, 0 },
     { "strpbrk", jinx_ora_strpbrk, 2u, 2u, 0 },
-    { "strpos", jinx_ora_strpos, 2u, 3u, 0 },
     { "strptime", jinx_ora_strptime, 2u, 2u, 0 },
     { "strrchr", jinx_ora_strrchr, 2u, 3u, 0 },
     { "strrev", jinx_ora_strrev, 1u, 1u, 0 },
-    { "strripos", jinx_ora_strripos, 2u, 3u, 0 },
-    { "strrpos", jinx_ora_strrpos, 2u, 3u, 0 },
     { "strspn", jinx_ora_strspn, 2u, 4u, 0 },
     { "strstr", jinx_ora_strstr, 2u, 3u, 0 },
     { "strtok", jinx_ora_strtok, 1u, 2u, 0 },
-    { "strtolower", jinx_ora_strtolower, 1u, 1u, 0 },
     { "strtotime", jinx_ora_strtotime, 1u, 2u, 0 },
-    { "strtoupper", jinx_ora_strtoupper, 1u, 1u, 0 },
     { "strtr", jinx_ora_strtr, 2u, 3u, 0 },
-    { "strval", jinx_ora_strval, 1u, 1u, 0 },
-    { "substr", jinx_ora_substr, 2u, 3u, 0 },
-    { "substr_compare", jinx_ora_substr_compare, 3u, 5u, 0 },
-    { "substr_count", jinx_ora_substr_count, 2u, 4u, 0 },
-    { "substr_replace", jinx_ora_substr_replace, 3u, 4u, 0 },
     { "symlink", jinx_ora_symlink, 2u, 2u, 0 },
     { "sys_get_temp_dir", jinx_ora_sys_get_temp_dir, 0u, 0u, 0 },
     { "sys_getloadavg", jinx_ora_sys_getloadavg, 0u, 0u, 0 },
     { "syslog", jinx_ora_syslog, 2u, 2u, 0 },
     { "system", jinx_ora_system, 1u, 2u, 0 },
-    { "tan", jinx_ora_tan, 1u, 1u, 0 },
-    { "tanh", jinx_ora_tanh, 1u, 1u, 0 },
     { "tempnam", jinx_ora_tempnam, 2u, 2u, 0 },
     { "textdomain", jinx_ora_textdomain, 0u, 1u, 0 },
     { "Throwable::__toString", jinx_ora_Throwable___toString, 0u, 0u, 0 },
@@ -3584,7 +3589,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "touch", jinx_ora_touch, 1u, 3u, 0 },
     { "trait_exists", jinx_ora_trait_exists, 1u, 2u, 0 },
     { "trigger_error", jinx_ora_trigger_error, 1u, 2u, 0 },
-    { "trim", jinx_ora_trim, 1u, 2u, 0 },
     { "TypeError::__construct", jinx_ora_TypeError___construct, 0u, 3u, 0 },
     { "TypeError::__toString", jinx_ora_TypeError___toString, 0u, 0u, 0 },
     { "TypeError::__wakeup", jinx_ora_TypeError___wakeup, 0u, 0u, 0 },
@@ -3596,8 +3600,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "TypeError::getTrace", jinx_ora_TypeError_getTrace, 0u, 0u, 0 },
     { "TypeError::getTraceAsString", jinx_ora_TypeError_getTraceAsString, 0u, 0u, 0 },
     { "uasort", jinx_ora_uasort, 2u, 2u, 0 },
-    { "ucfirst", jinx_ora_ucfirst, 1u, 1u, 0 },
-    { "ucwords", jinx_ora_ucwords, 1u, 2u, 0 },
     { "uksort", jinx_ora_uksort, 2u, 2u, 0 },
     { "umask", jinx_ora_umask, 0u, 1u, 0 },
     { "UnderflowException::__construct", jinx_ora_UnderflowException___construct, 0u, 3u, 0 },
@@ -3637,8 +3639,6 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "unpack", jinx_ora_unpack, 2u, 3u, 0 },
     { "unregister_tick_function", jinx_ora_unregister_tick_function, 1u, 1u, 0 },
     { "unserialize", jinx_ora_unserialize, 1u, 2u, 0 },
-    { "urldecode", jinx_ora_urldecode, 1u, 1u, 0 },
-    { "urlencode", jinx_ora_urlencode, 1u, 1u, 0 },
     { "user_error", jinx_ora_user_error, 1u, 2u, 0 },
     { "usleep", jinx_ora_usleep, 1u, 1u, 0 },
     { "usort", jinx_ora_usort, 2u, 2u, 0 },
@@ -3677,6 +3677,533 @@ static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { NULL, NULL, 0u, 0u, 0 }
 };
 
+enum { JINX_ORACLE_DISPATCH_COUNT = 3527, JINX_ORACLE_DISPATCH_HASH_SIZE = 8192 };
+static const int oracle_dispatch_hash_slots[JINX_ORACLE_DISPATCH_HASH_SIZE] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, 990, 1627, -1, 544, 1640, -1, -1, 40,
+    3369, 528, 1273, -1, 2005, -1, -1, 893, -1, 1581, -1, -1, -1, 42, 424, 381,
+    2950, 426, -1, -1, 1431, 1892, -1, 1452, -1, 1949, 921, 3334, -1, 752, 2357, 3512,
+    2232, -1, -1, 1304, 864, 3375, -1, 812, -1, -1, -1, -1, -1, -1, -1, 2667,
+    -1, 23, -1, -1, -1, -1, 664, 1861, 2880, 88, -1, -1, -1, -1, -1, -1,
+    2503, -1, -1, -1, -1, -1, 1766, 1097, 2389, 2815, 2973, -1, -1, -1, -1, -1,
+    -1, -1, 1851, -1, 2926, -1, -1, 2826, -1, -1, -1, -1, -1, -1, 3211, 988,
+    2827, 1927, -1, 989, -1, -1, -1, -1, -1, -1, -1, 1295, -1, 512, -1, -1,
+    1939, -1, -1, -1, -1, -1, -1, 894, 2705, -1, -1, -1, -1, -1, -1, -1,
+    218, 2794, -1, 2611, -1, 3021, -1, -1, 1327, 2105, -1, 771, 1849, 2284, -1, 3310,
+    -1, -1, -1, -1, -1, 1759, 2541, -1, 1211, 1511, 1818, 1785, -1, 1001, -1, 1059,
+    1343, 2898, 1983, 3360, -1, -1, -1, -1, -1, 1264, -1, 566, 1559, 2446, -1, -1,
+    -1, -1, 1044, -1, -1, 1116, 1691, 41, -1, -1, -1, -1, -1, 2704, 318, -1,
+    2929, -1, -1, 3018, -1, -1, -1, -1, -1, -1, -1, -1, 2185, -1, -1, -1,
+    384, 1854, -1, -1, -1, 2776, 1036, -1, -1, -1, 1131, 1930, -1, -1, -1, 1716,
+    -1, -1, -1, 3372, 661, 108, 1291, 1664, -1, 983, 588, -1, -1, 2604, 2963, 592,
+    2093, 3207, 967, 3235, 508, 2170, 3045, -1, -1, -1, -1, 861, 2723, 2914, 1024, 2962,
+    2982, 706, -1, -1, -1, -1, 3378, -1, -1, 1371, -1, -1, -1, -1, -1, -1,
+    1445, -1, -1, 1750, -1, -1, 1985, -1, -1, 338, -1, -1, 1215, 3294, -1, -1,
+    -1, -1, -1, 448, -1, 2713, 1398, 1387, 617, -1, 1462, -1, 1002, -1, -1, -1,
+    -1, 2175, 226, -1, -1, -1, -1, -1, 99, 2128, -1, 972, 57, 2537, -1, -1,
+    339, -1, -1, -1, -1, 1135, 3490, -1, -1, -1, -1, -1, -1, 2722, -1, -1,
+    2852, 2981, 2307, -1, 2407, 1165, -1, 2801, -1, -1, -1, -1, -1, 193, -1, 1567,
+    1571, 2435, -1, -1, -1, -1, -1, -1, 843, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, 946, -1, -1, -1, -1, 3118, 1820, -1, -1, -1, 3185,
+    -1, 2274, -1, 1446, 3197, -1, -1, 1098, 2795, -1, -1, 1578, -1, 594, -1, 474,
+    2172, -1, 3012, -1, -1, 1367, 2366, 1582, -1, 212, 912, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 1594, 535, 3309, 2358, -1, -1, -1, -1, -1, 1427,
+    1809, -1, -1, 390, 3268, 2376, -1, -1, 3380, -1, -1, -1, -1, -1, -1, 795,
+    1588, -1, -1, -1, 283, -1, -1, 1175, -1, 3473, 1158, 520, 866, -1, 1745, -1,
+    2680, 1289, 3260, -1, 3094, -1, -1, -1, 3205, 17, -1, -1, -1, -1, -1, -1,
+    -1, -1, 1129, -1, -1, -1, -1, -1, 3487, 293, 1193, 162, 2646, 3281, -1, -1,
+    -1, -1, -1, 210, 269, -1, 2362, -1, 8, -1, -1, -1, -1, 3326, 103, 2743,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, 930, -1, 2640, -1, 1143, 1876, 663,
+    -1, -1, -1, -1, 568, 929, -1, 2692, -1, -1, -1, 2094, 2605, 846, -1, 1981,
+    2903, 850, -1, -1, 1596, 165, 3053, 2899, -1, -1, 1237, 0, 24, 2810, -1, -1,
+    -1, 3222, 3500, 2270, 2513, 2097, 704, 684, 2949, 3145, 3227, 587, 64, 1663, 1736, 2517,
+    -1, -1, -1, -1, 2013, -1, 53, 441, 2142, 2209, -1, -1, -1, -1, 3230, -1,
+    -1, -1, -1, -1, 1220, -1, -1, -1, -1, 1623, -1, -1, -1, -1, 2303, -1,
+    -1, -1, -1, 1593, -1, -1, 833, 890, -1, 2027, 1769, 876, 933, 2632, 2711, 33,
+    294, 442, 1309, 2797, -1, -1, 1015, -1, -1, -1, -1, 3177, -1, -1, -1, 2890,
+    -1, -1, 1529, -1, -1, 1501, -1, -1, 1951, -1, -1, -1, 9, -1, 351, -1,
+    -1, -1, 2512, -1, 486, -1, -1, -1, 2489, -1, -1, -1, 1073, -1, 2365, -1,
+    605, 244, 3003, -1, -1, 2428, 366, 2100, -1, 772, 1474, 1483, 963, 1221, 1696, 2379,
+    206, 1050, 1138, 1189, 726, 1538, -1, -1, 111, -1, -1, 600, 3112, -1, 2874, 1005,
+    -1, -1, -1, -1, -1, 2259, 3398, -1, 2246, -1, -1, -1, -1, -1, -1, 1812,
+    716, 1359, 1721, -1, 825, -1, -1, 2639, 2317, -1, 2267, -1, -1, -1, 2481, 302,
+    2299, -1, 1549, -1, -1, -1, -1, -1, -1, -1, -1, 1068, -1, 2385, 721, 50,
+    -1, 1385, 2116, -1, -1, -1, 2190, 3102, 2482, -1, -1, 3390, -1, 2666, 2671, 1265,
+    980, -1, 937, -1, -1, -1, -1, 1238, -1, 124, -1, -1, -1, -1, -1, 541,
+    -1, -1, -1, 3274, -1, -1, -1, -1, -1, -1, -1, -1, 2985, -1, 2387, -1,
+    -1, -1, -1, -1, -1, 589, 1366, 1532, 2971, 2634, 464, 3092, 2536, -1, -1, -1,
+    1105, 445, 2328, -1, -1, 1247, 2999, 1436, -1, -1, -1, -1, -1, -1, 524, -1,
+    -1, 711, -1, -1, -1, -1, -1, -1, 1489, 2181, -1, 509, 2576, -1, 119, 299,
+    -1, -1, -1, 304, -1, -1, -1, -1, 276, 2533, -1, -1, 188, 402, -1, -1,
+    3316, -1, -1, 1563, 2883, 3431, 316, 1487, 485, -1, -1, 2693, -1, -1, 2598, -1,
+    -1, -1, 2120, 1763, -1, -1, -1, -1, 2550, -1, 2554, -1, -1, 3196, -1, -1,
+    -1, -1, 1145, -1, -1, 2769, 2391, -1, -1, 215, 909, 2163, -1, 2599, -1, -1,
+    -1, -1, 794, -1, -1, -1, 2456, 2202, -1, -1, -1, 499, -1, -1, -1, 2293,
+    865, -1, -1, -1, 3201, -1, -1, -1, 2884, -1, 3408, 3525, -1, -1, -1, 3429,
+    519, 3442, 1942, 2847, 2959, -1, -1, -1, -1, 414, -1, -1, 557, 1857, 2251, 982,
+    2086, 805, 2433, 2806, -1, 1185, -1, -1, 1369, 187, -1, -1, 2173, 196, 1216, 1801,
+    2530, 1765, 2895, 3244, 380, 3448, -1, -1, -1, -1, -1, -1, -1, 1945, -1, 1418,
+    -1, 277, 775, 1950, 2353, -1, -1, -1, -1, -1, -1, 540, -1, 1505, -1, 118,
+    1374, -1, 2219, 2729, 1206, -1, -1, -1, -1, 496, -1, -1, -1, 2450, 2809, -1,
+    -1, -1, -1, -1, -1, -1, -1, 2756, -1, 784, 171, 2021, 2920, 2288, -1, -1,
+    2038, -1, -1, -1, -1, 1895, -1, -1, 2580, 2651, -1, -1, 2414, 3023, 3299, -1,
+    1035, 1668, 2427, 491, -1, 2606, -1, 1844, 802, -1, 645, 484, 931, -1, -1, -1,
+    202, 1255, 1822, 2205, 1382, 2442, 3091, -1, 1076, 2964, -1, 2728, -1, -1, 2137, 968,
+    -1, -1, 329, 1430, -1, -1, -1, 1252, -1, -1, -1, -1, -1, 1303, 1154, 258,
+    1353, 3001, 3139, 1875, 3198, -1, -1, -1, -1, -1, -1, 2058, 2922, -1, -1, -1,
+    -1, -1, -1, 3150, -1, -1, 1069, 1223, 747, -1, 2314, -1, 1777, -1, -1, -1,
+    -1, -1, 3019, 100, 3383, -1, 3370, -1, -1, 1848, 2298, -1, -1, -1, 1547, 1935,
+    -1, -1, -1, -1, -1, -1, -1, 2018, -1, 2868, -1, 3173, -1, -1, 3106, 1276,
+    -1, -1, -1, -1, -1, 214, 1904, -1, 1689, 2453, 2896, -1, 2623, 2595, -1, -1,
+    531, -1, -1, -1, 1621, -1, -1, -1, 2752, 2159, 144, 3261, 1811, 3254, 3321, -1,
+    2855, 3280, -1, 1419, 92, 1167, 2224, 2192, 3172, 3519, 2584, 3109, -1, 3186, -1, 172,
+    2531, 2346, 2587, -1, -1, 462, 1038, -1, -1, -1, 2329, -1, -1, -1, -1, -1,
+    1198, -1, -1, -1, -1, -1, -1, 2781, -1, 3013, -1, -1, -1, -1, -1, -1,
+    2207, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3213, -1, -1, 569,
+    2969, -1, -1, -1, -1, -1, -1, 3259, -1, -1, -1, 641, -1, -1, 2384, -1,
+    -1, 150, 1717, 1261, 2210, 2648, 2967, -1, -1, -1, -1, -1, -1, 278, -1, -1,
+    -1, -1, 2283, -1, -1, -1, -1, -1, -1, 2698, -1, -1, 2051, -1, 1285, 3123,
+    257, 2876, -1, -1, -1, -1, -1, -1, 2544, 637, -1, -1, 471, -1, -1, 2341,
+    -1, -1, -1, -1, -1, 2424, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, 608, -1, 2340, -1, -1, 123, -1, 2892, 367, 785, 3286, -1, -1, -1,
+    709, -1, -1, -1, -1, 325, 808, 1241, -1, 1461, 2171, -1, -1, -1, -1, -1,
+    2612, 2861, 3407, 1352, 715, 2934, -1, -1, 1472, -1, -1, -1, 970, -1, -1, -1,
+    2984, 2764, 2473, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3297, -1,
+    979, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2907, 213, 924, 117, 1576, 2164,
+    2311, 2425, -1, 698, 345, 398, 2768, 1972, 1293, -1, -1, -1, 996, -1, -1, -1,
+    3450, -1, -1, -1, -1, -1, 1149, -1, -1, -1, -1, -1, 2788, 2454, -1, -1,
+    2221, -1, -1, 1107, -1, 2198, -1, -1, -1, -1, 3311, -1, -1, -1, 219, 3210,
+    3422, -1, -1, -1, 1415, -1, -1, 2179, 1300, 2040, 2652, -1, -1, -1, -1, 828,
+    2092, 2065, 2871, -1, -1, -1, -1, 3497, -1, -1, 109, 97, -1, -1, -1, -1,
+    -1, -1, -1, 780, -1, -1, -1, -1, -1, -1, -1, -1, -1, 724, -1, -1,
+    -1, 3430, 1924, -1, 2820, -1, -1, 236, 483, 619, -1, 1402, -1, 2032, 3453, -1,
+    -1, -1, 1045, 1653, -1, 1494, -1, 2316, 350, 2396, -1, -1, 10, 2608, -1, -1,
+    -1, 3347, -1, -1, -1, -1, 65, 1134, -1, -1, -1, -1, 475, 56, 739, 1778,
+    1963, 2460, -1, 1792, -1, -1, 2323, -1, -1, -1, 2828, -1, 1700, -1, -1, -1,
+    -1, 2638, -1, 39, -1, -1, 1660, 2398, 2860, -1, -1, -1, -1, -1, -1, -1,
+    -1, 966, 2529, 2751, -1, -1, 3359, 182, -1, -1, 2760, -1, -1, 2217, 1078, -1,
+    -1, -1, -1, 3249, -1, -1, -1, -1, -1, 1269, 3193, 746, -1, 2613, 1212, 2746,
+    859, 640, 504, 1546, 2591, 3206, -1, -1, 36, -1, -1, -1, -1, 1392, 1703, 1397,
+    1832, -1, -1, -1, -1, -1, -1, -1, -1, 317, 410, 1874, 1553, -1, -1, -1,
+    -1, -1, 1287, 285, -1, 768, -1, -1, -1, -1, 1208, 478, 164, 307, -1, -1,
+    1278, 2060, -1, -1, 2278, -1, -1, -1, 315, 2888, 932, 116, -1, 2717, -1, -1,
+    83, 889, 2029, -1, -1, -1, -1, 2229, 1592, -1, 1635, 3443, 1361, 2725, -1, -1,
+    -1, -1, -1, -1, 1693, 671, 2147, -1, -1, 3379, -1, -1, -1, 2042, -1, 2542,
+    -1, 1497, 3247, 1028, 1793, 2983, 975, -1, -1, -1, -1, 854, -1, 1845, 1217, -1,
+    -1, -1, 240, -1, -1, 914, 361, 3468, 197, -1, 1054, -1, -1, -1, 1841, 1659,
+    1728, -1, 1665, 3142, 2624, 136, -1, 562, 1378, -1, -1, 2080, 3324, -1, 1256, -1,
+    -1, -1, -1, 769, 2272, -1, 1450, -1, -1, -1, 2878, -1, -1, -1, -1, -1,
+    2411, -1, 1789, 2111, 2431, 595, -1, -1, -1, -1, -1, -1, 804, 2970, -1, 1808,
+    -1, -1, 1108, 1528, -1, -1, -1, -1, 11, 2452, -1, -1, -1, 431, 2271, 2629,
+    19, 1846, -1, 322, -1, -1, -1, 435, -1, 1768, 1776, 1202, 2974, 523, 1630, 1926,
+    1828, 2757, 3501, -1, -1, 2077, 3505, -1, 3305, 1642, -1, 2744, 2437, -1, 1882, 3132,
+    -1, 2858, 863, -1, -1, -1, 741, 423, 2377, 674, 669, 1085, 168, 1153, 388, 2291,
+    3175, -1, -1, 1598, -1, -1, 1589, -1, -1, 1197, -1, -1, -1, -1, 2557, -1,
+    -1, 290, -1, -1, -1, -1, 1686, -1, -1, 3141, -1, -1, 2716, -1, -1, -1,
+    -1, -1, -1, -1, 2106, -1, -1, 263, 112, 705, 831, 1141, 468, 758, 3273, -1,
+    2767, -1, 1917, -1, -1, -1, 2685, 15, 1417, -1, -1, -1, 2520, 2635, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, 2461, -1, -1, -1, -1, -1, -1, 565,
+    1132, 2085, 1878, -1, 3120, -1, -1, -1, -1, -1, -1, -1, -1, 1713, 2178, 1631,
+    1977, 2958, 3241, 3277, -1, -1, 477, -1, -1, -1, -1, -1, -1, 2030, 1377, 2237,
+    3090, -1, 3341, 105, -1, 801, -1, -1, -1, -1, -1, -1, 2936, 1386, -1, 2748,
+    -1, 574, 673, 965, 2628, 745, 757, 1370, 2033, 1734, 1267, -1, 855, 1160, 1200, 2590,
+    1628, 1275, 3158, -1, -1, 2214, -1, -1, -1, -1, -1, -1, -1, 248, -1, -1,
+    -1, -1, -1, -1, -1, -1, 1441, -1, -1, -1, -1, 708, 1130, 3293, 563, 2582,
+    2823, 3063, -1, 2141, -1, 47, -1, -1, 437, 1674, 2502, 3387, -1, -1, -1, -1,
+    62, 2297, 1741, 2319, 2772, 1444, -1, 489, -1, 273, -1, -1, -1, -1, -1, -1,
+    -1, 3214, -1, 956, -1, 1719, 3151, -1, 710, 1608, -1, -1, 48, 2167, 1856, 534,
+    2948, -1, -1, -1, -1, -1, -1, -1, -1, 2287, -1, 2862, 2894, 2320, 2904, 3496,
+    -1, -1, -1, -1, 358, 2, 2381, -1, -1, 400, -1, -1, 939, -1, -1, 3061,
+    -1, -1, -1, 3006, -1, -1, -1, 1128, 942, -1, -1, -1, 1234, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 901, 1543, 3221, -1, -1, -1, -1, 1510, -1, 1524,
+    -1, 127, 2988, 1009, -1, -1, -1, -1, 577, 697, 224, -1, -1, 1111, -1, 756,
+    -1, -1, -1, 1517, 2400, -1, -1, -1, 2188, 755, 264, 1011, 1251, 1595, 3296, -1,
+    1725, 2650, -1, 2889, -1, 2412, 2700, -1, -1, -1, -1, 944, -1, -1, 1775, -1,
+    -1, -1, -1, 3465, -1, 3242, 2394, 1614, 976, -1, -1, -1, -1, -1, -1, -1,
+    -1, 1058, -1, -1, -1, -1, -1, -1, 166, -1, -1, 85, 3279, 2227, -1, -1,
+    -1, 126, 1722, -1, 2043, -1, -1, -1, 764, -1, 2930, 1784, -1, -1, -1, -1,
+    943, 344, -1, 2266, -1, -1, 2864, -1, -1, -1, 3464, 1810, 472, 971, -1, -1,
+    -1, -1, 2352, -1, -1, -1, -1, -1, -1, -1, -1, 2841, -1, 3020, -1, 1600,
+    2965, 3072, -1, -1, -1, 601, 2941, -1, -1, -1, -1, -1, 2359, 2154, -1, -1,
+    -1, 1870, 3199, -1, 1242, -1, -1, -1, -1, 1956, 1647, 3377, 1315, -1, -1, -1,
+    -1, -1, -1, -1, 722, 2649, -1, -1, 183, -1, -1, -1, -1, -1, -1, -1,
+    3047, 391, 643, 713, 1864, 2977, -1, -1, -1, -1, -1, 1515, 1536, 255, 1335, 1751,
+    2215, 45, 1867, 3076, 346, 3300, -1, -1, -1, -1, 1365, 1457, 2035, -1, 2831, -1,
+    222, -1, -1, 692, 3409, -1, 2802, 873, 618, 301, 1347, 1447, 1498, 2089, 3030, 964,
+    2678, 1805, 1708, 3327, 2615, 321, -1, 1580, 268, 678, 3131, -1, -1, -1, -1, 1000,
+    1031, 3068, -1, 1381, 1928, -1, -1, 1448, 511, 1338, 2182, 578, -1, 1586, -1, -1,
+    -1, -1, 493, 2063, 2068, 2044, 192, 2469, -1, -1, -1, -1, 1099, 2277, 1516, -1,
+    -1, -1, -1, 957, 809, -1, -1, -1, -1, 907, -1, 1535, -1, -1, -1, -1,
+    -1, 636, 1439, 142, 265, 670, 275, 1008, 2422, 3099, 3330, -1, 1254, 2348, -1, 2393,
+    -1, 195, -1, 2525, -1, 2534, -1, -1, -1, 3130, -1, 1919, 1834, 1999, 1122, 2739,
+    -1, 1979, 835, 978, 1656, 904, 1113, -1, -1, 702, -1, -1, -1, -1, 3217, -1,
+    -1, 404, 1390, 1030, -1, 96, -1, -1, 3439, -1, 1375, -1, 1305, 2064, -1, 2265,
+    -1, -1, -1, 1224, 3386, -1, -1, 2674, 1771, -1, 2440, -1, -1, 2885, -1, -1,
+    -1, -1, 382, 3356, 3065, 2451, 3463, -1, -1, 383, -1, 538, 3314, -1, -1, -1,
+    -1, -1, -1, -1, 2402, -1, -1, -1, -1, -1, -1, -1, 2676, -1, -1, -1,
+    -1, -1, -1, -1, -1, 3319, -1, -1, -1, 1932, 638, -1, -1, 2915, -1, 2095,
+    2848, 3218, -1, -1, -1, 374, -1, -1, 1013, -1, -1, -1, -1, -1, -1, 2972,
+    -1, 1213, -1, -1, -1, -1, -1, -1, 3410, 717, 2211, -1, -1, -1, -1, 513,
+    2592, -1, 2840, 3462, 377, -1, 1042, 3105, 3521, -1, -1, -1, -1, 25, 3278, 953,
+    2579, 2593, 2960, -1, -1, -1, -1, 1881, 1503, -1, 3264, -1, 634, 735, 1806, 2618,
+    -1, -1, 872, 2475, -1, 1041, 2098, -1, -1, 2902, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, 3200, -1, -1, 204, -1, 2014, -1, -1, -1, 2039, 2495, -1,
+    -1, -1, -1, 362, 3069, 689, -1, -1, -1, 2074, 158, 754, 2296, -1, -1, -1,
+    1770, -1, -1, 1006, -1, 3485, -1, -1, -1, 1125, -1, -1, 3413, -1, -1, -1,
+    453, -1, -1, 259, -1, -1, 3469, -1, 3209, 2787, -1, -1, -1, 2846, -1, 852,
+    -1, -1, 2474, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1632, 205, 3183, 5,
+    1944, 3412, 1336, 1819, -1, 1622, 1081, 2055, 2071, 666, 2268, 2306, 2654, 3421, -1, -1,
+    655, -1, 3114, 1438, 1987, 22, 2526, -1, -1, -1, -1, -1, 1087, 3086, 3365, 2736,
+    1240, -1, -1, 169, 1706, 3393, 744, -1, -1, -1, -1, -1, 934, -1, -1, -1,
+    -1, -1, 3125, -1, -1, -1, -1, 2158, 2522, -1, -1, 2609, 898, 1760, 2560, 680,
+    -1, -1, -1, 2784, -1, -1, 2702, 440, 1667, 2572, 2399, -1, -1, -1, 1747, -1,
+    -1, -1, 642, 994, 1110, 3384, -1, -1, -1, -1, -1, 1969, 1455, -1, -1, 602,
+    -1, 985, -1, 1169, -1, -1, 3126, 98, 2819, 2741, -1, -1, -1, -1, -1, -1,
+    1564, -1, -1, -1, -1, 3163, 3400, 3434, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, 1465, 1960, -1, 2699, -1, 659, -1, -1, 1266, -1, -1, -1, 935, 1124, -1,
+    -1, 2701, 3349, -1, -1, -1, 2023, -1, -1, -1, 830, 2254, -1, -1, -1, -1,
+    -1, 3075, 1907, 3144, 884, 1383, -1, -1, 2942, 2383, 1157, 1941, 3037, -1, 1526, -1,
+    543, 677, 1027, 1912, 332, -1, -1, 2162, -1, -1, -1, 2501, 959, -1, -1, -1,
+    -1, -1, -1, 3231, -1, -1, 406, -1, 149, 1323, -1, -1, 767, 1599, 1550, 2081,
+    -1, 1624, 2388, -1, 2989, -1, -1, 1873, -1, -1, -1, -1, 2339, -1, 1560, 2315,
+    958, 1429, 2494, -1, 3078, 3298, 3502, 3187, 947, -1, -1, -1, -1, -1, -1, -1,
+    -1, 2109, 2954, -1, -1, -1, -1, -1, 2184, -1, -1, 1022, -1, 3522, -1, -1,
+    -1, -1, 3397, -1, -1, -1, -1, -1, -1, -1, 1405, 220, -1, -1, -1, -1,
+    -1, 1119, 1545, 347, -1, 87, 810, -1, -1, -1, 1121, 178, 651, 1821, 2016, -1,
+    -1, 2257, -1, -1, -1, -1, -1, -1, 3239, -1, 58, 446, 460, 1320, 2518, -1,
+    20, -1, 21, 1695, 3188, 160, 3446, -1, -1, -1, -1, 1893, -1, 2242, -1, -1,
+    -1, -1, 1133, 3345, -1, -1, 191, 1601, 2804, -1, -1, -1, -1, 1561, 2458, -1,
+    -1, -1, 1644, -1, 2814, -1, -1, -1, -1, -1, -1, -1, 2993, 14, 420, -1,
+    -1, -1, 525, 838, 1519, -1, 2113, -1, -1, -1, -1, -1, 1210, 235, -1, -1,
+    -1, -1, -1, -1, 1933, -1, -1, 1495, 803, 919, -1, 3011, 1403, 2647, -1, -1,
+    -1, 788, -1, -1, -1, -1, -1, -1, -1, 77, 2133, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, 1435, 2696, 2782, -1, -1, 818, 3479, -1, -1, -1, -1, -1,
+    408, 961, 2054, -1, 564, -1, 131, -1, 1530, 2011, 627, 1471, -1, 232, -1, -1,
+    1231, -1, -1, -1, -1, -1, 292, 2072, -1, -1, -1, -1, -1, 2793, 591, 1117,
+    2466, -1, -1, -1, 3233, -1, 2395, 3288, -1, -1, 2538, -1, -1, -1, -1, 110,
+    3362, -1, -1, -1, -1, -1, 2925, -1, -1, -1, 2961, -1, 3080, 3089, 1476, 2102,
+    3366, -1, 521, 1794, -1, 695, 844, 1023, 1477, 3134, 3252, -1, -1, -1, -1, 603,
+    -1, 2996, -1, 2260, -1, -1, -1, -1, 2882, -1, -1, -1, -1, -1, -1, 2118,
+    -1, -1, -1, 1767, -1, -1, -1, 3419, 1328, -1, -1, -1, -1, -1, 1807, -1,
+    -1, -1, 125, 2374, -1, 2990, 1918, -1, -1, 632, -1, 2778, 606, 796, -1, 714,
+    2010, 2508, -1, -1, -1, -1, -1, -1, -1, 120, -1, -1, 1246, 2338, 3276, -1,
+    729, 2673, -1, -1, 1482, -1, -1, 49, -1, -1, -1, -1, -1, -1, 1459, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, 1705, 2009, 3093, -1, 2510, 2832, 845, -1,
+    -1, 3447, 1046, -1, -1, -1, -1, -1, -1, 432, 1263, -1, -1, -1, 234, -1,
+    1063, 3437, -1, -1, 422, 3054, -1, -1, -1, -1, -1, -1, 1395, -1, -1, 3010,
+    3040, -1, -1, -1, -1, 2546, -1, -1, 2945, -1, -1, 3042, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, 3358, -1, -1, 3454, 2857, 3127, 2641, -1, -1, -1, 518,
+    -1, 1425, -1, -1, -1, 549, -1, -1, -1, 1421, 1007, 530, -1, -1, -1, -1,
+    -1, -1, 2566, -1, -1, -1, -1, -1, 2614, 1678, -1, 733, 1554, -1, -1, -1,
+    1773, -1, -1, -1, 1585, 2401, 3232, 1575, 2406, -1, 266, 2953, -1, -1, -1, -1,
+    -1, -1, 899, 2998, -1, -1, -1, -1, 2264, -1, 2313, -1, -1, 3343, 3363, 658,
+    1791, -1, -1, 738, -1, -1, -1, -1, 779, 155, 2845, -1, 89, 962, -1, -1,
+    2853, -1, -1, -1, -1, -1, 918, 2642, -1, -1, 1451, -1, -1, -1, -1, -1,
+    1879, 3059, -1, -1, -1, -1, 2078, 1413, 2256, 777, -1, -1, 2062, -1, -1, -1,
+    1360, -1, -1, 2308, -1, -1, -1, -1, -1, 3192, 1978, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 3342, -1, -1, -1, 1649, -1, -1, -1, -1, -1,
+    -1, 1490, 905, 3418, -1, 2886, 2783, 2152, 1329, 1643, 2156, 2360, 1825, 2707, 2369, 2575,
+    2774, 981, 2940, 3283, 1480, 376, -1, 190, -1, 1739, -1, 813, -1, -1, -1, 2108,
+    682, 1120, 2079, 3022, -1, -1, -1, 2688, -1, 2521, -1, -1, -1, 2354, -1, -1,
+    2873, -1, 1337, 2792, -1, 631, -1, -1, -1, -1, 271, 547, 950, 1922, 2686, 3083,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, 1195, -1, -1, 3291, 2571, 3168, -1,
+    3087, -1, -1, 1641, -1, 1067, -1, 1698, -1, 330, -1, -1, 176, 2812, 3403, 505,
+    -1, -1, 3129, -1, 2749, -1, 148, 2564, 1089, -1, -1, 59, 2047, -1, 3435, -1,
+    -1, -1, -1, 3503, 3438, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1619,
+    -1, -1, -1, -1, 1294, -1, 3498, -1, -1, 676, -1, -1, 2659, -1, 875, 613,
+    -1, -1, 2249, 122, 1394, 1410, 1958, 3331, -1, 3451, -1, 1209, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, 412, -1, -1, 76, -1, 1026, 2281, -1,
+    -1, -1, 841, 1376, 2952, 1400, -1, 1508, 3155, 1815, -1, -1, -1, 2670, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2067, -1, -1, -1, 2734, -1,
+    260, -1, 1788, -1, -1, -1, -1, 2887, 3070, 2791, 2239, 1525, 436, 3154, -1, 2594,
+    1053, -1, -1, 286, -1, 369, 2327, 3009, -1, -1, -1, 585, 832, -1, 3224, -1,
+    3226, -1, -1, -1, -1, -1, -1, -1, 1579, -1, -1, 916, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, 1984, 2273, 2825, 2986, 1729, 1797, 392, 3455,
+    995, -1, -1, -1, -1, -1, -1, -1, 114, 1279, 3301, -1, 1900, 2002, -1, -1,
+    -1, -1, -1, -1, -1, 1652, -1, 3318, -1, -1, 3189, -1, 610, -1, -1, -1,
+    -1, -1, -1, -1, 13, -1, 3219, 1414, -1, 2552, 3223, -1, -1, -1, 3027, -1,
+    1676, 1687, 790, 2486, 3340, -1, 43, -1, -1, -1, -1, -1, -1, 2416, -1, -1,
+    -1, -1, -1, 1166, -1, -1, -1, -1, -1, -1, 2300, -1, 3474, 2243, -1, -1,
+    -1, -1, -1, 203, 2130, 1449, 2204, 2735, 2754, -1, -1, 2350, -1, 1520, -1, -1,
+    2724, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3088, -1,
+    -1, -1, -1, -1, -1, 878, -1, -1, -1, -1, -1, 2007, 3161, -1, -1, 35,
+    -1, -1, -1, -1, 2924, -1, 2199, 223, -1, -1, -1, 3143, -1, -1, 2937, -1,
+    -1, 492, -1, 2247, -1, -1, -1, -1, -1, -1, -1, 2675, 922, 783, 1426, 1391,
+    -1, 1270, -1, 849, 314, 1065, 668, 2621, 2869, -1, -1, -1, 2540, -1, -1, 2738,
+    1613, 303, 438, 1572, 2843, 3014, 572, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, 1020, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1282, -1,
+    -1, 1272, 1997, 308, -1, -1, -1, -1, 1853, 2236, 245, 2470, 573, 1569, -1, 1654,
+    -1, 644, -1, 71, 1666, 2096, -1, -1, -1, -1, -1, -1, 1049, -1, -1, 243,
+    3194, -1, -1, -1, -1, 3236, -1, -1, -1, -1, 1672, 847, -1, -1, -1, 853,
+    2994, -1, 2684, 66, 2506, -1, 1183, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    977, -1, -1, -1, 1075, -1, -1, -1, 750, 1152, 3508, -1, -1, -1, -1, -1,
+    -1, -1, 1250, -1, 529, 1236, -1, 542, -1, -1, -1, -1, -1, 1537, 2121, 2263,
+    -1, 991, -1, -1, 1499, 551, -1, 3245, -1, 415, -1, -1, 3494, 3514, -1, 997,
+    -1, -1, 95, -1, -1, 1364, -1, 1522, 984, -1, -1, -1, -1, 1010, 1680, 3107,
+    -1, -1, 693, -1, -1, -1, 2957, 2487, -1, 233, 891, 3348, 3056, -1, -1, -1,
+    -1, 1590, -1, -1, 765, 3472, -1, 1325, -1, -1, -1, 1409, 134, 1723, 2620, -1,
+    -1, 61, 2127, -1, 3460, 455, -1, -1, -1, -1, 2679, -1, -1, -1, 2663, -1,
+    -1, -1, -1, 189, 628, 7, 1423, -1, -1, -1, -1, -1, -1, -1, 2148, 3404,
+    -1, -1, -1, -1, 2578, 3036, 993, 1032, 2492, -1, 1406, -1, -1, -1, 2829, 856,
+    -1, -1, -1, -1, 51, 297, 3417, 2753, -1, -1, 359, 2766, 626, -1, -1, -1,
+    -1, -1, 1180, 1440, 1738, 2216, -1, -1, 1541, -1, -1, -1, -1, 1243, 428, 1683,
+    -1, -1, 2773, -1, 1218, 1453, -1, -1, -1, -1, 360, -1, 313, -1, -1, 630,
+    -1, -1, -1, -1, -1, -1, 3351, 3079, -1, 1671, -1, -1, 556, 1368, -1, 1888,
+    3178, -1, -1, -1, 822, 3483, -1, 1164, -1, 683, -1, 1709, 1737, 635, 2250, 621,
+    1458, 447, 2286, 2905, -1, -1, 2602, -1, -1, -1, -1, -1, -1, -1, -1, 1239,
+    -1, -1, 310, -1, -1, -1, 3307, -1, -1, 1533, -1, -1, -1, -1, 161, -1,
+    -1, -1, -1, 2585, -1, -1, -1, -1, -1, -1, 363, -1, -1, -1, 3052, -1,
+    -1, -1, 1475, 3328, 349, -1, -1, 561, 1591, -1, -1, -1, 184, 1356, -1, 1756,
+    2836, -1, 734, -1, -1, 3507, -1, -1, -1, -1, 3304, -1, 2657, -1, -1, 1542,
+    2418, 1617, 1754, -1, -1, 2438, -1, -1, -1, 1720, -1, 289, -1, -1, -1, 1331,
+    2345, 2225, 2565, 3313, 3506, -1, -1, -1, -1, -1, 3470, -1, -1, -1, -1, 2703,
+    52, 18, 3164, -1, -1, -1, 93, 3121, 1190, -1, -1, 789, -1, -1, 766, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1966, 2780, 1606, -1,
+    1782, -1, 3225, -1, 1877, 940, 1080, -1, -1, -1, -1, -1, 2863, -1, -1, -1,
+    -1, -1, 3394, 1228, 2048, 3136, -1, -1, -1, -1, -1, -1, 3116, -1, -1, -1,
+    2258, 516, -1, -1, 616, -1, -1, 3411, 1056, 2439, -1, -1, -1, 2429, -1, -1,
+    -1, 2532, -1, 1094, -1, -1, -1, -1, -1, 1509, -1, -1, -1, 748, -1, 1297,
+    175, 1925, -1, -1, 2504, -1, 2226, 3295, -1, -1, -1, 1248, 225, 284, 1852, 2057,
+    2758, -1, -1, 312, 3426, -1, 73, 1743, -1, 945, 782, 2090, 2213, -1, -1, -1,
+    -1, 679, 938, 1047, 1670, 725, 241, 2212, -1, 2330, -1, -1, 1091, 1260, 2867, 688,
+    2333, 3240, 3449, 1629, 2928, 1961, 1500, -1, -1, -1, -1, -1, -1, -1, 1943, 2344,
+    2731, 81, -1, 2464, 1521, -1, -1, -1, 37, -1, 1393, 2742, 923, 2708, 3432, 3456,
+    -1, -1, -1, -1, -1, 1071, 3511, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, 1837, 1136, 372, 1172, 1573, -1, -1, -1, -1, 582, -1, -1, 1204,
+    -1, -1, -1, 2336, -1, -1, -1, -1, 2169, 2567, 2691, -1, 371, -1, 3329, -1,
+    -1, 186, 2059, 2321, 3104, -1, -1, -1, 288, 3234, -1, -1, 185, 305, 94, 690,
+    -1, -1, 1470, 2228, -1, -1, 300, 1142, 657, 1296, -1, -1, 759, -1, -1, -1,
+    3085, -1, -1, 2290, -1, 1662, 3190, -1, -1, 3275, -1, 456, -1, -1, 1350, -1,
+    -1, -1, -1, -1, -1, -1, 3081, -1, -1, 395, 579, 1083, 3248, 1616, -1, -1,
+    -1, -1, 1523, -1, -1, -1, -1, 140, -1, -1, 333, 3257, -1, -1, -1, 2645,
+    -1, 3033, 3415, -1, 1330, -1, 820, 3119, 481, 2024, 699, 2740, 3481, 2052, -1, 1840,
+    -1, -1, -1, -1, -1, -1, -1, 3336, -1, 72, 1288, 2706, 151, 623, 1830, -1,
+    -1, 2573, -1, 1479, -1, -1, 490, -1, 1181, -1, -1, 3115, -1, -1, 3174, -1,
+    -1, -1, -1, -1, -1, -1, -1, 2135, 2295, 1486, -1, 407, 457, 515, 1219, 2697,
+    3122, 2689, 3229, 3323, -1, -1, -1, 2719, 1992, -1, -1, 1863, -1, 580, 1583, -1,
+    2403, 2980, 2375, 3167, -1, -1, -1, 1051, -1, -1, -1, -1, -1, -1, -1, 3361,
+    -1, -1, 3515, -1, 1645, 130, -1, 461, -1, -1, 1732, 2322, 1862, 3396, 2075, -1,
+    -1, -1, 2124, -1, -1, -1, -1, -1, 3391, 470, 2480, -1, -1, 727, 3057, -1,
+    -1, 2050, 2356, -1, 1334, -1, -1, -1, -1, -1, 1813, 1898, 2490, -1, -1, -1,
+    1168, 2444, -1, 1055, -1, 2811, 2003, -1, -1, 1604, -1, -1, 2392, -1, -1, -1,
+    -1, 1308, 2046, -1, 1203, -1, 298, 379, 1636, 1443, 2505, 2908, 584, 1947, 3267, -1,
+    -1, 1986, -1, 2946, -1, -1, 999, -1, 3017, -1, 612, 2786, 2813, 1831, 2976, 2101,
+    583, 2588, -1, -1, 570, 888, 1161, 3250, -1, 3333, 3015, 2404, 1556, -1, 82, 1281,
+    1463, 1456, 340, 1205, 2294, 2906, 3162, -1, 2125, -1, -1, 860, 2282, -1, -1, -1,
+    1412, -1, -1, -1, 552, 868, 2625, 3308, -1, -1, -1, 80, 646, -1, -1, -1,
+    -1, -1, 1973, 1726, -1, 1800, -1, -1, 532, -1, -1, 2324, 2661, 973, -1, -1,
+    3220, 86, -1, 2927, -1, 2932, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, 2463, -1, 1995, -1, 463, 84, 913, 3317, 2382, 3148, -1, -1, -1, 3024,
+    -1, -1, -1, -1, -1, -1, 649, 2408, 121, 1407, 2363, 2415, 163, 2516, 3055, 1106,
+    1910, 2596, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 701, -1, -1,
+    2730, 3270, -1, -1, 1718, -1, -1, -1, 1688, -1, 1605, -1, 2796, 1182, 2076, 2515,
+    3084, -1, 1842, 955, -1, 411, 751, -1, -1, -1, 1869, 2238, 2912, -1, -1, 3034,
+    3518, -1, -1, 459, -1, 209, -1, 2488, -1, -1, 2523, 2509, -1, -1, -1, -1,
+    -1, 3071, -1, 3499, -1, 365, -1, -1, -1, 1724, -1, -1, 416, -1, 656, 624,
+    -1, -1, 609, 3256, 1991, -1, 44, 154, 1669, -1, -1, -1, -1, -1, -1, 1155,
+    -1, -1, -1, 3271, 1742, -1, 2019, -1, 2139, 3322, -1, -1, -1, -1, -1, -1,
+    -1, 620, 3427, 2498, -1, -1, -1, -1, -1, 1177, 2349, -1, -1, -1, -1, -1,
+    -1, 1235, -1, 1151, 79, 1277, 1786, 555, 2762, -1, 776, -1, 2761, -1, 2146, 791,
+    -1, -1, -1, 1804, 2151, 2545, 1437, 2875, 3436, 3471, -1, 1481, 662, 2559, 2195, 969,
+    575, 3228, -1, -1, -1, 2088, 1607, 3255, -1, 927, 869, 986, 1484, 2636, 3266, 1931,
+    1114, 2589, 886, 2622, 3292, 3346, -1, -1, -1, 2610, -1, 2485, -1, -1, -1, 2194,
+    -1, -1, 1566, -1, -1, -1, 1733, 2991, -1, -1, -1, -1, -1, 1060, 742, 3000,
+    -1, -1, 1502, 1814, 3032, -1, 2822, -1, 141, -1, -1, -1, -1, 1955, -1, 1029,
+    1491, 1697, 2368, 3180, -1, -1, -1, -1, 28, 1740, 242, 3202, -1, -1, 2104, -1,
+    548, 1896, 2332, -1, -1, -1, -1, -1, -1, -1, 1903, 1539, 2037, -1, -1, -1,
+    -1, -1, -1, -1, -1, 819, 1230, 3457, 3480, -1, 1340, 2447, -1, -1, -1, -1,
+    3371, -1, -1, -1, 1104, 1967, -1, 1711, 1990, 2747, -1, 247, 1460, 2145, -1, -1,
+    1557, 328, -1, 567, 133, 2022, 2938, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 648, -1, -1, 2712, 12, -1, -1, -1, -1, -1,
+    -1, -1, -1, 3238, -1, -1, -1, -1, -1, -1, -1, 1244, 2770, 2468, 987, -1,
+    1245, 2745, -1, -1, 1694, -1, -1, 179, 1467, 2036, -1, 2553, -1, -1, -1, -1,
+    -1, 2413, 1513, -1, -1, 639, 343, -1, -1, -1, -1, -1, 1258, -1, -1, -1,
+    1299, -1, -1, -1, 1351, -1, -1, 1171, -1, -1, -1, 2617, 2644, 2917, 2909, 3005,
+    -1, -1, -1, -1, -1, 419, -1, 207, -1, 3073, -1, 1233, -1, -1, -1, -1,
+    -1, 1620, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3243, -1, 3368, -1, -1,
+    -1, 1880, 3153, 3344, 1478, 2285, -1, 2462, -1, -1, -1, -1, 814, 1345, 3475, -1,
+    -1, -1, 599, -1, 537, -1, -1, -1, -1, 106, 2543, -1, -1, 2312, 469, -1,
+    -1, -1, 2083, -1, 2261, -1, -1, -1, 1187, 2289, -1, -1, 2335, -1, -1, -1,
+    2799, -1, -1, -1, 2681, 1014, 1115, 2417, -1, -1, -1, 1871, -1, -1, -1, -1,
+    -1, -1, 1066, 1970, 2483, 1850, 1493, 1074, 2547, -1, 228, 1249, 2189, 2759, 1137, 3035,
+    1816, 1699, 2153, 1690, 2570, 2176, 2662, 1404, 1146, 1271, 694, -1, -1, -1, 337, 2626,
+    3176, -1, -1, -1, -1, 2720, 107, 3215, 1316, 2893, -1, -1, -1, 2633, 1186, 296,
+    522, 3026, 138, 3284, -1, 1748, 3338, 2665, 1843, 146, -1, -1, -1, -1, 2304, -1,
+    29, -1, 34, -1, -1, -1, 1156, 1173, 3516, 1061, -1, 3004, 2484, 1389, 1883, 1780,
+    -1, -1, 3444, 1989, 1150, 1994, 2457, 2850, -1, -1, 254, -1, 1937, 2709, -1, -1,
+    433, -1, -1, -1, 38, -1, -1, -1, -1, -1, 1283, 78, 2168, 3466, -1, 488,
+    -1, 199, 762, 2069, -1, -1, -1, -1, -1, -1, 3303, -1, -1, -1, -1, -1,
+    -1, 954, 1052, 1225, 1847, 357, 2549, 3357, 3312, -1, 597, -1, 926, -1, -1, 2161,
+    1396, -1, -1, -1, 1401, 480, 2637, -1, -1, -1, -1, -1, 2177, -1, -1, -1,
+    -1, 885, -1, 811, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2191, 69, 1555,
+    -1, 1829, 1625, -1, 906, -1, -1, -1, -1, -1, 1936, -1, 63, 1109, 1796, -1,
+    413, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2771, -1, 2668, -1, 2779, -1,
+    3165, -1, 2476, -1, -1, 1012, -1, -1, -1, 2233, -1, 826, -1, -1, -1, -1,
+    774, -1, -1, 3524, 2477, 2397, 2132, 2528, 2901, 3523, -1, 267, 1326, 1388, 1639, 2777,
+    2807, 2765, 517, 3062, -1, -1, 951, 2150, -1, -1, 143, -1, -1, -1, -1, 2073,
+    -1, -1, -1, -1, 2835, -1, -1, -1, 2732, 1551, 2856, -1, -1, 1858, -1, -1,
+    2607, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2380, -1, -1, -1,
+    1865, 2410, -1, -1, 2511, -1, 2240, 1079, 1379, 2631, 3058, -1, -1, -1, 554, 1384,
+    2997, -1, -1, -1, 2186, 2838, -1, -1, -1, 1147, 1954, 1612, 3098, -1, -1, -1,
+    -1, 615, 487, 3097, 3160, 3289, 1757, -1, 539, 2821, -1, -1, 1552, -1, 2110, -1,
+    -1, -1, -1, 2305, -1, 736, 1144, 1280, 1761, -1, -1, 3039, -1, -1, -1, 3060,
+    1584, -1, -1, -1, -1, -1, -1, 3008, -1, -1, 3325, 1126, -1, -1, 2122, -1,
+    -1, -1, -1, -1, -1, -1, -1, 194, -1, 1701, -1, -1, -1, 1626, 2627, 3166,
+    -1, 1039, -1, -1, 159, 2115, -1, 2136, -1, -1, -1, 910, -1, -1, -1, 170,
+    1921, -1, 221, 3152, -1, -1, -1, 2443, 230, -1, -1, -1, -1, 135, -1, 2347,
+    -1, -1, -1, -1, -1, -1, 153, 2445, 399, -1, -1, 3038, -1, -1, -1, 3253,
+    2499, 3381, -1, 824, -1, -1, 1313, -1, 2244, -1, 834, 1196, 387, -1, -1, 998,
+    1433, 3117, -1, -1, 1257, -1, 1191, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    2630, 2405, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2343, -1, -1, -1, -1,
+    -1, 576, 137, -1, -1, -1, -1, -1, 773, -1, 1833, -1, -1, 1905, 1506, -1,
+    -1, -1, -1, -1, -1, 497, 1887, 3353, -1, 1434, -1, -1, 862, 3159, 1795, -1,
+    -1, -1, 3339, 2563, -1, -1, -1, -1, -1, 1372, -1, 452, -1, -1, 2935, -1,
+    -1, -1, 1043, 181, -1, -1, -1, 553, -1, -1, 1088, -1, -1, -1, -1, 2916,
+    948, 737, 1018, 1901, -1, -1, -1, -1, -1, -1, 287, 1638, -1, 1004, -1, -1,
+    2436, 3315, -1, -1, -1, -1, -1, 2373, 1314, 2434, 2539, 3096, -1, -1, -1, 1355,
+    -1, 1095, -1, 2390, 2718, 2755, 3050, -1, -1, -1, 3195, 3452, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 494, -1, -1, -1, -1, -1, -1, -1, -1, 2656,
+    874, 2586, 3124, -1, -1, -1, -1, -1, -1, 2944, -1, 604, 1976, -1, -1, -1,
+    -1, -1, 2837, 354, 1682, 280, 1562, 3428, -1, -1, -1, 560, 763, 1779, -1, -1,
+    -1, 306, 3156, -1, 2301, 1420, -1, -1, -1, -1, 2041, -1, -1, 1070, -1, -1,
+    -1, -1, -1, 1715, -1, 3265, -1, -1, -1, -1, 1170, -1, -1, -1, 1727, 1859,
+    3128, -1, -1, -1, -1, 2923, -1, 348, -1, 3184, -1, -1, -1, -1, -1, 26,
+    1685, 2655, -1, -1, -1, -1, -1, 2279, 3389, -1, 1746, 2601, 2710, 506, -1, 3043,
+    -1, 355, 1311, 2193, 2129, -1, -1, 2430, -1, -1, -1, 836, -1, 1424, -1, -1,
+    -1, -1, -1, 2548, 1823, -1, -1, -1, 239, 1102, 2409, -1, 1781, 1908, -1, 870,
+    1408, 2616, -1, -1, -1, -1, -1, -1, -1, 911, 1174, 633, -1, 1184, -1, -1,
+    -1, -1, 353, 2737, -1, 2276, 1540, 2583, -1, 3138, -1, -1, 454, 879, 2690, -1,
+    -1, -1, -1, -1, 1988, -1, 1399, -1, 2643, -1, 3517, -1, -1, -1, 686, -1,
+    -1, -1, -1, 559, 1179, 2818, 1100, -1, 1077, -1, -1, -1, -1, -1, -1, -1,
+    3110, 101, 1298, 2714, 1318, 2865, 3103, -1, -1, -1, 700, 1731, -1, -1, -1, -1,
+    1673, -1, 586, -1, -1, -1, 157, -1, -1, -1, -1, 473, 2597, 3137, -1, 2031,
+    -1, 2574, 1103, 607, 2269, -1, -1, 319, -1, 2143, 1140, 3179, -1, -1, -1, 2066,
+    1342, 2851, -1, -1, -1, 2061, 2449, 2816, -1, -1, 270, 536, 703, 2183, 378, 1148,
+    2497, -1, -1, 1618, 1597, 2230, -1, -1, -1, 1772, 2558, 1658, -1, 1802, -1, -1,
+    -1, -1, -1, -1, 231, 2222, 1783, 571, 249, 3204, 3272, -1, 1868, 1982, -1, -1,
+    -1, -1, -1, 246, -1, -1, -1, 3467, -1, -1, -1, -1, -1, -1, 295, 842,
+    1948, -1, 1322, -1, -1, -1, 2203, 2842, -1, -1, -1, -1, 3108, -1, -1, -1,
+    476, -1, -1, -1, 1609, -1, -1, -1, 282, 1084, 1959, 2975, -1, -1, -1, -1,
+    -1, 3146, -1, 1354, 550, -1, -1, -1, 1940, -1, -1, 1872, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 730, 1544, 2371, 2514,
+    -1, -1, 2134, -1, -1, -1, -1, 1504, 180, 375, 558, 1634, 974, 2004, 128, -1,
+    1710, -1, 1827, 2386, 1194, 334, 786, 1333, 3029, 434, -1, 1964, 2966, -1, -1, 211,
+    1965, -1, 839, -1, -1, -1, -1, -1, 3459, -1, -1, -1, -1, -1, -1, -1,
+    3067, -1, -1, 1677, 2292, 3458, 1346, 2987, 2196, -1, 2978, 397, 2201, 1411, 2015, -1,
+    -1, -1, 2138, -1, -1, -1, 1890, -1, 2112, -1, -1, -1, -1, 3461, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, 2877, 90, 892, -1, -1, -1, -1, -1, -1,
+    -1, 1913, 1082, -1, 1496, 2535, -1, -1, -1, -1, 274, -1, 1178, -1, -1, 1975,
+    -1, -1, -1, -1, 1086, -1, -1, 2197, 3509, -1, 3302, -1, -1, 593, -1, -1,
+    -1, 2235, 1574, 1774, 1262, 2351, -1, -1, -1, -1, -1, -1, 1040, -1, -1, -1,
+    2568, 691, 880, 352, 2918, -1, -1, 3171, 1758, 1229, 1432, -1, -1, -1, -1, -1,
+    401, 1531, 1824, 2107, 1468, 2750, 2785, 364, 482, 2849, 1349, 1587, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, 91, 829, 2187, 3246, -1, -1, 425, -1,
+    -1, -1, 807, -1, -1, 16, -1, 3492, -1, -1, -1, -1, 3208, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, 1037, 787, 882, 1259, 1953, -1, 1514, -1, -1,
+    723, 881, 2931, 2028, 660, 896, -1, -1, 1661, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, 1321, -1, -1, -1, 1565, 3374, -1, 3025, -1, -1, -1, -1, -1, 1884,
+    3066, -1, -1, 102, 753, 1971, 2119, 3044, -1, 2859, 2218, 2727, 696, 427, -1, -1,
+    -1, -1, 1127, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1570, 533, 654, -1,
+    498, -1, 2280, -1, -1, 740, 1610, -1, -1, -1, -1, -1, -1, -1, 2174, 720,
+    3048, -1, -1, -1, 1962, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2664, -1,
+    -1, -1, 3441, -1, -1, -1, 2687, -1, -1, -1, 237, -1, -1, -1, -1, -1,
+    510, 2131, -1, -1, 450, -1, -1, -1, -1, -1, 1341, -1, -1, 719, -1, 2910,
+    2683, -1, 2694, -1, -1, -1, -1, 208, 712, 3414, 1380, 132, 1755, 1790, 793, 2441,
+    55, 2660, 3504, -1, -1, -1, -1, -1, 173, -1, -1, -1, -1, -1, -1, 3526,
+    -1, 1714, -1, -1, -1, -1, 1558, 1838, -1, -1, -1, -1, -1, -1, 2603, 815,
+    3476, 2049, 1866, -1, -1, 1651, 3181, 743, 251, -1, 925, -1, -1, 32, -1, -1,
+    -1, -1, -1, -1, -1, 1902, -1, -1, 2833, -1, -1, 732, 2465, 502, -1, -1,
+    324, 2677, 1226, 3041, 2099, -1, 1199, -1, 1764, -1, -1, -1, -1, -1, 1319, 2012,
+    3520, 2248, -1, -1, 444, -1, 396, 2423, 139, 1752, -1, -1, 238, -1, -1, -1,
+    -1, 3416, -1, 2140, 2421, -1, -1, 2619, -1, -1, 781, -1, -1, -1, -1, -1,
+    -1, 2581, 2370, 2805, -1, -1, 3028, 2006, 1799, -1, -1, -1, -1, 653, 2157, -1,
+    -1, -1, -1, -1, 216, 443, -1, 1090, -1, 2342, -1, -1, -1, -1, -1, -1,
+    -1, -1, 647, 2939, 3100, 3182, 1214, 2126, -1, -1, 2378, -1, 1603, 1915, -1, 2220,
+    -1, -1, -1, -1, 46, 1707, 2234, 3486, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, 2775, -1, -1, -1, -1, -1, 3049, -1, 1826, -1, -1, -1, 3074, -1,
+    -1, 2913, -1, 2325, 681, -1, -1, -1, 622, -1, -1, 2091, 261, 2070, 2419, -1,
+    -1, -1, -1, 1093, -1, 115, 1568, 3077, 545, -1, -1, -1, 335, 2800, -1, 2478,
+    -1, -1, -1, 3216, -1, 823, 3484, -1, -1, -1, -1, -1, -1, 650, -1, -1,
+    1139, 799, -1, -1, -1, -1, 590, -1, -1, 70, -1, -1, 200, -1, -1, 27,
+    -1, -1, -1, -1, -1, -1, 1428, 3170, 1348, -1, 393, 867, 2817, 3337, -1, -1,
+    1787, 2082, -1, -1, 3424, 1176, -1, 2951, 409, -1, -1, -1, -1, -1, -1, 501,
+    -1, -1, -1, -1, -1, -1, 900, 6, -1, -1, 2144, -1, -1, -1, 851, 1855,
+    3367, -1, 1920, 281, 3420, -1, 331, -1, -1, 1317, -1, -1, 430, 389, 952, 1048,
+    2302, -1, 3282, 1929, -1, 1162, 3406, -1, 687, -1, -1, 2672, -1, -1, -1, -1,
+    -1, -1, 1416, 2160, -1, -1, -1, 1998, -1, -1, -1, -1, -1, -1, -1, 152,
+    1485, -1, -1, 1159, 177, 1302, -1, -1, 1363, 2432, 1702, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 897, 1492, 1112, 2206, 960, -1, -1, -1, -1, -1,
+    -1, 3016, -1, 1906, 1064, -1, 2117, -1, -1, 394, 1817, 1836, 1957, 1894, -1, 3269,
+    -1, 3287, -1, -1, -1, -1, 877, -1, -1, 201, 2334, 1033, 60, 1188, -1, -1,
+    -1, 1003, 253, 3212, -1, -1, -1, 1679, -1, 75, -1, 252, 2166, -1, 1373, -1,
+    1301, -1, 421, 3510, -1, -1, -1, -1, -1, 1344, 1744, 1016, 1464, -1, -1, -1,
+    3051, -1, -1, 2491, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2844, 3332, 1092,
+    2103, -1, 3445, -1, -1, -1, 2955, -1, -1, -1, -1, 728, -1, 1466, -1, -1,
+    -1, -1, -1, 74, -1, -1, -1, -1, 3491, -1, -1, 2245, 2947, 3157, -1, -1,
+    -1, -1, 2872, -1, -1, 323, 1712, -1, -1, -1, -1, -1, -1, 672, 2891, -1,
+    1017, 760, 1602, -1, 291, 386, 2262, 749, 629, -1, -1, -1, 3376, 68, 3392, 3113,
+    -1, 3382, 3399, -1, -1, 837, 1704, 2943, -1, 1692, 147, 2733, -1, -1, 2337, -1,
+    -1, 2551, -1, 1952, -1, -1, 816, 3477, -1, -1, -1, 2318, -1, -1, -1, -1,
+    256, 2933, -1, -1, 3513, 1534, -1, -1, 2569, -1, 992, 1096, 1518, -1, -1, -1,
+    1362, 1577, -1, -1, 581, -1, -1, -1, -1, -1, 1633, 2165, -1, 2839, 2326, -1,
+    -1, 1934, 2455, -1, -1, -1, -1, -1, 1290, -1, -1, -1, 174, -1, 1923, 685,
+    2519, 3355, 1310, 2372, 1057, 2026, 1227, 368, 3111, -1, -1, -1, 373, 3101, -1, -1,
+    -1, -1, 1548, 1996, 1891, 2114, 2956, -1, -1, -1, -1, 3082, 3306, 1072, 2001, 439,
+    1798, 596, 1307, 1611, 2803, 2919, 3064, 1646, -1, 2467, 3401, -1, -1, 527, -1, -1,
+    3191, -1, -1, -1, 2830, -1, 614, -1, 800, 2479, -1, -1, -1, 2854, -1, 3046,
+    2420, 3031, 3258, 2309, 167, -1, -1, 1222, 806, 2310, -1, -1, 827, 2870, -1, -1,
+    -1, -1, -1, -1, -1, 449, 2361, -1, 1274, 370, 2448, 611, 2561, 3440, 1648, -1,
+    -1, 3007, 3140, -1, -1, -1, -1, 30, 465, -1, -1, 2911, -1, 1019, 503, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2866,
+    -1, -1, -1, -1, -1, -1, 917, 2524, 2715, -1, -1, -1, 1897, -1, -1, 3405,
+    -1, 1284, -1, -1, -1, -1, 817, 3290, 2897, 3478, 1527, 2798, 1899, -1, 1993, -1,
+    625, 936, 2555, -1, -1, -1, 327, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    1469, -1, -1, 2496, 871, 3423, -1, -1, 1332, -1, 250, 1803, 417, -1, -1, -1,
+    1324, -1, -1, 1306, 31, 156, 2426, 2527, -1, 1637, 2223, -1, -1, 915, -1, 1507,
+    1681, -1, -1, -1, 1835, 3402, -1, -1, -1, -1, -1, 928, 2695, 342, 1021, 2241,
+    -1, 3495, -1, 2155, 1268, 1292, 1886, 1192, 3335, 2472, -1, 546, 895, -1, -1, -1,
+    1118, -1, -1, 3493, 2721, -1, 67, -1, -1, -1, 3095, -1, -1, -1, -1, -1,
+    2493, -1, -1, 3489, -1, -1, 665, -1, -1, -1, -1, 1684, 1968, -1, 3203, -1,
+    320, -1, -1, -1, -1, 1980, -1, -1, -1, -1, 4, 821, 3482, 451, -1, -1,
+    2000, 2208, 2367, 309, 887, 1911, 2180, 2682, 3135, 3488, 262, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, 3169, -1, -1, -1, 2200, 1730, 598, 2275, 2979, -1, 2577,
+    -1, 3147, 104, 883, 2653, 1615, 2669, -1, 1655, 2025, -1, -1, -1, -1, -1, -1,
+    -1, -1, 3237, -1, 2879, -1, -1, -1, -1, 1163, -1, -1, -1, -1, -1, 3149,
+    -1, 797, 2507, 495, 798, 2252, 3395, -1, -1, 2500, 1974, 848, 1839, 902, 3388, -1,
+    -1, 1034, -1, 2881, -1, 466, 3, -1, -1, -1, -1, -1, -1, -1, 778, 920,
+    -1, 2084, -1, -1, 2045, -1, -1, -1, -1, 1454, 1938, 3002, -1, 792, 1650, -1,
+    -1, -1, -1, -1, -1, 1062, -1, -1, 949, 418, 858, -1, -1, -1, -1, 2471,
+    -1, 1512, -1, 405, -1, 731, -1, -1, -1, 3373, -1, -1, -1, -1, -1, -1,
+    -1, 2824, 1762, -1, -1, 2020, -1, -1, -1, -1, -1, -1, -1, 1909, 2017, -1,
+    -1, -1, -1, 1286, 1232, -1, 908, -1, -1, 2995, -1, -1, -1, 1101, -1, 227,
+    -1, 1422, -1, 1889, 707, -1, -1, 1339, -1, -1, -1, 2008, -1, -1, -1, 3350,
+    2968, -1, 429, 857, 1753, 2992, -1, -1, -1, -1, -1, -1, -1, 272, -1, 1,
+    2331, -1, 2123, -1, -1, -1, -1, 718, -1, 1675, 311, 217, 2556, 2834, 3251, 3263,
+    -1, -1, 458, 1442, 1860, 1946, 2034, 198, 3425, -1, -1, -1, -1, -1, -1, -1,
+    761, 113, -1, -1, 2600, -1, 1885, -1, -1, -1, 1358, -1, -1, -1, -1, 526,
+    -1, 229, 1123, -1, -1, -1, -1, -1, 3385, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, 326, 2459, 667, 2790, -1, -1, -1, -1, -1, -1, 1312, -1, -1,
+    -1, -1, 54, -1, 2149, -1, -1, -1, -1, 3354, -1, -1, -1, -1, 1473, 2053,
+    -1, -1, -1, -1, -1, -1, -1, -1, 1914, 840, 1357, 2900, 1207, 3433, -1, 3133,
+    3262, 2364, 2355, -1, 770, 1749, 2253, 2562, 2763, 514, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, 903, 1253, -1, 341, -1, -1, 279, 356, -1, 2087,
+    -1, -1, 479, 500, -1, 2726, -1, -1, -1, -1, -1, -1, -1, 145, 2921, 2789,
+    652, 507, 3320, 3364, 3352, -1, 2808, -1, 941, 403, 2231, 1735, -1, -1, -1, -1,
+    -1, 675, -1, -1, -1, 2056, -1, -1, -1, -1, 129, 1916, -1, -1, -1, -1,
+    336, 385, 1657, -1, 2255, -1, -1, -1, -1, 467, 1025, -1, -1, 2658, -1, -1,
+    -1, -1, -1, -1, -1, 3285, -1, -1, -1, -1, -1, -1, 1201, 1488, -1, -1,
+};
+
+static uint32_t jinx_oracle_callable_hash(const char *name) {
+    uint32_t hash = 2166136261u;
+    while (*name) {
+        unsigned char c = (unsigned char)*name++;
+        if (c >= 65u && c <= 90u) c += 32u;
+        hash ^= (uint32_t)c;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
 static int jinx_oracle_callable_name_equal(const char *left, const char *right) {
     while (*left && *right) {
         unsigned char a = (unsigned char)*left++, b = (unsigned char)*right++;
@@ -3687,14 +4214,156 @@ static int jinx_oracle_callable_name_equal(const char *left, const char *right) 
     return *left == *right;
 }
 
+static int jinx_call_hot_builtin_id_checked(
+    JinxBuiltinId id, JinxValue *args, size_t argc, JinxValue *result, int *ok
+) {
+    JinxValue zero = jinx_oracle_zero_value();
+    JinxValue arg0 = (args != NULL && argc > 0u) ? args[0] : zero;
+    JinxValue arg1 = (args != NULL && argc > 1u) ? args[1] : zero;
+    JinxValue arg2 = (args != NULL && argc > 2u) ? args[2] : zero;
+    JinxValue value = zero;
+    if (result == NULL) return 0;
+    switch (id) {
+        case 1u:
+            value = jinx_oracle_float_value(acos(jinx_oracle_floatish(arg0)));
+            break;
+        case 2u:
+            value = jinx_oracle_float_value(acosh(jinx_oracle_floatish(arg0)));
+            break;
+        case 3u:
+            value = jinx_oracle_float_value(asin(jinx_oracle_floatish(arg0)));
+            break;
+        case 4u:
+            value = jinx_oracle_float_value(asinh(jinx_oracle_floatish(arg0)));
+            break;
+        case 5u:
+            value = jinx_oracle_float_value(atan(jinx_oracle_floatish(arg0)));
+            break;
+        case 7u:
+            value = jinx_oracle_float_value(atanh(jinx_oracle_floatish(arg0)));
+            break;
+        case 8u:
+            value = jinx_oracle_float_value(ceil(jinx_oracle_floatish(arg0)));
+            break;
+        case 9u:
+            value = jinx_oracle_float_value(cos(jinx_oracle_floatish(arg0)));
+            break;
+        case 10u:
+            value = jinx_oracle_float_value(cosh(jinx_oracle_floatish(arg0)));
+            break;
+        case 11u:
+            value = jinx_oracle_float_value(exp(jinx_oracle_floatish(arg0)));
+            break;
+        case 12u:
+            value = jinx_oracle_float_value(expm1(jinx_oracle_floatish(arg0)));
+            break;
+        case 14u:
+            value = jinx_oracle_float_value(floor(jinx_oracle_floatish(arg0)));
+            break;
+        case 19u:
+            value = jinx_oracle_float_value(log10(jinx_oracle_floatish(arg0)));
+            break;
+        case 20u:
+            value = jinx_oracle_float_value(log1p(jinx_oracle_floatish(arg0)));
+            break;
+        case 25u:
+            value = jinx_oracle_float_value(sin(jinx_oracle_floatish(arg0)));
+            break;
+        case 26u:
+            value = jinx_oracle_float_value(sinh(jinx_oracle_floatish(arg0)));
+            break;
+        case 27u:
+            value = jinx_oracle_float_value(sqrt(jinx_oracle_floatish(arg0)));
+            break;
+        case 28u:
+            value = jinx_oracle_float_value(tan(jinx_oracle_floatish(arg0)));
+            break;
+        case 29u:
+            value = jinx_oracle_float_value(tanh(jinx_oracle_floatish(arg0)));
+            break;
+        case 0u:
+            if (arg0.type == 5u) {
+                value = jinx_oracle_float_value(fabs(arg0.as.f64));
+            } else {
+                int64_t v = jinx_oracle_intish(arg0);
+                value = v == INT64_MIN ? jinx_oracle_float_value(-(double)INT64_MIN)
+                    : jinx_oracle_int_value(v < 0 ? -v : v);
+            }
+            break;
+        case 6u:
+            value = jinx_oracle_float_value(atan2(jinx_oracle_floatish(arg0), jinx_oracle_floatish(arg1)));
+            break;
+        case 15u:
+            value = jinx_oracle_float_value(fmod(jinx_oracle_floatish(arg0), jinx_oracle_floatish(arg1)));
+            break;
+        case 16u:
+            value = jinx_oracle_float_value(hypot(jinx_oracle_floatish(arg0), jinx_oracle_floatish(arg1)));
+            break;
+        case 13u:
+            value = jinx_oracle_float_value(jinx_oracle_floatish(arg0) / jinx_oracle_floatish(arg1));
+            break;
+        case 17u: {
+            int64_t dividend = jinx_oracle_intish(arg0);
+            int64_t divisor = jinx_oracle_intish(arg1);
+            if (divisor == 0 || (dividend == INT64_MIN && divisor == -1)) {
+                *result = zero;
+                if (ok != NULL) *ok = 0;
+                return 1;
+            }
+            value = jinx_oracle_int_value(dividend / divisor);
+            break;
+        }
+        case 21u:
+            value = jinx_oracle_float_value(jinx_oracle_pi());
+            break;
+        case 22u:
+            value = jinx_oracle_pow_value(arg0, arg1, 0);
+            break;
+        case 23u:
+            value = jinx_oracle_pow_value(arg0, arg1, 1);
+            break;
+        case 24u: {
+            int round_ok = 0;
+            value = jinx_oracle_round_value(arg0, arg1, arg2, argc, &round_ok);
+            if (!round_ok) {
+                *result = zero;
+                if (ok != NULL) *ok = 0;
+                return 1;
+            }
+            break;
+        }
+        case 18u: {
+            double x = jinx_oracle_floatish(arg0);
+            double base = argc >= 2u ? jinx_oracle_floatish(arg1) : 0.0;
+            if (argc >= 2u && base <= 0.0) {
+                *result = zero;
+                if (ok != NULL) *ok = 0;
+                return 1;
+            }
+            value = jinx_oracle_float_value(argc < 2u ? log(x)
+                : (base == 1.0 ? NAN : (base == 2.0 ? log2(x)
+                : (base == 10.0 ? log10(x) : log(x) / log(base)))));
+            break;
+        }
+        default:
+            return 0;
+    }
+    *result = value;
+    if (ok != NULL) *ok = 1;
+    return 1;
+}
+
 static const JinxOracleDispatchEntry *jinx_lookup_oracle_entry(const char *name) {
     if (name == NULL) return NULL;
-    for (size_t i = 0; oracle_dispatch_table[i].name != NULL; i++) {
-        if (jinx_oracle_callable_name_equal(oracle_dispatch_table[i].name, name)) {
-            return &oracle_dispatch_table[i];
+    size_t slot = (size_t)(jinx_oracle_callable_hash(name) & (JINX_ORACLE_DISPATCH_HASH_SIZE - 1u));
+    for (size_t probe = 0u; probe < JINX_ORACLE_DISPATCH_HASH_SIZE; probe++) {
+        int index = oracle_dispatch_hash_slots[slot];
+        if (index < 0) return NULL;
+        if (jinx_oracle_callable_name_equal(oracle_dispatch_table[index].name, name)) {
+            return &oracle_dispatch_table[index];
         }
+        slot = (slot + 1u) & (JINX_ORACLE_DISPATCH_HASH_SIZE - 1u);
     }
-
     return NULL;
 }
 
@@ -3712,20 +4381,67 @@ int jinx_lookup_oracle_arity(const char *name, uint32_t *required_args, uint32_t
     return 1;
 }
 
-JinxValue jinx_call_builtin_through_oracle_checked(
-    const char *name,
+JinxBuiltinId jinx_resolve_builtin_id(const char *name) {
+    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);
+    if (entry == NULL) return JINX_BUILTIN_ID_INVALID;
+    return (JinxBuiltinId)(entry - oracle_dispatch_table);
+}
+
+const char *jinx_builtin_name_from_id(JinxBuiltinId id) {
+    return id < JINX_ORACLE_DISPATCH_COUNT ? oracle_dispatch_table[id].name : NULL;
+}
+
+size_t jinx_encode_builtin_id(JinxBuiltinId id, uint8_t out[2]) {
+    if (out == NULL || id >= JINX_ORACLE_DISPATCH_COUNT) return 0u;
+    if (id < JINX_BUILTIN_HOT_ID_LIMIT) {
+        out[0] = (uint8_t)id;
+        return 1u;
+    }
+    out[0] = (uint8_t)(0x80u | ((id >> 8u) & 0x7fu));
+    out[1] = (uint8_t)(id & 0xffu);
+    return 2u;
+}
+
+int jinx_decode_builtin_id(const uint8_t *bytes, size_t length, JinxBuiltinId *id, size_t *consumed) {
+    JinxBuiltinId decoded;
+    size_t used;
+    if (bytes == NULL || length == 0u || id == NULL) return 0;
+    if ((bytes[0] & 0x80u) == 0u) {
+        decoded = (JinxBuiltinId)bytes[0];
+        used = 1u;
+    } else {
+        if (length < 2u) return 0;
+        decoded = (JinxBuiltinId)((((uint16_t)bytes[0] & 0x7fu) << 8u) | (uint16_t)bytes[1]);
+        if (decoded < JINX_BUILTIN_HOT_ID_LIMIT) return 0;
+        used = 2u;
+    }
+    if (decoded >= JINX_ORACLE_DISPATCH_COUNT) return 0;
+    *id = decoded;
+    if (consumed != NULL) *consumed = used;
+    return 1;
+}
+
+static JinxValue jinx_call_builtin_entry_checked(
+    const JinxOracleDispatchEntry *entry,
     JinxValue *args,
     size_t argc,
     int *ok
 ) {
     if (ok != NULL) *ok = 0;
 
-    const JinxOracleDispatchEntry *entry = jinx_lookup_oracle_entry(name);
     if (entry == NULL || argc > 64u || (argc != 0u && args == NULL) ||
         argc < entry->required_args || (!entry->variadic && argc > entry->total_args)) {
         return jinx_value_null();
     }
-    name = entry->name;
+    {
+        JinxBuiltinId id = (JinxBuiltinId)(entry - oracle_dispatch_table);
+        JinxValue hot_result = jinx_value_null();
+        if (id < JINX_BUILTIN_HOT_ID_LIMIT &&
+            jinx_call_hot_builtin_id_checked(id, args, argc, &hot_result, ok)) {
+            return hot_result;
+        }
+    }
+    const char *name = entry->name;
 
     if (argc == 0u && (strcmp(name, "array_merge") == 0 || strcmp(name, "array_merge_recursive") == 0)) {
         return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);
@@ -3751,7 +4467,7 @@ JinxValue jinx_call_builtin_through_oracle_checked(
         return jinx_oracle_zend_array_dispatch_builtin_checked(name, args, argc, ok);
     }
 
-    JinxOracleWrapper wrapper = jinx_lookup_oracle_wrapper(name);
+    JinxOracleWrapper wrapper = entry->wrapper;
 
     if (wrapper == NULL) {
         return jinx_value_null();
@@ -3768,6 +4484,28 @@ JinxValue jinx_call_builtin_through_oracle_checked(
 
     if (ok != NULL) *ok = 1;
     return result;
+}
+
+JinxValue jinx_call_builtin_id_checked(
+    JinxBuiltinId id, JinxValue *args, size_t argc, int *ok
+) {
+    const JinxOracleDispatchEntry *entry = id < JINX_ORACLE_DISPATCH_COUNT
+        ? &oracle_dispatch_table[id] : NULL;
+    return jinx_call_builtin_entry_checked(entry, args, argc, ok);
+}
+
+JinxValue jinx_call_builtin_through_oracle_checked(
+    const char *name, JinxValue *args, size_t argc, int *ok
+) {
+    return jinx_call_builtin_entry_checked(jinx_lookup_oracle_entry(name), args, argc, ok);
+}
+
+JinxValue jinx_call_builtin_id(
+    JinxBuiltinId id, JinxValue *args, size_t argc
+) {
+    int ok = 0;
+    JinxValue result = jinx_call_builtin_id_checked(id, args, argc, &ok);
+    return ok ? result : jinx_value_null();
 }
 
 JinxValue jinx_call_builtin_through_oracle(
