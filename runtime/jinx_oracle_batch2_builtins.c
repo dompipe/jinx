@@ -9378,17 +9378,18 @@ JinxValue jinx_oracle_batch2_builtin(
             free(output);
             return jinx_oracle_zero_value();
         }
-        result = b2_copy(output, length);
+        result = b2_copy((const char *)output, length);
         free(output);
         return result;
     }
 
     if (strcmp(name, "proc_nice") == 0) {
+        int rc;
         if (args == NULL || argc != 1u) return result;
         errno = 0;
-        (void)nice((int)jinx_oracle_intish(args[0]));
+        rc = nice((int)jinx_oracle_intish(args[0]));
         if (handled != NULL) *handled = 1;
-        return jinx_oracle_bool_value(errno == 0);
+        return jinx_oracle_bool_value(rc != -1 || errno == 0);
     }
 
     if (strcmp(name, "system") == 0 || strcmp(name, "passthru") == 0) {

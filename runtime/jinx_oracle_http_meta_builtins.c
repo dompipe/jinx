@@ -29,6 +29,7 @@ static char *http_dup_value(JinxValue value) {
     return out;
 }
 
+#ifdef JINX_HAVE_LIBCURL
 static size_t http_buffer_write(
     char *ptr,
     size_t size,
@@ -66,6 +67,7 @@ static size_t http_sink(
     (void)userdata;
     return size * nmemb;
 }
+#endif
 
 static int http_assoc_string(
     JinxZendArray *array,
@@ -85,6 +87,7 @@ static int http_assoc_string(
     return ok;
 }
 
+#ifdef JINX_HAVE_LIBCURL
 static int http_append_string(
     JinxZendArray *array,
     const char *value,
@@ -98,6 +101,7 @@ static int http_append_string(
     jinx_zend_string_release(string);
     return ok;
 }
+#endif
 
 static int ascii_equal_ci(char a, char b) {
     unsigned char ua = (unsigned char)a;
@@ -137,6 +141,7 @@ static const char *ascii_find_ci(
     return NULL;
 }
 
+#ifdef JINX_HAVE_LIBCURL
 static JinxValue http_headers_parse(
     const unsigned char *bytes,
     size_t len,
@@ -259,6 +264,7 @@ static JinxValue http_headers_parse(
 
     return jinx_oracle_zend_array_value_owned(out);
 }
+#endif
 
 #ifdef JINX_HAVE_LIBCURL
 static int http_fetch_url(

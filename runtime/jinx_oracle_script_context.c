@@ -24,9 +24,9 @@ static char *jinx_oracle_script_context_strdup(const char *text) {
 }
 
 static char *jinx_oracle_script_context_normalize(const char *path) {
-    char *resolved;
     if (path == NULL || *path == '\0') return NULL;
 #if defined(_POSIX_VERSION)
+    char *resolved;
     resolved = realpath(path, NULL);
     if (resolved != NULL) return resolved;
 #endif

@@ -115,37 +115,6 @@ static int jinx_oracle_name_is_zend_container_builtin(const char *name) {
         strcmp(name, "array_rand") == 0
     );
 }
-
-static int jinx_oracle_zend_null_result_is_valid(const char *name, JinxValue *args, size_t argc) {
-    if (name == NULL) return 0;
-    if (strcmp(name, "parse_str") == 0) return argc >= 2u;
-    if (strcmp(name, "parse_url") == 0) {
-        if (argc < 2u || args == NULL) return 0;
-        int64_t component = jinx_oracle_intish(args[1]);
-        return component >= 0 && component <= 7;
-    }
-    return strcmp(name, "array_key_first") == 0 ||
-        strcmp(name, "array_key_last") == 0 ||
-        strcmp(name, "array_pop") == 0 ||
-        strcmp(name, "array_shift") == 0 ||
-        strcmp(name, "array_find") == 0 ||
-        strcmp(name, "array_find_key") == 0 ||
-        strcmp(name, "array_reduce") == 0 ||
-        strcmp(name, "current") == 0 ||
-        strcmp(name, "pos") == 0 ||
-        strcmp(name, "key") == 0 ||
-        strcmp(name, "next") == 0 ||
-        strcmp(name, "prev") == 0 ||
-        strcmp(name, "reset") == 0 ||
-        strcmp(name, "end") == 0 ||
-        strcmp(name, "min") == 0 ||
-        strcmp(name, "max") == 0;
-}
-
-static int jinx_oracle_zend_dispatch_result_ok(const char *name, JinxValue *args, size_t argc, JinxValue result) {
-    return result.type != 0u || jinx_oracle_zend_null_result_is_valid(name, args, argc);
-}
-
 static const JinxOracleDispatchEntry oracle_dispatch_table[] = {
     { "abs", jinx_ora_abs, 1u, 1u, 0 },
     { "acos", jinx_ora_acos, 1u, 1u, 0 },

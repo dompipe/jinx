@@ -418,7 +418,7 @@ static int dns_query_type(
         ns_rr rr;
         JinxZendArray *record;
         if (ns_parserr(&message, ns_s_an, i, &rr) != 0) return 0;
-        if (rr_type != ns_t_any && ns_rr_type(rr) != rr_type) continue;
+        if (rr_type != (int)ns_t_any && (int)ns_rr_type(rr) != rr_type) continue;
         record = dns_record_from_rr(
             answer, (size_t)answer_len, &rr, raw
         );

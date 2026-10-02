@@ -7,6 +7,9 @@
 #include <string.h>
 
 #ifdef JINX_HAVE_OPENSSL
+#ifndef OPENSSL_SUPPRESS_DEPRECATED
+#define OPENSSL_SUPPRESS_DEPRECATED
+#endif
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
