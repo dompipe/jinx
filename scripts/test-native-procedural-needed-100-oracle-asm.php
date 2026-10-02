@@ -315,6 +315,15 @@ if (!symlink($source, $link)) {
     @rmdir($tmp);
     fail100('could not create filesystem parity symlink');
 }
+if (!touch($source, 1700000100, 1700000101)) {
+    @unlink($link);
+    @rmdir($removeDir);
+    @unlink($renameSource);
+    @unlink($source);
+    @rmdir($tmp);
+    fail100('could not pin filesystem parity source timestamps');
+}
+clearstatcache(true, $source);
 
 $typedSource = 's:' . $source;
 $typedLink = 's:' . $link;

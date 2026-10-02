@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/runtime/OracleConditionalExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleSwitchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExceptionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleForeachExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';

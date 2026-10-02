@@ -49,6 +49,7 @@ $scriptTests = [
     'switch family' => ['scripts/test-oracle-switch-execution.php', 'PASS: Oracle executes switch/case/default PHP subset'],
     'exceptions family' => ['scripts/test-oracle-exception-execution.php', 'PASS: Oracle executes try/throw/catch/finally PHP subset'],
     'loops family' => ['scripts/test-oracle-loop-execution.php', 'PASS: Oracle executes loop PHP subset'],
+    'foreach family' => ['scripts/test-oracle-foreach-execution.php', 'PASS: Oracle executes foreach PHP subset'],
     'arrays family' => ['scripts/test-oracle-array-execution.php', 'PASS: Oracle executes array PHP subset'],
     'functions family' => ['scripts/test-oracle-function-execution.php', 'PASS: Oracle executes function PHP subset'],
     'request globals family' => ['scripts/test-oracle-request-globals-execution.php', 'PASS: Oracle executes request globals PHP subset'],

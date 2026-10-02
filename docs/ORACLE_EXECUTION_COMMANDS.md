@@ -104,6 +104,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `switch` | `scripts/test-oracle-switch-execution.php` |
 | `exceptions` | `scripts/test-oracle-exception-execution.php` |
 | `loops` | `scripts/test-oracle-loop-execution.php` |
+| `foreach-loops` | `scripts/test-oracle-foreach-execution.php` |
 | `arrays` | `scripts/test-oracle-array-execution.php` |
 | `functions` | `scripts/test-oracle-function-execution.php` |
 | `request-globals` | `scripts/test-oracle-request-globals-execution.php` |
@@ -125,7 +126,7 @@ The facet test covers plain double-quoted strings, simple `$name`, braced `{$nam
 
 Runtime owner: `runtime/OracleExpressionBatchExecutor.php`. PHP comparison test: `scripts/test-oracle-next-ten-execution.php`.
 
-`ternary-expressions`, `type-casts`, `string-builtins`, `math-builtins`, `comparison-expressions`, `boolean-expressions`, `magic-constants`, `array-literals`, `foreach-loops`, `for-loops`.
+`ternary-expressions`, `type-casts`, `string-builtins`, `math-builtins`, `comparison-expressions`, `boolean-expressions`, `magic-constants`, `array-literals`, `for-loops`.
 
 ## Builtin batch one
 
