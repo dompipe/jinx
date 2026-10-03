@@ -169,6 +169,92 @@ final class OracleModernObjectExecutor
         return self::result('nullsafe-objects', $output, null, $executed);
     }
 
+    /** @param array<string,mixed> $program */
+    public static function executeReadonly(array $program): array
+    {
+        $source = self::source($program);
+        if (!preg_match('/class\s+(\w+)\s*\{[\s\S]*?readonly\s+int\s+\$(\w+)\s*;/i', $source, $cm)) {
+            throw new \RuntimeException('Oracle readonly execution requires a readonly int property');
+        }
+
+        $className = $cm[1];
+        $property = $cm[2];
+
+        if (!preg_match('/function\s+__construct\s*\(\s*int\s+\$(\w+)\s*\)[\s\S]*?\$this->' . preg_quote($property, '/') . '\s*=\s*\$\1\s*;/i', $source)) {
+            throw new \RuntimeException('Oracle readonly execution requires constructor initialization');
+        }
+
+        $main = self::removeClassBodies($source);
+        $locals = [];
+        $output = '';
+        $executed = 0;
+
+        foreach (self::splitStatements($main) as $statement) {
+            if ($statement === '' || preg_match('/^declare\s*\(/i', $statement)) {
+                continue;
+            }
+
+            if (preg_match('/^\$(\w+)\s*=\s*new\s+' . preg_quote($className, '/') . '\s*\(\s*(-?\d+)\s*\)$/i', $statement, $m)) {
+                $locals[$m[1]] = [
+                    '__class' => $className,
+                    'props' => [$property => (int) $m[2]],
+                    'readonly_initialized' => [$property => true],
+                ];
+                $executed++;
+                continue;
+            }
+
+            if (preg_match('/^echo\s+\$(\w+)->' . preg_quote($property, '/') . '$/i', $statement, $m)) {
+                $object = $locals[$m[1]] ?? null;
+                if (!is_array($object)) {
+                    throw new \RuntimeException('Oracle readonly property read target is not an object');
+                }
+                $output .= (string) ($object['props'][$property] ?? '');
+                $executed++;
+                continue;
+            }
+
+            if (preg_match('/^try\s*\{([\s\S]+)\}\s*catch\s*\(\s*Error\s+\$\w+\s*\)\s*\{([\s\S]+)\}$/i', $statement, $m)) {
+                $tryBody = trim($m[1]);
+                $catchBody = trim($m[2]);
+
+                if (!preg_match('/\$(\w+)->' . preg_quote($property, '/') . '\s*=\s*(.+?)\s*;/s', $tryBody, $write)) {
+                    throw new \RuntimeException('Oracle readonly try block missing readonly reassignment');
+                }
+
+                $object = $locals[$write[1]] ?? null;
+                if (!is_array($object)) {
+                    throw new \RuntimeException('Oracle readonly reassignment target is not an object');
+                }
+
+                if (($object['readonly_initialized'][$property] ?? false) !== true) {
+                    $object['props'][$property] = (int) trim($write[2]);
+                    $object['readonly_initialized'][$property] = true;
+                    $locals[$write[1]] = $object;
+                } else {
+                    if (preg_match('/echo\s+([\'\"])(.*?)\1\s*;?/s', $catchBody, $echo)) {
+                        $output .= stripcslashes($echo[2]);
+                    }
+                }
+                $executed++;
+                continue;
+            }
+
+            if (preg_match('/^return\s+\$(\w+)->' . preg_quote($property, '/') . '$/i', $statement, $m)) {
+                $object = $locals[$m[1]] ?? null;
+                if (!is_array($object)) {
+                    throw new \RuntimeException('Oracle readonly return target is not an object');
+                }
+                $executed++;
+                return self::result('readonly-properties', $output, $object['props'][$property] ?? null, $executed);
+            }
+
+            throw new \RuntimeException("Unsupported Oracle readonly statement: {$statement}");
+        }
+
+        return self::result('readonly-properties', $output, null, $executed);
+    }
+
     /** @return array{kind:string,family:string,output:string,return:mixed,executed_ops:int} */
     private static function result(string $family, string $output, mixed $return, int $executed): array
     {
