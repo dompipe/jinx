@@ -60,6 +60,7 @@ $scriptTests = [
     'static locals family' => ['scripts/test-oracle-static-local-execution.php', 'PASS: Oracle executes static-local PHP subset'],
     'closures family' => ['scripts/test-oracle-closure-execution.php', 'PASS: Oracle executes closure PHP subset'],
     'specialized assignment classifier' => ['scripts/test-oracle-specialized-assignment-classification.php', 'PASS: Oracle classifier preserves specialized assignment families'],
+    'late differential classifier' => ['scripts/test-oracle-late-differential-classification.php', 'PASS: Oracle classifier preserves late differential statement shapes'],
     'request globals family' => ['scripts/test-oracle-request-globals-execution.php', 'PASS: Oracle executes request globals PHP subset'],
     'include require family' => ['scripts/test-oracle-include-require-execution.php', 'PASS: Oracle executes include/require PHP subset'],
     'exit die family' => ['scripts/test-oracle-exit-die-execution.php', 'PASS: Oracle executes exit/die PHP subset'],
