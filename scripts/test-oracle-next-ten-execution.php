@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: ternary_true_branch ternary_false_branch list_literal assoc_literal
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 
