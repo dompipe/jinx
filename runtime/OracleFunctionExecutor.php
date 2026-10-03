@@ -267,11 +267,24 @@ final class OracleFunctionExecutor
         if (preg_match('/^(\w+)\s*\((.*)\)$/', $expr, $m)) {
             $args = self::splitArguments($m[2]);
             $values = [];
+            $named = [];
+            $seenNamed = false;
             foreach ($args as $arg) {
+                if (preg_match('/^([A-Za-z_]\w*)\s*:\s*(.+)$/s', $arg, $namedArg)) {
+                    $seenNamed = true;
+                    if (array_key_exists($namedArg[1], $named)) {
+                        throw new \RuntimeException("Oracle duplicate named argument: {$namedArg[1]}");
+                    }
+                    $named[$namedArg[1]] = self::evaluateExpression($namedArg[2], $locals, $functions, $executed);
+                    continue;
+                }
+                if ($seenNamed) {
+                    throw new \RuntimeException('Oracle positional argument cannot follow a named argument');
+                }
                 $values[] = self::evaluateExpression($arg, $locals, $functions, $executed);
             }
 
-            return self::callFunction($m[1], $values, $functions, $executed);
+            return self::callFunction($m[1], $values, $functions, $executed, $named);
         }
 
         if (preg_match('/^-?\d+$/', $expr)) {
@@ -309,15 +322,21 @@ final class OracleFunctionExecutor
      * @param list<mixed> $args
      * @param array<string,array{params:list<string>,body:list<array<string,mixed>>}> $functions
      */
-    private static function callFunction(string $name, array $args, array $functions, int &$executed): mixed
+    private static function callFunction(string $name, array $args, array $functions, int &$executed, array $namedArgs = []): mixed
     {
         $lower = strtolower($name);
 
         if ($lower === 'strlen') {
+            if ($namedArgs !== []) {
+                throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
+            }
             return strlen((string) ($args[0] ?? ''));
         }
 
         if ($lower === 'strtoupper') {
+            if ($namedArgs !== []) {
+                throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
+            }
             return strtoupper((string) ($args[0] ?? ''));
         }
 
@@ -326,13 +345,33 @@ final class OracleFunctionExecutor
         }
 
         $function = $functions[$lower];
-        if (count($args) !== count($function['params'])) {
-            throw new \RuntimeException("Oracle function {$name} expected " . count($function['params']) . ' args, got ' . count($args));
+        if (count($args) > count($function['params'])) {
+            throw new \RuntimeException("Oracle function {$name} expected at most " . count($function['params']) . ' positional args, got ' . count($args));
         }
 
         $locals = [];
-        foreach ($function['params'] as $i => $param) {
-            $locals[$param] = $args[$i];
+        foreach ($args as $i => $value) {
+            $param = $function['params'][$i] ?? null;
+            if ($param === null) {
+                throw new \RuntimeException("Oracle function {$name} has no positional parameter at index {$i}");
+            }
+            $locals[$param] = $value;
+        }
+
+        foreach ($namedArgs as $param => $value) {
+            if (!in_array($param, $function['params'], true)) {
+                throw new \RuntimeException("Oracle function {$name} received unknown named argument {$param}");
+            }
+            if (array_key_exists($param, $locals)) {
+                throw new \RuntimeException("Oracle function {$name} received duplicate argument {$param}");
+            }
+            $locals[$param] = $value;
+        }
+
+        foreach ($function['params'] as $param) {
+            if (!array_key_exists($param, $locals)) {
+                throw new \RuntimeException("Oracle function {$name} missing required argument {$param}");
+            }
         }
 
         $output = '';
