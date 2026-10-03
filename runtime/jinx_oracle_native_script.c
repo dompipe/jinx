@@ -62,6 +62,9 @@ typedef struct NativeRuntime {
     NativeReference *references;
     NativeClass *classes;
     NativeObject *objects;
+    struct NativeFunction *functions;
+    struct NativeFunction *checked_functions;
+    unsigned call_depth;
     const char *exception_class;
     const char *exception_message;
     char *included[128];
@@ -82,7 +85,34 @@ typedef struct NativeParser {
     int checking;
     unsigned expression_depth;
     int returned;
+    int strict_types;
 } NativeParser;
+
+typedef struct NativeFunction {
+    char *name;
+    char *parameters[16];
+    int types[16];
+    size_t count;
+    int return_type;
+    NativeParser body;
+    struct NativeFunction *next;
+} NativeFunction;
+
+static void native_statements(NativeParser *parser, JinxValue *result);
+static JinxValue native_function_call(NativeParser *parser, NativeFunction *function, JinxValue *args, size_t count);
+
+static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
+    for (NativeFunction *function = runtime->functions; function; function = function->next)
+        if (!strcasecmp(function->name, name)) return function;
+    return NULL;
+}
+
+static int native_function_admitted(NativeRuntime *runtime, const char *name) {
+    if (native_function_find(runtime, name)) return 1;
+    for (NativeFunction *function = runtime->checked_functions; function; function = function->next)
+        if (!strcasecmp(function->name, name)) return 1;
+    return 0;
+}
 
 enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT };
 enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5 };
@@ -624,8 +654,11 @@ static JinxValue native_primary(NativeParser *parser) {
             size_t count = 0;
             int ok = 0;
             /* Start with proven scalar native handlers; widen after parity tests. */
-            if (!native_builtin_admitted(name))
+            if (!native_builtin_admitted(name) && !(parser->checking
+                    ? native_function_admitted(runtime, name) : native_function_find(runtime, name) != NULL))
                 runtime->error = "builtin is not admitted by the native source interpreter";
+            if (native_function_admitted(runtime, name) && !parser->strict_types)
+                runtime->error = "native user function calls require strict_types=1";
             native_expect(parser, '(');
             if (parser->kind != ')') do {
                 if (count == 16) { runtime->error = "too many native call arguments"; break; }
@@ -633,7 +666,10 @@ static JinxValue native_primary(NativeParser *parser) {
             } while (native_accept(parser, ','));
             native_expect(parser, ')');
             if (!parser->checking && !runtime->error && !runtime->exception_class) {
-                if (!strcmp(name, "call_user_func")) {
+                NativeFunction *function = native_function_find(runtime, name);
+                if (function) {
+                    value = native_function_call(parser, function, args, count);
+                } else if (!strcmp(name, "call_user_func")) {
                     if (!count) native_raise(runtime, "ArgumentCountError", "call_user_func requires a callback");
                     else if (args[0].type == JINX_ORACLE_VALUE_ZEND_ARRAY) runtime->error = "array callbacks are not yet native";
                     else if (args[0].type != N_VALUE_STRING || !jinx_lookup_oracle_wrapper(args[0].as.ptr))
@@ -739,6 +775,96 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
 }
 
 static void native_statements(NativeParser *parser, JinxValue *result);
+
+static int native_function_type(NativeParser *parser) {
+    int type = 0;
+    if (parser->kind == N_ID) {
+        if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
+        else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
+        else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
+        else parser->runtime->error = "native function type is not supported";
+        native_next(parser);
+    }
+    return type;
+}
+
+static void native_function_declaration(NativeParser *parser) {
+    if (!parser->strict_types) { parser->runtime->error = "native function declarations require strict_types=1"; return; }
+    native_next(parser);
+    if (parser->kind != N_ID) { parser->runtime->error = "native function requires name"; return; }
+    NativeFunction definition = {0};
+    definition.name = native_copy(parser->runtime, parser->token, strlen(parser->token));
+    native_next(parser);
+    native_expect(parser, '(');
+    if (parser->kind != ')') do {
+        if (definition.count == 16) { parser->runtime->error = "native function parameter limit"; return; }
+        size_t index = definition.count++;
+        definition.types[index] = native_function_type(parser);
+        if (parser->kind != N_VAR) { parser->runtime->error = "native function requires parameter"; return; }
+        definition.parameters[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
+        for (size_t i = 0; i < index; i++)
+            if (!strcmp(definition.parameters[i], definition.parameters[index]))
+                parser->runtime->error = "duplicate native function parameter";
+        native_next(parser);
+    } while (native_accept(parser, ','));
+    native_expect(parser, ')');
+    if (native_accept(parser, ':')) definition.return_type = native_function_type(parser);
+    native_expect(parser, '{');
+    definition.body = *parser;
+    if (parser->checking && !parser->runtime->error) {
+        NativeFunction *admitted = native_alloc(parser->runtime, sizeof(*admitted));
+        if (!admitted) return;
+        *admitted = definition;
+        admitted->next = parser->runtime->checked_functions;
+        parser->runtime->checked_functions = admitted;
+    }
+    NativeParser end = *parser;
+    end.checking = 1;
+    JinxValue ignored = jinx_value_null();
+    native_statements(&end, &ignored);
+    native_expect(&end, '}');
+    int checking = parser->checking;
+    *parser = end;
+    parser->checking = checking;
+    if (!checking && !parser->runtime->error) {
+        if (native_function_find(parser->runtime, definition.name)) {
+            native_raise(parser->runtime, "Error", "Function already declared");
+            return;
+        }
+        NativeFunction *function = native_alloc(parser->runtime, sizeof(*function));
+        if (!function) return;
+        *function = definition;
+        function->next = parser->runtime->functions;
+        parser->runtime->functions = function;
+    }
+}
+
+static JinxValue native_function_call(NativeParser *parser, NativeFunction *function, JinxValue *args, size_t count) {
+    NativeRuntime *runtime = parser->runtime;
+    JinxValue result = jinx_value_null();
+    if (count < function->count) { native_raise(runtime, "ArgumentCountError", "Missing function argument"); return result; }
+    for (size_t i = 0; i < function->count; i++)
+        if (function->types[i] && args[i].type != (uint32_t)function->types[i]) {
+            native_raise(runtime, "TypeError", "Invalid function argument type"); return result;
+        }
+    if (runtime->call_depth >= 64) { runtime->error = "native function call depth limit"; return result; }
+    NativeVariable *saved = runtime->variables;
+    runtime->variables = NULL;
+    runtime->call_depth++;
+    NativeParser body = function->body;
+    body.checking = 0;
+    body.returned = 0;
+    for (size_t i = 0; i < function->count && !runtime->error; i++) {
+        NativeVariable *parameter = native_variable(runtime, function->parameters[i]);
+        if (parameter) parameter->value = native_value_copy(&body, args[i]);
+    }
+    native_statements(&body, &result);
+    runtime->variables = saved;
+    runtime->call_depth--;
+    if (!runtime->error && !runtime->exception_class && function->return_type && result.type != (uint32_t)function->return_type)
+        native_raise(runtime, "TypeError", "Invalid function return type");
+    return result;
+}
 
 static void native_class_declaration(NativeParser *parser) {
     native_next(parser);
@@ -919,6 +1045,9 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             native_next(parser);
             native_expect(parser, ')');
             native_expect(parser, ';');
+            parser->strict_types = 1;
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
+            native_function_declaration(parser);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "class")) {
             native_class_declaration(parser);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "try")) {

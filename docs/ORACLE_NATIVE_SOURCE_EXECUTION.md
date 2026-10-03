@@ -36,6 +36,14 @@ Braced try/catch handles Throwable, Error and TypeError (including nested catche
 and `$e::class` exposes the caught error class. String call_user_func callbacks
 can invoke admitted native builtins; missing targets raise TypeError.
 
+Named user functions now execute in isolated native call frames, including
+nested calls, scalar int/string/bool parameters and return types, and catchable
+TypeError/ArgumentCountError. Both declarations and calls require strict_types=1.
+Arguments containing arrays receive independent containers with shared explicit
+reference cells. Caller locals are restored even when a nested call throws.
+Forward calls before declaration, defaults, variadics, by-reference parameters,
+non-scalar type hints and weak scalar coercion are not yet admitted.
+
 Include paths are resolved relative to the current source file;
 PHP include_path lookup and missing-file warning behavior are not implemented.
 The interpreter rejects overflow rather than promoting integers to floats.
@@ -78,10 +86,14 @@ array-copy isolation, aliases surviving bucket growth, and coerced array keys.
 typed defaults/assignments, uninitialized reads, independent instances, object
 identity, nested catch matching, invalid callbacks, and include return values
 when catch/foreach return statements are not executed.
+`fixtures/oracle-native-functions.php` checks typed calls, nested frames,
+local isolation, missing arguments, return type validation and caller state
+after nested exceptions, with PHP absent from the target process PATH.
 
 The high-value semantic edge suite is a separate gate. The native interpreter
 fixes both include, both filesystem and both reference first-wave cases.
 Property and invalid-callback execution additionally reduces mismatches from
-11 to 6 out of 20. Two clone cases, two closure cases, typed-function errors,
+11 to 6 out of 20. Native function frames reduce the remaining failures to 5:
+two clone cases, two closure cases,
 and static-method/closure callback composition remain unsupported. Do not infer full-stack
 success from this focused test.

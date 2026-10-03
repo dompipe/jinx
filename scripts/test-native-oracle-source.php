@@ -62,6 +62,15 @@ foreach ([true, false] as $forceNative) {
     if ($native !== $propertyPhp) throw new RuntimeException('native property/exception parity differs: ' . json_encode($native));
 }
 
+$functionFixture = $root . '/fixtures/oracle-native-functions.php';
+$functionPhp = native_source_run([PHP_BINARY, $functionFixture], false);
+$functionExpected = "[4,35,90,12]\nARG:TypeError\nCOUNT:ArgumentCountError\nRETURN:TypeError\nNESTED:TypeError\n[9,90,12]\n[\"YES\",true,8,2]\n";
+if ($functionPhp !== [0, $functionExpected, '']) throw new RuntimeException('unexpected function baseline: ' . json_encode($functionPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $functionFixture], true, $forceNative);
+    if ($native !== $functionPhp) throw new RuntimeException('native function frame parity differs: ' . json_encode($native));
+}
+
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {
@@ -70,6 +79,12 @@ try {
     if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'refusing PHP fallback')) {
         throw new RuntimeException('unsupported input was not rejected before execution: ' . json_encode($rejected));
     }
+    file_put_contents($temporary, '<?php echo "MUST_NOT_RUN"; nativeUnknownFunction();');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '') throw new RuntimeException('unknown function was not rejected before execution');
+    file_put_contents($temporary, '<?php echo "MUST_NOT_RUN"; function nativeWeak(int $n): int { return $n; }');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '') throw new RuntimeException('weak function typing was not rejected before execution');
 } finally {
     unlink($temporary);
 }
