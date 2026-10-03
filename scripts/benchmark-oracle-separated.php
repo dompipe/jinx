@@ -59,6 +59,7 @@ function parse_args(array $argv): array
             echo "Usage: ./jinx scripts/benchmark-oracle-separated.php [--engine=php|jinx|both] [--iterations=N] [--warmup=N] [--only=family-or-group] [--json=path]\n";
             echo "Engines: php times direct PHP fixture execution; jinx times the precompiled Oracle interpreter path; both prints both without merging the timed loops.\n";
             echo "Groups: control, builtin, math, text\n";
+            echo "Coverage: curated fixture benchmark cases, not the full merged Oracle family ledger.\n";
             exit(0);
         }
         if (preg_match('/^--iterations=(\d+)$/', $arg, $m)) {
@@ -182,8 +183,9 @@ $warmup = (int) $options['warmup'];
 $only = is_string($options['only']) && $options['only'] !== '' ? $options['only'] : null;
 
 $families = OracleExecutionFamilies::all();
+$allBenchmarkCases = benchmark_cases();
 $cases = [];
-foreach (benchmark_cases() as $family => $case) {
+foreach ($allBenchmarkCases as $family => $case) {
     if (!isset($families[$family])) {
         fail("Separated benchmark case is not executable in the family ledger: {$family}");
     }
@@ -202,6 +204,14 @@ foreach (benchmark_cases() as $family => $case) {
 if ($cases === []) {
     fail('No separated benchmark cases matched filter');
 }
+
+$coverageShape = [
+    'semantic_coverage' => 'curated fixture benchmark cases, not the full merged Oracle family ledger',
+    'benchmark_case_count_total' => count($allBenchmarkCases),
+    'benchmark_case_count_measured' => count($cases),
+    'regular_ledger_family_count' => count($families),
+    'groups_available' => array_values(array_unique(array_column($allBenchmarkCases, 'group'))),
+];
 
 if ($engine === 'both') {
     foreach ($cases as $family => $case) {
@@ -227,7 +237,8 @@ foreach ($cases as $family => $case) {
 printf("Separated JINX/PHP Oracle benchmark\n");
 printf("Repository: %s\n", $root);
 printf("Engine: %s\n", $engine);
-printf("Families measured: %d of %d executable families\n", count($cases), count($families));
+printf("Families measured: %d curated benchmark cases of %d regular executable families\n", count($cases), count($families));
+printf("Semantic coverage: %s\n", $coverageShape['semantic_coverage']);
 printf("Iterations per family: %d measured, %d warmup\n", $iterations, $warmup);
 printf("JINX mode: precompiled Oracle program interpreted by the JINX Oracle executor\n");
 printf("PHP mode: direct require of the original PHP fixture\n\n");
@@ -280,6 +291,7 @@ $payload = [
     'engine' => $engine,
     'iterations' => $iterations,
     'warmup' => $warmup,
+    'coverage_shape' => $coverageShape,
     'family_count_total' => count($families),
     'family_count_measured' => count($cases),
     'totals' => [
