@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: class_declaration object_instantiation clone_object_state magic_clone_hook independent_cloned_properties method_call
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleCloneExecutor.php';
 
