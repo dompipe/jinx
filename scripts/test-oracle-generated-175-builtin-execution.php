@@ -64,7 +64,7 @@ function run_oracle_generated_fixture(string $fixture, string $family): array
 
 function expression_for_generated_family(int $i): string
 {
-    return match ($i % 25) {
+    return match (OracleGeneratedExecutionFamilies::templateIndexForFamily($i)) {
         0 => "strlen('jinx-{$i}')",
         1 => "strtoupper('jinx-{$i}')",
         2 => "strtolower('JINX-{$i}')",
@@ -95,14 +95,18 @@ function expression_for_generated_family(int $i): string
 
 $root = dirname(__DIR__);
 $generatedDir = $root . '/build/generated/oracle-generated-builtin';
+$totalFamilies = OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES;
+$uniqueTemplates = OracleGeneratedExecutionFamilies::UNIQUE_GENERATED_TEMPLATES;
+$templateIndexes = [];
 
 if (!is_dir($generatedDir) && !mkdir($generatedDir, 0777, true) && !is_dir($generatedDir)) {
     fail('could not create generated builtin fixture directory');
 }
 
-for ($i = 1; $i <= OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES; $i++) {
+for ($i = 1; $i <= $totalFamilies; $i++) {
     $family = sprintf('generated-pure-builtin-%03d', $i);
     $expression = expression_for_generated_family($i);
+    $templateIndexes[OracleGeneratedExecutionFamilies::templateIndexForFamily($i)] = true;
     $fixture = $generatedDir . '/' . $family . '.php';
 
     $source = "<?php\n\ndeclare(strict_types=1);\n\n";
@@ -133,4 +137,11 @@ for ($i = 1; $i <= OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES; $
     }
 }
 
+if (count($templateIndexes) !== $uniqueTemplates) {
+    fail("expected {$uniqueTemplates} generated expression templates, found " . count($templateIndexes));
+}
+
+echo "Generated family IDs: {$totalFamilies}" . PHP_EOL;
+echo "Generated unique expression templates: {$uniqueTemplates}" . PHP_EOL;
+echo 'Generated semantic coverage: fixture-level pure-builtin cases, not distinct PHP/Zend semantic families' . PHP_EOL;
 echo 'PASS: Oracle executes generated pure builtin PHP families and matches PHP output/return/error behavior' . PHP_EOL;
