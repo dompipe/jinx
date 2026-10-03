@@ -51,3 +51,28 @@ Run through the focused native edge suite:
 ```
 
 This suite is intentionally semantic and high-risk. Failures here should be treated as real PHP/Zend compatibility gaps, not as generated-ledger bookkeeping failures.
+
+
+## Combined edge coverage
+
+Wave two adds 20 more fixtures across 10 additional semantic areas. Together the focused edge suite now contains:
+
+```text
+40 direct PHP-vs-JINX fixtures
+20 unique semantic areas
+2 focused semantic waves
+```
+
+The combined structural audit is:
+
+```bash
+./jinx scripts/test-php-jinx-high-value-edge-coverage-audit.php
+```
+
+The focused suite runs the audit and both waves:
+
+```bash
+./jinx scripts/test-jinx-native-edge-suite.php
+```
+
+The coverage audit verifies exact fixture counts, exact area counts, uniqueness across both waves, and focused-suite wiring. It does not claim that the fixtures pass until the native `./jinx` executions actually match PHP.
