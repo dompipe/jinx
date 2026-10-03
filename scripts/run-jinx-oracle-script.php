@@ -17,8 +17,10 @@ foreach (glob($root . '/runtime/Oracle*Executor.php') ?: [] as $file) {
 }
 require_once $root . '/runtime/OracleProgramCompiler.php';
 require_once $root . '/runtime/OracleExecutionFamilies.php';
+require_once $root . '/runtime/OracleGeneratedExecutionFamilies.php';
+require_once $root . '/runtime/OracleMergedExecutionFamilies.php';
 
-use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleMergedExecutionFamilies;
 use jinx\oracle\OracleProgramCompiler;
 use jinx\oracle\OracleModernObjectExecutor;
 
@@ -61,8 +63,11 @@ function jinx_execute_family(string $family, array $metadata, array $program): ?
         }
 
         if (method_exists($owner, 'execute')) {
+            $method = new ReflectionMethod($owner, 'execute');
             /** @var array<string,mixed> $result */
-            $result = $owner::execute($program);
+            $result = $method->getNumberOfParameters() >= 2
+                ? $owner::execute($program, $family)
+                : $owner::execute($program);
             return $result;
         }
     } catch (Throwable) {
@@ -88,10 +93,44 @@ $ops = array_values(array_unique(array_map(
 )));
 $source = (string) file_get_contents($path);
 
-$families = OracleExecutionFamilies::all();
+$families = OracleMergedExecutionFamilies::all();
 
 // Prefer distinctive modern/object families before generic op-subset matches.
 $preferred = [];
+
+$calledBuiltins = [];
+if (preg_match_all('/\b([A-Za-z_]\w*)\s*\(/', $source, $builtinMatches)) {
+    $languageConstructs = [
+        'array', 'echo', 'print', 'isset', 'empty', 'unset', 'include', 'include_once',
+        'require', 'require_once', 'if', 'elseif', 'while', 'for', 'foreach', 'switch',
+        'match', 'return', 'function', 'fn', 'new', 'clone', 'catch', 'throw', 'exit', 'die',
+    ];
+
+    foreach ($builtinMatches[1] as $callName) {
+        $lower = strtolower((string) $callName);
+        if (!in_array($lower, $languageConstructs, true)) {
+            $calledBuiltins[$lower] = true;
+        }
+    }
+}
+
+foreach ($families as $familyName => $metadata) {
+    if (!is_array($metadata)) {
+        continue;
+    }
+
+    $declaredBuiltins = $metadata['builtins'] ?? [];
+    if (!is_array($declaredBuiltins) || $declaredBuiltins === []) {
+        continue;
+    }
+
+    foreach ($declaredBuiltins as $builtin) {
+        if (is_string($builtin) && isset($calledBuiltins[strtolower($builtin)])) {
+            $preferred[] = $familyName;
+            break;
+        }
+    }
+}
 if (str_contains($source, '__get') || str_contains($source, '__call')) {
     $preferred[] = 'magic-methods';
 }
