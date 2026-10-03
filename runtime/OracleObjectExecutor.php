@@ -100,6 +100,23 @@ final class OracleObjectExecutor
                 continue;
             }
 
+            if (preg_match('/^return\s+\$(\w+)->(\w+)\s*\((.*)\)$/i', $statement, $m)) {
+                $object = $locals[$m[1]] ?? null;
+                if (!is_array($object)) {
+                    throw new \RuntimeException("Oracle method call target is not object: {$statement}");
+                }
+                $return = self::callMethod(
+                    $class,
+                    $object,
+                    $m[2],
+                    self::evaluateArguments($m[3], $locals, null)
+                );
+                $locals[$m[1]] = $object;
+                $executed++;
+
+                return self::result($output, $return, $executed);
+            }
+
             if (preg_match('/^return\s+(.+)$/i', $statement, $m)) {
                 $return = self::evaluate($m[1], $locals, null);
                 $executed++;
