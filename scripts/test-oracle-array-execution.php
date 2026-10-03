@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: literal_empty_array nested_dimension_assign nested_dimension_fetch
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 
