@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: named_user_function local_parameter_scope named_argument_reordering default_parameter_values variadic_parameters argument_unpacking return_value nested_user_call builtin_dispatch
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 
