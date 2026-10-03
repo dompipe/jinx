@@ -33,6 +33,8 @@ Generated unique expression templates: 25
 Generated semantic coverage: fixture-level pure-builtin cases, not distinct PHP/Zend semantic families
 ```
 
+In other words: this batch is 782 generated family IDs across 25 unique expression templates.
+
 The first pass added 175 generated family IDs. The second pass added 100 more, bringing the generated merged batch to 275 family IDs. The third pass added another 100, bringing the generated merged batch to 375 family IDs. The fourth pass added 150 more, bringing the generated merged batch to 525 family IDs. The fifth pass added 100 more, bringing the generated merged batch to 625 family IDs. The sixth pass added another 100, bringing the generated merged batch to 725 family IDs. This final pass adds 57 more, bringing the generated merged batch to 782 family IDs total.
 
 That completes the 1,144 PHP/Zend executable family ledger target when combined with the 362 regular PHP/Zend families. The extra merged family above that target is the JINX island/server Oracle family. This is a ledger-count milestone, not proof that 1,144 distinct PHP/Zend semantic behaviors have independent parity fixtures.
