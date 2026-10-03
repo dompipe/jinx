@@ -17,6 +17,11 @@ function label_score($name, $score)
     return $upper . ':' . $score . ':' . $length;
 }
 
+function sum_tail($head, ...$tail)
+{
+    return $head + $tail[0] + $tail[1];
+}
+
 function build_score($name, $base = 7, $bonus = 5)
 {
     $score = add_score($base, $bonus);
@@ -25,6 +30,8 @@ function build_score($name, $base = 7, $bonus = 5)
 }
 
 $result = build_score(name: 'jinx');
+$extra = sum_tail(1, 2, 3);
+$result .= ':' . $extra;
 
 echo $result;
 
