@@ -330,6 +330,17 @@ final class OracleStraightLineExecutor
                 self::evaluateExpression($args[2], $locals)
             );
         }
+        if (preg_match('/^strpos\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) < 2 || count($args) > 3) {
+                throw new \RuntimeException("Oracle strpos() expects 2 or 3 arguments: {$expr}");
+            }
+            $haystack = (string) self::evaluateExpression($args[0], $locals);
+            $needle = (string) self::evaluateExpression($args[1], $locals);
+            $offset = count($args) === 3 ? (int) self::evaluateExpression($args[2], $locals) : 0;
+            return strpos($haystack, $needle, $offset);
+        }
+
         if (preg_match('/^ucfirst\s*\((.+)\)$/is', $expr, $m)) {
             return ucfirst((string) self::evaluateExpression($m[1], $locals));
         }
