@@ -30,7 +30,8 @@ function build_score($name, $base = 7, $bonus = 5)
 }
 
 $result = build_score(name: 'jinx');
-$extra = sum_tail(1, 2, 3);
+$packed = [2, 3];
+$extra = sum_tail(1, ...$packed);
 $result .= ':' . $extra;
 
 echo $result;
