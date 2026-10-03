@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: use_alias interface_contract trait_method backed_enum_case static_factory method_dispatch enum_value_fetch
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleZendDeclarationExecutor.php';
 
