@@ -341,6 +341,17 @@ final class OracleStraightLineExecutor
             return strpos($haystack, $needle, $offset);
         }
 
+        if (preg_match('/^str_contains\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) !== 2) {
+                throw new \RuntimeException("Oracle str_contains() expects 2 arguments: {$expr}");
+            }
+            return str_contains(
+                (string) self::evaluateExpression($args[0], $locals),
+                (string) self::evaluateExpression($args[1], $locals)
+            );
+        }
+
         if (preg_match('/^ucfirst\s*\((.+)\)$/is', $expr, $m)) {
             return ucfirst((string) self::evaluateExpression($m[1], $locals));
         }
