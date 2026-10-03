@@ -90,6 +90,10 @@ final class OracleScalarBuiltinExecutor
             return null;
         }
 
+        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
+            return (float) $expr;
+        }
+
         if (self::isWrappedInOuterParens($expr)) {
             return self::evaluate(substr($expr, 1, -1), $locals);
         }
@@ -121,9 +125,6 @@ final class OracleScalarBuiltinExecutor
         }
         if (preg_match('/^-?\d+$/', $expr)) {
             return (int) $expr;
-        }
-        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
-            return (float) $expr;
         }
         if (strcasecmp($expr, 'true') === 0) {
             return true;
