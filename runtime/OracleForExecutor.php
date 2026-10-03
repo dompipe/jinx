@@ -84,6 +84,12 @@ final class OracleForExecutor
                     $index++;
                     break;
 
+                case 'O_DIM_ASSIGN':
+                    self::executeDimAssignStatement($source, $locals);
+                    $executed++;
+                    $index++;
+                    break;
+
                 case 'O_COMPOUND_ASSIGN':
                     self::executeCompoundAssignStatement($source, $locals);
                     $executed++;
@@ -280,6 +286,30 @@ final class OracleForExecutor
     }
 
     /** @param array<string,mixed> $locals */
+    private static function executeDimAssignStatement(string $source, array &$locals): void
+    {
+        if (preg_match('/^\$(\w+)\[\]\s*=\s*(.+);?$/', $source, $m)) {
+            $name = $m[1];
+            if (!array_key_exists($name, $locals) || !is_array($locals[$name])) {
+                $locals[$name] = [];
+            }
+            $locals[$name][] = self::evaluateExpression($m[2], $locals);
+            return;
+        }
+
+        if (preg_match('/^\$(\w+)\[([^\]]+)\]\s*=\s*(.+);?$/', $source, $m)) {
+            $name = $m[1];
+            $key = self::evaluateExpression($m[2], $locals);
+            if (!array_key_exists($name, $locals) || !is_array($locals[$name])) {
+                $locals[$name] = [];
+            }
+            $locals[$name][$key] = self::evaluateExpression($m[3], $locals);
+            return;
+        }
+
+        throw new \RuntimeException("Unsupported Oracle for-loop dimension assignment: {$source}");
+    }
+    /** @param array<string,mixed> $locals */
     private static function executeCompoundAssignStatement(string $source, array &$locals): void
     {
         if (!preg_match('/^\$(\w+)\s*(\.=|\+=|-=|\*=|\/=|%=)\s*(.+);?$/', $source, $m)) {
@@ -326,6 +356,13 @@ final class OracleForExecutor
             return self::evaluateExpression(substr($expr, 1, -1), $locals);
         }
 
+        $ternary = self::splitTopLevelTernary($expr);
+        if ($ternary !== null) {
+            [$conditionExpr, $trueExpr, $falseExpr] = $ternary;
+            return self::toPhpBool(self::evaluateExpression($conditionExpr, $locals))
+                ? self::evaluateExpression($trueExpr, $locals)
+                : self::evaluateExpression($falseExpr, $locals);
+        }
         $comparison = self::splitTopLevelByOperators($expr, ['===', '!==', '>=', '<=', '==', '!=', '>', '<']);
         if ($comparison !== null) {
             [$leftExpr, $operator, $rightExpr] = $comparison;
@@ -344,7 +381,7 @@ final class OracleForExecutor
             };
         }
 
-        foreach (['+', '-', '*', '.'] as $operator) {
+        foreach (['+', '-', '*', '%', '.'] as $operator) {
             $parts = self::splitTopLevelByOperators($expr, [$operator]);
             if ($parts !== null) {
                 [$leftExpr, , $rightExpr] = $parts;
@@ -355,17 +392,224 @@ final class OracleForExecutor
                     '+' => $left + $right,
                     '-' => $left - $right,
                     '*' => $left * $right,
+                    '%' => $left % $right,
                     '.' => (string) $left . (string) $right,
                 };
             }
+        }
+
+        if ($expr === '[]') {
+            return [];
         }
 
         if (preg_match('/^-?\d+$/', $expr)) {
             return (int) $expr;
         }
 
-        if (preg_match('/^([\'\"])(.*)\1$/', $expr, $m)) {
-            return stripcslashes($m[2]);
+        if (preg_match('/^"((?:\\\\.|[^"])*)"$/s', $expr, $m)) {
+            return preg_replace_callback(
+                '/\$([A-Za-z_]\w*)/',
+                static function (array $match) use (&$locals): string {
+                    $localName = $match[1];
+                    if (!array_key_exists($localName, $locals)) {
+                        throw new \RuntimeException('Missing Oracle interpolated local: 
+        if ($expr === 'true') {
+            return true;
+        }
+
+        if ($expr === 'false') {
+            return false;
+        }
+
+        if ($expr === 'null') {
+            return null;
+        }
+
+        if (preg_match('/^\$(\w+)$/', $expr, $m)) {
+            if (!array_key_exists($m[1], $locals)) {
+                throw new \RuntimeException("Missing Oracle local: {$expr}");
+            }
+
+            return $locals[$m[1]];
+        }
+
+        throw new \RuntimeException("Unsupported Oracle for-loop expression: {$expr}");
+    }
+
+    private static function toPhpBool(mixed $value): bool
+    {
+        return !($value === null || $value === false || $value === 0 || $value === 0.0 || $value === '' || $value === '0' || $value === []);
+    }
+
+    private static function isWrappedInOuterParens(string $expr): bool
+    {
+        if (!str_starts_with($expr, '(') || !str_ends_with($expr, ')')) {
+            return false;
+        }
+
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[') {
+                $depth++;
+            } elseif ($char === ')' || $char === ']') {
+                $depth--;
+                if ($depth === 0 && $i < $length - 1) {
+                    return false;
+                }
+            }
+        }
+
+        return $depth === 0;
+    }
+
+    /** @return array{0:string,1:string,2:string}|null */
+    private static function splitTopLevelTernary(string $expr): ?array
+    {
+        $quote = null;
+        $depth = 0;
+        $question = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            if ($char === '?' && $question === null) {
+                $question = $i;
+                continue;
+            }
+
+            if ($char === ':' && $question !== null) {
+                return [
+                    substr($expr, 0, $question),
+                    substr($expr, $question + 1, $i - $question - 1),
+                    substr($expr, $i + 1),
+                ];
+            }
+        }
+
+        return null;
+    }
+    /** @param list<string> $operators @return array{0:string,1:string,2:string}|null */
+    private static function splitTopLevelByOperators(string $expr, array $operators): ?array
+    {
+        usort($operators, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($operators as $operator) {
+                if (substr($expr, $i, strlen($operator)) === $operator) {
+                    return [substr($expr, 0, $i), $operator, substr($expr, $i + strlen($operator))];
+                }
+            }
+        }
+
+        return null;
+    }
+}
+ . $localName);
+                    }
+                    return (string) $locals[$localName];
+                },
+                stripcslashes($m[1])
+            );
+        }
+
+        if (preg_match("/^'((?:\\\\.|[^'])*)'$/s", $expr, $m)) {
+            return stripcslashes($m[1]);
+        }
+
+        if (preg_match('/^implode\s*\((.+),\s*(.+)\)$/is', $expr, $m)) {
+            $glue = self::evaluateExpression($m[1], $locals);
+            $values = self::evaluateExpression($m[2], $locals);
+            if (!is_array($values)) {
+                throw new \RuntimeException("Oracle implode() expects array: {$expr}");
+            }
+            return implode((string) $glue, $values);
         }
 
         if ($expr === 'true') {
