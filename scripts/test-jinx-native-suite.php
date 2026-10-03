@@ -120,6 +120,7 @@ $scriptTests = [
     'no-JS island demo server helper' => ['scripts/serve-no-js-islands-demo.php --check', 'PASS: no-JS island demo server command is available'],
     'benchmark command help' => ['scripts/benchmark-oracle-families.php --help', 'Oracle family benchmark'],
     'worker benchmark help' => ['scripts/benchmark-oracle-worker-hot.php --help', 'Oracle worker hot benchmark'],
+    'separated benchmark help' => ['scripts/benchmark-oracle-separated.php --help', 'Separated JINX/PHP Oracle benchmark'],
     'web back-page hot benchmark help' => ['scripts/benchmark-web-back-page-hot.php --help', 'Web back-page hot benchmark'],
     '89x resident frame benchmark help' => ['scripts/benchmark-web-89x-resident-frames.php --help', '89x resident high-frame benchmark'],
     'web request worker benchmark help' => ['scripts/benchmark-web-request-worker.php --help', 'JINX warmed web request worker benchmark'],

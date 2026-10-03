@@ -1,6 +1,6 @@
 # Oracle benchmark commands
 
-There are six benchmark layers. Use the one that matches the question.
+There are seven benchmark layers. Use the one that matches the question.
 
 ## 1. Harness/process benchmark
 
@@ -45,7 +45,30 @@ How fast is the already-running Oracle worker path after startup/compiler overhe
 
 Worker/hot output reports `PHP/Oracle`. Values above `1.00x` mean the Oracle worker loop was faster than repeatedly requiring the equivalent PHP fixture in the same process.
 
-## 3. Web back-page hot benchmark
+## 3. Separated JINX/PHP benchmark
+
+`scripts/benchmark-oracle-separated.php` keeps direct PHP fixture timing and JINX Oracle interpreter timing in separate timed loops. Use this when the question is specifically:
+
+```text
+What is JINX doing by itself, and what is PHP doing by itself?
+```
+
+`--engine=jinx` times only precompiled Oracle programs executed by JINX Oracle executors. `--engine=php` times only direct PHP fixture `require` calls. `--engine=both` prints both sides and a ratio, but the loops remain separate.
+
+```bash
+./jinx scripts/benchmark-oracle-separated.php --engine=jinx --iterations=10000 --warmup=1000
+./jinx scripts/benchmark-oracle-separated.php --engine=php --iterations=10000 --warmup=1000
+./jinx scripts/benchmark-oracle-separated.php --engine=both --iterations=10000 --warmup=1000
+./jinx scripts/benchmark-oracle-separated.php --engine=both --only=control --iterations=10000 --warmup=1000
+```
+
+Save JSON:
+
+```bash
+./jinx scripts/benchmark-oracle-separated.php --engine=both --iterations=10000 --warmup=1000 --json=build/benchmarks/oracle-separated.json
+```
+
+## 4. Web back-page hot benchmark
 
 `scripts/benchmark-web-back-page-hot.php` is the web request benchmark that matches the 89x worker aura. PHP stays as the direct route baseline. JINX can run the raw route body, the full response-envelope bridge, or a near-high-level typed frame inside one already-running process.
 
@@ -94,7 +117,7 @@ Save JSON:
 
 This is the benchmark to use when checking whether web requests can return to the same style as the 89x worker result: PHP direct route baseline, JINX precompiled back-page path, single process, prebuilt shared frames, no socket timing, and no process-spawn timing.
 
-## 4. Warmed web-request worker benchmark
+## 5. Warmed web-request worker benchmark
 
 `scripts/benchmark-web-request-worker.php` measures a web-shaped request path in one already-running process. It compiles `fixtures/simple-web-api-validated.php` once into a JINX web executable plan, warms it, then runs many simulated JSON requests through both:
 
@@ -112,7 +135,7 @@ Can a warmed JINX worker serve repeated web-style requests faster than equivalen
 ./jinx scripts/benchmark-web-request-worker.php --requests=10000 --warmup=500 --json=build/benchmarks/web-request-worker.json
 ```
 
-## 5. Fair live HTTP request benchmark
+## 6. Fair live HTTP request benchmark
 
 `scripts/benchmark-live-web-requests.php` starts two actual loopback HTTP workers:
 
@@ -139,7 +162,7 @@ Compare against the older generic web-plan interpreter path:
 ./jinx scripts/benchmark-live-web-requests.php --requests=10000 --warmup=500 --jinx-mode=plan
 ```
 
-## 6. Fair live keep-alive HTTP request benchmark
+## 7. Fair live keep-alive HTTP request benchmark
 
 `scripts/benchmark-live-web-keepalive.php` starts the same two live loopback HTTP workers, but it keeps one TCP socket open to each worker and sends all warmup and measured POST requests over those persistent sockets.
 
@@ -220,6 +243,8 @@ The connection-close live benchmark is fair because both sides pay those costs, 
 Use the harness/process benchmark to catch broad regressions in the complete toolchain.
 
 Use the worker/hot benchmark when checking executor-level speed. It avoids the problem where tiny function calls are drowned by shell process startup and parity-test bookkeeping.
+
+Use the separated benchmark when you want to run only JINX or only PHP timing, or when you want a side-by-side table whose timed loops are not interleaved.
 
 Use the web back-page hot benchmark for the 89x-style route-engine comparison: PHP direct route logic versus JINX's precompiled back-page path.
 

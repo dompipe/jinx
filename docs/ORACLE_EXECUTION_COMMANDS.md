@@ -58,6 +58,14 @@ Use the worker/hot benchmark when checking the speed path where startup and test
 ./jinx scripts/benchmark-oracle-worker-hot.php --only=chr-builtins --iterations=10000
 ```
 
+Use the separated benchmark when you want JINX and PHP timed as separate engines instead of one mixed loop:
+
+```bash
+./jinx scripts/benchmark-oracle-separated.php --engine=jinx --iterations=10000 --warmup=1000
+./jinx scripts/benchmark-oracle-separated.php --engine=php --iterations=10000 --warmup=1000
+./jinx scripts/benchmark-oracle-separated.php --engine=both --iterations=10000 --warmup=1000
+```
+
 Use the web back-page hot benchmark for the 89x-style web request aura. PHP stays direct route logic; JINX can run the raw route template or the full response-envelope bridge. Use `--frame-cap` to prebuild and replay a capped shared frame deck so frame construction does not bend the timed section toward PHP. Use `--frame-level=high` to give JINX a typed near-high-level route frame while PHP keeps the normal raw request body path:
 
 ```bash
