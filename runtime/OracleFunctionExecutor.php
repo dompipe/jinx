@@ -133,6 +133,7 @@ final class OracleFunctionExecutor
                     break;
 
                 case 'O_ASSIGN':
+                case 'O_DIM_FETCH':
                     self::executeAssignStatement($source, $locals, $functions, $executed);
                     $executed++;
                     $index++;
