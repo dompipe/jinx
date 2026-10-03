@@ -305,6 +305,11 @@ The structural proof covers namespace blocks, enum cases, `yield from`, `??=`, d
 
 These records are **not executable-family claims** by themselves. Promotion still requires a runtime owner plus PHP-vs-Oracle behavior parity.
 
+The arbitrary Zend comparison also checks repeated function calls using
+`fixtures/oracle-executable-zend-scope.php`: static locals persist, declared
+globals share storage with the main scope, and ordinary locals can shadow globals
+without changing them. Run `./jinx scripts/test-oracle-zend-arbitrary-execution.php`.
+
 Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
 
 

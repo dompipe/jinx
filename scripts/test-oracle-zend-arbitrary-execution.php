@@ -99,4 +99,12 @@ foreach (['global $globalCounter', 'static $calls = 0', 'isset($payload', 'switc
     }
 }
 
+$scopeFixture = $root . '/fixtures/oracle-executable-zend-scope.php';
+$phpScope = capture_php_zend_arbitrary_fixture($scopeFixture);
+$oracleScope = capture_oracle_zend_arbitrary_fixture($scopeFixture);
+same($phpScope['return'], '1:11:7|2:12:7|12:100', 'PHP scope regression baseline');
+same($oracleScope['error_class'], null, 'Oracle scope regression executes');
+same($oracleScope['output'], $phpScope['output'], 'Repeated calls preserve static and global bindings');
+same($oracleScope['return'], $phpScope['return'], 'Local shadowing does not modify globals');
+
 echo "PASS: Oracle executes arbitrary Zend function/control PHP subset and matches PHP output/return/error behavior" . PHP_EOL;

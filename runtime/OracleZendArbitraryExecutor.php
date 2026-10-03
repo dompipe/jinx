@@ -23,9 +23,9 @@ final class OracleZendArbitraryExecutor
 
         $source = (string) file_get_contents($sourcePath);
         [$functions, $main] = self::extractFunctions($source);
-        $globals = [];
-        $staticLocals = [];
         $locals = [];
+        $globals =& $locals;
+        $staticLocals = [];
         $output = '';
         $executed = 0;
 
@@ -102,17 +102,13 @@ final class OracleZendArbitraryExecutor
 
             if (preg_match('/^\$(\w+)\s*=\s*(.+)$/s', $statement, $m)) {
                 $locals[$m[1]] = self::evaluate($m[2], $locals, $globals, $staticLocals, $functions, $output, $executed, $functionName);
-                if ($functionName === null) {
-                    $globals[$m[1]] = $locals[$m[1]];
-                } elseif (array_key_exists($m[1], $globals)) {
-                    $globals[$m[1]] = $locals[$m[1]];
-                }
                 $executed++;
                 continue;
             }
 
             if (preg_match('/^global\s+\$(\w+)$/i', $statement, $m)) {
-                $locals[$m[1]] = $globals[$m[1]] ?? null;
+                $globals[$m[1]] ??= null;
+                $locals[$m[1]] =& $globals[$m[1]];
                 $executed++;
                 continue;
             }
@@ -126,16 +122,13 @@ final class OracleZendArbitraryExecutor
                 if (!array_key_exists($m[1], $staticLocals[$bucket])) {
                     $staticLocals[$bucket][$m[1]] = self::evaluate($m[2], $locals, $globals, $staticLocals, $functions, $output, $executed, $functionName);
                 }
-                $locals[$m[1]] = $staticLocals[$bucket][$m[1]];
+                $locals[$m[1]] =& $staticLocals[$bucket][$m[1]];
                 $executed++;
                 continue;
             }
 
             if (preg_match('/^\$(\w+)\+\+$/', $statement, $m)) {
                 $locals[$m[1]] = ($locals[$m[1]] ?? 0) + 1;
-                if (array_key_exists($m[1], $globals)) {
-                    $globals[$m[1]] = $locals[$m[1]];
-                }
                 $executed++;
                 continue;
             }
@@ -310,7 +303,7 @@ final class OracleZendArbitraryExecutor
             return $locals[$m[1]][$key] ?? null;
         }
         if (preg_match('/^\$(\w+)$/', $expr, $m)) {
-            return $locals[$m[1]] ?? $globals[$m[1]] ?? null;
+            return $locals[$m[1]] ?? null;
         }
         if (preg_match('/^([\'"])(.*)\1$/s', $expr, $m)) {
             return stripcslashes($m[2]);
