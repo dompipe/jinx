@@ -8,6 +8,7 @@ namespace jinx\oracle;
 final class OracleGeneratedExecutionFamilies
 {
     public const TOTAL_GENERATED_FAMILIES = 782;
+    public const UNIQUE_GENERATED_TEMPLATES = 25;
 
     /** @return array<string,array<string,mixed>> */
     public static function all(): array
@@ -22,16 +23,23 @@ final class OracleGeneratedExecutionFamilies
                 'ops' => ['O_DECLARE', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'],
                 'builtins' => self::builtinsForIndex($i),
                 'generated_batch' => 'generated-pure-builtin-782',
+                'generated_template_index' => self::templateIndexForFamily($i),
+                'semantic_coverage' => 'generated-case-from-25-pure-builtin-templates',
             ];
         }
 
         return $families;
     }
 
+    public static function templateIndexForFamily(int $i): int
+    {
+        return $i % self::UNIQUE_GENERATED_TEMPLATES;
+    }
+
     /** @return list<string> */
     private static function builtinsForIndex(int $i): array
     {
-        return match ($i % 25) {
+        return match (self::templateIndexForFamily($i)) {
             0 => ['strlen'],
             1 => ['strtoupper'],
             2 => ['strtolower'],
