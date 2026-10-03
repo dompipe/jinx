@@ -32,14 +32,15 @@ $phpOutput = (string) ob_get_clean();
 same($oracle['kind'] ?? null, 'JINX_ORACLE_EXECUTION', 'Oracle execution kind');
 same($oracle['output'] ?? null, $phpOutput, 'Oracle output matches PHP');
 same($oracle['return'] ?? null, $phpReturn, 'Oracle return matches PHP');
+same($oracle['return'] ?? null, 24, 'Oracle local/dimension coalesce assignment result');
 
-if (($oracle['executed_ops'] ?? 0) < 9) {
+if (($oracle['executed_ops'] ?? 0) < 13) {
     fail('Oracle executed too few straight-line ops');
 }
 
 $ops = array_column($program['statements'] ?? [], 'op');
 
-foreach (['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_DEC', 'O_COALESCE', 'O_ECHO', 'O_PRINT', 'O_RETURN'] as $op) {
+foreach (['O_ASSIGN', 'O_DIM_ASSIGN', 'O_DIM_FETCH', 'O_COMPOUND_ASSIGN', 'O_INC', 'O_DEC', 'O_COALESCE_ASSIGN', 'O_COALESCE', 'O_ECHO', 'O_PRINT', 'O_RETURN'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("fixture did not produce expected {$op}");
     }
