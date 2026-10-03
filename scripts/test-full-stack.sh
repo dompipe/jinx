@@ -35,13 +35,15 @@ git diff --check
 printf 'PASS: source diff check\n'
 
 printf 'Linting PHP sources...\n'
-find runtime scripts fixtures -type f -name '*.php' -print0 | while IFS= read -r -d '' file; do
-    php -l "$file" >/dev/null || {
-        printf 'FAIL: PHP syntax lint failed: %s\n' "$file" >&2
-        php -l "$file" >&2 || true
-        exit 1
-    }
-done
+find runtime scripts fixtures -type f -name '*.php' -exec sh -c '
+    for file do
+        php -l "$file" >/dev/null || {
+            printf "FAIL: PHP syntax lint failed: %s\\n" "$file" >&2
+            php -l "$file" >&2 || true
+            exit 1
+        }
+    done
+' sh {} +
 printf 'PASS: PHP syntax lint across runtime/scripts/fixtures\n'
 
 banner "2/8 CLEAN NATIVE BUILD"
