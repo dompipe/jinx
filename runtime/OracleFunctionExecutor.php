@@ -587,7 +587,28 @@ final class OracleFunctionExecutor
 
         if (preg_match('/^\$(\w+)((?:\[[^\]]+\])+)$/', $expr, $m)) {
             if (!array_key_exists($m[1], $locals)) {
-                throw new \RuntimeException('Missing Oracle local:         if (preg_match('/^\$(\w+)$/', $expr, $m)) {
+                throw new \RuntimeException('Missing Oracle local: $' . $m[1]);
+            }
+
+            $value = $locals[$m[1]];
+            if (!preg_match_all('/\[([^\]]+)\]/', $m[2], $dims)) {
+                throw new \RuntimeException("Unsupported Oracle function array chain: {$expr}");
+            }
+
+            foreach ($dims[1] as $rawKey) {
+                $key = self::evaluateExpression($rawKey, $locals, $functions, $executed);
+                if (!is_int($key) && !is_string($key)) {
+                    $key = (int) $key;
+                }
+                if (!is_array($value) || !array_key_exists($key, $value)) {
+                    throw new \RuntimeException("Missing Oracle function array dimension: {$expr}");
+                }
+                $value = $value[$key];
+            }
+
+            return $value;
+        }
+        if (preg_match('/^\$(\w+)$/', $expr, $m)) {
             if (!array_key_exists($m[1], $locals)) {
                 throw new \RuntimeException("Missing Oracle local: {$expr}");
             }
