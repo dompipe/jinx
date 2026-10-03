@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: double_quoted_variable_interpolation braced_variable_interpolation array_offset_interpolation escaped_dollar
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 
 use jinx\oracle\OracleProgramCompiler;
