@@ -300,26 +300,45 @@ final class OracleFunctionExecutor
             throw new \RuntimeException("Unsupported Oracle function if statement: {$source}");
         }
 
-        $condition = trim($m[1]);
+        $branches = [];
         $index++;
         $thenBody = self::collectBlock($statements, $index);
+        $branches[] = [trim($m[1]), $thenBody];
+
         $elseBody = [];
-
-        if ($index < count($statements) && (($statements[$index]['op'] ?? '') === 'O_ELSE')) {
+        while ($index < count($statements) && (($statements[$index]['op'] ?? '') === 'O_ELSE')) {
+            $elseSource = (string) ($statements[$index]['source'] ?? '');
             $index++;
-            $elseBody = self::collectBlock($statements, $index);
+
+            if (preg_match('/^elseif\s*\((.*)\)\s*\{?$/i', trim($elseSource), $elseMatch)) {
+                $elseifBody = self::collectBlock($statements, $index);
+                $branches[] = [trim($elseMatch[1]), $elseifBody];
+                continue;
+            }
+
+            if (preg_match('/^else\b/i', trim($elseSource))) {
+                $elseBody = self::collectBlock($statements, $index);
+                break;
+            }
+
+            throw new \RuntimeException("Unsupported Oracle function else branch: {$elseSource}");
         }
 
-        $branch = self::toPhpBool(self::evaluateExpression($condition, $locals, $functions, $executed))
-            ? $thenBody
-            : $elseBody;
+        foreach ($branches as [$condition, $body]) {
+            if (!self::toPhpBool(self::evaluateExpression($condition, $locals, $functions, $executed))) {
+                continue;
+            }
 
-        if ($branch === []) {
-            return ['returned' => false, 'value' => null];
+            $branchIndex = 0;
+            return self::executeStatements($body, $branchIndex, $locals, $functions, $output, $executed, false);
         }
 
-        $branchIndex = 0;
-        return self::executeStatements($branch, $branchIndex, $locals, $functions, $output, $executed, false);
+        if ($elseBody !== []) {
+            $branchIndex = 0;
+            return self::executeStatements($elseBody, $branchIndex, $locals, $functions, $output, $executed, false);
+        }
+
+        return ['returned' => false, 'value' => null];
     }
 
     /**
