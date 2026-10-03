@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/OracleExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleGeneratedExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleJinxWebExecutionFamilies.php';
+require_once dirname(__DIR__) . '/runtime/OracleMergedExecutionFamilies.php';
 
-use jinx\oracle\OracleExecutionFamilies;
+use jinx\oracle\OracleGeneratedExecutionFamilies;
+use jinx\oracle\OracleMergedExecutionFamilies;
 
 /**
  * Benchmarks every executable Oracle family parity path against PHP and native ./jinx.
@@ -12,9 +16,9 @@ use jinx\oracle\OracleExecutionFamilies;
  * Run through repository-root native ./jinx:
  *   ./jinx scripts/benchmark-oracle-families.php --iterations=5
  *
- * The benchmark uses the executable family ledger as the source of truth, groups
- * families by their parity test, and measures each group under both the PHP
- * interpreter and repository-root native ./jinx.
+ * The benchmark uses the merged executable family ledger as the source of truth,
+ * groups families by their parity test, and measures each group under both the
+ * PHP interpreter and repository-root native ./jinx.
  */
 
 function fail(string $message): never
@@ -155,6 +159,36 @@ function ratio(float $phpSeconds, float $jinxSeconds): string
     return number_format($jinxSeconds / $phpSeconds, 2) . 'x';
 }
 
+/** @param array<string,array<string,mixed>> $families @return array<string,mixed> */
+function coverage_shape(array $families): array
+{
+    $generated = [];
+    $templates = [];
+    $jinxWeb = 0;
+
+    foreach ($families as $family => $metadata) {
+        if (isset($metadata['generated_batch'])) {
+            $generated[] = $family;
+            if (isset($metadata['generated_template_index'])) {
+                $templates[(int) $metadata['generated_template_index']] = true;
+            }
+        }
+        if ($family === 'jinx-island-server') {
+            $jinxWeb++;
+        }
+    }
+
+    return [
+        'ledger_family_count' => count($families),
+        'generated_family_ids' => count($generated),
+        'generated_unique_expression_templates' => count($templates),
+        'declared_generated_unique_expression_templates' => OracleGeneratedExecutionFamilies::UNIQUE_GENERATED_TEMPLATES,
+        'jinx_web_family_count' => $jinxWeb,
+        'non_generated_family_count' => count($families) - count($generated),
+        'semantic_coverage' => 'ledger-level benchmark groups; generated pure-builtin block is 782 family IDs across 25 unique expression templates',
+    ];
+}
+
 $root = dirname(__DIR__);
 $options = parse_args($argv);
 $iterations = (int) $options['iterations'];
@@ -173,7 +207,8 @@ if (!is_file($php) && !str_contains($php, '/')) {
     $php = (string) $php;
 }
 
-$families = OracleExecutionFamilies::all();
+$families = OracleMergedExecutionFamilies::all();
+$shape = coverage_shape($families);
 $groups = [];
 foreach ($families as $family => $metadata) {
     $test = $metadata['test'] ?? null;
@@ -191,9 +226,13 @@ if ($groups === []) {
     fail('No benchmark groups matched the requested filter');
 }
 
+$benchmarkedCount = array_sum(array_map('count', $groups));
+
 printf("Oracle family benchmark\n");
 printf("Repository: %s\n", $root);
-printf("Families: %d total, %d benchmarked, %d unique parity tests\n", count($families), array_sum(array_map('count', $groups)), count($groups));
+printf("Families: %d total, %d benchmarked, %d unique parity tests\n", count($families), $benchmarkedCount, count($groups));
+printf("Generated family IDs: %d across %d unique expression templates\n", $shape['generated_family_ids'], $shape['generated_unique_expression_templates']);
+printf("Semantic coverage: %s\n", $shape['semantic_coverage']);
 printf("Iterations: %d measured, %d warmup per side\n", $iterations, $warmup);
 printf("PHP baseline: %s\n", $php);
 printf("JINX native: %s\n\n", $jinx);
@@ -260,14 +299,15 @@ foreach ($groups as $test => $coveredFamilies) {
 }
 
 printf("%s\n", str_repeat('-', 104));
-printf("%-44s %8d %12s %12s %10s %s\n", 'TOTAL passing groups', array_sum(array_map('count', $groups)), ms($phpTotal), ms($jinxTotal), ratio($phpTotal, $jinxTotal), $failed === 0 ? 'OK' : "FAIL={$failed}");
+printf("%-44s %8d %12s %12s %10s %s\n", 'TOTAL passing groups', $benchmarkedCount, ms($phpTotal), ms($jinxTotal), ratio($phpTotal, $jinxTotal), $failed === 0 ? 'OK' : "FAIL={$failed}");
 
 $payload = [
     'kind' => 'JINX_ORACLE_BENCHMARK',
     'iterations' => $iterations,
     'warmup' => $warmup,
+    'coverage_shape' => $shape,
     'family_count_total' => count($families),
-    'family_count_benchmarked' => array_sum(array_map('count', $groups)),
+    'family_count_benchmarked' => $benchmarkedCount,
     'test_group_count' => count($groups),
     'php_binary' => $php,
     'jinx_binary' => $jinx,
@@ -295,4 +335,4 @@ if ($failed > 0) {
     exit(1);
 }
 
-echo "PASS: Oracle benchmark completed " . count($groups) . " parity groups covering " . array_sum(array_map('count', $groups)) . " executable families" . PHP_EOL;
+echo "PASS: Oracle benchmark completed " . count($groups) . " parity groups covering {$benchmarkedCount} executable ledger families" . PHP_EOL;
