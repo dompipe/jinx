@@ -329,6 +329,9 @@ final class OracleProgramCompiler
             $features['label'] = $m[1];
         } elseif (preg_match('/^if\s*\(/i', $normalized)) {
             $kind = 'O_IF';
+        } elseif (preg_match('/^elseif\s*\((.*)\)\s*\{?$/i', $normalized, $m)) {
+            $kind = 'O_ELSE';
+            $features['elseif_condition'] = trim($m[1]);
         } elseif (preg_match('/^else\b/i', $normalized)) {
             $kind = 'O_ELSE';
         } elseif (preg_match('/^catch\s*\(([^)]+)\)/i', $normalized, $m)) {
