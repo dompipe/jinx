@@ -138,6 +138,19 @@ final class OracleFunctionExecutor
                     $index++;
                     break;
 
+                case 'O_DIM_ASSIGN':
+                    self::executeDimAssignStatement($source, $locals, $functions, $executed);
+                    $executed++;
+                    $index++;
+                    break;
+
+                case 'O_FOR':
+                    $result = self::executeForStatement($statements, $index, $locals, $functions, $output, $executed);
+                    if ($result['returned']) {
+                        return $result;
+                    }
+                    break;
+
                 case 'O_COMPOUND_ASSIGN':
                     self::executeCompoundAssignStatement($source, $locals, $functions, $executed);
                     $executed++;
@@ -195,7 +208,7 @@ final class OracleFunctionExecutor
                 continue;
             }
 
-            if (in_array($op, ['O_FUNCTION_DECL', 'O_IF', 'O_ELSE', 'O_WHILE'], true)) {
+            if (in_array($op, ['O_FUNCTION_DECL', 'O_IF', 'O_ELSE', 'O_WHILE', 'O_FOR'], true)) {
                 $depth++;
             }
 
@@ -231,6 +244,108 @@ final class OracleFunctionExecutor
         }
 
         $locals[$m[1]] = self::evaluateExpression($m[2], $locals, $functions, $executed);
+    }
+
+    /**
+     * @param array<string,mixed> $locals
+     * @param array<string,array{params:list<string>,body:list<array<string,mixed>>}> $functions
+     */
+    private static function executeDimAssignStatement(string $source, array &$locals, array $functions, int &$executed): void
+    {
+        if (preg_match('/^\$(\w+)\[\]\s*=\s*(.+);?$/', $source, $m)) {
+            $name = $m[1];
+            if (!isset($locals[$name]) || !is_array($locals[$name])) {
+                $locals[$name] = [];
+            }
+            $locals[$name][] = self::evaluateExpression($m[2], $locals, $functions, $executed);
+            return;
+        }
+
+        if (preg_match('/^\$(\w+)\[([^\]]+)\]\s*=\s*(.+);?$/', $source, $m)) {
+            $name = $m[1];
+            if (!isset($locals[$name]) || !is_array($locals[$name])) {
+                $locals[$name] = [];
+            }
+            $key = self::evaluateExpression($m[2], $locals, $functions, $executed);
+            $locals[$name][$key] = self::evaluateExpression($m[3], $locals, $functions, $executed);
+            return;
+        }
+
+        throw new \RuntimeException("Unsupported Oracle function dimension assignment: {$source}");
+    }
+
+    /**
+     * @param list<array<string,mixed>> $statements
+     * @param array<string,mixed> $locals
+     * @param array<string,array{params:list<string>,body:list<array<string,mixed>>}> $functions
+     * @return array{returned:bool,value:mixed}
+     */
+    private static function executeForStatement(
+        array $statements,
+        int &$index,
+        array &$locals,
+        array $functions,
+        string &$output,
+        int &$executed
+    ): array {
+        $source = (string) ($statements[$index]['source'] ?? '');
+        if (!preg_match('/^for\s*\((.*?);(.*?);(.*?)\)\s*\{?$/i', trim($source), $m)) {
+            throw new \RuntimeException("Unsupported Oracle function for loop: {$source}");
+        }
+
+        $init = trim($m[1]);
+        $condition = trim($m[2]);
+        $update = trim($m[3]);
+
+        $index++;
+        $body = self::collectBlock($statements, $index);
+
+        if ($init !== '') {
+            self::executeInlineStatement($init, $locals, $functions, $executed);
+            $executed++;
+        }
+
+        $iterations = 0;
+        while ($condition === '' || self::toPhpBool(self::evaluateExpression($condition, $locals, $functions, $executed))) {
+            if (++$iterations > 10000) {
+                throw new \RuntimeException('Oracle function for loop exceeded iteration guard');
+            }
+
+            $bodyIndex = 0;
+            $result = self::executeStatements($body, $bodyIndex, $locals, $functions, $output, $executed, false);
+            if ($result['returned']) {
+                return $result;
+            }
+
+            if ($update !== '') {
+                self::executeInlineStatement($update, $locals, $functions, $executed);
+                $executed++;
+            }
+        }
+
+        return ['returned' => false, 'value' => null];
+    }
+
+    /**
+     * @param array<string,mixed> $locals
+     * @param array<string,array{params:list<string>,body:list<array<string,mixed>>}> $functions
+     */
+    private static function executeInlineStatement(string $source, array &$locals, array $functions, int &$executed): void
+    {
+        $stmt = trim(rtrim(trim($source), ';'));
+
+        if (preg_match('/^(?:\+\+|--)?\s*\$(\w+)\s*(?:\+\+|--)?$/', $stmt, $m)) {
+            $delta = str_contains($stmt, '--') ? -1 : 1;
+            $locals[$m[1]] = ($locals[$m[1]] ?? 0) + $delta;
+            return;
+        }
+
+        if (preg_match('/^\$(\w+)\s*(\+=|-=|\*=|\/=|%=|\.=)\s*(.+)$/', $stmt)) {
+            self::executeCompoundAssignStatement($stmt, $locals, $functions, $executed);
+            return;
+        }
+
+        self::executeAssignStatement($stmt, $locals, $functions, $executed);
     }
 
     /**
