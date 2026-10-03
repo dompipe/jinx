@@ -139,11 +139,11 @@ static int command_php_script(int argc, char **argv) {
     char **php_argv;
 
     /*
-     * Repository test drivers are orchestration code: they launch PHP and
-     * ./jinx separately and compare the results. Keep those drivers hosted
-     * by PHP, but NEVER pass an arbitrary fixture directly back to PHP.
+     * Repository scripts are orchestration code: tests, audits, benchmarks,
+     * and generators launch PHP and ./jinx independently. Keep scripts/*.php
+     * hosted by PHP, but NEVER pass an arbitrary fixture back to PHP.
      */
-    if (strstr(argv[1], "scripts/test-") != NULL) {
+    if (strstr(argv[1], "scripts/") != NULL) {
         php_argv = (char **) calloc((size_t) argc + 1u, sizeof(char *));
         if (php_argv == NULL) {
             return fail("could not allocate PHP test-driver argv");
