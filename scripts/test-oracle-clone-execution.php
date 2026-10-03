@@ -106,7 +106,7 @@ foreach (['O_CLASS_DECL', 'O_METHOD_DECL', 'O_NEW', 'O_CLONE', 'O_METHOD_CALL', 
 }
 
 $source = (string) file_get_contents($fixture);
-foreach (['function __clone()', "$this->name = $this->name . '-copy'", '$this->total += 10', 'clone $original', '$copy->add(5)', '$original->add(2)', '$original->label()', '$copy->label()'] as $needle) {
+foreach (['function __clone()', '$this->name = $this->name . \'-copy\'', '$this->total += 10', 'clone $original', '$copy->add(5)', '$original->add(2)', '$original->label()', '$copy->label()'] as $needle) {
     if (!str_contains($source, $needle)) {
         fail("fixture did not contain expected clone source {$needle}");
     }
