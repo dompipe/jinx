@@ -75,6 +75,7 @@ $scriptTests = [
     'for append ternary family' => ['scripts/test-oracle-for-append-ternary-execution.php', 'PASS: Oracle executes for-loop array append ternary subset'],
     'comparison boolean family' => ['scripts/test-oracle-comparison-boolean-execution.php', 'PASS: Oracle executes comparison boolean ternary subset'],
     'second 100 remaining families' => ['scripts/test-oracle-second-batch-execution.php', 'PASS: Oracle executes remaining second-100-case families'],
+    'third 100 new families' => ['scripts/test-oracle-third-batch-execution.php', 'PASS: Oracle executes third-batch nested-array and elseif families'],
     'typed direct function family' => ['scripts/test-oracle-function-typed-direct-execution.php', 'PASS: Oracle executes typed direct user function subset'],
     'function control-loop family' => ['scripts/test-oracle-function-control-loop-execution.php', 'PASS: Oracle executes function control-loop subset'],
     'promoted object family' => ['scripts/test-oracle-object-promoted-execution.php', 'PASS: Oracle executes promoted final-class object subset'],
