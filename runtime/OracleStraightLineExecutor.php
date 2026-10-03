@@ -330,6 +330,40 @@ final class OracleStraightLineExecutor
                 self::evaluateExpression($args[2], $locals)
             );
         }
+        if (preg_match('/^ucfirst\s*\((.+)\)$/is', $expr, $m)) {
+            return ucfirst((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^lcfirst\s*\((.+)\)$/is', $expr, $m)) {
+            return lcfirst((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^strrev\s*\((.+)\)$/is', $expr, $m)) {
+            return strrev((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^str_repeat\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) !== 2) {
+                throw new \RuntimeException("Oracle str_repeat() expects 2 arguments: {$expr}");
+            }
+            return str_repeat(
+                (string) self::evaluateExpression($args[0], $locals),
+                (int) self::evaluateExpression($args[1], $locals)
+            );
+        }
+
+        if (preg_match('/^str_pad\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) < 2 || count($args) > 4) {
+                throw new \RuntimeException("Oracle str_pad() expects 2 to 4 arguments: {$expr}");
+            }
+            $value = (string) self::evaluateExpression($args[0], $locals);
+            $length = (int) self::evaluateExpression($args[1], $locals);
+            $pad = count($args) >= 3 ? (string) self::evaluateExpression($args[2], $locals) : ' ';
+            $type = count($args) >= 4 ? (int) self::evaluateExpression($args[3], $locals) : STR_PAD_RIGHT;
+            return str_pad($value, $length, $pad, $type);
+        }
 
         if (preg_match('/^base64_encode\s*\((.+)\)$/i', $expr, $m)) {
             return base64_encode((string) self::evaluateExpression($m[1], $locals));
@@ -416,6 +450,19 @@ final class OracleStraightLineExecutor
             return $encoded;
         }
 
+        if (preg_match('/^\(string\)\s*(.+)$/is', $expr, $m)) {
+            return (string) self::evaluateExpression($m[1], $locals);
+        }
+
+        if ($expr === 'STR_PAD_LEFT') {
+            return STR_PAD_LEFT;
+        }
+        if ($expr === 'STR_PAD_RIGHT') {
+            return STR_PAD_RIGHT;
+        }
+        if ($expr === 'STR_PAD_BOTH') {
+            return STR_PAD_BOTH;
+        }
         if (preg_match('/^-?\d+$/', $expr)) {
             return (int) $expr;
         }
@@ -440,15 +487,446 @@ final class OracleStraightLineExecutor
             return null;
         }
 
-        if (preg_match('/^\$(\w+)\[([^\]]+)\]$/', $expr, $m)) {
-            $array = $locals[$m[1]] ?? null;
-            $key = self::evaluateExpression($m[2], $locals);
-
-            if (!is_array($array) || !array_key_exists($key, $array)) {
-                throw new \RuntimeException("Missing Oracle array dimension: {$expr}");
+        if (preg_match('/^\$(\w+)((?:\[[^\]]+\])+)$/', $expr, $m)) {
+            if (!array_key_exists($m[1], $locals)) {
+                throw new \RuntimeException('Missing Oracle local: 
+        if (preg_match('/^\$(\w+)$/', $expr, $m)) {
+            if (!array_key_exists($m[1], $locals)) {
+                throw new \RuntimeException("Missing Oracle local: {$expr}");
             }
 
-            return $array[$key];
+            return $locals[$m[1]];
+        }
+
+        throw new \RuntimeException("Unsupported Oracle expression: {$expr}");
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function evaluateArrayLiteral(string $body, array &$locals): array
+    {
+        $body = trim($body);
+        if ($body === '') {
+            return [];
+        }
+
+        $result = [];
+        foreach (self::splitTopLevelList($body, ',') as $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            $pair = self::splitTopLevelToken($item, '=>');
+            if ($pair !== null) {
+                [$keyExpr, $valueExpr] = $pair;
+                $key = self::evaluateExpression($keyExpr, $locals);
+                if (!is_int($key) && !is_string($key)) {
+                    throw new \RuntimeException("Unsupported Oracle array key: {$keyExpr}");
+                }
+                $result[$key] = self::evaluateExpression($valueExpr, $locals);
+                continue;
+            }
+
+            $result[] = self::evaluateExpression($item, $locals);
+        }
+
+        return $result;
+    }
+
+    /** @return list<string> */
+    private static function splitTopLevelList(string $source, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $depth = 0;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && substr($source, $i, strlen($delimiter)) === $delimiter) {
+                $parts[] = substr($source, $start, $i - $start);
+                $start = $i + strlen($delimiter);
+                $i += strlen($delimiter) - 1;
+            }
+        }
+
+        $parts[] = substr($source, $start);
+        return $parts;
+    }
+
+    /** @return array{0:string,1:string}|null */
+    private static function splitTopLevelToken(string $source, string $token): ?array
+    {
+        $parts = self::splitTopLevelList($source, $token);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        return [$parts[0], $parts[1]];
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function interpolateDoubleQuotedString(string $body, array &$locals): string
+    {
+        $placeholder = "\0JINX_ESCAPED_DOLLAR\0";
+        $body = str_replace('\\$', $placeholder, $body);
+        $bracedValues = [];
+
+        $body = preg_replace_callback(
+            '/\{\s*(\$[A-Za-z_]\w*(?:(?:\[[^\]]+\])|(?:->\w+))*)\s*\}/',
+            static function (array $m) use (&$locals, &$bracedValues): string {
+                $token = "\0JINX_BRACED_INTERP_" . count($bracedValues) . "\0";
+                $bracedValues[$token] = (string) self::evaluateInterpolatedVariable($m[1], $locals);
+
+                return $token;
+            },
+            $body
+        ) ?? $body;
+
+        $body = preg_replace_callback(
+            '/\$([A-Za-z_]\w*)(?:\[([^\]]+)\]|->(\w+))?/',
+            static function (array $m) use (&$locals): string {
+                $path = '$' . $m[1];
+                if (($m[2] ?? '') !== '') {
+                    $path .= '[' . $m[2] . ']';
+                } elseif (($m[3] ?? '') !== '') {
+                    $path .= '->' . $m[3];
+                }
+
+                return (string) self::evaluateInterpolatedVariable($path, $locals);
+            },
+            $body
+        ) ?? $body;
+
+        $body = strtr($body, $bracedValues);
+        $body = str_replace($placeholder, '$', $body);
+
+        return self::decodeDoubleQuotedEscapes($body);
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function evaluateInterpolatedVariable(string $path, array &$locals): mixed
+    {
+        if (!preg_match('/^\$(\w+)/', $path, $m)) {
+            throw new \RuntimeException("Unsupported Oracle interpolation segment: {$path}");
+        }
+
+        $value = $locals[$m[1]] ?? null;
+        if (!array_key_exists($m[1], $locals)) {
+            throw new \RuntimeException("Missing Oracle interpolated local: {$path}");
+        }
+
+        $rest = substr($path, strlen($m[0]));
+        while ($rest !== '') {
+            if (preg_match('/^\[([^\]]+)\]/', $rest, $dim)) {
+                if (!is_array($value)) {
+                    throw new \RuntimeException("Interpolated local is not array: {$path}");
+                }
+                $key = self::interpolationKey($dim[1], $locals);
+                if (!array_key_exists($key, $value)) {
+                    throw new \RuntimeException("Missing Oracle interpolated array dimension: {$path}");
+                }
+                $value = $value[$key];
+                $rest = substr($rest, strlen($dim[0]));
+                continue;
+            }
+
+            if (preg_match('/^->(\w+)/', $rest, $prop)) {
+                if (!is_object($value) || !isset($value->{$prop[1]})) {
+                    throw new \RuntimeException("Missing Oracle interpolated object property: {$path}");
+                }
+                $value = $value->{$prop[1]};
+                $rest = substr($rest, strlen($prop[0]));
+                continue;
+            }
+
+            throw new \RuntimeException("Unsupported Oracle interpolation tail: {$path}");
+        }
+
+        return $value;
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function interpolationKey(string $raw, array &$locals): int|string
+    {
+        $key = stripcslashes(trim($raw));
+        if (preg_match('/^-?\d+$/', $key)) {
+            return (int) $key;
+        }
+        if (preg_match('/^\'(.*)\'$/s', $key, $m)) {
+            return stripcslashes($m[1]);
+        }
+        if (preg_match('/^"(.*)"$/s', $key, $m)) {
+            return self::interpolateDoubleQuotedString($m[1], $locals);
+        }
+        if (preg_match('/^\$(\w+)$/', $key, $m)) {
+            if (!array_key_exists($m[1], $locals)) {
+                throw new \RuntimeException("Missing Oracle interpolation key local: {$raw}");
+            }
+            return (string) $locals[$m[1]];
+        }
+
+        return $key;
+    }
+
+    private static function decodeDoubleQuotedEscapes(string $body): string
+    {
+        return strtr($body, [
+            '\\n' => "\n",
+            '\\r' => "\r",
+            '\\t' => "\t",
+            '\\v' => "\v",
+            '\\e' => "\e",
+            '\\f' => "\f",
+            '\\\\' => '\\',
+            '\\"' => '"',
+        ]);
+    }
+
+    private static function isWrappedInOuterParens(string $expr): bool
+    {
+        if (!str_starts_with($expr, '(') || !str_ends_with($expr, ')')) {
+            return false;
+        }
+
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0 && $i < $length - 1) {
+                    return false;
+                }
+                if ($depth < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return $depth === 0;
+    }
+
+    /** @return array{0:string,1:string,2:string}|null */
+    private static function splitTopLevelTernary(string $expr): ?array
+    {
+        $quote = null;
+        $depth = 0;
+        $question = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            if ($char === '?' && $question === null) {
+                $question = $i;
+                continue;
+            }
+
+            if ($char === ':' && $question !== null) {
+                return [
+                    substr($expr, 0, $question),
+                    substr($expr, $question + 1, $i - $question - 1),
+                    substr($expr, $i + 1),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private static function toPhpBool(mixed $value): bool
+    {
+        return !(
+            $value === null ||
+            $value === false ||
+            $value === 0 ||
+            $value === 0.0 ||
+            $value === '' ||
+            $value === '0' ||
+            $value === []
+        );
+    }
+
+    /**
+     * Split on the rightmost top-level operator in a precedence group.
+     * Using the rightmost operator preserves left associativity when the
+     * recursive evaluator processes the left-hand expression.
+     *
+     * @param list<string> $operators
+     * @return array{0:string,1:string,2:string}|null
+     */
+    private static function splitTopLevelOperators(string $expr, array $operators): ?array
+    {
+        usort($operators, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+
+        $quote = null;
+        $depth = 0;
+        $match = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($operators as $operator) {
+                if (substr($expr, $i, strlen($operator)) !== $operator) {
+                    continue;
+                }
+
+                // A leading + or - is unary, not a binary split point.
+                if (($operator === '+' || $operator === '-') && trim(substr($expr, 0, $i)) === '') {
+                    continue;
+                }
+
+                $match = [$i, $operator];
+                $i += strlen($operator) - 1;
+                break;
+            }
+        }
+
+        if ($match === null) {
+            return null;
+        }
+
+        [$position, $operator] = $match;
+
+        return [
+            substr($expr, 0, $position),
+            $operator,
+            substr($expr, $position + strlen($operator)),
+        ];
+    }
+
+}
+ . $m[1]);
+            }
+
+            $value = $locals[$m[1]];
+            if (!preg_match_all('/\[([^\]]+)\]/', $m[2], $dims)) {
+                throw new \RuntimeException("Unsupported Oracle array dimension chain: {$expr}");
+            }
+
+            foreach ($dims[1] as $rawKey) {
+                $key = self::evaluateExpression($rawKey, $locals);
+                if (!is_array($value) || !array_key_exists($key, $value)) {
+                    throw new \RuntimeException("Missing Oracle array dimension: {$expr}");
+                }
+                $value = $value[$key];
+            }
+
+            return $value;
         }
 
         if (preg_match('/^\$(\w+)$/', $expr, $m)) {
