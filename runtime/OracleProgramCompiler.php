@@ -485,13 +485,14 @@ final class OracleProgramCompiler
         if (preg_match('/\byield\s+from\b/i', $normalized)) {
             $features['yield_from'] = true;
         }
-        if (preg_match('/\.\.\.\s*\$/', $normalized) || preg_match('/\.\.\.\s*\$[A-Za-z_]/', $normalized)) {
+        $hasArraySpread = (bool) preg_match('/\[[^\]\n]*\.\.\.\s*\$[A-Za-z_]\w*/', $normalized);
+        if (!$hasArraySpread && preg_match('/\.\.\.\s*\$[A-Za-z_]/', $normalized)) {
             $features['argument_unpack'] = true;
         }
         if (preg_match('/\b[A-Za-z_]\w*\s*:\s*(?!:)/', $normalized)) {
             $features['named_argument'] = true;
         }
-        if (preg_match('/\[[^\]\n]*\.\.\.\s*\$[A-Za-z_]\w*/', $normalized)) {
+        if ($hasArraySpread) {
             $features['array_spread'] = true;
         }
         if (preg_match('/\bstatic::(?:class|\$[A-Za-z_]\w*)/', $normalized)) {
