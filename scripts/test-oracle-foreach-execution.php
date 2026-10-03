@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: foreach_key_value foreach_value_scope
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleForeachExecutor.php';
 
