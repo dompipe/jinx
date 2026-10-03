@@ -99,7 +99,13 @@ try {
 }
 
 if ($jinxNumericArithmetic['exit'] !== $phpNumericArithmetic['exit']) {
-    fail('numeric arithmetic straight-line fixture exit differs from PHP');
+    fail(
+        'numeric arithmetic straight-line fixture exit differs from PHP: PHP=' .
+        $phpNumericArithmetic['exit'] . ' JINX=' . $jinxNumericArithmetic['exit'] .
+        ' PHP stdout=' . json_encode($phpNumericArithmetic['stdout']) .
+        ' JINX stdout=' . json_encode($jinxNumericArithmetic['stdout']) .
+        ' JINX stderr=' . json_encode($jinxNumericArithmetic['stderr'])
+    );
 }
 if ($jinxNumericArithmetic['stdout'] !== $phpNumericArithmetic['stdout']) {
     fail(
