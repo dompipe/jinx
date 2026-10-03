@@ -1,0 +1,105 @@
+<?php
+
+declare(strict_types=1);
+
+// Proof facets: third_batch_nested_array_loop function_elseif_chain nested_array_fetch loop_count_condition top_level_dim_assign
+
+require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
+require_once dirname(__DIR__) . '/runtime/OracleForExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
+
+use jinx\oracle\OracleForExecutor;
+use jinx\oracle\OracleFunctionExecutor;
+use jinx\oracle\OracleProgramCompiler;
+
+function fail(string $message): never
+{
+    fwrite(STDERR, "FAIL: {$message}" . PHP_EOL);
+    exit(1);
+}
+
+function run_php(string $fixture): array
+{
+    $ret = null;
+    $errorClass = null;
+    $errorMessage = null;
+    ob_start();
+    try {
+        $ret = require $fixture;
+    } catch (Throwable $e) {
+        $errorClass = $e::class;
+        $errorMessage = $e->getMessage();
+    } finally {
+        $output = (string) ob_get_clean();
+    }
+
+    return [
+        'output' => $output,
+        'return' => $ret,
+        'error_class' => $errorClass,
+        'error_message' => $errorMessage,
+    ];
+}
+
+function run_oracle(string $fixture, string $executor): array
+{
+    try {
+        $program = OracleProgramCompiler::interpretAnyPhpFileToOracleProgram($fixture);
+        $oracle = $executor === 'functions'
+            ? OracleFunctionExecutor::execute($program)
+            : OracleForExecutor::execute($program);
+
+        return [
+            'output' => (string) ($oracle['output'] ?? ''),
+            'return' => $oracle['return'] ?? null,
+            'error_class' => null,
+            'error_message' => null,
+            'program' => $program,
+        ];
+    } catch (Throwable $e) {
+        return [
+            'output' => '',
+            'return' => null,
+            'error_class' => $e::class,
+            'error_message' => $e->getMessage(),
+            'program' => null,
+        ];
+    }
+}
+
+$cases = [
+    'nested-array-loop' => ['fixtures/oracle-executable-third-batch-nested-array-loop.php', 'for'],
+    'function-elseif' => ['fixtures/oracle-executable-third-batch-function-elseif.php', 'functions'],
+];
+
+foreach ($cases as $label => [$relative, $executor]) {
+    $fixture = dirname(__DIR__) . '/' . $relative;
+    $php = run_php($fixture);
+    $oracle = run_oracle($fixture, $executor);
+
+    if ($oracle['error_class'] !== $php['error_class']) {
+        fail($label . ' error class mismatch: PHP=' . var_export($php['error_class'], true) . ' Oracle=' . var_export($oracle['error_class'], true) . ' Oracle message=' . var_export($oracle['error_message'], true));
+    }
+
+    if ($oracle['error_class'] !== null) {
+        if ($oracle['error_message'] !== $php['error_message']) {
+            fail($label . ' error message mismatch');
+        }
+        continue;
+    }
+
+    if ($oracle['output'] !== $php['output']) {
+        fail($label . ' output mismatch: PHP=' . json_encode($php['output']) . ' Oracle=' . json_encode($oracle['output']));
+    }
+
+    if ($oracle['return'] !== $php['return']) {
+        fail($label . ' return mismatch: PHP=' . var_export($php['return'], true) . ' Oracle=' . var_export($oracle['return'], true));
+    }
+
+    $ops = array_column($oracle['program']['statements'] ?? [], 'op');
+    if (in_array('O_RAW_PHP_STMT', $ops, true)) {
+        fail($label . ' still records raw PHP statement');
+    }
+}
+
+echo "PASS: Oracle executes third-batch nested-array and elseif families and matches PHP output/return/error behavior" . PHP_EOL;
