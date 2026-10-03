@@ -382,8 +382,91 @@ final class OracleModernObjectExecutor
     /** @return list<string> */
     private static function splitStatements(string $source): array
     {
-        $parts = self::splitTopLevel($source, ';');
-        return array_values(array_filter(array_map(static fn(string $s): string => trim($s), $parts), static fn(string $s): bool => $s !== ''));
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+
+                if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0) {
+                    $look = $i + 1;
+                    while ($look < $length && ctype_space($source[$look])) {
+                        $look++;
+                    }
+
+                    // Keep "} catch" / "} finally" attached to the try statement.
+                    $tail = substr($source, $look);
+                    if (!preg_match('/^(?:catch|finally)\b/i', $tail)) {
+                        $piece = trim(substr($source, $start, $i - $start + 1));
+                        if ($piece !== '') {
+                            $parts[] = $piece;
+                        }
+                        $start = $i + 1;
+                    }
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($char === ';' && $braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0) {
+                $piece = trim(substr($source, $start, $i - $start));
+                if ($piece !== '') {
+                    $parts[] = $piece;
+                }
+                $start = $i + 1;
+            }
+        }
+
+        $tail = trim(substr($source, $start));
+        if ($tail !== '') {
+            $parts[] = $tail;
+        }
+
+        return $parts;
     }
 
     /** @return list<string> */
