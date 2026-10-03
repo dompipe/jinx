@@ -491,7 +491,7 @@ final class OracleProgramCompiler
         if (preg_match('/\b[A-Za-z_]\w*\s*:\s*(?!:)/', $normalized)) {
             $features['named_argument'] = true;
         }
-        if (preg_match('/(?:^|[=,(])\s*\.\.\./', $normalized)) {
+        if (preg_match('/\[[^\]\n]*\.\.\.\s*\$[A-Za-z_]\w*/', $normalized)) {
             $features['array_spread'] = true;
         }
         if (preg_match('/\bstatic::(?:class|\$[A-Za-z_]\w*)/', $normalized)) {
