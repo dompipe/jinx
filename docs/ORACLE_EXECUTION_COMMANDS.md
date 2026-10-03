@@ -1,5 +1,35 @@
 # Oracle execution commands
 
+## Full-stack verification
+
+To rebuild JINX from source and verify the complete claimed execution surface in one fail-hard run:
+
+```bash
+git pull origin master
+chmod +x scripts/test-full-stack.sh
+./scripts/test-full-stack.sh
+```
+
+The script performs eight gates:
+
+1. Source/diff sanity.
+2. Clean native `./jinx` build plus build-time smokes.
+3. Complete native verification suite.
+4. 40-fixture high-value PHP semantic edge suite.
+5. Direct PHP-vs-JINX differentials, including all-callables differential coverage.
+6. Oracle execution-claim audits, including the non-self-referential proof-source audit in `--strict` mode.
+7. Recent PHP 8+/object/function regression proofs, including named/default/variadic/unpacked calls, `??=`, compound static properties, `__clone()`, modern recording, and backed enum declarations.
+8. A separated PHP-vs-JINX benchmark smoke, writing `build/benchmarks/full-stack-smoke.json`.
+
+The only full-stack success marker is:
+
+```text
+PASS: JINX FULL STACK VERIFIED
+```
+
+Any command failure stops the run immediately, prints the phase that failed, and exits nonzero. Do not treat a partial run as verification.
+
+
 Oracle is the PHP/Zend mirroring and execution layer. PASM/native output stays secondary until the Oracle layer proves behavior against PHP.
 
 Every executable family listed here has a runtime owner and a PHP parity comparison test. The native suite runs a coverage audit that checks the ledger, parity tests, native suite wiring, and this document stay synchronized.
