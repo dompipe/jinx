@@ -90,6 +90,8 @@ if ($php['error_class'] !== null) {
 
 same($oracle['output'], $php['output'], 'Oracle output matches PHP');
 same($oracle['return'], $php['return'], 'Oracle return matches PHP');
+same($oracle['output'], 'JINX:12:4', 'Oracle named-argument output');
+same($oracle['return'], 'JINX:12:4', 'Oracle named-argument return');
 same($oracle['oracle']['kind'] ?? null, 'JINX_ORACLE_EXECUTION', 'Oracle execution kind');
 same($oracle['oracle']['family'] ?? null, 'functions', 'Oracle execution family');
 
@@ -116,7 +118,7 @@ if ($functionDeclCount < 3) {
     fail('fixture did not produce the expected three function declarations');
 }
 
-foreach (['add_score(', 'label_score(', 'build_score(', 'strlen(', 'strtoupper('] as $needle) {
+foreach (['add_score(', 'label_score(', 'build_score(', "build_score(bonus: 5, name: 'jinx', base: 7)", 'strlen(', 'strtoupper('] as $needle) {
     $found = false;
 
     foreach ($oracle['program']['statements'] ?? [] as $statement) {
