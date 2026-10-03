@@ -21,8 +21,10 @@ $root = dirname(__DIR__);
 $families = OracleGeneratedExecutionFamilies::all();
 $mergedFamilies = OracleMergedExecutionFamilies::all();
 $total = OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES;
+$templates = OracleGeneratedExecutionFamilies::UNIQUE_GENERATED_TEMPLATES;
 $lastFamily = sprintf('generated-pure-builtin-%03d', $total);
 $rangeMarker = 'generated-pure-builtin-001 through ' . $lastFamily;
+$templateIndexes = [];
 
 if (count($families) !== $total) {
     fail("expected exactly {$total} generated executable families, found " . count($families));
@@ -54,9 +56,21 @@ for ($i = 1; $i <= $total; $i++) {
     if (($metadata['builtins'] ?? []) === []) {
         fail("{$family} has no builtin facet list");
     }
+    if (($metadata['semantic_coverage'] ?? null) !== 'generated-case-from-25-pure-builtin-templates') {
+        fail("{$family} missing generated semantic coverage marker");
+    }
+    $templateIndex = $metadata['generated_template_index'] ?? null;
+    if (!is_int($templateIndex) || $templateIndex < 0 || $templateIndex >= $templates) {
+        fail("{$family} has invalid generated template index: " . var_export($templateIndex, true));
+    }
+    $templateIndexes[$templateIndex] = true;
 }
 
-foreach (['generated-pure-builtin-001', $lastFamily, $rangeMarker] as $marker) {
+if (count($templateIndexes) !== $templates) {
+    fail("expected {$templates} generated expression templates, found " . count($templateIndexes));
+}
+
+foreach (['generated-pure-builtin-001', $lastFamily, $rangeMarker, "{$templates} unique expression templates"] as $marker) {
     if (!str_contains($docs, $marker)) {
         fail("docs missing marker {$marker}");
     }
@@ -65,9 +79,12 @@ foreach (['generated-pure-builtin-001', $lastFamily, $rangeMarker] as $marker) {
 if (!str_contains($testSource, 'OracleGeneratedExecutionFamilies::TOTAL_GENERATED_FAMILIES')) {
     fail('generated parity test no longer enumerates the manifest family range');
 }
+if (!str_contains($testSource, 'OracleGeneratedExecutionFamilies::UNIQUE_GENERATED_TEMPLATES')) {
+    fail('generated parity test no longer reports the unique generated template count');
+}
 
 if (!class_exists(OracleGeneratedBuiltinExecutor::class)) {
     fail('generated builtin executor is not loadable');
 }
 
-echo "PASS: Oracle generated {$total} family group exposes {$total} executable PHP/Zend parity families merged into the normal family set" . PHP_EOL;
+echo "PASS: Oracle generated {$total} family IDs across {$templates} unique expression templates merged into the normal family set" . PHP_EOL;
