@@ -72,6 +72,7 @@ $scriptTests = [
     'nullsafe object family' => ['scripts/test-oracle-nullsafe-object-execution.php', 'PASS: Oracle executes nullsafe object PHP subset'],
     'readonly property family' => ['scripts/test-oracle-readonly-property-execution.php', 'PASS: Oracle enforces readonly property PHP subset'],
     'magic method family' => ['scripts/test-oracle-magic-method-execution.php', 'PASS: Oracle executes magic method PHP subset'],
+    'generator family' => ['scripts/test-oracle-generator-execution.php', 'PASS: Oracle executes generator PHP subsets'],
     'zend declarations family' => ['scripts/test-oracle-zend-declaration-execution.php', 'PASS: Oracle executes Zend declaration/interface/trait/enum PHP subset'],
     'zend arbitrary family' => ['scripts/test-oracle-zend-arbitrary-execution.php', 'PASS: Oracle executes arbitrary Zend function/control PHP subset'],
     'next ten families' => ['scripts/test-oracle-next-ten-execution.php', 'PASS: Oracle executes next ten PHP families'],
