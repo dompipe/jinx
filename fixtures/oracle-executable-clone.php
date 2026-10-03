@@ -10,6 +10,12 @@ class CloneBox
         $this->total = 1;
     }
 
+    public function __clone()
+    {
+        $this->name = $this->name . '-copy';
+        $this->total += 10;
+    }
+
     public function add($amount)
     {
         $this->total += $amount;
