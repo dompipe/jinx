@@ -414,6 +414,30 @@ final class OracleForExecutor
             return count($value);
         }
 
+        if (preg_match('/^array_sum\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle for-loop array_sum() expects array: {$expr}");
+            }
+            return array_sum($value);
+        }
+
+        if (preg_match('/^max\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle for-loop max() expects array: {$expr}");
+            }
+            return max($value);
+        }
+
+        if (preg_match('/^min\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle for-loop min() expects array: {$expr}");
+            }
+            return min($value);
+        }
+
         if (preg_match('/^json_encode\s*\((.+)\)$/is', $expr, $m)) {
             $encoded = json_encode(self::evaluateExpression($m[1], $locals));
             if ($encoded === false) {
