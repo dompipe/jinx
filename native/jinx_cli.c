@@ -141,8 +141,9 @@ static int command_php_script(int argc, char **argv) {
 
     /*
      * Repository scripts are orchestration code: tests, audits, benchmarks,
-     * and generators launch PHP and ./jinx independently. Keep scripts/*.php
-     * hosted by PHP, but NEVER pass an arbitrary fixture back to PHP.
+     * and generators launch PHP and ./jinx independently. Keep PHP files under
+     * the scripts directory hosted by PHP, but NEVER pass an arbitrary fixture
+     * back to PHP.
      */
     if (strstr(argv[1], "scripts/") != NULL) {
         php_argv = (char **) calloc((size_t) argc + 1u, sizeof(char *));
