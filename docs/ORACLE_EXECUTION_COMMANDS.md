@@ -132,6 +132,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `object-clone` | `scripts/test-oracle-clone-execution.php` |
 | `object-inheritance` | `scripts/test-oracle-object-inheritance-execution.php` |
 | `zend-declarations` | `scripts/test-oracle-zend-declaration-execution.php` |
+| `zend-arbitrary` | `scripts/test-oracle-zend-arbitrary-execution.php` |
 
 String interpolation has additional facet coverage for evaluator-level PHP forms that are not all represented in the straight-line source fixture:
 

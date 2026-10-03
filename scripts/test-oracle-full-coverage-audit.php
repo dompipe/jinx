@@ -27,6 +27,7 @@ require_once dirname(__DIR__) . '/runtime/OracleInstanceofExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleCloneExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleObjectInheritanceExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleZendDeclarationExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleZendArbitraryExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleScalarBuiltinExecutor.php';

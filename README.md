@@ -155,6 +155,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx scripts/test-oracle-instanceof-execution.php
 ./jinx scripts/test-oracle-clone-execution.php
 ./jinx scripts/test-oracle-zend-declaration-execution.php
+./jinx scripts/test-oracle-zend-arbitrary-execution.php
 ./jinx scripts/test-oracle-execution-families.php
 ./jinx scripts/test-oracle-jinx-island-server-execution.php
 php scripts/report-php-families.php
