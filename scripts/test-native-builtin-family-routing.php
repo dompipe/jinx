@@ -41,7 +41,7 @@ function run_case(string $name, string $body): string
 }
 
 $sha1 = run_case('sha1', "echo json_encode(sha1('jinx-oracle')) . \"\\n\";");
-if ($sha1 !== ""fb9ca87b724d2bd3e3e1268de0662e64d08177f4"\n") {
+if ($sha1 !== '"fb9ca87b724d2bd3e3e1268de0662e64d08177f4"' . "\n") {
     fail('sha1 routing mismatch: ' . json_encode($sha1));
 }
 
