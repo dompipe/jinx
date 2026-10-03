@@ -261,9 +261,12 @@ final class OracleProgramCompiler
             $kind = 'O_TRAIT_DECL';
             $features['name'] = $m[1];
             self::addDeclarationFeatures($normalized, $features);
-        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*enum\s+(' . $identifier . ')\b/i', $normalized, $m)) {
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*enum\s+(' . $identifier . ')(?:\s*:\s*(string|int))?\b/i', $normalized, $m)) {
             $kind = 'O_ENUM_DECL';
             $features['name'] = $m[1];
+            if (isset($m[2]) && $m[2] !== '') {
+                $features['backing_type'] = strtolower($m[2]);
+            }
             self::addDeclarationFeatures($normalized, $features);
         } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*(?:(?:abstract|final|readonly)\s+)*class\s+(' . $identifier . ')\b/i', $normalized, $m)) {
             $kind = 'O_CLASS_DECL';
@@ -276,9 +279,15 @@ final class OracleProgramCompiler
             self::addFunctionSignatureFeatures($normalized, $features);
         } elseif (preg_match('/^static\s+\$\w+/i', $normalized)) {
             $kind = 'O_STATIC_LOCAL';
-        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*(?:(?:public|protected|private|static|readonly)\s+)+(?:\??' . $identifier . '\s+)?\$(\w+)/i', $normalized, $m)) {
+        } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*(?:(?:public|protected|private|static|readonly)\s+)+(?:(\??' . $identifier . '(?:\s*[|&]\s*\??' . $identifier . ')*)\s+)?\$(\w+)/i', $normalized, $m)) {
             $kind = 'O_PROPERTY_DECL';
-            $features['name'] = $m[1];
+            $features['name'] = $m[2];
+            if (isset($m[1]) && trim($m[1]) !== '') {
+                $features['declared_type'] = preg_replace('/\s+/', '', trim($m[1]));
+                $features['union_property_type'] = str_contains((string) $features['declared_type'], '|');
+                $features['intersection_property_type'] = str_contains((string) $features['declared_type'], '&');
+                $features['nullable_property_type'] = str_starts_with((string) $features['declared_type'], '?');
+            }
             self::addDeclarationFeatures($normalized, $features);
         } elseif (preg_match('/^(?:(?:public|protected|private|final)\s+)*const\s+([A-Za-z_]\w*)\b/i', $normalized, $m)) {
             $kind = 'O_CLASS_CONST';
