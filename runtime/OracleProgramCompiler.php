@@ -388,6 +388,8 @@ final class OracleProgramCompiler
             $kind = 'O_COALESCE';
         } elseif (preg_match('/^\$\w+(?:\[[^\]]*\])+\s*=/', $normalized)) {
             $kind = 'O_DIM_ASSIGN';
+        } elseif (preg_match('/^\$\w+\s*=/', $normalized)) {
+            $kind = 'O_ASSIGN';
         } elseif (preg_match('/\?.*:/', $normalized)) {
             $kind = 'O_TERNARY';
         } elseif (preg_match('/\bfn\s*\(/i', $normalized)) {
@@ -432,8 +434,6 @@ final class OracleProgramCompiler
             $kind = 'O_COMPOUND_ASSIGN';
         } elseif (preg_match('/=\s*\$\w+(?:\[[^\]]+\])+/', $normalized)) {
             $kind = 'O_DIM_FETCH';
-        } elseif (preg_match('/^\$\w+\s*=/i', $normalized)) {
-            $kind = 'O_ASSIGN';
         } elseif (preg_match('/^try\b/i', $normalized)) {
             $kind = 'O_TRY';
         } elseif ($normalized === '{') {
