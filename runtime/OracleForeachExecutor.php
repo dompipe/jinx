@@ -290,14 +290,25 @@ final class OracleForeachExecutor
 
         foreach ($dims as $i => $dimExpr) {
             if ($i === $last) {
+                if ($dimExpr === '') {
+                    $ref[] = $value;
+                    return;
+                }
+
                 $ref[self::toArrayKey(self::evaluateExpression($dimExpr, $locals))] = $value;
                 return;
             }
 
-            $key = self::toArrayKey(self::evaluateExpression($dimExpr, $locals));
-            if (!array_key_exists($key, $ref) || !is_array($ref[$key])) {
-                $ref[$key] = [];
+            if ($dimExpr === '') {
+                $ref[] = [];
+                $key = array_key_last($ref);
+            } else {
+                $key = self::toArrayKey(self::evaluateExpression($dimExpr, $locals));
+                if (!array_key_exists($key, $ref) || !is_array($ref[$key])) {
+                    $ref[$key] = [];
+                }
             }
+
             $ref =& $ref[$key];
         }
     }
@@ -305,11 +316,11 @@ final class OracleForeachExecutor
     /** @return array{0:string,1:list<string>} */
     private static function parseTarget(string $target): array
     {
-        if (!preg_match('/^\$(\w+)((?:\[[^\]]+\])*)$/', trim($target), $m)) {
+        if (!preg_match('/^\$(\w+)((?:\[[^\]]*\])*)$/', trim($target), $m)) {
             throw new \RuntimeException("Unsupported Oracle array target: {$target}");
         }
 
-        preg_match_all('/\[([^\]]+)\]/', $m[2], $matches);
+        preg_match_all('/\[([^\]]*)\]/', $m[2], $matches);
 
         return [$m[1], $matches[1]];
     }
@@ -318,6 +329,10 @@ final class OracleForeachExecutor
     private static function evaluateExpression(string $expression, array &$locals): mixed
     {
         $expr = trim(rtrim(trim($expression), ';'));
+
+        if (str_starts_with($expr, '[') && str_ends_with($expr, ']')) {
+            return self::evaluateArrayLiteral(substr($expr, 1, -1), $locals);
+        }
 
         if ($expr === '[]') {
             return [];
@@ -361,6 +376,35 @@ final class OracleForeachExecutor
             }
         }
 
+        if (preg_match('/^count\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value) && !$value instanceof \Countable) {
+                throw new \RuntimeException("Oracle foreach count() expects countable value: {$expr}");
+            }
+            return count($value);
+        }
+
+        if (preg_match('/^implode\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) !== 2) {
+                throw new \RuntimeException("Oracle foreach implode() expects 2 arguments: {$expr}");
+            }
+            $glue = (string) self::evaluateExpression($args[0], $locals);
+            $values = self::evaluateExpression($args[1], $locals);
+            if (!is_array($values)) {
+                throw new \RuntimeException("Oracle foreach implode() expects array: {$expr}");
+            }
+            return implode($glue, $values);
+        }
+
+        if (preg_match('/^json_encode\s*\((.+)\)$/is', $expr, $m)) {
+            $encoded = json_encode(self::evaluateExpression($m[1], $locals));
+            if ($encoded === false) {
+                throw new \RuntimeException('Oracle foreach json_encode() failed');
+            }
+            return $encoded;
+        }
+
         if (preg_match('/^-?\d+$/', $expr)) {
             return (int) $expr;
         }
@@ -394,6 +438,98 @@ final class OracleForeachExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle foreach expression: {$expr}");
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function evaluateArrayLiteral(string $body, array &$locals): array
+    {
+        $body = trim($body);
+        if ($body === '') {
+            return [];
+        }
+
+        $result = [];
+        foreach (self::splitTopLevelList($body, ',') as $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            $pair = self::splitTopLevelToken($item, '=>');
+            if ($pair !== null) {
+                [$keyExpr, $valueExpr] = $pair;
+                $key = self::evaluateExpression($keyExpr, $locals);
+                if (!is_int($key) && !is_string($key)) {
+                    throw new \RuntimeException("Unsupported Oracle foreach array key: {$keyExpr}");
+                }
+                $result[$key] = self::evaluateExpression($valueExpr, $locals);
+                continue;
+            }
+
+            $result[] = self::evaluateExpression($item, $locals);
+        }
+
+        return $result;
+    }
+
+    /** @return list<string> */
+    private static function splitTopLevelList(string $source, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $depth = 0;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && substr($source, $i, strlen($delimiter)) === $delimiter) {
+                $parts[] = substr($source, $start, $i - $start);
+                $start = $i + strlen($delimiter);
+                $i += strlen($delimiter) - 1;
+            }
+        }
+
+        $parts[] = substr($source, $start);
+        return $parts;
+    }
+
+    /** @return array{0:string,1:string}|null */
+    private static function splitTopLevelToken(string $source, string $token): ?array
+    {
+        $parts = self::splitTopLevelList($source, $token);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        return [$parts[0], $parts[1]];
     }
 
     /** @param array<string,mixed> $locals */
