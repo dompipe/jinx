@@ -26,6 +26,9 @@ $rows = [['value' => 3]];
 $idx = 0;
 $sum = 0;
 $sum += $rows[$idx]['value'];
+$total = 0;
+$n = 2;
+$total += ($n % 2 === 0) ? ($n * 2) : $n;
 $status = $value === 'jinx' ? 'yes' : 'no';
 PHP;
 
@@ -58,8 +61,8 @@ if (count(array_filter($ops, static fn(string $op): bool => $op === 'O_ARROW_FUN
     fail('expected exactly one O_ARROW_FUNCTION');
 }
 
-if (count(array_filter($ops, static fn(string $op): bool => $op === 'O_COMPOUND_ASSIGN')) !== 1) {
-    fail('expected exactly one O_COMPOUND_ASSIGN');
+if (count(array_filter($ops, static fn(string $op): bool => $op === 'O_COMPOUND_ASSIGN')) !== 2) {
+    fail('expected exactly two O_COMPOUND_ASSIGN records');
 }
 
 echo "PASS: Oracle classifier preserves specialized assignment families before generic assignment" . PHP_EOL;
