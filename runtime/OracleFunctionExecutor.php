@@ -48,10 +48,11 @@ final class OracleFunctionExecutor
             }
 
             $source = (string) ($statement['source'] ?? '');
-            [$name, $params] = self::parseFunctionSignature($source);
+            [$name, $params, $defaults] = self::parseFunctionSignature($source);
             $index++;
             $functions[strtolower($name)] = [
                 'params' => $params,
+                'defaults' => $defaults,
                 'body' => self::collectBlock($statements, $index),
             ];
         }
@@ -60,7 +61,7 @@ final class OracleFunctionExecutor
     }
 
     /**
-     * @return array{0:string,1:list<string>}
+     * @return array{0:string,1:list<string>,2:array<string,string>}
      */
     private static function parseFunctionSignature(string $source): array
     {
@@ -69,14 +70,19 @@ final class OracleFunctionExecutor
         }
 
         $params = [];
-        foreach (array_filter(array_map('trim', explode(',', $m[2])), static fn (string $p): bool => $p !== '') as $param) {
+        $defaults = [];
+        foreach (self::splitArguments($m[2]) as $param) {
             if (!preg_match('/\$(\w+)\b/', $param, $pm)) {
                 throw new \RuntimeException("Unsupported Oracle function parameter: {$param}");
             }
-            $params[] = $pm[1];
+            $name = $pm[1];
+            $params[] = $name;
+            if (preg_match('/=\s*(.+)$/s', $param, $defaultMatch)) {
+                $defaults[$name] = trim($defaultMatch[1]);
+            }
         }
 
-        return [$m[1], $params];
+        return [$m[1], $params, $defaults];
     }
 
     /**
@@ -369,9 +375,15 @@ final class OracleFunctionExecutor
         }
 
         foreach ($function['params'] as $param) {
-            if (!array_key_exists($param, $locals)) {
-                throw new \RuntimeException("Oracle function {$name} missing required argument {$param}");
+            if (array_key_exists($param, $locals)) {
+                continue;
             }
+            if (array_key_exists($param, $function['defaults'] ?? [])) {
+                $defaultLocals = [];
+                $locals[$param] = self::evaluateExpression((string) $function['defaults'][$param], $defaultLocals, $functions, $executed);
+                continue;
+            }
+            throw new \RuntimeException("Oracle function {$name} missing required argument {$param}");
         }
 
         $output = '';
