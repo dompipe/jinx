@@ -65,7 +65,7 @@ final class OracleProgramCompiler
      *   O_CLASS_DECL / O_METHOD_DECL / O_PROPERTY_DECL
      *   O_NAMESPACE / O_USE / O_TRAIT_DECL / O_INTERFACE_DECL / O_ENUM_DECL
      *   O_SWITCH / O_MATCH / O_GLOBAL / O_STATIC_LOCAL
-     *   O_NEW / O_METHOD_CALL / O_STATIC_CALL / O_PROPERTY_FETCH
+     *   O_NEW / O_METHOD_CALL / O_STATIC_CALL / O_STATIC_PROPERTY_ASSIGN / O_STATIC_PROPERTY_FETCH / O_PROPERTY_FETCH
      *   O_ECHO / O_PRINT / O_EXIT / O_CLOSURE / O_ARROW_FUNCTION
      *   O_DIM_ASSIGN / O_DIM_FETCH / O_COALESCE / O_TERNARY
      *   O_INC / O_DEC / O_COMPOUND_ASSIGN / O_YIELD / O_GOTO / O_LABEL
@@ -372,6 +372,10 @@ final class OracleProgramCompiler
             $features['class'] = $m[1];
         } elseif (preg_match('/' . $identifier . '::\w+\s*\(/', $normalized)) {
             $kind = 'O_STATIC_CALL';
+        } elseif (preg_match('/^(' . $identifier . ')::\$(\w+)\s*=/', $normalized, $m)) {
+            $kind = 'O_STATIC_PROPERTY_ASSIGN';
+            $features['class'] = $m[1];
+            $features['property'] = $m[2];
         } elseif (preg_match('/' . $identifier . '::\$\w+\b/', $normalized)) {
             $kind = 'O_STATIC_PROPERTY_FETCH';
         } elseif (preg_match('/->\w+\s*\(/', $normalized)) {
@@ -478,6 +482,7 @@ final class OracleProgramCompiler
             'O_INSTANCEOF' => 'instanceof',
             'O_METHOD_CALL' => 'method_call',
             'O_STATIC_CALL' => 'static_call',
+            'O_STATIC_PROPERTY_ASSIGN' => 'static_property_assign',
             'O_STATIC_PROPERTY_FETCH' => 'static_property_fetch',
             'O_PROPERTY_FETCH' => 'property_fetch',
             'O_DIM_ASSIGN' => 'dim_assign',
