@@ -211,6 +211,10 @@ final class OracleStraightLineExecutor
             return [];
         }
 
+        if (str_starts_with($expr, '[') && str_ends_with($expr, ']')) {
+            return self::evaluateArrayLiteral(substr($expr, 1, -1), $locals);
+        }
+
         if (preg_match('/^\((.+)\)$/', $expr, $m)) {
             return self::evaluateExpression($m[1], $locals);
         }
@@ -242,8 +246,53 @@ final class OracleStraightLineExecutor
             return strlen((string) self::evaluateExpression($m[1], $locals));
         }
 
+        if (preg_match('/^trim\s*\((.+)\)$/i', $expr, $m)) {
+            return trim((string) self::evaluateExpression($m[1], $locals));
+        }
+
         if (preg_match('/^strtoupper\s*\((.+)\)$/i', $expr, $m)) {
             return strtoupper((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^base64_encode\s*\((.+)\)$/i', $expr, $m)) {
+            return base64_encode((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^md5\s*\((.+)\)$/i', $expr, $m)) {
+            return md5((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^count\s*\((.+)\)$/i', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value) && !$value instanceof \Countable) {
+                throw new \RuntimeException("Oracle count() expects countable value: {$expr}");
+            }
+            return count($value);
+        }
+
+        if (preg_match('/^array_sum\s*\((.+)\)$/i', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle array_sum() expects array: {$expr}");
+            }
+            return array_sum($value);
+        }
+
+        if (preg_match('/^array_product\s*\((.+)\)$/i', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle array_product() expects array: {$expr}");
+            }
+            return array_product($value);
+        }
+
+        if (preg_match('/^json_encode\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            $encoded = json_encode($value);
+            if ($encoded === false) {
+                throw new \RuntimeException('Oracle json_encode() failed');
+            }
+            return $encoded;
         }
 
         if (preg_match('/^-?\d+$/', $expr)) {
@@ -290,6 +339,98 @@ final class OracleStraightLineExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle expression: {$expr}");
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function evaluateArrayLiteral(string $body, array &$locals): array
+    {
+        $body = trim($body);
+        if ($body === '') {
+            return [];
+        }
+
+        $result = [];
+        foreach (self::splitTopLevelList($body, ',') as $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            $pair = self::splitTopLevelToken($item, '=>');
+            if ($pair !== null) {
+                [$keyExpr, $valueExpr] = $pair;
+                $key = self::evaluateExpression($keyExpr, $locals);
+                if (!is_int($key) && !is_string($key)) {
+                    throw new \RuntimeException("Unsupported Oracle array key: {$keyExpr}");
+                }
+                $result[$key] = self::evaluateExpression($valueExpr, $locals);
+                continue;
+            }
+
+            $result[] = self::evaluateExpression($item, $locals);
+        }
+
+        return $result;
+    }
+
+    /** @return list<string> */
+    private static function splitTopLevelList(string $source, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $depth = 0;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && substr($source, $i, strlen($delimiter)) === $delimiter) {
+                $parts[] = substr($source, $start, $i - $start);
+                $start = $i + strlen($delimiter);
+                $i += strlen($delimiter) - 1;
+            }
+        }
+
+        $parts[] = substr($source, $start);
+        return $parts;
+    }
+
+    /** @return array{0:string,1:string}|null */
+    private static function splitTopLevelToken(string $source, string $token): ?array
+    {
+        $parts = self::splitTopLevelList($source, $token);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        return [$parts[0], $parts[1]];
     }
 
     /** @param array<string,mixed> $locals */
