@@ -307,6 +307,10 @@ final class OracleExpressionBatchExecutor
             return null;
         }
 
+        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
+            return (float) $expr;
+        }
+
         if (preg_match('/^\(\s*(int|string|bool|float|array)\s*\)\s*(.+)$/i', $expr, $m)) {
             $value = self::evaluate($m[2], $locals, $program);
             return match (strtolower($m[1])) {
@@ -391,9 +395,6 @@ final class OracleExpressionBatchExecutor
         }
         if (preg_match('/^-?\d+$/', $expr)) {
             return (int) $expr;
-        }
-        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
-            return (float) $expr;
         }
         if (preg_match('/^([\'\"])(.*)\1$/', $expr, $m)) {
             return stripcslashes($m[2]);
