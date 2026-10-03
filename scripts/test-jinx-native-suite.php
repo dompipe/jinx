@@ -115,6 +115,7 @@ $scriptTests = [
     'date time builtin families' => ['scripts/test-oracle-date-time-builtin-execution.php', 'PASS: Oracle executes date/time builtin PHP families'],
     'introspection builtin families' => ['scripts/test-oracle-introspection-builtin-execution.php', 'PASS: Oracle executes introspection builtin PHP families'],
     'program compiler' => ['scripts/test-oracle-program-compiler.php', 'PASS: OracleProgramCompiler interprets PHP'],
+    'modern php oracle recording' => ['scripts/test-oracle-modern-php-recording.php', 'PASS: Oracle modern PHP recorder distinguishes 13 high-risk semantic constructs without claiming execution'],
     'web back-page bridge' => ['scripts/test-web-back-page-bridge.php', 'PASS: WebBackPageBridge handles request/response envelopes'],
     'web window index' => ['scripts/test-web-window-index.php', 'PASS: WebWindowIndex emits JINX stream runtime, no-JS registrar DOM frames, and no-JS live islands'],
     'oracle jinx island server' => ['scripts/test-oracle-jinx-island-server-execution.php', 'PASS: Oracle JINX island server executes route table, back-page API state, iframe island render, and EventSource invalidation'],
