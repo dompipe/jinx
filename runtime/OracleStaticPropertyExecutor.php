@@ -28,6 +28,23 @@ final class OracleStaticPropertyExecutor
                 continue;
             }
 
+            if (preg_match('/^(\w+)::\$(\w+)\s*(\+=|-=|\*=|\/=|%=|\.=)\s*(.+)$/', $statement, $m)) {
+                $current = self::getStaticProperty($classes, $m[1], $m[2]);
+                $rhs = self::evaluate($m[4], $locals, $classes);
+                $value = match ($m[3]) {
+                    '+=' => $current + $rhs,
+                    '-=' => $current - $rhs,
+                    '*=' => $current * $rhs,
+                    '/=' => $current / $rhs,
+                    '%=' => $current % $rhs,
+                    '.=' => self::phpString($current) . self::phpString($rhs),
+                    default => throw new \RuntimeException("Unsupported Oracle static-property compound operator: {$m[3]}"),
+                };
+                self::setStaticProperty($classes, $m[1], $m[2], $value);
+                $executed++;
+                continue;
+            }
+
             if (preg_match('/^(\w+)::\$(\w+)\s*=\s*(.+)$/', $statement, $m)) {
                 self::setStaticProperty($classes, $m[1], $m[2], self::evaluate($m[3], $locals, $classes));
                 $executed++;
