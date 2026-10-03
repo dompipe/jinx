@@ -6,6 +6,17 @@ $root = dirname(__DIR__);
 $jinx = $root . '/jinx';
 $supported = $root . '/fixtures/oracle-executable-straightline.php';
 
+$numericArithmetic = tempnam(sys_get_temp_dir(), 'jinx-numeric-arithmetic-');
+if ($numericArithmetic === false) {
+    fail('could not allocate numeric arithmetic Oracle fixture');
+}
+$numericArithmeticFixture = $numericArithmetic . '.php';
+@unlink($numericArithmetic);
+file_put_contents(
+    $numericArithmeticFixture,
+    "<?php\ndeclare(strict_types=1);\n\$a = 8;\n\$b = 3;\necho json_encode(['case' => 1, 'value' => ((\$a * \$b) + (\$a % \$b) - \$b)]) . \"\\n\";\n"
+);
+
 $stringBuiltins = tempnam(sys_get_temp_dir(), 'jinx-string-builtins-');
 if ($stringBuiltins === false) {
     fail('could not allocate string builtin Oracle fixture');
@@ -78,6 +89,26 @@ if ($jinxResult['stdout'] !== $php['stdout']) {
 }
 if ($jinxResult['stderr'] !== '') {
     fail('supported Oracle fixture emitted stderr: ' . json_encode($jinxResult['stderr']));
+}
+
+try {
+    $phpNumericArithmetic = run_process([PHP_BINARY, $numericArithmeticFixture]);
+    $jinxNumericArithmetic = run_process([$jinx, $numericArithmeticFixture]);
+} finally {
+    @unlink($numericArithmeticFixture);
+}
+
+if ($jinxNumericArithmetic['exit'] !== $phpNumericArithmetic['exit']) {
+    fail('numeric arithmetic straight-line fixture exit differs from PHP');
+}
+if ($jinxNumericArithmetic['stdout'] !== $phpNumericArithmetic['stdout']) {
+    fail(
+        'numeric arithmetic straight-line fixture output differs from PHP: PHP=' .
+        json_encode($phpNumericArithmetic['stdout']) . ' JINX=' . json_encode($jinxNumericArithmetic['stdout'])
+    );
+}
+if ($jinxNumericArithmetic['stderr'] !== '') {
+    fail('numeric arithmetic straight-line fixture emitted stderr: ' . json_encode($jinxNumericArithmetic['stderr']));
 }
 
 try {
