@@ -66,7 +66,11 @@ final class OracleFunctionExecutor
      */
     private static function parseFunctionSignature(string $source): array
     {
-        if (!preg_match('/^function\s+(\w+)\s*\(([^)]*)\)\s*\{?$/i', trim($source), $m)) {
+        if (!preg_match(
+            '/^function\s+(\w+)\s*\(([^)]*)\)\s*(?::\s*([?A-Za-z_\\\\][A-Za-z0-9_\\\\|&?]*))?\s*\{?$/i',
+            trim($source),
+            $m
+        )) {
             throw new \RuntimeException("Unsupported Oracle function declaration: {$source}");
         }
 
@@ -273,14 +277,21 @@ final class OracleFunctionExecutor
             return self::evaluateExpression(substr($expr, 1, -1), $locals, $functions, $executed);
         }
 
-        foreach (['+', '.'] as $operator) {
+        foreach (['+', '-', '*', '/', '%', '.'] as $operator) {
             $parts = self::splitTopLevelBinary($expr, $operator);
             if ($parts !== null) {
                 [$leftExpr, $rightExpr] = $parts;
                 $left = self::evaluateExpression($leftExpr, $locals, $functions, $executed);
                 $right = self::evaluateExpression($rightExpr, $locals, $functions, $executed);
 
-                return $operator === '+' ? $left + $right : (string) $left . (string) $right;
+                return match ($operator) {
+                    '+' => $left + $right,
+                    '-' => $left - $right,
+                    '*' => $left * $right,
+                    '/' => $left / $right,
+                    '%' => $left % $right,
+                    '.' => (string) $left . (string) $right,
+                };
             }
         }
 
