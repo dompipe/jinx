@@ -22,6 +22,10 @@ $decorate = function ($text) use ($suffix) {
     return $text . $suffix;
 };
 $summarize = fn ($text) => $text . ':' . strlen($text);
+$rows = [['value' => 3]];
+$idx = 0;
+$sum = 0;
+$sum += $rows[$idx]['value'];
 $status = $value === 'jinx' ? 'yes' : 'no';
 PHP;
 
@@ -41,7 +45,7 @@ try {
 
 $ops = array_column($program['statements'] ?? [], 'op');
 
-foreach (['O_DIM_FETCH', 'O_CLOSURE', 'O_ARROW_FUNCTION', 'O_ASSIGN'] as $op) {
+foreach (['O_DIM_FETCH', 'O_CLOSURE', 'O_ARROW_FUNCTION', 'O_COMPOUND_ASSIGN', 'O_ASSIGN'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("classifier regression missing {$op}: " . json_encode($ops));
     }
@@ -52,6 +56,10 @@ if (count(array_filter($ops, static fn(string $op): bool => $op === 'O_CLOSURE')
 }
 if (count(array_filter($ops, static fn(string $op): bool => $op === 'O_ARROW_FUNCTION')) !== 1) {
     fail('expected exactly one O_ARROW_FUNCTION');
+}
+
+if (count(array_filter($ops, static fn(string $op): bool => $op === 'O_COMPOUND_ASSIGN')) !== 1) {
+    fail('expected exactly one O_COMPOUND_ASSIGN');
 }
 
 echo "PASS: Oracle classifier preserves specialized assignment families before generic assignment" . PHP_EOL;
