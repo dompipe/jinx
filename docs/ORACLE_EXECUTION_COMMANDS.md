@@ -306,3 +306,22 @@ The structural proof covers namespace blocks, enum cases, `yield from`, `??=`, d
 These records are **not executable-family claims** by themselves. Promotion still requires a runtime owner plus PHP-vs-Oracle behavior parity.
 
 Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
+
+
+## Native `./jinx file.php` routing
+
+Repository test-driver scripts under `scripts/test-*.php` remain PHP-hosted orchestration so they can launch PHP and JINX independently.
+
+Normal PHP inputs are different: `./jinx path/to/fixture.php` routes the target through `scripts/run-jinx-oracle-script.php`, which records the target into Oracle/JINX and dispatches a registered executable family. Unsupported scripts fail explicitly; they are not executed by PHP as a fallback.
+
+Regression proof:
+
+```bash
+./jinx scripts/test-native-jinx-script-routing.php
+```
+
+Expected marker:
+
+```text
+PASS: native ./jinx runs supported PHP fixtures through Oracle and refuses PHP fallback for unsupported scripts
+```
