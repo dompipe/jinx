@@ -1,5 +1,6 @@
 #include "jinx_oracle_native_script.h"
 #include "jinx_builtin_dispatch.h"
+#include "jinx_oracle_zend_array_carrier.h"
 #include <ctype.h>
 #include <limits.h>
 
@@ -14,13 +15,20 @@ typedef struct NativeVariable {
     struct NativeVariable *next;
 } NativeVariable;
 
+typedef struct NativeArray {
+    JinxZendArray *array;
+    struct NativeArray *next;
+} NativeArray;
+
 typedef struct NativeRuntime {
     NativeAllocation *allocations;
     NativeVariable *variables;
+    NativeArray *arrays;
     char *included[128];
     size_t included_count;
     unsigned depth;
     const char *error;
+    int started;
 } NativeRuntime;
 
 typedef struct NativeParser {
@@ -35,7 +43,7 @@ typedef struct NativeParser {
     unsigned expression_depth;
 } NativeParser;
 
-enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL };
+enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE };
 enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5 };
 
 static void *native_alloc(NativeRuntime *runtime, size_t size) {
@@ -75,6 +83,32 @@ static void native_next(NativeParser *parser) {
     }
     if (!*p || runtime->error) {
         parser->kind = N_END;
+    } else if (!strncmp(p, "<<<'", 4)) {
+        const char *label = p + 4;
+        const char *quote = strchr(label, '\'');
+        if (!quote || quote[1] != '\n' || quote == label || quote - label > 120) {
+            runtime->error = "unsupported native nowdoc header";
+            parser->kind = N_END;
+            return;
+        }
+        char marker[128];
+        size_t length = (size_t)(quote - label);
+        marker[0] = '\n';
+        memcpy(marker + 1, label, length);
+        marker[length + 1] = '\0';
+        const char *body = quote + 2;
+        const char *end = strstr(body, marker);
+        if (!end || (isalnum((unsigned char)end[length + 1]) || end[length + 1] == '_')) {
+            runtime->error = "unterminated native nowdoc";
+            parser->kind = N_END;
+            return;
+        }
+        parser->literal = jinx_value_string(native_copy(runtime, body, (size_t)(end - body)), (uint32_t)(end - body));
+        parser->kind = N_LITERAL;
+        p = end + length + 1;
+    } else if (!strncmp(p, "=>", 2) || !strncmp(p, "??", 2)) {
+        parser->kind = *p == '=' ? N_ARROW : N_COALESCE;
+        p += 2;
     } else if (*p == '\'' || *p == '"') {
         char quote = *p++;
         char *buffer = native_alloc(runtime, strlen(p) + 1);
@@ -100,7 +134,11 @@ static void native_next(NativeParser *parser) {
         parser->kind = N_LITERAL;
     } else if (isdigit((unsigned char)*p)) {
         char *end;
+        errno = 0;
         parser->literal = jinx_value_int(strtoll(p, &end, 10));
+        if (errno == ERANGE) runtime->error = "native integer literal overflow";
+        if ((*end == '.' && isdigit((unsigned char)end[1])) || *end == 'e' || *end == 'E')
+            runtime->error = "floating-point literals are not yet native";
         p = end;
         parser->kind = N_LITERAL;
     } else if (*p == '$' || isalpha((unsigned char)*p) || *p == '_') {
@@ -160,6 +198,63 @@ static const char *native_text(NativeParser *parser, JinxValue value, size_t *le
 static JinxValue native_expression(NativeParser *parser, int minimum);
 static int native_file(NativeRuntime *runtime, const char *path, int once, JinxValue *result);
 
+static JinxZendValue native_zend_value(JinxValue value) {
+    if (value.type == N_VALUE_INT) return jinx_zend_long(value.as.i64);
+    if (value.type == N_VALUE_BOOL) return jinx_zend_bool((int)value.as.i64);
+    if (value.type == N_VALUE_STRING) return jinx_zend_string_value(jinx_zend_string_new(value.as.ptr, value.flags));
+    if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) return jinx_zend_array_value(value.as.ptr);
+    return jinx_zend_null();
+}
+
+static JinxValue native_array(NativeParser *parser) {
+    NativeRuntime *runtime = parser->runtime;
+    NativeArray *owner = NULL;
+    JinxZendArray *array = NULL;
+    if (!parser->checking) {
+        owner = native_alloc(runtime, sizeof(*owner));
+        array = jinx_zend_array_new_packed(4);
+        if (!owner || !array) {
+            if (array) jinx_zend_array_release(array);
+            runtime->error = "native array allocation failed";
+            return jinx_value_null();
+        }
+        owner->array = array;
+        owner->next = runtime->arrays;
+        runtime->arrays = owner;
+    }
+    native_expect(parser, '[');
+    while (parser->kind != ']' && !runtime->error) {
+        JinxValue key = jinx_value_null();
+        JinxValue value = native_expression(parser, 0);
+        int keyed = native_accept(parser, N_ARROW);
+        if (keyed) { key = value; value = native_expression(parser, 0); }
+        if (!parser->checking && !runtime->error) {
+            JinxZendValue converted = native_zend_value(value);
+            int ok;
+            if (!keyed) ok = jinx_zend_array_append(array, converted);
+            else if (key.type == N_VALUE_STRING) ok = jinx_zend_array_add_symtable(array, key.as.ptr, key.flags, converted);
+            else if (key.type == N_VALUE_INT && key.as.i64 >= 0) ok = jinx_zend_array_add_index(array, (size_t)key.as.i64, converted);
+            else { ok = 0; runtime->error = "native array key type is unsupported"; }
+            if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+            if (!ok) runtime->error = "native array insertion failed";
+        }
+        if (!native_accept(parser, ',')) break;
+    }
+    native_expect(parser, ']');
+    return array ? jinx_oracle_zend_array_value_borrowed(array) : jinx_value_null();
+}
+
+static int native_builtin_admitted(const char *name) {
+    static const char *names[] = {
+        "strlen", "strtoupper", "strtolower", "abs", "json_encode",
+        "file_put_contents", "unlink", "tempnam", "sys_get_temp_dir",
+        "fopen", "fwrite", "rewind", "fread", "fclose", "file_exists",
+        "file_get_contents", "gettype", "error_reporting", NULL
+    };
+    for (size_t i = 0; names[i]; i++) if (!strcmp(name, names[i])) return 1;
+    return 0;
+}
+
 static JinxValue native_primary(NativeParser *parser) {
     NativeRuntime *runtime = parser->runtime;
     JinxValue value = jinx_value_null();
@@ -167,10 +262,27 @@ static JinxValue native_primary(NativeParser *parser) {
     if (parser->kind == N_LITERAL) {
         value = parser->literal;
         native_next(parser);
+    } else if (parser->kind == '[') {
+        value = native_array(parser);
     } else if (parser->kind == N_VAR) {
+        int globals = !strcmp(parser->token, "GLOBALS");
         NativeVariable *variable = native_variable(runtime, parser->token);
         if (variable) value = variable->value;
         native_next(parser);
+        if (globals && native_accept(parser, '[')) {
+            JinxValue key = native_expression(parser, 0);
+            native_expect(parser, ']');
+            if (!parser->checking && !runtime->error) {
+                if (key.type != N_VALUE_STRING) runtime->error = "native GLOBALS key must be string";
+                else {
+                    variable = native_variable(runtime, key.as.ptr);
+                    if (variable) value = variable->value;
+                }
+            }
+        }
+    } else if (native_accept(parser, '@')) {
+        /* Admitted filesystem handlers return false without host PHP warnings. */
+        value = native_primary(parser);
     } else if (native_accept(parser, '(')) {
         value = native_expression(parser, 0);
         native_expect(parser, ')');
@@ -188,6 +300,7 @@ static JinxValue native_primary(NativeParser *parser) {
         else if (!strcmp(name, "true")) value = jinx_value_bool(1);
         else if (!strcmp(name, "false")) value = jinx_value_bool(0);
         else if (!strcmp(name, "null")) value = jinx_value_null();
+        else if (!strcmp(name, "E_ALL")) value = jinx_value_int(32767);
         else if (!strcmp(name, "include") || !strcmp(name, "require") ||
                  !strcmp(name, "include_once") || !strcmp(name, "require_once")) {
             JinxValue filename = native_expression(parser, 0);
@@ -209,8 +322,7 @@ static JinxValue native_primary(NativeParser *parser) {
             size_t count = 0;
             int ok = 0;
             /* Start with proven scalar native handlers; widen after parity tests. */
-            if (strcmp(name, "strlen") && strcmp(name, "strtoupper") &&
-                strcmp(name, "strtolower") && strcmp(name, "abs"))
+            if (!native_builtin_admitted(name))
                 runtime->error = "builtin is not admitted by the native source interpreter";
             native_expect(parser, '(');
             if (parser->kind != ')') do {
@@ -233,6 +345,7 @@ static JinxValue native_primary(NativeParser *parser) {
 }
 
 static int native_precedence(int kind) {
+    if (kind == N_COALESCE) return 5;
     if (kind == '.') return 10;
     if (kind == '+' || kind == '-') return 20;
     if (kind == '*' || kind == '%') return 30;
@@ -250,9 +363,15 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
         int operator = parser->kind;
         int precedence = native_precedence(operator);
         native_next(parser);
-        JinxValue right = native_expression(parser, precedence + 1);
+        int checking = parser->checking;
+        int skip_right = operator == N_COALESCE && left.type != 0 && !checking;
+        if (skip_right) parser->checking = 1;
+        JinxValue right = native_expression(parser, precedence + (operator == N_COALESCE ? 0 : 1));
+        parser->checking = checking;
         if (parser->checking || parser->runtime->error) continue;
-        if (operator == '.') {
+        if (operator == N_COALESCE) {
+            if (!skip_right) left = right;
+        } else if (operator == '.') {
             size_t a, b;
             const char *first = native_text(parser, left, &a);
             const char *second = native_text(parser, right, &b);
@@ -303,12 +422,27 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             char name[256];
             strcpy(name, parser->token);
             native_next(parser);
+            if (!strcmp(name, "GLOBALS") && native_accept(parser, '[')) {
+                JinxValue key = native_expression(parser, 0);
+                native_expect(parser, ']');
+                if (!parser->checking && key.type == N_VALUE_STRING && key.flags < sizeof(name)) strcpy(name, key.as.ptr);
+                else if (!parser->checking) parser->runtime->error = "unsupported GLOBALS assignment key";
+            }
+            int add = native_accept(parser, '+');
             native_expect(parser, '=');
             JinxValue value = native_expression(parser, 0);
             native_expect(parser, ';');
             if (!parser->checking && !parser->runtime->error) {
                 NativeVariable *variable = native_variable(parser->runtime, name);
-                if (variable) variable->value = value;
+                if (variable) {
+                    if (add) {
+                        int64_t sum;
+                        if (variable->value.type != N_VALUE_INT || value.type != N_VALUE_INT ||
+                            __builtin_add_overflow(variable->value.as.i64, value.as.i64, &sum))
+                            parser->runtime->error = "unsupported native compound addition";
+                        else variable->value = jinx_value_int(sum);
+                    } else variable->value = value;
+                }
             }
         } else if (parser->kind == N_ID && !strcmp(parser->token, "echo")) {
             native_next(parser);
@@ -370,6 +504,7 @@ static int native_file(NativeRuntime *runtime, const char *path, int once, JinxV
     native_next(&parser);
     native_statements(&parser, result);
     if (runtime->error) return 0;
+    runtime->started = 1;
     runtime->included[runtime->included_count++] = saved_path;
     runtime->depth++;
     parser.checking = 0;
@@ -381,16 +516,21 @@ static int native_file(NativeRuntime *runtime, const char *path, int once, JinxV
     return runtime->error == NULL;
 }
 
-int jinx_oracle_native_script(const char *path) {
+static int native_script_run(const char *path, int probing) {
     NativeRuntime runtime = {0};
     JinxValue result;
     int ok = native_file(&runtime, path, 0, &result);
-    if (!ok) fprintf(stderr, "JINX NATIVE SCRIPT ERROR: %s: %s; refusing PHP fallback\n", path, runtime.error);
+    int unsupported = !ok && probing && !runtime.started;
+    if (!ok && !unsupported) fprintf(stderr, "JINX NATIVE SCRIPT ERROR: %s: %s; refusing PHP fallback\n", path, runtime.error);
+    for (NativeArray *array = runtime.arrays; array; array = array->next) jinx_zend_array_release(array->array);
     while (runtime.allocations) {
         NativeAllocation *allocation = runtime.allocations;
         runtime.allocations = allocation->next;
         free(allocation->ptr);
         free(allocation);
     }
-    return ok ? 0 : 1;
+    return unsupported ? 2 : (ok ? 0 : 1);
 }
+
+int jinx_oracle_native_script(const char *path) { return native_script_run(path, 0); }
+int jinx_oracle_native_script_try(const char *path) { return native_script_run(path, 1); }

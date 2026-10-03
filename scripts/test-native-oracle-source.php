@@ -5,12 +5,13 @@ $root = dirname(__DIR__);
 $binary = $root . '/jinx';
 $fixture = $root . '/fixtures/oracle-native-source.php';
 
-function native_source_run(array $command, bool $withoutPhp): array
+function native_source_run(array $command, bool $withoutPhp, bool $forceNative = true): array
 {
     $environment = getenv();
     if ($withoutPhp) {
         $environment['PATH'] = '/jinx-test-no-executables';
-        $environment['JINX_NATIVE_ONLY'] = '1';
+        if ($forceNative) $environment['JINX_NATIVE_ONLY'] = '1';
+        else unset($environment['JINX_NATIVE_ONLY']);
         $environment['JINX_ORACLE_SCRIPT_RUNNER'] = '/jinx-test-bridge-must-not-run';
     }
     $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), $environment);
@@ -31,6 +32,17 @@ foreach ([[$binary, '--native-php', $fixture], [$binary, $fixture]] as $command)
     $native = native_source_run($command, true);
     if ($native !== $php) throw new RuntimeException('PHP-independent execution differs: ' . json_encode($native));
 }
+
+$edgeFixture = $root . '/fixtures/oracle-native-edge-source.php';
+$edgePhp = native_source_run([PHP_BINARY, $edgeFixture], false);
+$edgeExpected = "{\"local\":7,\"result\":21}\n[1,true,1]\n{\"data\":\"abc\",\"exists\":false}\n{\"type\":\"boolean\",\"value\":false}\n";
+if ($edgePhp !== [0, $edgeExpected, '']) throw new RuntimeException('unexpected edge baseline: ' . json_encode($edgePhp));
+foreach ([[$binary, '--native-php', $edgeFixture], [$binary, $edgeFixture]] as $command) {
+    $native = native_source_run($command, true);
+    if ($native !== $edgePhp) throw new RuntimeException('native include/filesystem edge parity differs: ' . json_encode($native));
+}
+$defaultNative = native_source_run([$binary, $edgeFixture], true, false);
+if ($defaultNative !== $edgePhp) throw new RuntimeException('default native routing edge parity differs: ' . json_encode($defaultNative));
 
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');

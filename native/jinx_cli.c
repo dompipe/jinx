@@ -4966,6 +4966,10 @@ int main(int argc, char **argv) {
         const char *native_only = getenv("JINX_NATIVE_ONLY");
         if (native_only != NULL && strcmp(native_only, "1") == 0)
             return jinx_oracle_native_script(argv[1]);
+        if (strstr(argv[1], "scripts/") == NULL) {
+            int result = jinx_oracle_native_script_try(argv[1]);
+            if (result != 2) return result;
+        }
         return command_php_script(argc, argv);
     }
 

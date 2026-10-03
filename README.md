@@ -14,7 +14,9 @@ An initial interpreter now runs PHP source directly inside the root native binar
 launches PHP. Its supported scalar and include/require subset, verification,
 and remaining PHP dependencies are documented in
 [Oracle native source execution](docs/ORACLE_NATIVE_SOURCE_EXECUTION.md).
-The existing default bridge and test/build tooling still require PHP.
+Supported normal PHP inputs now enter this interpreter automatically. The
+existing bridge for inputs outside that subset and test/build tooling still
+require PHP.
 
 The RC focuses on:
 
