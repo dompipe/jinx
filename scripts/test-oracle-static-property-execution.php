@@ -90,10 +90,12 @@ if ($php['error_class'] !== null) {
 
 same($oracle['output'], $php['output'], 'Oracle output matches PHP');
 same($oracle['return'], $php['return'], 'Oracle return matches PHP');
+same($oracle['output'], '2:7:10', 'Oracle compound static-property write output');
+same($oracle['return'], 10, 'Oracle compound static-property write return');
 same($oracle['oracle']['kind'] ?? null, 'JINX_ORACLE_EXECUTION', 'Oracle execution kind');
 same($oracle['oracle']['family'] ?? null, 'static-properties', 'Oracle execution family');
 
-if (($oracle['oracle']['executed_ops'] ?? 0) < 6) {
+if (($oracle['oracle']['executed_ops'] ?? 0) < 8) {
     fail('Oracle executed too few static-property ops');
 }
 
@@ -113,8 +115,16 @@ same($writeRecords[0]['op'] ?? null, 'O_STATIC_PROPERTY_ASSIGN', 'static-propert
 same($writeRecords[0]['features']->class ?? null, 'StaticCounter', 'static-property write class feature');
 same($writeRecords[0]['features']->property ?? null, 'counter', 'static-property write property feature');
 
+$compoundWriteRecords = array_values(array_filter(
+    $oracle['program']['statements'] ?? [],
+    static fn (array $statement): bool => str_starts_with((string) ($statement['source'] ?? ''), 'StaticCounter::$counter +=')
+));
+same(count($compoundWriteRecords), 1, 'fixture has one compound static-property write record');
+same($compoundWriteRecords[0]['op'] ?? null, 'O_STATIC_PROPERTY_ASSIGN', 'compound static-property write uses write opcode');
+same($compoundWriteRecords[0]['features']->compound_assignment ?? null, true, 'compound static-property write feature');
+
 $source = (string) file_get_contents($fixture);
-foreach (['public static $counter', 'StaticCounter::$counter', 'StaticCounter::$counter + 5'] as $needle) {
+foreach (['public static $counter', 'StaticCounter::$counter', 'StaticCounter::$counter + 5', 'StaticCounter::$counter += 3'] as $needle) {
     if (!str_contains($source, $needle)) {
         fail("fixture did not contain expected static-property source {$needle}");
     }
