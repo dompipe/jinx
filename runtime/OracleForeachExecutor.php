@@ -360,7 +360,7 @@ final class OracleForeachExecutor
             };
         }
 
-        foreach (['+', '-', '*', '.'] as $operator) {
+        foreach (['+', '-', '*', '%', '.'] as $operator) {
             $parts = self::splitTopLevelByOperators($expr, [$operator]);
             if ($parts !== null) {
                 [$leftExpr, , $rightExpr] = $parts;
@@ -371,6 +371,7 @@ final class OracleForeachExecutor
                     '+' => $left + $right,
                     '-' => $left - $right,
                     '*' => $left * $right,
+                    '%' => $left % $right,
                     '.' => (string) $left . (string) $right,
                 };
             }
@@ -382,6 +383,14 @@ final class OracleForeachExecutor
                 throw new \RuntimeException("Oracle foreach count() expects countable value: {$expr}");
             }
             return count($value);
+        }
+
+        if (preg_match('/^array_sum\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle foreach array_sum() expects array: {$expr}");
+            }
+            return array_sum($value);
         }
 
         if (preg_match('/^implode\s*\((.+)\)$/is', $expr, $m)) {
