@@ -6,6 +6,17 @@ $root = dirname(__DIR__);
 $jinx = $root . '/jinx';
 $supported = $root . '/fixtures/oracle-executable-straightline.php';
 
+$minimal = tempnam(sys_get_temp_dir(), 'jinx-minimal-');
+if ($minimal === false) {
+    fail('could not allocate minimal Oracle fixture');
+}
+$minimalFixture = $minimal . '.php';
+@unlink($minimal);
+file_put_contents(
+    $minimalFixture,
+    "<?php\ndeclare(strict_types=1);\n\$a = 7;\n\$b = 5;\necho \"sum=\" . (\$a + \$b) . \"\\n\";\n"
+);
+
 function fail(string $message): never
 {
     fwrite(STDERR, "FAIL: {$message}" . PHP_EOL);
@@ -56,6 +67,26 @@ if ($jinxResult['stdout'] !== $php['stdout']) {
 }
 if ($jinxResult['stderr'] !== '') {
     fail('supported Oracle fixture emitted stderr: ' . json_encode($jinxResult['stderr']));
+}
+
+try {
+    $phpMinimal = run_process([PHP_BINARY, $minimalFixture]);
+    $jinxMinimal = run_process([$jinx, $minimalFixture]);
+} finally {
+    @unlink($minimalFixture);
+}
+
+if ($jinxMinimal['exit'] !== $phpMinimal['exit']) {
+    fail('minimal straight-line fixture exit differs from PHP');
+}
+if ($jinxMinimal['stdout'] !== $phpMinimal['stdout']) {
+    fail(
+        'minimal straight-line fixture output differs from PHP: PHP=' .
+        json_encode($phpMinimal['stdout']) . ' JINX=' . json_encode($jinxMinimal['stdout'])
+    );
+}
+if ($jinxMinimal['stderr'] !== '') {
+    fail('minimal straight-line fixture emitted stderr: ' . json_encode($jinxMinimal['stderr']));
 }
 
 $tmp = tempnam(sys_get_temp_dir(), 'jinx-no-fallback-');
