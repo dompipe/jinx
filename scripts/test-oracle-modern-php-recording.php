@@ -69,6 +69,8 @@ enum EdgeStatus: string
 }
 PHP);
 same(count(statements_with_op($enum, 'O_ENUM_DECL')), 1, 'enum declaration recorded');
+$enumDecls = statements_with_op($enum, 'O_ENUM_DECL');
+same($enumDecls[0]['features']->backing_type ?? null, 'string', 'backed enum type recorded');
 same(count(statements_with_op($enum, 'O_ENUM_CASE')), 2, 'enum cases recorded separately');
 $enumCases = statements_with_op($enum, 'O_ENUM_CASE');
 same($enumCases[0]['features']->name ?? null, 'Ready', 'first enum case name');
@@ -175,6 +177,22 @@ if (count(statements_with_feature($types, 'nullable_type')) < 1) {
     fail('nullable type semantic feature missing');
 }
 
+$properties = compile_modern_fixture(<<<'PHP'
+class EdgeCompositeProperties
+{
+    public int|string $union = 1;
+    public readonly ?stdClass $nullable;
+}
+PHP);
+$propertyDecls = statements_with_op($properties, 'O_PROPERTY_DECL');
+if (count($propertyDecls) < 2) {
+    fail('composite typed properties were not recorded as property declarations');
+}
+same($propertyDecls[0]['features']->declared_type ?? null, 'int|string', 'union property declared type');
+same($propertyDecls[0]['features']->union_property_type ?? null, true, 'union property type feature');
+same($propertyDecls[1]['features']->declared_type ?? null, '?stdClass', 'nullable property declared type');
+same($propertyDecls[1]['features']->nullable_property_type ?? null, true, 'nullable property type feature');
+
 $imports = compile_modern_fixture(<<<'PHP'
 namespace Edge\Imports;
 use function strlen;
@@ -183,4 +201,4 @@ PHP);
 same(count(statements_with_feature($imports, 'use_function')), 1, 'use function feature');
 same(count(statements_with_feature($imports, 'use_const')), 1, 'use const feature');
 
-echo "PASS: Oracle modern PHP recorder distinguishes 13 high-risk semantic constructs without claiming execution" . PHP_EOL;
+echo "PASS: Oracle modern PHP recorder distinguishes high-risk PHP 8+ semantic constructs without claiming execution" . PHP_EOL;
