@@ -90,6 +90,7 @@ $scriptTests = [
     'promoted object family' => ['scripts/test-oracle-object-promoted-execution.php', 'PASS: Oracle executes promoted final-class object subset'],
     'generator family' => ['scripts/test-oracle-generator-execution.php', 'PASS: Oracle executes generator PHP subsets'],
     'native script routing' => ['scripts/test-native-jinx-script-routing.php', 'PASS: native ./jinx runs supported PHP fixtures through Oracle and refuses PHP fallback for unsupported scripts'],
+    'PHP-independent native source interpreter' => ['scripts/test-native-oracle-source.php', 'PASS: native Oracle source execution matches PHP with no PHP on PATH'],
     'zend declarations family' => ['scripts/test-oracle-zend-declaration-execution.php', 'PASS: Oracle executes Zend declaration/interface/trait/enum PHP subset'],
     'zend arbitrary family' => ['scripts/test-oracle-zend-arbitrary-execution.php', 'PASS: Oracle executes arbitrary Zend function/control PHP subset'],
     'next ten families' => ['scripts/test-oracle-next-ten-execution.php', 'PASS: Oracle executes next ten PHP families'],

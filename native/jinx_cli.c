@@ -19,6 +19,7 @@
 #include "../runtime/jinx_oracle_script_context.h"
 #include "../runtime/jinx_zend_array_delete.h"
 #include "../runtime/jinx_pasm_machine.h"
+#include "../runtime/jinx_oracle_native_script.h"
 
 #define JINX_NATIVE_SAMPLE_ARGC 32u
 
@@ -35,6 +36,7 @@ static void release_cli_values(JinxValue *values, size_t count);
 static void usage(const char *argv0) {
     printf("JINX native GCC CLI\n\n");
     printf("Usage:\n");
+    printf("  %s --native-php <file.php>  interpret inside JINX without PHP\n", argv0);
     printf("  %s rc\n", argv0);
     printf("  %s oracle-smoke\n", argv0);
     printf("  %s shmop-smoke\n", argv0);
@@ -4961,7 +4963,15 @@ int main(int argc, char **argv) {
     }
 
     if (ends_with(argv[1], ".php")) {
+        const char *native_only = getenv("JINX_NATIVE_ONLY");
+        if (native_only != NULL && strcmp(native_only, "1") == 0)
+            return jinx_oracle_native_script(argv[1]);
         return command_php_script(argc, argv);
+    }
+
+    if (strcmp(argv[1], "--native-php") == 0) {
+        if (argc != 3) return fail("usage: ./jinx --native-php <file.php>");
+        return jinx_oracle_native_script(argv[2]);
     }
 
     if (strcmp(argv[1], "rc") == 0) {

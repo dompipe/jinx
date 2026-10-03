@@ -8,6 +8,14 @@ Literal local `require`, `require_once`, `include`, and `include_once` statement
 
 Oracle is the interpreter/mirroring layer for php-src behavior. PASM/native binary emission is a later output path after Oracle owns the PHP/Zend behavior; it should not block arbitrary PHP/Zend coverage.
 
+An initial interpreter now runs PHP source directly inside the root native binary:
+`./jinx --native-php fixtures/oracle-native-source.php`, or
+`JINX_NATIVE_ONLY=1 ./jinx fixtures/oracle-native-source.php`. This mode never
+launches PHP. Its supported scalar and include/require subset, verification,
+and remaining PHP dependencies are documented in
+[Oracle native source execution](docs/ORACLE_NATIVE_SOURCE_EXECUTION.md).
+The existing default bridge and test/build tooling still require PHP.
+
 The RC focuses on:
 
 - JINX web compilation for validated JSON endpoints.
