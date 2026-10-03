@@ -73,6 +73,7 @@ $scriptTests = [
     'readonly property family' => ['scripts/test-oracle-readonly-property-execution.php', 'PASS: Oracle enforces readonly property PHP subset'],
     'magic method family' => ['scripts/test-oracle-magic-method-execution.php', 'PASS: Oracle executes magic method PHP subset'],
     'for append ternary family' => ['scripts/test-oracle-for-append-ternary-execution.php', 'PASS: Oracle executes for-loop array append ternary subset'],
+    'typed direct function family' => ['scripts/test-oracle-function-typed-direct-execution.php', 'PASS: Oracle executes typed direct user function subset'],
     'generator family' => ['scripts/test-oracle-generator-execution.php', 'PASS: Oracle executes generator PHP subsets'],
     'native script routing' => ['scripts/test-native-jinx-script-routing.php', 'PASS: native ./jinx runs supported PHP fixtures through Oracle and refuses PHP fallback for unsupported scripts'],
     'zend declarations family' => ['scripts/test-oracle-zend-declaration-execution.php', 'PASS: Oracle executes Zend declaration/interface/trait/enum PHP subset'],
