@@ -21,7 +21,11 @@ final class OracleClosureExecutor
 
         foreach (self::splitStatements((string) file_get_contents($sourcePath)) as $statement) {
             $statement = trim($statement);
-            if ($statement === '' || preg_match('/^declare\s*\(/i', $statement)) {
+            if (
+                $statement === '' ||
+                preg_match('/^declare\s*\(/i', $statement) ||
+                preg_match('/^error_reporting\s*\(\s*E_ALL\s*\)$/i', $statement)
+            ) {
                 continue;
             }
 
