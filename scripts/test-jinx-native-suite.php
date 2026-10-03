@@ -68,6 +68,7 @@ $scriptTests = [
     'instanceof family' => ['scripts/test-oracle-instanceof-execution.php', 'PASS: Oracle executes instanceof PHP subset'],
     'object clone family' => ['scripts/test-oracle-clone-execution.php', 'PASS: Oracle executes object clone PHP subset'],
     'object inheritance family' => ['scripts/test-oracle-object-inheritance-execution.php', 'PASS: Oracle executes object inheritance PHP subset'],
+    'zend declarations family' => ['scripts/test-oracle-zend-declaration-execution.php', 'PASS: Oracle executes Zend declaration/interface/trait/enum PHP subset'],
     'next ten families' => ['scripts/test-oracle-next-ten-execution.php', 'PASS: Oracle executes next ten PHP families'],
     'builtin batch families' => ['scripts/test-oracle-builtin-batch-execution.php', 'PASS: Oracle executes builtin batch PHP families'],
     'builtin batch two families' => ['scripts/test-oracle-builtin-batch-two-execution.php', 'PASS: Oracle executes builtin batch two PHP families'],
