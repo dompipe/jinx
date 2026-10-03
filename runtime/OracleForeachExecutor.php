@@ -94,6 +94,13 @@ final class OracleForeachExecutor
                     $index++;
                     break;
 
+                case 'O_INC':
+                case 'O_DEC':
+                    self::executeIncDecStatement($source, $locals, $op === 'O_INC');
+                    $executed++;
+                    $index++;
+                    break;
+
                 case 'O_ECHO':
                     $output .= (string) self::evaluateExpression(self::stripKeywordStatement($source, 'echo'), $locals);
                     $executed++;
@@ -267,6 +274,17 @@ final class OracleForeachExecutor
             '/=' => $left / $right,
             '%=' => $left % $right,
         };
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function executeIncDecStatement(string $source, array &$locals, bool $increment): void
+    {
+        if (!preg_match('/^(?:\+\+|--)?\s*\$(\w+)\s*(?:\+\+|--)?\s*;?$/', $source, $m)) {
+            throw new \RuntimeException("Unsupported Oracle foreach increment/decrement: {$source}");
+        }
+
+        $name = $m[1];
+        $locals[$name] = ($locals[$name] ?? 0) + ($increment ? 1 : -1);
     }
 
     private static function stripKeywordStatement(string $source, string $keyword): string
