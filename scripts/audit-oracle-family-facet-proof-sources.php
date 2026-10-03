@@ -126,6 +126,18 @@ function likely_companion_paths(string $root, string $test): array
         }
     }
 
+    // Also include every real fixture path explicitly referenced by the test.
+    // This avoids guessing fixture names and keeps the proof corpus tied to
+    // the files the comparison test actually executes or inspects.
+    $testSource = source_or_empty($root . '/' . $test);
+    if (preg_match_all("#(?:dirname\(__DIR__\)\s*\.\s*)?['\"]/?(fixtures/[^'\"]+\.php)['\"]#", $testSource, $matches)) {
+        foreach ($matches[1] as $fixturePath) {
+            if (is_file($root . '/' . $fixturePath)) {
+                $paths[] = $fixturePath;
+            }
+        }
+    }
+
     return array_values(array_unique($paths));
 }
 
