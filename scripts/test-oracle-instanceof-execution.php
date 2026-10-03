@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: class_declaration object_instantiation instanceof_exact_class instanceof_parent_class instanceof_negative_class
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 require_once dirname(__DIR__) . '/runtime/OracleInstanceofExecutor.php';
 
