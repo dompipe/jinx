@@ -46,6 +46,12 @@ run_native_jinx(
 );
 
 run_native_jinx(
+    'oracle modern php recording',
+    'scripts/test-oracle-modern-php-recording.php',
+    'PASS: Oracle modern PHP recorder distinguishes 13 high-risk semantic constructs without claiming execution'
+);
+
+run_native_jinx(
     'php vs jinx high-value edge fixtures wave one',
     'scripts/test-php-jinx-high-value-edge-fixtures.php',
     'PASS: PHP vs JINX high-value edge fixtures checked 20 fixtures across 10 semantic areas'
