@@ -6,6 +6,17 @@ $root = dirname(__DIR__);
 $jinx = $root . '/jinx';
 $supported = $root . '/fixtures/oracle-executable-straightline.php';
 
+$stringBuiltins = tempnam(sys_get_temp_dir(), 'jinx-string-builtins-');
+if ($stringBuiltins === false) {
+    fail('could not allocate string builtin Oracle fixture');
+}
+$stringBuiltinsFixture = $stringBuiltins . '.php';
+@unlink($stringBuiltins);
+file_put_contents(
+    $stringBuiltinsFixture,
+    "<?php\ndeclare(strict_types=1);\n\$value = strtoupper(trim('  jinx oracle  '));\necho json_encode(['value' => \$value, 'len' => strlen(\$value)]) . \"\\n\";\n"
+);
+
 $minimal = tempnam(sys_get_temp_dir(), 'jinx-minimal-');
 if ($minimal === false) {
     fail('could not allocate minimal Oracle fixture');
@@ -67,6 +78,26 @@ if ($jinxResult['stdout'] !== $php['stdout']) {
 }
 if ($jinxResult['stderr'] !== '') {
     fail('supported Oracle fixture emitted stderr: ' . json_encode($jinxResult['stderr']));
+}
+
+try {
+    $phpStringBuiltins = run_process([PHP_BINARY, $stringBuiltinsFixture]);
+    $jinxStringBuiltins = run_process([$jinx, $stringBuiltinsFixture]);
+} finally {
+    @unlink($stringBuiltinsFixture);
+}
+
+if ($jinxStringBuiltins['exit'] !== $phpStringBuiltins['exit']) {
+    fail('string builtin straight-line fixture exit differs from PHP');
+}
+if ($jinxStringBuiltins['stdout'] !== $phpStringBuiltins['stdout']) {
+    fail(
+        'string builtin straight-line fixture output differs from PHP: PHP=' .
+        json_encode($phpStringBuiltins['stdout']) . ' JINX=' . json_encode($jinxStringBuiltins['stdout'])
+    );
+}
+if ($jinxStringBuiltins['stderr'] !== '') {
+    fail('string builtin straight-line fixture emitted stderr: ' . json_encode($jinxStringBuiltins['stderr']));
 }
 
 try {
