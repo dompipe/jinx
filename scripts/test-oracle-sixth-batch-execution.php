@@ -134,6 +134,10 @@ foreach ($cases as $label => [$relative, $executor]) {
         );
     }
 
+    if ($label === 'function' && !in_array('O_DIM_FETCH', $ops, true)) {
+        fail('function fixture did not produce expected O_DIM_FETCH');
+    }
+
     if (in_array('O_RAW_PHP_STMT', $ops, true)) {
         fail($label . ' still records raw PHP statement');
     }
