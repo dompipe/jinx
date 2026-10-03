@@ -24,7 +24,11 @@ final class OracleCloneExecutor
 
         foreach (self::splitStatements($mainSource) as $statement) {
             $statement = trim($statement);
-            if ($statement === '' || preg_match('/^declare\s*\(/i', $statement)) {
+            if (
+                $statement === '' ||
+                preg_match('/^declare\s*\(/i', $statement) ||
+                preg_match('/^error_reporting\s*\(\s*E_ALL\s*\)$/i', $statement)
+            ) {
                 continue;
             }
 
