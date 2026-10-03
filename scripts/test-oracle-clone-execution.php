@@ -90,6 +90,7 @@ if ($php['error_class'] !== null) {
 
 same($oracle['output'], $php['output'], 'Oracle output matches PHP');
 same($oracle['return'], $php['return'], 'Oracle return matches PHP');
+same($oracle['output'], 'JINX:3|JINX-COPY:16', 'Oracle clone hook changes only cloned object');
 same($oracle['oracle']['kind'] ?? null, 'JINX_ORACLE_EXECUTION', 'Oracle execution kind');
 same($oracle['oracle']['family'] ?? null, 'object-clone', 'Oracle execution family');
 
@@ -105,7 +106,7 @@ foreach (['O_CLASS_DECL', 'O_METHOD_DECL', 'O_NEW', 'O_CLONE', 'O_METHOD_CALL', 
 }
 
 $source = (string) file_get_contents($fixture);
-foreach (['clone $original', '$copy->add(5)', '$original->add(2)', '$original->label()', '$copy->label()'] as $needle) {
+foreach (['function __clone()', "$this->name = $this->name . '-copy'", '$this->total += 10', 'clone $original', '$copy->add(5)', '$original->add(2)', '$original->label()', '$copy->label()'] as $needle) {
     if (!str_contains($source, $needle)) {
         fail("fixture did not contain expected clone source {$needle}");
     }
