@@ -373,6 +373,32 @@ final class OracleStraightLineExecutor
             return md5((string) self::evaluateExpression($m[1], $locals));
         }
 
+        if (preg_match('/^intdiv\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) !== 2) {
+                throw new \RuntimeException("Oracle intdiv() expects 2 arguments: {$expr}");
+            }
+            return intdiv(
+                (int) self::evaluateExpression($args[0], $locals),
+                (int) self::evaluateExpression($args[1], $locals)
+            );
+        }
+
+        if (preg_match('/^abs\s*\((.+)\)$/is', $expr, $m)) {
+            return abs(self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^round\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) < 1 || count($args) > 3) {
+                throw new \RuntimeException("Oracle round() argument count unsupported: {$expr}");
+            }
+            $value = (float) self::evaluateExpression($args[0], $locals);
+            $precision = count($args) >= 2 ? (int) self::evaluateExpression($args[1], $locals) : 0;
+            $mode = count($args) >= 3 ? (int) self::evaluateExpression($args[2], $locals) : PHP_ROUND_HALF_UP;
+            return round($value, $precision, $mode);
+        }
+
         if (preg_match('/^count\s*\((.+)\)$/i', $expr, $m)) {
             $value = self::evaluateExpression($m[1], $locals);
             if (!is_array($value) && !$value instanceof \Countable) {
