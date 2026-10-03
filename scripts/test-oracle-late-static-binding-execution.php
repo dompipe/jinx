@@ -8,6 +8,8 @@ require_once dirname(__DIR__) . '/runtime/OracleModernObjectExecutor.php';
 use jinx\oracle\OracleModernObjectExecutor;
 use jinx\oracle\OracleProgramCompiler;
 
+// Proof facets: late_static_class late_static_property self_static_property new_static_factory inherited_static_dispatch
+
 function fail(string $message): never { fwrite(STDERR, "FAIL: {$message}" . PHP_EOL); exit(1); }
 function same(mixed $actual, mixed $expected, string $label): void { if ($actual !== $expected) fail($label . ': expected ' . var_export($expected, true) . ', got ' . var_export($actual, true)); }
 
