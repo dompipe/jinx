@@ -272,6 +272,19 @@ final class OracleFunctionExecutor
             $named = [];
             $seenNamed = false;
             foreach ($args as $arg) {
+                if (preg_match('/^\.\.\.\s*(.+)$/s', $arg, $unpackArg)) {
+                    if ($seenNamed) {
+                        throw new \RuntimeException('Oracle unpacked positional arguments cannot follow named arguments');
+                    }
+                    $unpacked = self::evaluateExpression($unpackArg[1], $locals, $functions, $executed);
+                    if (!is_array($unpacked) || !array_is_list($unpacked)) {
+                        throw new \RuntimeException('Oracle function argument unpacking currently requires a list array');
+                    }
+                    foreach ($unpacked as $value) {
+                        $values[] = $value;
+                    }
+                    continue;
+                }
                 if (preg_match('/^([A-Za-z_]\w*)\s*:\s*(.+)$/s', $arg, $namedArg)) {
                     $seenNamed = true;
                     if (array_key_exists($namedArg[1], $named)) {
@@ -287,6 +300,18 @@ final class OracleFunctionExecutor
             }
 
             return self::callFunction($m[1], $values, $functions, $executed, $named);
+        }
+
+        if (str_starts_with($expr, '[') && str_ends_with($expr, ']')) {
+            $body = trim(substr($expr, 1, -1));
+            if ($body === '') {
+                return [];
+            }
+            $values = [];
+            foreach (self::splitArguments($body) as $item) {
+                $values[] = self::evaluateExpression($item, $locals, $functions, $executed);
+            }
+            return $values;
         }
 
         if (preg_match('/^-?\d+$/', $expr)) {
@@ -441,11 +466,11 @@ final class OracleFunctionExecutor
                 $quote = $char;
                 continue;
             }
-            if ($char === '(') {
+            if ($char === '(' || $char === '[') {
                 $depth++;
                 continue;
             }
-            if ($char === ')') {
+            if ($char === ')' || $char === ']') {
                 $depth = max(0, $depth - 1);
                 continue;
             }
