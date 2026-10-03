@@ -90,6 +90,8 @@ function contains_facet_token(string $source, string $facet): bool
         str_replace('_', '-', $facet),
         str_replace(' ', '_', $facet),
         str_replace(' ', '-', $facet),
+        str_replace('_', ' ', $facet),
+        str_replace('-', ' ', $facet),
     ]));
 
     foreach ($needles as $needle) {
