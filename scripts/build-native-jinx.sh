@@ -180,7 +180,19 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     -o "$ZEND_SMOKE_OUT"
 
+chmod +x "$OUT"
 cp "$OUT" "$COPY_OUT"
+chmod +x "$COPY_OUT"
+
+if [ ! -x "$OUT" ]; then
+    echo "FAIL: native JINX binary was built but is not executable: $OUT" >&2
+    exit 1
+fi
+
+if [ ! -x "$COPY_OUT" ]; then
+    echo "FAIL: copied native JINX binary is not executable: $COPY_OUT" >&2
+    exit 1
+fi
 
 "$OUT" functions-smoke >/dev/null
 
