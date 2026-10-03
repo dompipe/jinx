@@ -89,6 +89,10 @@ final class OracleFilesystemBuiltinExecutor
             return null;
         }
 
+        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
+            return (float) $expr;
+        }
+
         if (self::isWrappedInOuterParens($expr)) {
             return self::evaluate(substr($expr, 1, -1), $locals, $program);
         }
@@ -101,9 +105,6 @@ final class OracleFilesystemBuiltinExecutor
 
         if (preg_match('/^-?\d+$/', $expr)) {
             return (int) $expr;
-        }
-        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
-            return (float) $expr;
         }
         if (preg_match('/^([\'\"])(.*)\1$/', $expr, $m)) {
             return stripcslashes($m[2]);
