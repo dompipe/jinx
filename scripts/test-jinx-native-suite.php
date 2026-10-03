@@ -79,6 +79,7 @@ $scriptTests = [
     'fourth 100 new families' => ['scripts/test-oracle-fourth-batch-execution.php', 'PASS: Oracle executes fourth-batch numeric foreach and function families'],
     'fifth 100 new families' => ['scripts/test-oracle-fifth-batch-execution.php', 'PASS: Oracle executes fifth-batch ternary string foreach and function families'],
     'sixth 100 new families' => ['scripts/test-oracle-sixth-batch-execution.php', 'PASS: Oracle executes sixth-batch string foreach and function families'],
+    'seventh 100 new families' => ['scripts/test-oracle-seventh-batch-execution.php', 'PASS: Oracle executes seventh-batch numeric foreach and function families'],
     'typed direct function family' => ['scripts/test-oracle-function-typed-direct-execution.php', 'PASS: Oracle executes typed direct user function subset'],
     'function control-loop family' => ['scripts/test-oracle-function-control-loop-execution.php', 'PASS: Oracle executes function control-loop subset'],
     'promoted object family' => ['scripts/test-oracle-object-promoted-execution.php', 'PASS: Oracle executes promoted final-class object subset'],
