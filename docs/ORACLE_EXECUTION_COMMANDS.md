@@ -310,7 +310,7 @@ Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actuall
 
 ## Native `./jinx file.php` routing
 
-Repository test-driver scripts under `scripts/test-*.php` remain PHP-hosted orchestration so they can launch PHP and JINX independently.
+Repository orchestration scripts under `scripts/*.php` remain PHP-hosted so tests, audits, benchmarks, and generators can launch PHP and JINX independently.
 
 Normal PHP inputs are different: `./jinx path/to/fixture.php` routes the target through `scripts/run-jinx-oracle-script.php`, which records the target into Oracle/JINX and dispatches a registered executable family. Unsupported scripts fail explicitly; they are not executed by PHP as a fallback.
 
