@@ -87,6 +87,24 @@ if (!is_file($path)) {
 }
 
 $program = OracleProgramCompiler::interpretAnyPhpFileToOracleProgram($path);
+
+// Model harmless runtime-configuration calls that affect PHP execution context
+// but do not themselves produce target output. Keep this narrow and explicit.
+$filteredStatements = [];
+foreach ($program['statements'] ?? [] as $statement) {
+    if (
+        is_array($statement) &&
+        (($statement['op'] ?? null) === 'O_CALL') &&
+        preg_match('/^error_reporting\s*\(\s*E_ALL\s*\)\s*;?$/i', trim((string) ($statement['source'] ?? '')))
+    ) {
+        error_reporting(E_ALL);
+        continue;
+    }
+
+    $filteredStatements[] = $statement;
+}
+$program['statements'] = $filteredStatements;
+
 $ops = array_values(array_unique(array_map(
     static fn(array $statement): string => (string) ($statement['op'] ?? ''),
     $program['statements'] ?? []
