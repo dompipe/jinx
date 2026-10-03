@@ -395,8 +395,6 @@ final class OracleProgramCompiler
             $kind = 'O_DIM_FETCH';
         } elseif (preg_match('/^\$\w+\s*=.*\?.*:/', $normalized)) {
             $kind = 'O_ASSIGN';
-        } elseif (preg_match('/\?.*:/', $normalized)) {
-            $kind = 'O_TERNARY';
         } elseif (preg_match('/\bfn\s*\(/i', $normalized)) {
             $kind = 'O_ARROW_FUNCTION';
         } elseif (preg_match('/\bfunction\s*\(/i', $normalized)) {
@@ -437,6 +435,8 @@ final class OracleProgramCompiler
             $kind = 'O_DESTRUCTURE_ASSIGN';
         } elseif (preg_match('/^\$\w+\s*(?:\+=|-=|\*=|\/=|%=|\.=)/', $normalized)) {
             $kind = 'O_COMPOUND_ASSIGN';
+        } elseif (preg_match('/\?.*:/', $normalized)) {
+            $kind = 'O_TERNARY';
         } elseif (preg_match('/^\$\w+\s*=/', $normalized)) {
             $kind = 'O_ASSIGN';
         } elseif (preg_match('/^try\b/i', $normalized)) {
