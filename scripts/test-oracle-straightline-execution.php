@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: coalesce_assignment
+
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
 
 use jinx\oracle\OracleProgramCompiler;
