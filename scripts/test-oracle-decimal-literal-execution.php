@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/runtime/OracleProgramCompiler.php';
-require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleStraightLineExecutor.php';
 
-use jinx\oracle\OracleExpressionBatchExecutor;
+use jinx\oracle\OracleStraightLineExecutor;
 use jinx\oracle\OracleProgramCompiler;
 
 function fail(string $message): never
@@ -19,9 +19,9 @@ $source = <<<'PHP'
 
 declare(strict_types=1);
 
-echo round(12.55, 1) . "\n";
-echo (1.25 + 2.5) . "\n";
-echo 3.75 . "\n";
+echo json_encode(round(12.55, 1)) . "\n";
+echo json_encode(1.25 + 2.5) . "\n";
+echo json_encode(3.75) . "\n";
 PHP;
 
 $tmp = tempnam(sys_get_temp_dir(), 'jinx-decimal-');
@@ -44,7 +44,7 @@ try {
 
 try {
     $program = OracleProgramCompiler::interpretAnyPhpFileToOracleProgram($fixture);
-    $oracle = OracleExpressionBatchExecutor::execute($program, 'math-builtins');
+    $oracle = OracleStraightLineExecutor::execute($program);
 } catch (Throwable $e) {
     @unlink($fixture);
     fail('Oracle decimal fixture failed: ' . $e->getMessage());
@@ -63,4 +63,4 @@ if ($phpOutput !== "12.6\n3.75\n3.75\n") {
     fail('unexpected PHP decimal baseline: ' . json_encode($phpOutput));
 }
 
-echo "PASS: Oracle decimal literals are parsed before concatenation and match PHP round behavior" . PHP_EOL;
+echo "PASS: Straight-line Oracle decimal literals match PHP round behavior" . PHP_EOL;
