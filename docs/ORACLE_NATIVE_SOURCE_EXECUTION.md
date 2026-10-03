@@ -44,6 +44,14 @@ reference cells. Caller locals are restored even when a nested call throws.
 Forward calls before declaration, defaults, variadics, by-reference parameters,
 non-scalar type hints and weak scalar coercion are not yet admitted.
 
+Anonymous functions support explicit `use ($value)` and `use (&$value)` captures,
+scalar signatures and variable calls in expressions. Reference captures retain
+the shared Zend cell after the outer variable is unset. By-value captures take
+an independent snapshot and restore that snapshot on each call. Prefix ++ on
+admitted slots also executes natively. Arrow functions, bound `$this`, closure
+reflection/binding, and closures stored in Zend arrays/reference cells remain
+outside this subset.
+
 Include paths are resolved relative to the current source file;
 PHP include_path lookup and missing-file warning behavior are not implemented.
 The interpreter rejects overflow rather than promoting integers to floats.
@@ -89,11 +97,16 @@ when catch/foreach return statements are not executed.
 `fixtures/oracle-native-functions.php` checks typed calls, nested frames,
 local isolation, missing arguments, return type validation and caller state
 after nested exceptions, with PHP absent from the target process PATH.
+`fixtures/oracle-native-closures.php` compares reference mutation, repeated
+by-value calls, unset lifetime and catchable typed closure calls in the same
+PHP-independent target environment.
 
 The high-value semantic edge suite is a separate gate. The native interpreter
 fixes both include, both filesystem and both reference first-wave cases.
 Property and invalid-callback execution additionally reduces mismatches from
 11 to 6 out of 20. Native function frames reduce the remaining failures to 5:
 two clone cases, two closure cases,
+and static-method/closure callback composition. Reference-capturing closure
+execution reduces this further to 4 out of 20; cloning, closure `$this` binding
 and static-method/closure callback composition remain unsupported. Do not infer full-stack
 success from this focused test.

@@ -71,6 +71,15 @@ foreach ([true, false] as $forceNative) {
     if ($native !== $functionPhp) throw new RuntimeException('native function frame parity differs: ' . json_encode($native));
 }
 
+$closureFixture = $root . '/fixtures/oracle-native-closures.php';
+$closurePhp = native_source_run([PHP_BINARY, $closureFixture], false);
+$closureExpected = "[11,11,12]\n[13,13,30]\n31\nTypeError\n10\n";
+if ($closurePhp !== [0, $closureExpected, '']) throw new RuntimeException('unexpected closure baseline: ' . json_encode($closurePhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $closureFixture], true, $forceNative);
+    if ($native !== $closurePhp) throw new RuntimeException('native closure parity differs: ' . json_encode($native));
+}
+
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {
@@ -85,6 +94,11 @@ try {
     file_put_contents($temporary, '<?php echo "MUST_NOT_RUN"; function nativeWeak(int $n): int { return $n; }');
     $rejected = native_source_run([$binary, '--native-php', $temporary], true);
     if ($rejected[0] === 0 || $rejected[1] !== '') throw new RuntimeException('weak function typing was not rejected before execution');
+    file_put_contents($temporary, '<?php declare(strict_types=1); $fn = function (): int { return 1; }; $values = [$fn]; echo "MUST_NOT_RUN";');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'closures in Zend containers')) {
+        throw new RuntimeException('unsupported closure container was not rejected: ' . json_encode($rejected));
+    }
 } finally {
     unlink($temporary);
 }

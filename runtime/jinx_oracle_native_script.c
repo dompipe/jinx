@@ -95,11 +95,13 @@ typedef struct NativeFunction {
     size_t count;
     int return_type;
     NativeParser body;
+    NativeVariable *captures;
     struct NativeFunction *next;
 } NativeFunction;
 
 static void native_statements(NativeParser *parser, JinxValue *result);
 static JinxValue native_function_call(NativeParser *parser, NativeFunction *function, JinxValue *args, size_t count);
+static JinxValue native_closure(NativeParser *parser);
 
 static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
     for (NativeFunction *function = runtime->functions; function; function = function->next)
@@ -115,7 +117,7 @@ static int native_function_admitted(NativeRuntime *runtime, const char *name) {
 }
 
 enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT };
-enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5 };
+enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5, N_VALUE_CLOSURE = 100 };
 
 static void *native_alloc(NativeRuntime *runtime, size_t size) {
     NativeAllocation *allocation = malloc(sizeof(*allocation));
@@ -257,6 +259,7 @@ static int native_accept(NativeParser *parser, int kind) {
 }
 
 static void native_expect(NativeParser *parser, int kind) {
+    if (parser->runtime->error) return;
     if (!parser->checking && parser->runtime->exception_class) return;
     if (!native_accept(parser, kind)) parser->runtime->error = "unsupported or malformed PHP syntax";
 }
@@ -293,7 +296,11 @@ static const char *native_text(NativeParser *parser, JinxValue value, size_t *le
 static JinxValue native_expression(NativeParser *parser, int minimum);
 static int native_file(NativeRuntime *runtime, const char *path, int once, JinxValue *result);
 
-static JinxZendValue native_zend_value(JinxValue value) {
+static JinxZendValue native_zend_value(NativeParser *parser, JinxValue value) {
+    if (value.type == N_VALUE_CLOSURE) {
+        parser->runtime->error = "native closures in Zend containers are not yet supported";
+        return jinx_zend_null();
+    }
     if (value.type == N_VALUE_INT) return jinx_zend_long(value.as.i64);
     if (value.type == N_VALUE_BOOL) return jinx_zend_bool((int)value.as.i64);
     if (value.type == N_VALUE_STRING) return jinx_zend_string_value(jinx_zend_string_new(value.as.ptr, value.flags));
@@ -457,7 +464,8 @@ static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue v
     JinxZendValue *target = slot.variable ? &slot.variable->reference->value : native_slot_element(parser, slot, 1);
     if (!target) return;
     if (target->type == JINX_ZEND_REFERENCE) target = &target->value.ref->value;
-    JinxZendValue converted = native_zend_value(value);
+    JinxZendValue converted = native_zend_value(parser, value);
+    if (parser->runtime->error) return;
     if (converted.type == JINX_ZEND_ARRAY || converted.type == JINX_ZEND_OBJECT) converted = jinx_zend_value_copy(converted);
     jinx_zend_value_release(*target);
     *target = converted;
@@ -469,7 +477,8 @@ static JinxZendReference *native_slot_reference(NativeParser *parser, NativeSlot
     if (slot.variable && slot.variable->reference) return slot.variable->reference;
     JinxZendValue *element = slot.array ? native_slot_element(parser, slot, 1) : NULL;
     if (element && element->type == JINX_ZEND_REFERENCE) return element->value.ref;
-    JinxZendValue initial = element ? *element : native_zend_value(native_slot_read(parser, slot));
+    JinxZendValue initial = element ? *element : native_zend_value(parser, native_slot_read(parser, slot));
+    if (parser->runtime->error) return NULL;
     NativeReference *owner = native_alloc(parser->runtime, sizeof(*owner));
     if (!owner) return NULL;
     owner->reference = jinx_zend_reference_new(initial);
@@ -524,7 +533,8 @@ static JinxValue native_array(NativeParser *parser) {
             value = native_value_copy(parser, value);
             if (key.type == N_VALUE_BOOL) key = jinx_value_int(key.as.i64);
             else if (key.type == 0) key = jinx_value_string("", 0);
-            JinxZendValue converted = native_zend_value(value);
+            JinxZendValue converted = native_zend_value(parser, value);
+            if (parser->runtime->error) break;
             int ok;
             if (!keyed) ok = jinx_zend_array_append(array, converted);
             else if (key.type == N_VALUE_STRING) ok = jinx_zend_array_add_symtable(array, key.as.ptr, key.flags, converted);
@@ -601,6 +611,31 @@ static JinxValue native_primary(NativeParser *parser) {
     } else if (parser->kind == N_VAR) {
         NativeSlot slot = native_slot(parser);
         value = native_slot_read(parser, slot);
+        if (native_accept(parser, '(')) {
+            JinxValue args[16];
+            size_t count = 0;
+            if (parser->kind != ')') do {
+                if (count == 16) { runtime->error = "native closure argument limit"; break; }
+                args[count++] = native_expression(parser, 0);
+            } while (native_accept(parser, ','));
+            native_expect(parser, ')');
+            if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                if (value.type != N_VALUE_CLOSURE) native_raise(runtime, "Error", "Value is not callable");
+                else value = native_function_call(parser, value.as.ptr, args, count);
+            }
+        }
+    } else if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
+        value = native_closure(parser);
+    } else if (native_accept(parser, '+')) {
+        native_expect(parser, '+');
+        NativeSlot slot = native_slot(parser);
+        value = native_slot_read(parser, slot);
+        if (!parser->checking && !runtime->error && !runtime->exception_class) {
+            int64_t number;
+            if (value.type != N_VALUE_INT || __builtin_add_overflow(value.as.i64, (int64_t)1, &number))
+                runtime->error = "unsupported native prefix increment";
+            else { value = jinx_value_int(number); native_slot_write(parser, slot, value); }
+        }
     } else if (native_accept(parser, '@')) {
         /* Admitted filesystem handlers return false without host PHP warnings. */
         value = native_primary(parser);
@@ -839,6 +874,58 @@ static void native_function_declaration(NativeParser *parser) {
     }
 }
 
+static JinxValue native_closure(NativeParser *parser) {
+    JinxValue result = jinx_value_null();
+    if (!parser->strict_types) { parser->runtime->error = "native closures require strict_types=1"; return result; }
+    NativeFunction *function = native_alloc(parser->runtime, sizeof(*function));
+    if (!function) return result;
+    native_next(parser);
+    native_expect(parser, '(');
+    if (parser->kind != ')') do {
+        if (function->count == 16) { parser->runtime->error = "native closure parameter limit"; return result; }
+        size_t index = function->count++;
+        function->types[index] = native_function_type(parser);
+        if (parser->kind != N_VAR) { parser->runtime->error = "native closure requires parameter"; return result; }
+        function->parameters[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
+        native_next(parser);
+    } while (native_accept(parser, ','));
+    native_expect(parser, ')');
+    if (parser->kind == N_ID && !strcmp(parser->token, "use")) {
+        native_next(parser);
+        native_expect(parser, '(');
+        do {
+            int reference = native_accept(parser, '&');
+            if (parser->kind != N_VAR) { parser->runtime->error = "native closure capture requires variable"; return result; }
+            char name[256];
+            strcpy(name, parser->token);
+            NativeSlot slot = native_slot(parser);
+            if (!parser->checking && !parser->runtime->error) {
+                NativeVariable *capture = native_alloc(parser->runtime, sizeof(*capture));
+                if (!capture) return result;
+                capture->name = native_copy(parser->runtime, name, strlen(name));
+                if (reference) capture->reference = native_slot_reference(parser, slot);
+                else capture->value = native_value_copy(parser, native_slot_read(parser, slot));
+                capture->next = function->captures;
+                function->captures = capture;
+            }
+        } while (native_accept(parser, ','));
+        native_expect(parser, ')');
+    }
+    if (native_accept(parser, ':')) function->return_type = native_function_type(parser);
+    native_expect(parser, '{');
+    function->body = *parser;
+    NativeParser end = *parser;
+    end.checking = 1;
+    JinxValue ignored = jinx_value_null();
+    native_statements(&end, &ignored);
+    native_expect(&end, '}');
+    int checking = parser->checking;
+    *parser = end;
+    parser->checking = checking;
+    if (!checking && !parser->runtime->error) { result.type = N_VALUE_CLOSURE; result.as.ptr = function; }
+    return result;
+}
+
 static JinxValue native_function_call(NativeParser *parser, NativeFunction *function, JinxValue *args, size_t count) {
     NativeRuntime *runtime = parser->runtime;
     JinxValue result = jinx_value_null();
@@ -854,6 +941,12 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
     NativeParser body = function->body;
     body.checking = 0;
     body.returned = 0;
+    for (NativeVariable *capture = function->captures; capture && !runtime->error; capture = capture->next) {
+        NativeVariable *local = native_variable(runtime, capture->name);
+        if (!local) break;
+        local->reference = capture->reference;
+        if (!capture->reference) local->value = native_value_copy(&body, capture->value);
+    }
     for (size_t i = 0; i < function->count && !runtime->error; i++) {
         NativeVariable *parameter = native_variable(runtime, function->parameters[i]);
         if (parameter) parameter->value = native_value_copy(&body, args[i]);
