@@ -40,9 +40,15 @@ echo "JINX native high-value edge fixture suite" . PHP_EOL;
 echo "Binary: {$jinx}" . PHP_EOL;
 
 run_native_jinx(
-    'php vs jinx high-value edge fixtures',
+    'php vs jinx high-value edge fixtures wave one',
     'scripts/test-php-jinx-high-value-edge-fixtures.php',
     'PASS: PHP vs JINX high-value edge fixtures checked 20 fixtures across 10 semantic areas'
 );
 
-echo "PASS: native high-value edge fixture suite" . PHP_EOL;
+run_native_jinx(
+    'php vs jinx high-value edge fixtures wave two',
+    'scripts/test-php-jinx-high-value-edge-fixtures-two.php',
+    'PASS: PHP vs JINX high-value edge fixtures wave two checked 20 fixtures across 10 semantic areas'
+);
+
+echo "PASS: native high-value edge fixture suite waves 1-2" . PHP_EOL;
