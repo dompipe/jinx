@@ -173,6 +173,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `late-static-binding` | `scripts/test-oracle-late-static-binding-execution.php` |
 | `nullsafe-objects` | `scripts/test-oracle-nullsafe-object-execution.php` |
 | `readonly-properties` | `scripts/test-oracle-readonly-property-execution.php` |
+| `magic-methods` | `scripts/test-oracle-magic-method-execution.php` |
 | `zend-declarations` | `scripts/test-oracle-zend-declaration-execution.php` |
 | `zend-arbitrary` | `scripts/test-oracle-zend-arbitrary-execution.php` |
 
