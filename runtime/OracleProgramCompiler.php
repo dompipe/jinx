@@ -156,7 +156,6 @@ final class OracleProgramCompiler
         $tokens = token_get_all($source);
         $chunks = [];
         $current = '';
-        $braceDepth = 0;
         $parenDepth = 0;
         $bracketDepth = 0;
 
@@ -169,43 +168,36 @@ final class OracleProgramCompiler
 
             $current .= $text;
 
-            $length = strlen($text);
-            for ($i = 0; $i < $length; $i++) {
-                $ch = $text[$i];
+            // Structural punctuation is emitted by token_get_all() as scalar
+            // tokens. Never inspect punctuation inside string/comment token text.
+            if (is_array($token)) {
+                continue;
+            }
 
-                if ($ch === '(') {
-                    $parenDepth++;
-                    continue;
-                }
-                if ($ch === ')') {
-                    $parenDepth = max(0, $parenDepth - 1);
-                    continue;
-                }
-                if ($ch === '[') {
-                    $bracketDepth++;
-                    continue;
-                }
-                if ($ch === ']') {
-                    $bracketDepth = max(0, $bracketDepth - 1);
-                    continue;
-                }
-                if ($ch === '{' && $parenDepth === 0 && $bracketDepth === 0) {
-                    $braceDepth++;
-                    self::pushChunk($chunks, $current);
-                    $current = '';
-                    continue 2;
-                }
-                if ($ch === '}' && $parenDepth === 0 && $bracketDepth === 0) {
-                    $braceDepth = max(0, $braceDepth - 1);
-                    self::pushChunk($chunks, $current);
-                    $current = '';
-                    continue 2;
-                }
-                if ($ch === ';' && $parenDepth === 0 && $bracketDepth === 0) {
-                    self::pushChunk($chunks, $current);
-                    $current = '';
-                    continue 2;
-                }
+            if ($text === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($text === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($text === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($text === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+            if (($text === '{' || $text === '}') && $parenDepth === 0 && $bracketDepth === 0) {
+                self::pushChunk($chunks, $current);
+                $current = '';
+                continue;
+            }
+            if ($text === ';' && $parenDepth === 0 && $bracketDepth === 0) {
+                self::pushChunk($chunks, $current);
+                $current = '';
             }
         }
 
@@ -227,7 +219,6 @@ final class OracleProgramCompiler
 
         return $statements;
     }
-
     /**
      * @param list<string> $chunks
      */
