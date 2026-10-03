@@ -19,9 +19,9 @@ $source = <<<'PHP'
 
 declare(strict_types=1);
 
-echo json_encode(round(12.55, 1)) . "\n";
-echo json_encode(1.25 + 2.5) . "\n";
-echo json_encode(3.75) . "\n";
+echo round(12.55, 1) . "\n";
+echo (1.25 + 2.5) . "\n";
+echo 3.75 . "\n";
 PHP;
 
 $tmp = tempnam(sys_get_temp_dir(), 'jinx-decimal-');
