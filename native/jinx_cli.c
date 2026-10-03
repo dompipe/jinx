@@ -5,6 +5,7 @@
 #include <math.h>
 #include <signal.h>
 #include <locale.h>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -168,10 +169,31 @@ static int command_php_script(int argc, char **argv) {
      */
     {
         const char *runner = getenv("JINX_ORACLE_SCRIPT_RUNNER");
+        char runner_path[PATH_MAX];
+        char exe_path[PATH_MAX];
         size_t out_argc = (size_t) argc + 1u;
 
         if (runner == NULL || runner[0] == '\0') {
-            runner = "scripts/run-jinx-oracle-script.php";
+            runner_path[0] = '\0';
+
+            if (realpath(argv[0], exe_path) != NULL) {
+                char *slash = strrchr(exe_path, '/');
+                if (slash != NULL) {
+                    *slash = '\0';
+                    if (snprintf(
+                        runner_path,
+                        sizeof(runner_path),
+                        "%s/scripts/run-jinx-oracle-script.php",
+                        exe_path
+                    ) < 0 || strlen(runner_path) >= sizeof(runner_path)) {
+                        return fail("could not resolve Oracle script runner path");
+                    }
+                }
+            }
+
+            runner = runner_path[0] != '\0'
+                ? runner_path
+                : "scripts/run-jinx-oracle-script.php";
         }
 
         php_argv = (char **) calloc(out_argc + 1u, sizeof(char *));
