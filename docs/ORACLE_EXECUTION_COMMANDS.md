@@ -116,6 +116,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `include-require` | `scripts/test-oracle-include-require-execution.php` |
 | `exit-die` | `scripts/test-oracle-exit-die-execution.php` |
 | `object-basics` | `scripts/test-oracle-object-basics-execution.php` |
+| `static-method-calls` | `scripts/test-oracle-static-method-execution.php` |
 | `object-inheritance` | `scripts/test-oracle-object-inheritance-execution.php` |
 
 String interpolation has additional facet coverage for evaluator-level PHP forms that are not all represented in the straight-line source fixture:

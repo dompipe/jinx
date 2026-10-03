@@ -19,6 +19,7 @@ require_once dirname(__DIR__) . '/runtime/OracleRequestExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleIncludeExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExitExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleObjectExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleStaticMethodExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleObjectInheritanceExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleExpressionBatchExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleBuiltinBatchExecutor.php';
