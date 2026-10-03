@@ -276,6 +276,9 @@ final class OracleModernObjectExecutor
         $out = '';
         foreach ($parts as $part) {
             $part = trim($part);
+            while (str_starts_with($part, '(') && str_ends_with($part, ')')) {
+                $part = trim(substr($part, 1, -1));
+            }
             if (preg_match('/^\$(\w+)\s*\?\?\s*([\'\"])(.*?)\2$/s', $part, $m)) {
                 $value = $locals[$m[1]] ?? null;
                 $out .= $value ?? stripcslashes($m[3]);
