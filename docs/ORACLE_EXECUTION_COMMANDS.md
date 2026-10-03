@@ -247,4 +247,18 @@ Runtime owner: `runtime/OracleDateTimeBuiltinExecutor.php`. PHP comparison test:
 
 ## Coverage rule
 
+## Modern PHP recording audit
+
+The broad Oracle interpreter now records modern PHP semantics precisely even when they are not yet executable families. This prevents PHP 8+ constructs from collapsing into generic/raw records and gives later executors stable opcodes and features to consume.
+
+Run:
+
+```bash
+./jinx scripts/test-oracle-modern-php-recording.php
+```
+
+The structural proof covers namespace blocks, enum cases, `yield from`, `??=`, destructuring, nullsafe property access, object-property writes, compound static-property writes, variadic parameters, named/unpacked arguments, array spread, late static binding, readonly declarations, union/nullable types, and function/const imports.
+
+These records are **not executable-family claims** by themselves. Promotion still requires a runtime owner plus PHP-vs-Oracle behavior parity.
+
 Do not mark a PHP/Zend behavior executable until an Oracle runtime owner actually runs it and a PHP comparison test proves parity for captured output, returned value, thrown error status/message class shape, and exit behavior where applicable.
