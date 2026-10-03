@@ -47,10 +47,14 @@ final class OracleCloneExecutor
                 if (!is_array($object)) {
                     throw new \RuntimeException("Oracle clone target is not object: {$statement}");
                 }
-                $locals[$m[1]] = [
+                $clone = [
                     '__class' => $object['__class'] ?? null,
                     'props' => is_array($object['props'] ?? null) ? $object['props'] : [],
                 ];
+                if (isset($class['methods']['__clone'])) {
+                    self::callMethod($class, $clone, '__clone', []);
+                }
+                $locals[$m[1]] = $clone;
                 $executed++;
                 continue;
             }
