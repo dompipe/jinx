@@ -40,6 +40,12 @@ echo "JINX native high-value edge fixture suite" . PHP_EOL;
 echo "Binary: {$jinx}" . PHP_EOL;
 
 run_native_jinx(
+    'php vs jinx high-value edge coverage audit',
+    'scripts/test-php-jinx-high-value-edge-coverage-audit.php',
+    'PASS: PHP vs JINX high-value edge coverage audit validates 40 fixtures across 20 semantic areas and focused-suite wiring'
+);
+
+run_native_jinx(
     'php vs jinx high-value edge fixtures wave one',
     'scripts/test-php-jinx-high-value-edge-fixtures.php',
     'PASS: PHP vs JINX high-value edge fixtures checked 20 fixtures across 10 semantic areas'
