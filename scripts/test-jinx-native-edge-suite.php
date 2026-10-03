@@ -48,7 +48,7 @@ run_native_jinx(
 run_native_jinx(
     'oracle modern php recording',
     'scripts/test-oracle-modern-php-recording.php',
-    'PASS: Oracle modern PHP recorder distinguishes 13 high-risk semantic constructs without claiming execution'
+    'PASS: Oracle modern PHP recorder distinguishes high-risk PHP 8+ semantic constructs without claiming execution'
 );
 
 run_native_jinx(
