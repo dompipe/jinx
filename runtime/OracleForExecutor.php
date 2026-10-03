@@ -490,9 +490,35 @@ final class OracleForExecutor
 
         if (preg_match('/^\$(\w+)((?:\[[^\]]+\])+)$/', $expr, $m)) {
             if (!array_key_exists($m[1], $locals)) {
-                throw new \RuntimeException('Missing Oracle local:         throw new \RuntimeException("Unsupported Oracle for-loop expression: {$expr}");
-    }
+                throw new \RuntimeException('Missing Oracle local: $' . $m[1]);
+            }
 
+            $value = $locals[$m[1]];
+            if (!preg_match_all('/\[([^\]]+)\]/', $m[2], $dims)) {
+                throw new \RuntimeException("Unsupported Oracle for-loop array chain: {$expr}");
+            }
+
+            foreach ($dims[1] as $rawKey) {
+                $key = self::evaluateExpression($rawKey, $locals);
+                if (!is_array($value) || !array_key_exists($key, $value)) {
+                    throw new \RuntimeException("Missing Oracle for-loop array dimension: {$expr}");
+                }
+                $value = $value[$key];
+            }
+
+            return $value;
+        }
+
+        if (preg_match('/^\$(\w+)$/', $expr, $m)) {
+            if (!array_key_exists($m[1], $locals)) {
+                throw new \RuntimeException("Missing Oracle local: {$expr}");
+            }
+
+            return $locals[$m[1]];
+        }
+
+        throw new \RuntimeException("Unsupported Oracle for-loop expression: {$expr}");
+    }
     /** @param array<string,mixed> $locals */
     private static function evaluateArrayLiteral(string $body, array &$locals): array
     {
