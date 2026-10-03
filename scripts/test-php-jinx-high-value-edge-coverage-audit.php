@@ -21,7 +21,7 @@ function inspect_wave(string $path): array
     }
 
     $source = (string) file_get_contents($path);
-    preg_match_all("/add_case\(\$cases, '([^']+)', '([^']+)'/", $source, $matches, PREG_SET_ORDER);
+    preg_match_all("/add_case\\(\\x24cases,\\s*'([^']+)',\\s*'([^']+)'/", $source, $matches, PREG_SET_ORDER);
 
     $areas = [];
     foreach ($matches as $match) {
