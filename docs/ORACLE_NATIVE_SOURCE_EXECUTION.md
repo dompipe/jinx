@@ -25,12 +25,27 @@ variables and array elements. Array-offset reads/writes, +=, *=, postfix ++,
 variable unset, and braced foreach-by-reference execute inside JINX. Foreach
 leaves its variable bound to the last element until unset. Ordinary array
 assignments use independent containers while preserving explicit reference
-cells. Include paths are resolved relative to the current source file;
+cells.
+
+Public class properties now have native declaration metadata for int/string/bool
+and untyped values. Static property lookup shares inherited storage unless a
+child redeclares it. Instances retain their own property storage and preserve
+object identity through ordinary assignments. Uninitialized reads raise Error;
+incompatible typed assignments raise TypeError without replacing the old value.
+Braced try/catch handles Throwable, Error and TypeError (including nested catches),
+and `$e::class` exposes the caught error class. String call_user_func callbacks
+can invoke admitted native builtins; missing targets raise TypeError.
+
+Include paths are resolved relative to the current source file;
 PHP include_path lookup and missing-file warning behavior are not implemented.
 The interpreter rejects overflow rather than promoting integers to floats.
 Undefined variables currently read as null without PHP's warning.
 Foreach key bindings, by-value foreach, loop break/continue, nested array-offset
 syntax, and structural mutation during foreach are outside this native subset.
+Class methods, registered builtin constructors, constructors with arguments, non-public/readonly properties,
+custom exception hierarchies, finally, multiple catches, array/closure callbacks,
+and PHP-identical diagnostic messages are still outside this subset. This work
+proves normalized error classes and preserved state, not full exception parity.
 
 This is an initial native subset, not arbitrary PHP compatibility. Ordinary
 non-orchestration PHP inputs first attempt native syntax admission. Accepted
@@ -59,9 +74,14 @@ filesystem resource round trips, suppressed missing-file reads, and rejection
 before target output. `fixtures/oracle-native-references.php` also checks
 reference mutation, rebinding, unset detachment, lingering foreach bindings,
 array-copy isolation, aliases surviving bucket growth, and coerced array keys.
+`fixtures/oracle-native-properties.php` compares static shadowing and sharing,
+typed defaults/assignments, uninitialized reads, independent instances, object
+identity, nested catch matching, invalid callbacks, and include return values
+when catch/foreach return statements are not executed.
 
 The high-value semantic edge suite is a separate gate. The native interpreter
-fixes both include, both filesystem and both reference first-wave cases,
-reducing mismatches from 17 to 11 out of 20. Object/static/clone, closure, callback, typed
-property and type-error cases remain unsupported. Do not infer full-stack
+fixes both include, both filesystem and both reference first-wave cases.
+Property and invalid-callback execution additionally reduces mismatches from
+11 to 6 out of 20. Two clone cases, two closure cases, typed-function errors,
+and static-method/closure callback composition remain unsupported. Do not infer full-stack
 success from this focused test.

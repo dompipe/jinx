@@ -53,6 +53,15 @@ foreach ([true, false] as $forceNative) {
     if ($native !== $referencePhp) throw new RuntimeException('native reference parity differs: ' . json_encode($native));
 }
 
+$propertyFixture = $root . '/fixtures/oracle-native-properties.php';
+$propertyPhp = native_source_run([PHP_BINARY, $propertyFixture], false);
+$propertyExpected = "[3,13]\n[8,8,13]\nERR:TypeError\n8\nERR:Error\n[7,20,\"ready\"]\nERR:TypeError\n7\nOUTER:TypeError\nCALLBACK:TypeError\n8\n1\n";
+if ($propertyPhp !== [0, $propertyExpected, '']) throw new RuntimeException('unexpected property baseline: ' . json_encode($propertyPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $propertyFixture], true, $forceNative);
+    if ($native !== $propertyPhp) throw new RuntimeException('native property/exception parity differs: ' . json_encode($native));
+}
+
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {

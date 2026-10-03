@@ -3,6 +3,7 @@
 #include "jinx_oracle_zend_array_carrier.h"
 #include <ctype.h>
 #include <limits.h>
+#include <strings.h>
 
 typedef struct NativeAllocation {
     void *ptr;
@@ -15,6 +16,27 @@ typedef struct NativeVariable {
     JinxZendReference *reference;
     struct NativeVariable *next;
 } NativeVariable;
+
+typedef struct NativeProperty {
+    char *name;
+    int type;
+    int is_static;
+    int initialized;
+    NativeVariable storage;
+    struct NativeProperty *next;
+} NativeProperty;
+
+typedef struct NativeClass {
+    char *name;
+    struct NativeClass *parent;
+    NativeProperty *properties;
+    struct NativeClass *next;
+} NativeClass;
+
+typedef struct NativeObject {
+    JinxZendObject *object;
+    struct NativeObject *next;
+} NativeObject;
 
 typedef struct NativeArray {
     JinxZendArray *array;
@@ -30,6 +52,7 @@ typedef struct NativeSlot {
     NativeVariable *variable;
     JinxZendArray *array;
     JinxValue key;
+    NativeProperty *property;
 } NativeSlot;
 
 typedef struct NativeRuntime {
@@ -37,6 +60,10 @@ typedef struct NativeRuntime {
     NativeVariable *variables;
     NativeArray *arrays;
     NativeReference *references;
+    NativeClass *classes;
+    NativeObject *objects;
+    const char *exception_class;
+    const char *exception_message;
     char *included[128];
     size_t included_count;
     unsigned depth;
@@ -57,7 +84,7 @@ typedef struct NativeParser {
     int returned;
 } NativeParser;
 
-enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE };
+enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT };
 enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5 };
 
 static void *native_alloc(NativeRuntime *runtime, size_t size) {
@@ -79,6 +106,26 @@ static char *native_copy(NativeRuntime *runtime, const char *text, size_t length
     char *copy = native_alloc(runtime, length + 1);
     if (copy) memcpy(copy, text, length);
     return copy;
+}
+
+static void native_raise(NativeRuntime *runtime, const char *class_name, const char *message) {
+    if (!runtime->exception_class) {
+        runtime->exception_class = class_name;
+        runtime->exception_message = message;
+    }
+}
+
+static NativeClass *native_class_find(NativeRuntime *runtime, const char *name) {
+    for (NativeClass *class_entry = runtime->classes; class_entry; class_entry = class_entry->next)
+        if (!strcasecmp(class_entry->name, name)) return class_entry;
+    return NULL;
+}
+
+static NativeProperty *native_property_find(NativeClass *class_entry, const char *name, int is_static) {
+    for (; class_entry; class_entry = class_entry->parent)
+        for (NativeProperty *property = class_entry->properties; property; property = property->next)
+            if (property->is_static == is_static && !strcmp(property->name, name)) return property;
+    return NULL;
 }
 
 static void native_next(NativeParser *parser) {
@@ -120,6 +167,9 @@ static void native_next(NativeParser *parser) {
         parser->literal = jinx_value_string(native_copy(runtime, body, (size_t)(end - body)), (uint32_t)(end - body));
         parser->kind = N_LITERAL;
         p = end + length + 1;
+    } else if (!strncmp(p, "::", 2) || !strncmp(p, "->", 2)) {
+        parser->kind = *p == ':' ? N_SCOPE : N_OBJECT;
+        p += 2;
     } else if (!strncmp(p, "=>", 2) || !strncmp(p, "??", 2)) {
         parser->kind = *p == '=' ? N_ARROW : N_COALESCE;
         p += 2;
@@ -177,6 +227,7 @@ static int native_accept(NativeParser *parser, int kind) {
 }
 
 static void native_expect(NativeParser *parser, int kind) {
+    if (!parser->checking && parser->runtime->exception_class) return;
     if (!native_accept(parser, kind)) parser->runtime->error = "unsupported or malformed PHP syntax";
 }
 
@@ -217,6 +268,7 @@ static JinxZendValue native_zend_value(JinxValue value) {
     if (value.type == N_VALUE_BOOL) return jinx_zend_bool((int)value.as.i64);
     if (value.type == N_VALUE_STRING) return jinx_zend_string_value(jinx_zend_string_new(value.as.ptr, value.flags));
     if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) return jinx_zend_array_value(value.as.ptr);
+    if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) return jinx_zend_object_value(value.as.ptr);
     return jinx_zend_null();
 }
 
@@ -244,6 +296,7 @@ static JinxValue native_from_zend(NativeParser *parser, JinxZendValue value) {
         case JINX_ZEND_STRING:
             return jinx_value_string(native_copy(parser->runtime, value.value.str->bytes, value.value.str->len), (uint32_t)value.value.str->len);
         case JINX_ZEND_ARRAY: return jinx_oracle_zend_array_value_borrowed(value.value.array);
+        case JINX_ZEND_OBJECT: return jinx_oracle_zend_object_value_borrowed(value.value.object);
         case JINX_ZEND_NULL: return jinx_value_null();
         default: parser->runtime->error = "native referenced value type is unsupported"; return jinx_value_null();
     }
@@ -254,13 +307,61 @@ static JinxValue native_variable_read(NativeParser *parser, NativeVariable *vari
     return variable->reference ? native_from_zend(parser, variable->reference->value) : variable->value;
 }
 
+static NativeSlot native_object_slot(NativeParser *parser, JinxValue object, const char *name) {
+    NativeSlot slot = {0};
+    if (parser->checking || parser->runtime->exception_class) return slot;
+    if (object.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        native_raise(parser->runtime, "Error", "Property access requires an object");
+        return slot;
+    }
+    JinxZendObject *instance = object.as.ptr;
+    NativeClass *class_entry = native_class_find(parser->runtime, instance->class_name);
+    slot.property = native_property_find(class_entry, name, 0);
+    if (!slot.property) {
+        parser->runtime->error = "native object property is undeclared";
+        return slot;
+    }
+    slot.array = instance->properties;
+    slot.key = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
+    return slot;
+}
+
+static NativeSlot native_static_slot(NativeParser *parser, const char *class_name) {
+    NativeSlot slot = {0};
+    native_expect(parser, N_SCOPE);
+    if (parser->kind != N_VAR) { parser->runtime->error = "native static access requires property"; return slot; }
+    char name[256];
+    strcpy(name, parser->token);
+    native_next(parser);
+    if (!parser->checking) {
+        NativeClass *class_entry = native_class_find(parser->runtime, class_name);
+        slot.property = native_property_find(class_entry, name, 1);
+        if (!slot.property) native_raise(parser->runtime, "Error", "Access to undeclared static property");
+        else slot.variable = &slot.property->storage;
+    }
+    return slot;
+}
+
 static NativeSlot native_slot(NativeParser *parser) {
     NativeSlot slot = {0};
+    if (parser->kind == N_ID) {
+        char class_name[256];
+        strcpy(class_name, parser->token);
+        native_next(parser);
+        return native_static_slot(parser, class_name);
+    }
     if (parser->kind != N_VAR) { parser->runtime->error = "native assignment requires variable"; return slot; }
     char name[256];
     strcpy(name, parser->token);
     native_next(parser);
     if (!parser->checking) slot.variable = native_variable(parser->runtime, name);
+    if (native_accept(parser, N_OBJECT)) {
+        if (parser->kind != N_ID) { parser->runtime->error = "native property requires name"; return slot; }
+        char property_name[256];
+        strcpy(property_name, parser->token);
+        native_next(parser);
+        return native_object_slot(parser, native_variable_read(parser, slot.variable), property_name);
+    }
     if (native_accept(parser, '[')) {
         slot.key = native_expression(parser, 0);
         native_expect(parser, ']');
@@ -303,13 +404,23 @@ static JinxZendValue *native_slot_element(NativeParser *parser, NativeSlot slot,
 
 static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot) {
     if (parser->checking) return jinx_value_null();
+    if (slot.property && slot.property->is_static && !slot.property->initialized) {
+        native_raise(parser->runtime, "Error", "Typed static property must not be accessed before initialization");
+        return jinx_value_null();
+    }
     if (slot.variable) return native_variable_read(parser, slot.variable);
     JinxZendValue *element = native_slot_element(parser, slot, 0);
+    if (!element && slot.property) native_raise(parser->runtime, "Error", "Typed property must not be accessed before initialization");
     return element ? native_from_zend(parser, *element) : jinx_value_null();
 }
 
 static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value) {
-    if (parser->checking || parser->runtime->error) return;
+    if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return;
+    if (slot.property && slot.property->type && slot.property->type != (int)value.type) {
+        native_raise(parser->runtime, "TypeError", "Cannot assign incompatible value to typed property");
+        return;
+    }
+    if (slot.property && slot.property->is_static) slot.property->initialized = 1;
     value = native_value_copy(parser, value);
     if (parser->runtime->error) return;
     if (slot.variable && !slot.variable->reference) { slot.variable->value = value; return; }
@@ -317,13 +428,14 @@ static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue v
     if (!target) return;
     if (target->type == JINX_ZEND_REFERENCE) target = &target->value.ref->value;
     JinxZendValue converted = native_zend_value(value);
-    if (converted.type == JINX_ZEND_ARRAY) converted = jinx_zend_value_copy(converted);
+    if (converted.type == JINX_ZEND_ARRAY || converted.type == JINX_ZEND_OBJECT) converted = jinx_zend_value_copy(converted);
     jinx_zend_value_release(*target);
     *target = converted;
 }
 
 static JinxZendReference *native_slot_reference(NativeParser *parser, NativeSlot slot) {
     if (parser->checking || parser->runtime->error) return NULL;
+    if (slot.property) { parser->runtime->error = "typed property references are not yet native"; return NULL; }
     if (slot.variable && slot.variable->reference) return slot.variable->reference;
     JinxZendValue *element = slot.array ? native_slot_element(parser, slot, 1) : NULL;
     if (element && element->type == JINX_ZEND_REFERENCE) return element->value.ref;
@@ -345,6 +457,7 @@ static JinxZendReference *native_slot_reference(NativeParser *parser, NativeSlot
 
 static void native_slot_bind(NativeParser *parser, NativeSlot slot, JinxZendReference *reference) {
     if (parser->checking || parser->runtime->error || !reference) return;
+    if (slot.property) { parser->runtime->error = "typed property references are not yet native"; return; }
     if (slot.variable) slot.variable->reference = reference;
     else {
         JinxZendValue *element = native_slot_element(parser, slot, 1);
@@ -401,10 +514,49 @@ static int native_builtin_admitted(const char *name) {
         "strlen", "strtoupper", "strtolower", "abs", "json_encode",
         "file_put_contents", "unlink", "tempnam", "sys_get_temp_dir",
         "fopen", "fwrite", "rewind", "fread", "fclose", "file_exists",
-        "file_get_contents", "gettype", "error_reporting", NULL
+        "file_get_contents", "gettype", "error_reporting", "call_user_func", NULL
     };
     for (size_t i = 0; names[i]; i++) if (!strcmp(name, names[i])) return 1;
     return 0;
+}
+
+static void native_instance_defaults(NativeParser *parser, NativeClass *class_entry, JinxZendObject *object) {
+    if (!class_entry || parser->runtime->error || parser->runtime->exception_class) return;
+    native_instance_defaults(parser, class_entry->parent, object);
+    for (NativeProperty *property = class_entry->properties; property; property = property->next) {
+        if (!property->is_static && property->initialized) {
+            NativeSlot slot = {0};
+            slot.array = object->properties;
+            slot.key = jinx_value_string(property->name, (uint32_t)strlen(property->name));
+            slot.property = property;
+            native_slot_write(parser, slot, property->storage.value);
+        }
+    }
+}
+
+static JinxValue native_instance(NativeParser *parser, const char *name, int internal) {
+    if (parser->checking) {
+        JinxValue argument = jinx_value_string(name, (uint32_t)strlen(name));
+        int ok = 0;
+        JinxValue registered = jinx_call_builtin_through_oracle_checked("class_exists", &argument, 1, &ok);
+        if (!ok || (registered.type == N_VALUE_BOOL && registered.as.i64))
+            parser->runtime->error = "registered builtin constructors are not yet admitted by native source interpreter";
+        return jinx_value_null();
+    }
+    if (parser->runtime->exception_class) return jinx_value_null();
+    NativeClass *class_entry = native_class_find(parser->runtime, name);
+    if (!class_entry && !internal) {
+        native_raise(parser->runtime, "Error", "Class not found");
+        return jinx_value_null();
+    }
+    NativeObject *owner = native_alloc(parser->runtime, sizeof(*owner));
+    if (!owner) return jinx_value_null();
+    owner->object = jinx_zend_object_new(name);
+    if (!owner->object) { parser->runtime->error = "native object allocation failed"; return jinx_value_null(); }
+    owner->next = parser->runtime->objects;
+    parser->runtime->objects = owner;
+    native_instance_defaults(parser, class_entry, owner->object);
+    return jinx_oracle_zend_object_value_borrowed(owner->object);
 }
 
 static JinxValue native_primary(NativeParser *parser) {
@@ -434,7 +586,18 @@ static JinxValue native_primary(NativeParser *parser) {
         char name[256];
         strcpy(name, parser->token);
         native_next(parser);
-        if (!strcmp(name, "__DIR__")) value = jinx_value_string(parser->directory, (uint32_t)strlen(parser->directory));
+        if (!strcmp(name, "new")) {
+            if (parser->kind != N_ID) runtime->error = "native new requires class name";
+            char class_name[256];
+            strcpy(class_name, parser->token);
+            native_next(parser);
+            native_expect(parser, '(');
+            native_expect(parser, ')');
+            if (!runtime->error) value = native_instance(parser, class_name, 0);
+        } else if (parser->kind == N_SCOPE) {
+            NativeSlot slot = native_static_slot(parser, name);
+            value = native_slot_read(parser, slot);
+        } else if (!strcmp(name, "__DIR__")) value = jinx_value_string(parser->directory, (uint32_t)strlen(parser->directory));
         else if (!strcmp(name, "__FILE__")) value = jinx_value_string(parser->path, (uint32_t)strlen(parser->path));
         else if (!strcmp(name, "true")) value = jinx_value_bool(1);
         else if (!strcmp(name, "false")) value = jinx_value_bool(0);
@@ -469,9 +632,22 @@ static JinxValue native_primary(NativeParser *parser) {
                 args[count++] = native_expression(parser, 0);
             } while (native_accept(parser, ','));
             native_expect(parser, ')');
-            if (!parser->checking && !runtime->error) {
-                value = jinx_call_builtin_through_oracle_checked(name, args, count, &ok);
-                if (!ok) runtime->error = "native Oracle builtin call failed";
+            if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                if (!strcmp(name, "call_user_func")) {
+                    if (!count) native_raise(runtime, "ArgumentCountError", "call_user_func requires a callback");
+                    else if (args[0].type == JINX_ORACLE_VALUE_ZEND_ARRAY) runtime->error = "array callbacks are not yet native";
+                    else if (args[0].type != N_VALUE_STRING || !jinx_lookup_oracle_wrapper(args[0].as.ptr))
+                        native_raise(runtime, "TypeError", "call_user_func requires a valid callback");
+                    else if (!native_builtin_admitted(args[0].as.ptr) || !strcmp(args[0].as.ptr, "call_user_func"))
+                        runtime->error = "callback target is not yet admitted by native interpreter";
+                    else {
+                        value = jinx_call_builtin_through_oracle_checked(args[0].as.ptr, args + 1, count - 1, &ok);
+                        if (!ok) native_raise(runtime, "ArgumentCountError", "Invalid callback argument count");
+                    }
+                } else {
+                    value = jinx_call_builtin_through_oracle_checked(name, args, count, &ok);
+                    if (!ok) runtime->error = "native Oracle builtin call failed";
+                }
                 if (ok && value.type == N_VALUE_STRING) {
                     char *copy = native_copy(runtime, value.as.ptr, value.flags);
                     /* Native scalar handlers return borrowed scratch storage. */
@@ -480,6 +656,24 @@ static JinxValue native_primary(NativeParser *parser) {
             }
         }
     } else runtime->error = "expression is not yet supported by native Oracle";
+    while (!runtime->error && (parser->kind == N_OBJECT || parser->kind == N_SCOPE)) {
+        int access = parser->kind;
+        native_next(parser);
+        if (parser->kind != N_ID) { runtime->error = "native object postfix requires name"; break; }
+        char member[256];
+        strcpy(member, parser->token);
+        native_next(parser);
+        if (access == N_SCOPE) {
+            if (strcmp(member, "class")) runtime->error = "only object class-name fetch is native";
+            else if (!parser->checking && !runtime->exception_class) {
+                if (value.type != JINX_ORACLE_VALUE_ZEND_OBJECT) native_raise(runtime, "TypeError", "class-name fetch requires object");
+                else {
+                    const char *class_name = ((JinxZendObject *)value.as.ptr)->class_name;
+                    value = jinx_value_string(class_name, (uint32_t)strlen(class_name));
+                }
+            }
+        } else value = native_slot_read(parser, native_object_slot(parser, value, member));
+    }
     return value;
 }
 
@@ -498,7 +692,7 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
         return jinx_value_null();
     }
     JinxValue left = native_primary(parser);
-    while (!parser->runtime->error && native_precedence(parser->kind) >= minimum) {
+    while (!parser->runtime->error && !parser->runtime->exception_class && native_precedence(parser->kind) >= minimum) {
         int operator = parser->kind;
         int precedence = native_precedence(operator);
         native_next(parser);
@@ -546,7 +740,134 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
 
 static void native_statements(NativeParser *parser, JinxValue *result);
 
+static void native_class_declaration(NativeParser *parser) {
+    native_next(parser);
+    if (parser->kind != N_ID) { parser->runtime->error = "native class requires name"; return; }
+    char name[256];
+    strcpy(name, parser->token);
+    native_next(parser);
+    NativeClass *parent = NULL;
+    if (parser->kind == N_ID && !strcmp(parser->token, "extends")) {
+        native_next(parser);
+        if (parser->kind != N_ID) { parser->runtime->error = "native extends requires class name"; return; }
+        if (!parser->checking) {
+            parent = native_class_find(parser->runtime, parser->token);
+            if (!parent) native_raise(parser->runtime, "Error", "Parent class not found");
+        }
+        native_next(parser);
+    }
+    NativeClass *class_entry = NULL;
+    if (!parser->checking && !parser->runtime->exception_class) {
+        if (native_class_find(parser->runtime, name)) { native_raise(parser->runtime, "Error", "Class already declared"); return; }
+        class_entry = native_alloc(parser->runtime, sizeof(*class_entry));
+        if (!class_entry) return;
+        class_entry->name = native_copy(parser->runtime, name, strlen(name));
+        class_entry->parent = parent;
+        class_entry->next = parser->runtime->classes;
+        parser->runtime->classes = class_entry;
+    }
+    native_expect(parser, '{');
+    while (parser->kind != '}' && !parser->runtime->error && (parser->checking || !parser->runtime->exception_class)) {
+        if (parser->kind != N_ID || strcmp(parser->token, "public")) {
+            parser->runtime->error = "native class currently admits public properties only";
+            break;
+        }
+        native_next(parser);
+        int is_static = parser->kind == N_ID && !strcmp(parser->token, "static");
+        if (is_static) native_next(parser);
+        int type = 0;
+        if (parser->kind == N_ID) {
+            if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
+            else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
+            else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
+            else { parser->runtime->error = "native property type is unsupported"; break; }
+            native_next(parser);
+        }
+        if (parser->kind != N_VAR) { parser->runtime->error = "native property declaration requires variable"; break; }
+        char property_name[256];
+        strcpy(property_name, parser->token);
+        native_next(parser);
+        int initialized = native_accept(parser, '=');
+        JinxValue initial = initialized ? native_expression(parser, 0) : jinx_value_null();
+        if (!type) initialized = 1;
+        native_expect(parser, ';');
+        if (class_entry && !parser->runtime->error && !parser->runtime->exception_class) {
+            NativeProperty *property = native_alloc(parser->runtime, sizeof(*property));
+            if (!property) break;
+            property->name = native_copy(parser->runtime, property_name, strlen(property_name));
+            property->type = type;
+            property->is_static = is_static;
+            property->initialized = initialized;
+            property->storage.value = initial;
+            property->next = class_entry->properties;
+            class_entry->properties = property;
+            if (initialized && type && type != (int)initial.type) native_raise(parser->runtime, "TypeError", "Incompatible property default");
+        }
+    }
+    native_expect(parser, '}');
+}
+
+static int native_catch_matches(const char *caught, const char *thrown) {
+    return !strcmp(caught, "Throwable") || !strcmp(caught, thrown) ||
+        (!strcmp(caught, "Error") && (!strcmp(thrown, "Error") || !strcmp(thrown, "TypeError") || !strcmp(thrown, "ArgumentCountError"))) ||
+        (!strcmp(caught, "TypeError") && !strcmp(thrown, "ArgumentCountError"));
+}
+
+static void native_try(NativeParser *parser, JinxValue *result) {
+    JinxValue ignored = jinx_value_null();
+    native_next(parser);
+    native_expect(parser, '{');
+    NativeParser body = *parser;
+    NativeParser end = body;
+    end.checking = 1;
+    native_statements(&end, &ignored);
+    native_expect(&end, '}');
+    if (end.kind != N_ID || strcmp(end.token, "catch")) end.runtime->error = "native try requires catch";
+    native_next(&end);
+    native_expect(&end, '(');
+    if (end.kind != N_ID) end.runtime->error = "native catch requires exception class";
+    char caught[256];
+    strcpy(caught, end.token);
+    native_next(&end);
+    if (end.kind != N_VAR) end.runtime->error = "native catch requires variable";
+    char variable[256];
+    strcpy(variable, end.token);
+    native_next(&end);
+    native_expect(&end, ')');
+    native_expect(&end, '{');
+    NativeParser handler = end;
+    native_statements(&end, &ignored);
+    native_expect(&end, '}');
+    int checking = parser->checking;
+    *parser = end;
+    parser->checking = checking;
+    if (checking || parser->runtime->error) return;
+    body.checking = 0;
+    native_statements(&body, result);
+    if (parser->runtime->error) return;
+    const char *thrown = parser->runtime->exception_class;
+    if (thrown && native_catch_matches(caught, thrown)) {
+        parser->runtime->exception_class = NULL;
+        parser->runtime->exception_message = NULL;
+        NativeVariable *binding = native_variable(parser->runtime, variable);
+        if (!binding) return;
+        binding->reference = NULL;
+        binding->value = native_instance(parser, thrown, 1);
+        handler.checking = 0;
+        native_statements(&handler, result);
+        if (handler.returned) parser->returned = 1;
+    } else if (!thrown && body.returned) parser->returned = 1;
+}
+
+static int native_static_statement(NativeParser *parser) {
+    if (parser->kind != N_ID) return 0;
+    NativeParser peek = *parser;
+    native_next(&peek);
+    return peek.kind == N_SCOPE;
+}
+
 static void native_foreach(NativeParser *parser, JinxValue *result) {
+    JinxValue ignored = jinx_value_null();
     native_next(parser);
     native_expect(parser, '(');
     JinxValue iterable = native_expression(parser, 0);
@@ -559,7 +880,7 @@ static void native_foreach(NativeParser *parser, JinxValue *result) {
     NativeParser body = *parser;
     NativeParser end = body;
     end.checking = 1;
-    native_statements(&end, result);
+    native_statements(&end, &ignored);
     native_expect(&end, '}');
     int checking = parser->checking;
     *parser = end;
@@ -585,7 +906,8 @@ static void native_foreach(NativeParser *parser, JinxValue *result) {
 }
 
 static void native_statements(NativeParser *parser, JinxValue *result) {
-    while (parser->kind && parser->kind != '}' && !parser->runtime->error) {
+    while (parser->kind && parser->kind != '}' && !parser->runtime->error &&
+        (parser->checking || !parser->runtime->exception_class)) {
         if (parser->kind == N_ID && !strcmp(parser->token, "declare")) {
             native_next(parser);
             native_expect(parser, '(');
@@ -597,7 +919,12 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             native_next(parser);
             native_expect(parser, ')');
             native_expect(parser, ';');
-        } else if (parser->kind == N_VAR) {
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "class")) {
+            native_class_declaration(parser);
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "try")) {
+            native_try(parser, result);
+            if (parser->returned) return;
+        } else if (parser->kind == N_VAR || native_static_statement(parser)) {
             NativeSlot slot = native_slot(parser);
             int operation = parser->kind;
             int compound = operation == '+' || operation == '*';
@@ -605,7 +932,7 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             if (operation == '+' && native_accept(parser, '+')) {
                 native_expect(parser, ';');
                 JinxValue old = native_slot_read(parser, slot);
-                if (!parser->checking && !parser->runtime->error) {
+                if (!parser->checking && !parser->runtime->error && !parser->runtime->exception_class) {
                     int64_t sum;
                     if (old.type != N_VALUE_INT || __builtin_add_overflow(old.as.i64, (int64_t)1, &sum))
                         parser->runtime->error = "unsupported native increment";
@@ -623,9 +950,10 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             }
             JinxValue value = native_expression(parser, 0);
             native_expect(parser, ';');
-            if (!parser->checking && !parser->runtime->error) {
+            if (!parser->checking && !parser->runtime->error && !parser->runtime->exception_class) {
                 if (compound) {
                     JinxValue old = native_slot_read(parser, slot);
+                    if (parser->runtime->exception_class) continue;
                     int64_t number;
                     int overflow = old.type != N_VALUE_INT || value.type != N_VALUE_INT;
                     if (!overflow) overflow = operation == '+' ? __builtin_add_overflow(old.as.i64, value.as.i64, &number)
@@ -652,7 +980,7 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             native_next(parser);
             do {
                 JinxValue value = native_expression(parser, 0);
-                if (!parser->checking && !parser->runtime->error) {
+                if (!parser->checking && !parser->runtime->error && !parser->runtime->exception_class) {
                     size_t length;
                     const char *text = native_text(parser, value, &length);
                     if (text) fwrite(text, 1, length, stdout);
@@ -718,7 +1046,7 @@ static int native_file(NativeRuntime *runtime, const char *path, int once, JinxV
     native_next(&parser);
     native_statements(&parser, result);
     runtime->depth--;
-    return runtime->error == NULL;
+    return runtime->error == NULL && runtime->exception_class == NULL;
 }
 
 static int native_script_run(const char *path, int probing) {
@@ -726,10 +1054,13 @@ static int native_script_run(const char *path, int probing) {
     JinxValue result;
     int ok = native_file(&runtime, path, 0, &result);
     int unsupported = !ok && probing && !runtime.started;
-    if (!ok && !unsupported) fprintf(stderr, "JINX NATIVE SCRIPT ERROR: %s: %s; refusing PHP fallback\n", path, runtime.error);
+    if (!ok && !unsupported) fprintf(stderr, "JINX NATIVE SCRIPT ERROR: %s: %s: %s; refusing PHP fallback\n",
+        path, runtime.exception_class ? runtime.exception_class : "InterpreterError",
+        runtime.error ? runtime.error : runtime.exception_message);
     for (NativeArray *array = runtime.arrays; array; array = array->next) jinx_zend_array_release(array->array);
     for (NativeReference *reference = runtime.references; reference; reference = reference->next)
         jinx_zend_reference_release(reference->reference);
+    for (NativeObject *object = runtime.objects; object; object = object->next) jinx_zend_object_release(object->object);
     while (runtime.allocations) {
         NativeAllocation *allocation = runtime.allocations;
         runtime.allocations = allocation->next;
