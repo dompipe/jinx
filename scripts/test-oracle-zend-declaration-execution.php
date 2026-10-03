@@ -98,11 +98,19 @@ if (($oracle['oracle']['executed_ops'] ?? 0) < 7) {
 }
 
 $ops = array_column($oracle['program']['statements'] ?? [], 'op');
-foreach (['O_NAMESPACE', 'O_USE', 'O_INTERFACE_DECL', 'O_TRAIT_DECL', 'O_ENUM_DECL', 'O_CLASS_DECL', 'O_METHOD_DECL', 'O_PROPERTY_DECL', 'O_STATIC_CALL', 'O_METHOD_CALL', 'O_PROPERTY_FETCH', 'O_IF', 'O_THROW', 'O_ECHO', 'O_RETURN'] as $op) {
+foreach (['O_NAMESPACE', 'O_USE', 'O_INTERFACE_DECL', 'O_TRAIT_DECL', 'O_ENUM_DECL', 'O_ENUM_CASE', 'O_CLASS_DECL', 'O_METHOD_DECL', 'O_PROPERTY_DECL', 'O_STATIC_CALL', 'O_METHOD_CALL', 'O_PROPERTY_FETCH', 'O_IF', 'O_THROW', 'O_ECHO', 'O_RETURN'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("fixture did not produce expected {$op}");
     }
 }
+
+$enumCases = array_values(array_filter(
+    $oracle['program']['statements'] ?? [],
+    static fn (array $statement): bool => ($statement['op'] ?? null) === 'O_ENUM_CASE'
+));
+same(count($enumCases), 1, 'fixture records one backed enum case');
+same($enumCases[0]['features']->name ?? null, 'One', 'backed enum case name');
+same($enumCases[0]['features']->backed_value_source ?? null, "'one'", 'backed enum case value source');
 
 $source = (string) file_get_contents($fixture);
 foreach (['namespace Dompipe\\Jinx\\Fixtures\\ExecutableZend', 'use RuntimeException as ImportedRuntimeException', 'interface RenderableDeclaration', 'trait CountsDeclaration', 'enum DeclarationMode', 'DeclarationFixture::make', '$object->bump', '$mode->value'] as $needle) {
