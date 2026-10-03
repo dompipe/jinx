@@ -93,11 +93,17 @@ foreach ($cases as $label => [$relative, $executor]) {
         fail($label . ' output mismatch: PHP=' . json_encode($php['output']) . ' Oracle=' . json_encode($oracle['output']));
     }
 
-    if ($oracle['return'] !== $php['return']) {
-        fail($label . ' return mismatch: PHP=' . var_export($php['return'], true) . ' Oracle=' . var_export($oracle['return'], true));
+    $ops = array_column($oracle['program']['statements'] ?? [], 'op');
+    $phpProgramReturn = in_array('O_RETURN', $ops, true) ? $php['return'] : null;
+
+    if ($oracle['return'] !== $phpProgramReturn) {
+        fail(
+            $label . ' return mismatch: PHP program=' . var_export($phpProgramReturn, true) .
+            ' PHP require=' . var_export($php['return'], true) .
+            ' Oracle=' . var_export($oracle['return'], true)
+        );
     }
 
-    $ops = array_column($oracle['program']['statements'] ?? [], 'op');
     if (in_array('O_RAW_PHP_STMT', $ops, true)) {
         fail($label . ' still records raw PHP statement');
     }
