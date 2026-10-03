@@ -620,6 +620,20 @@ final class OracleFunctionExecutor
             return strtoupper((string) ($args[0] ?? ''));
         }
 
+        if ($lower === 'strtolower') {
+            if ($namedArgs !== []) {
+                throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
+            }
+            return strtolower((string) ($args[0] ?? ''));
+        }
+
+        if ($lower === 'strrev') {
+            if ($namedArgs !== []) {
+                throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
+            }
+            return strrev((string) ($args[0] ?? ''));
+        }
+
         if ($lower === 'implode') {
             if ($namedArgs !== []) {
                 throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
