@@ -10,8 +10,12 @@ $count = 1;
 $count++;
 --$count;
 $fallback = $items['missing'] ?? 'fallback';
+$localDefault ??= 4;
+$localDefault ??= 9;
+$items['n'] ??= 6;
+$items['n'] ??= 11;
 
 echo $value;
 print strtoupper(' oracle');
 
-return strlen($value) + $count + strlen($fallback);
+return strlen($value) + $count + strlen($fallback) + $localDefault + $items['n'];
