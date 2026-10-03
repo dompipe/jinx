@@ -118,7 +118,7 @@ if ($functionDeclCount < 3) {
     fail('fixture did not produce the expected three function declarations');
 }
 
-foreach (['add_score(', 'label_score(', 'build_score(', "build_score(bonus: 5, name: 'jinx', base: 7)", 'strlen(', 'strtoupper('] as $needle) {
+foreach (['add_score(', 'label_score(', 'build_score($name, $base = 7, $bonus = 5)', "build_score(name: 'jinx')", 'strlen(', 'strtoupper('] as $needle) {
     $found = false;
 
     foreach ($oracle['program']['statements'] ?? [] as $statement) {
