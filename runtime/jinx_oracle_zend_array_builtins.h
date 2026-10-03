@@ -6398,6 +6398,12 @@ static inline int jinx_oracle_json_encode_zend_value(
     switch (value.type) {
         case JINX_ZEND_NULL:
             return jinx_oracle_json_encode_append(buffer, "null", 4u);
+        case JINX_ZEND_REFERENCE:
+            if (!value.value.ref || depth > 512) {
+                buffer->error = JINX_JSON_ERROR_RECURSION;
+                return 0;
+            }
+            return jinx_oracle_json_encode_zend_value(buffer, value.value.ref->value, depth + 1, parent);
         case JINX_ZEND_FALSE:
             return jinx_oracle_json_encode_append(buffer, "false", 5u);
         case JINX_ZEND_TRUE:

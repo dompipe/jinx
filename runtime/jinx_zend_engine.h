@@ -128,6 +128,10 @@ JinxZendValue jinx_zend_long(int64_t value);
 JinxZendValue jinx_zend_double(double value);
 JinxZendValue jinx_zend_value_copy(JinxZendValue value);
 void jinx_zend_value_release(JinxZendValue value);
+JinxZendReference *jinx_zend_reference_new(JinxZendValue value);
+JinxZendReference *jinx_zend_reference_retain(JinxZendReference *reference);
+void jinx_zend_reference_release(JinxZendReference *reference);
+JinxZendValue jinx_zend_reference_value(JinxZendReference *reference);
 
 JinxZendString jinx_zend_string_view(const char *bytes, size_t len);
 JinxZendString *jinx_zend_string_new(const char *bytes, size_t len);

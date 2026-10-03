@@ -40,6 +40,8 @@ JinxZendValue jinx_zend_value_copy(JinxZendValue value) {
         value.value.array = jinx_zend_array_retain(value.value.array);
     } else if (value.type == JINX_ZEND_OBJECT) {
         value.value.object = jinx_zend_object_retain(value.value.object);
+    } else if (value.type == JINX_ZEND_REFERENCE) {
+        value.value.ref = jinx_zend_reference_retain(value.value.ref);
     }
 
     return value;
@@ -52,7 +54,36 @@ void jinx_zend_value_release(JinxZendValue value) {
         jinx_zend_array_release(value.value.array);
     } else if (value.type == JINX_ZEND_OBJECT) {
         jinx_zend_object_release(value.value.object);
+    } else if (value.type == JINX_ZEND_REFERENCE) {
+        jinx_zend_reference_release(value.value.ref);
     }
+}
+
+JinxZendReference *jinx_zend_reference_new(JinxZendValue value) {
+    JinxZendReference *reference = calloc(1, sizeof(*reference));
+    if (reference) {
+        reference->refcount = 1;
+        reference->value = jinx_zend_value_copy(value);
+    }
+    return reference;
+}
+
+JinxZendReference *jinx_zend_reference_retain(JinxZendReference *reference) {
+    if (reference) reference->refcount++;
+    return reference;
+}
+
+void jinx_zend_reference_release(JinxZendReference *reference) {
+    if (!reference || --reference->refcount) return;
+    jinx_zend_value_release(reference->value);
+    free(reference);
+}
+
+JinxZendValue jinx_zend_reference_value(JinxZendReference *reference) {
+    JinxZendValue value = jinx_zend_null();
+    value.type = JINX_ZEND_REFERENCE;
+    value.value.ref = reference;
+    return value;
 }
 
 JinxZendString jinx_zend_string_view(const char *bytes, size_t len) {
@@ -863,7 +894,7 @@ static const JinxZendModuleFamily jinx_zend_families[] = {
         "build/oracle-asm/zend/zval.oracle_asm.h",
         "runtime/pasm/zend/zval.pasm",
         "started",
-        "Native JinxZendValue copy/destruct exists for strings and arrays. Next: object/reference/resource destructors."
+        "Native JinxZendValue copy/destruct exists for strings, arrays, objects, and shared reference cells. Resource ownership remains separate."
     },
     {
         "zend_string",

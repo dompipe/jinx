@@ -20,10 +20,17 @@ and include/require/include_once/require_once with shared variables and file
 return values. It also supports array literals through native Zend carriers,
 JSON output through existing Oracle dispatch, nowdoc literals, +=, lazy ??,
 string-keyed GLOBALS access, and the native filesystem calls used by the edge
-fixture. Include paths are resolved relative to the current source file;
+fixture. Reference bindings (`=&`) share native Zend reference cells between
+variables and array elements. Array-offset reads/writes, +=, *=, postfix ++,
+variable unset, and braced foreach-by-reference execute inside JINX. Foreach
+leaves its variable bound to the last element until unset. Ordinary array
+assignments use independent containers while preserving explicit reference
+cells. Include paths are resolved relative to the current source file;
 PHP include_path lookup and missing-file warning behavior are not implemented.
 The interpreter rejects overflow rather than promoting integers to floats.
 Undefined variables currently read as null without PHP's warning.
+Foreach key bindings, by-value foreach, loop break/continue, nested array-offset
+syntax, and structural mutation during foreach are outside this native subset.
 
 This is an initial native subset, not arbitrary PHP compatibility. Ordinary
 non-orchestration PHP inputs first attempt native syntax admission. Accepted
@@ -49,10 +56,12 @@ binary with an empty executable search path and an invalid bridge path. It
 checks arithmetic, native builtin calls, include returns, shared include scope,
 once behavior, runtime-created includes, GLOBALS updates, JSON output,
 filesystem resource round trips, suppressed missing-file reads, and rejection
-before target output.
+before target output. `fixtures/oracle-native-references.php` also checks
+reference mutation, rebinding, unset detachment, lingering foreach bindings,
+array-copy isolation, aliases surviving bucket growth, and coerced array keys.
 
 The high-value semantic edge suite is a separate gate. The native interpreter
-fixes both include and both filesystem first-wave cases, reducing mismatches
-from 17 to 13 out of 20. Reference, object/static/clone, closure, callback, typed
+fixes both include, both filesystem and both reference first-wave cases,
+reducing mismatches from 17 to 11 out of 20. Object/static/clone, closure, callback, typed
 property and type-error cases remain unsupported. Do not infer full-stack
 success from this focused test.

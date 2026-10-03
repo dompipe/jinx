@@ -44,6 +44,15 @@ foreach ([[$binary, '--native-php', $edgeFixture], [$binary, $edgeFixture]] as $
 $defaultNative = native_source_run([$binary, $edgeFixture], true, false);
 if ($defaultNative !== $edgePhp) throw new RuntimeException('default native routing edge parity differs: ' . json_encode($defaultNative));
 
+$referenceFixture = $root . '/fixtures/oracle-native-references.php';
+$referencePhp = native_source_run([PHP_BINARY, $referenceFixture], false);
+$referenceExpected = "{\"a\":{\"n\":6,\"m\":6},\"b\":6}\n[2,4,6]\n[5,20]\n[{\"n\":1},{\"n\":9}]\n[8,31,90]\n{\"n\":12,\"a\":3,\"b\":4,\"c\":5,\"d\":6}\n{\"1\":\"bool\",\"\":\"empty-string\"}\n";
+if ($referencePhp !== [0, $referenceExpected, '']) throw new RuntimeException('unexpected reference baseline: ' . json_encode($referencePhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $referenceFixture], true, $forceNative);
+    if ($native !== $referencePhp) throw new RuntimeException('native reference parity differs: ' . json_encode($native));
+}
+
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {
