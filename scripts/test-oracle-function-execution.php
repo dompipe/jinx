@@ -90,8 +90,8 @@ if ($php['error_class'] !== null) {
 
 same($oracle['output'], $php['output'], 'Oracle output matches PHP');
 same($oracle['return'], $php['return'], 'Oracle return matches PHP');
-same($oracle['output'], 'JINX:12:4', 'Oracle named-argument output');
-same($oracle['return'], 'JINX:12:4', 'Oracle named-argument return');
+same($oracle['output'], 'JINX:12:4:6', 'Oracle named/default/variadic output');
+same($oracle['return'], 'JINX:12:4:6', 'Oracle named/default/variadic return');
 same($oracle['oracle']['kind'] ?? null, 'JINX_ORACLE_EXECUTION', 'Oracle execution kind');
 same($oracle['oracle']['family'] ?? null, 'functions', 'Oracle execution family');
 
@@ -114,11 +114,11 @@ foreach ($ops as $op) {
     }
 }
 
-if ($functionDeclCount < 3) {
-    fail('fixture did not produce the expected three function declarations');
+if ($functionDeclCount < 4) {
+    fail('fixture did not produce the expected four function declarations');
 }
 
-foreach (['add_score(', 'label_score(', 'build_score($name, $base = 7, $bonus = 5)', "build_score(name: 'jinx')", 'strlen(', 'strtoupper('] as $needle) {
+foreach (['add_score(', 'label_score(', 'sum_tail($head, ...$tail)', 'sum_tail(1, 2, 3)', 'build_score($name, $base = 7, $bonus = 5)', "build_score(name: 'jinx')", 'strlen(', 'strtoupper('] as $needle) {
     $found = false;
 
     foreach ($oracle['program']['statements'] ?? [] as $statement) {
