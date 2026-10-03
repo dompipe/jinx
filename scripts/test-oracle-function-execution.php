@@ -118,7 +118,7 @@ if ($functionDeclCount < 4) {
     fail('fixture did not produce the expected four function declarations');
 }
 
-foreach (['add_score(', 'label_score(', 'sum_tail($head, ...$tail)', 'sum_tail(1, 2, 3)', 'build_score($name, $base = 7, $bonus = 5)', "build_score(name: 'jinx')", 'strlen(', 'strtoupper('] as $needle) {
+foreach (['add_score(', 'label_score(', 'sum_tail($head, ...$tail)', '$packed = [2, 3]', 'sum_tail(1, ...$packed)', 'build_score($name, $base = 7, $bonus = 5)', "build_score(name: 'jinx')", 'strlen(', 'strtoupper('] as $needle) {
     $found = false;
 
     foreach ($oracle['program']['statements'] ?? [] as $statement) {
