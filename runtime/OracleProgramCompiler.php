@@ -650,18 +650,50 @@ final class OracleProgramCompiler
      */
     private static function addFunctionSignatureFeatures(string $normalized, array &$features): void
     {
-        if (preg_match('/function\s+\w+\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/i', $normalized, $m)) {
-            $parameters = trim($m[1]);
-            $features['parameter_count'] = $parameters === '' ? 0 : count(array_filter(array_map('trim', explode(',', $parameters)), static fn (string $p): bool => $p !== ''));
+        if (!preg_match('/function\s+\w+\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/i', $normalized, $m)) {
+            return;
+        }
 
-            if ($parameters !== '') {
-                $features['parameters'] = self::extractParameterNames($parameters);
-                $features['variadic_parameter'] = str_contains($parameters, '...
-            if (isset($m[2])) {
-                $features['return_type'] = trim($m[2]);
-                $features['nullable_return_type'] = str_starts_with(trim($m[2]), '?');
-                $features['union_return_type'] = str_contains($m[2], '|');
+        $parameters = trim($m[1]);
+        $parameterParts = $parameters === ''
+            ? []
+            : array_values(array_filter(
+                array_map('trim', explode(',', $parameters)),
+                static fn (string $p): bool => $p !== ''
+            ));
+
+        $features['parameter_count'] = count($parameterParts);
+
+        if ($parameters !== '') {
+            $features['parameters'] = self::extractParameterNames($parameters);
+            $features['variadic_parameter'] = str_contains($parameters, '...$');
+
+            $nullableParameterType = false;
+            $unionParameterType = false;
+            $intersectionParameterType = false;
+
+            foreach ($parameterParts as $parameter) {
+                $beforeVariable = preg_replace('/\$[A-Za-z_]\w*.*/', '', $parameter) ?? '';
+                $beforeVariable = trim($beforeVariable);
+
+                if ($beforeVariable !== '') {
+                    $nullableParameterType = $nullableParameterType || str_contains($beforeVariable, '?');
+                    $unionParameterType = $unionParameterType || str_contains($beforeVariable, '|');
+                    $intersectionParameterType = $intersectionParameterType || str_contains($beforeVariable, '&');
+                }
             }
+
+            $features['nullable_parameter_type'] = $nullableParameterType;
+            $features['union_parameter_type'] = $unionParameterType;
+            $features['intersection_parameter_type'] = $intersectionParameterType;
+        }
+
+        if (isset($m[2]) && trim($m[2]) !== '') {
+            $returnType = trim($m[2]);
+            $features['return_type'] = $returnType;
+            $features['nullable_return_type'] = str_starts_with($returnType, '?');
+            $features['union_return_type'] = str_contains($returnType, '|');
+            $features['intersection_return_type'] = str_contains($returnType, '&');
         }
     }
 
