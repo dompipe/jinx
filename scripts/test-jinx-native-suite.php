@@ -74,6 +74,7 @@ $scriptTests = [
     'magic method family' => ['scripts/test-oracle-magic-method-execution.php', 'PASS: Oracle executes magic method PHP subset'],
     'for append ternary family' => ['scripts/test-oracle-for-append-ternary-execution.php', 'PASS: Oracle executes for-loop array append ternary subset'],
     'typed direct function family' => ['scripts/test-oracle-function-typed-direct-execution.php', 'PASS: Oracle executes typed direct user function subset'],
+    'function control-loop family' => ['scripts/test-oracle-function-control-loop-execution.php', 'PASS: Oracle executes function control-loop subset'],
     'promoted object family' => ['scripts/test-oracle-object-promoted-execution.php', 'PASS: Oracle executes promoted final-class object subset'],
     'generator family' => ['scripts/test-oracle-generator-execution.php', 'PASS: Oracle executes generator PHP subsets'],
     'native script routing' => ['scripts/test-native-jinx-script-routing.php', 'PASS: native ./jinx runs supported PHP fixtures through Oracle and refuses PHP fallback for unsupported scripts'],
