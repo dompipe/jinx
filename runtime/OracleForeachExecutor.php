@@ -411,6 +411,22 @@ final class OracleForeachExecutor
             return array_sum($value);
         }
 
+        if (preg_match('/^max\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle foreach max() expects array: {$expr}");
+            }
+            return max($value);
+        }
+
+        if (preg_match('/^min\s*\((.+)\)$/is', $expr, $m)) {
+            $value = self::evaluateExpression($m[1], $locals);
+            if (!is_array($value)) {
+                throw new \RuntimeException("Oracle foreach min() expects array: {$expr}");
+            }
+            return min($value);
+        }
+
         if (preg_match('/^implode\s*\((.+)\)$/is', $expr, $m)) {
             $args = self::splitTopLevelList($m[1], ',');
             if (count($args) !== 2) {
