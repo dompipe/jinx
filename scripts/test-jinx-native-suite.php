@@ -62,6 +62,7 @@ $scriptTests = [
     'specialized assignment classifier' => ['scripts/test-oracle-specialized-assignment-classification.php', 'PASS: Oracle classifier preserves specialized assignment families'],
     'late differential classifier' => ['scripts/test-oracle-late-differential-classification.php', 'PASS: Oracle classifier preserves late differential statement shapes'],
     'decimal literal parity' => ['scripts/test-oracle-decimal-literal-execution.php', 'PASS: Straight-line Oracle decimal literals match PHP round behavior'],
+    'native builtin family routing' => ['scripts/test-native-builtin-family-routing.php', 'PASS: native Jinx routes callable fixtures through merged builtin-aware Oracle families'],
     'request globals family' => ['scripts/test-oracle-request-globals-execution.php', 'PASS: Oracle executes request globals PHP subset'],
     'include require family' => ['scripts/test-oracle-include-require-execution.php', 'PASS: Oracle executes include/require PHP subset'],
     'exit die family' => ['scripts/test-oracle-exit-die-execution.php', 'PASS: Oracle executes exit/die PHP subset'],
