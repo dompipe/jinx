@@ -219,6 +219,50 @@ final class OracleStraightLineExecutor
             return self::evaluateExpression(substr($expr, 1, -1), $locals);
         }
 
+        $ternary = self::splitTopLevelTernary($expr);
+        if ($ternary !== null) {
+            [$conditionExpr, $trueExpr, $falseExpr] = $ternary;
+            return self::toPhpBool(self::evaluateExpression($conditionExpr, $locals))
+                ? self::evaluateExpression($trueExpr, $locals)
+                : self::evaluateExpression($falseExpr, $locals);
+        }
+
+        $or = self::splitTopLevelOperators($expr, ['||']);
+        if ($or !== null) {
+            [$leftExpr, , $rightExpr] = $or;
+            return self::toPhpBool(self::evaluateExpression($leftExpr, $locals))
+                || self::toPhpBool(self::evaluateExpression($rightExpr, $locals));
+        }
+
+        $and = self::splitTopLevelOperators($expr, ['&&']);
+        if ($and !== null) {
+            [$leftExpr, , $rightExpr] = $and;
+            return self::toPhpBool(self::evaluateExpression($leftExpr, $locals))
+                && self::toPhpBool(self::evaluateExpression($rightExpr, $locals));
+        }
+
+        if (str_starts_with($expr, '!') && !str_starts_with($expr, '!=')) {
+            return !self::toPhpBool(self::evaluateExpression(substr($expr, 1), $locals));
+        }
+
+        $comparison = self::splitTopLevelOperators($expr, ['===', '!==', '>=', '<=', '==', '!=', '>', '<']);
+        if ($comparison !== null) {
+            [$leftExpr, $operator, $rightExpr] = $comparison;
+            $left = self::evaluateExpression($leftExpr, $locals);
+            $right = self::evaluateExpression($rightExpr, $locals);
+
+            return match ($operator) {
+                '===' => $left === $right,
+                '!==' => $left !== $right,
+                '==' => $left == $right,
+                '!=' => $left != $right,
+                '>' => $left > $right,
+                '<' => $left < $right,
+                '>=' => $left >= $right,
+                '<=' => $left <= $right,
+            };
+        }
+
         if (preg_match('/^(.+)\s*\?\?\s*(.+)$/', $expr, $m)) {
             try {
                 $left = self::evaluateExpression($m[1], $locals);
@@ -674,6 +718,77 @@ final class OracleStraightLineExecutor
         }
 
         return $depth === 0;
+    }
+
+    /** @return array{0:string,1:string,2:string}|null */
+    private static function splitTopLevelTernary(string $expr): ?array
+    {
+        $quote = null;
+        $depth = 0;
+        $question = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            if ($char === '?' && $question === null) {
+                $question = $i;
+                continue;
+            }
+
+            if ($char === ':' && $question !== null) {
+                return [
+                    substr($expr, 0, $question),
+                    substr($expr, $question + 1, $i - $question - 1),
+                    substr($expr, $i + 1),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private static function toPhpBool(mixed $value): bool
+    {
+        return !(
+            $value === null ||
+            $value === false ||
+            $value === 0 ||
+            $value === 0.0 ||
+            $value === '' ||
+            $value === '0' ||
+            $value === []
+        );
     }
 
     /**
