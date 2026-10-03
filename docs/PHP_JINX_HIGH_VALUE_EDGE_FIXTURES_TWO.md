@@ -34,3 +34,18 @@ Run both high-value waves:
 ```
 
 These cases are intentionally semantic probes. They are not new ledger IDs and should not increase reported PHP/Zend coverage simply by existing. A failure identifies a concrete compatibility gap to implement next.
+
+
+## Gap-map behavior
+
+Wave two evaluates all 20 fixtures before failing. If multiple semantic areas differ, one run prints every mismatch with:
+
+```text
+fixture name
+semantic area
+PHP exit/stdout
+JINX exit/stdout
+PHP/JINX stderr when present
+```
+
+This makes wave two useful as an implementation queue rather than a first-failure-only gate.
