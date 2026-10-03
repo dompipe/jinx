@@ -151,6 +151,13 @@ final class OracleFunctionExecutor
                     }
                     break;
 
+                case 'O_IF':
+                    $result = self::executeIfStatement($statements, $index, $locals, $functions, $output, $executed);
+                    if ($result['returned']) {
+                        return $result;
+                    }
+                    break;
+
                 case 'O_COMPOUND_ASSIGN':
                     self::executeCompoundAssignStatement($source, $locals, $functions, $executed);
                     $executed++;
@@ -272,6 +279,47 @@ final class OracleFunctionExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle function dimension assignment: {$source}");
+    }
+
+    /**
+     * @param list<array<string,mixed>> $statements
+     * @param array<string,mixed> $locals
+     * @param array<string,array{params:list<string>,body:list<array<string,mixed>>}> $functions
+     * @return array{returned:bool,value:mixed}
+     */
+    private static function executeIfStatement(
+        array $statements,
+        int &$index,
+        array &$locals,
+        array $functions,
+        string &$output,
+        int &$executed
+    ): array {
+        $source = (string) ($statements[$index]['source'] ?? '');
+        if (!preg_match('/^if\s*\((.*)\)\s*\{?$/i', trim($source), $m)) {
+            throw new \RuntimeException("Unsupported Oracle function if statement: {$source}");
+        }
+
+        $condition = trim($m[1]);
+        $index++;
+        $thenBody = self::collectBlock($statements, $index);
+        $elseBody = [];
+
+        if ($index < count($statements) && (($statements[$index]['op'] ?? '') === 'O_ELSE')) {
+            $index++;
+            $elseBody = self::collectBlock($statements, $index);
+        }
+
+        $branch = self::toPhpBool(self::evaluateExpression($condition, $locals, $functions, $executed))
+            ? $thenBody
+            : $elseBody;
+
+        if ($branch === []) {
+            return ['returned' => false, 'value' => null];
+        }
+
+        $branchIndex = 0;
+        return self::executeStatements($branch, $branchIndex, $locals, $functions, $output, $executed, false);
     }
 
     /**
