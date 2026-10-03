@@ -73,12 +73,30 @@ final class OracleFunctionExecutor
         $params = [];
         $defaults = [];
         $variadic = null;
+
         foreach (self::splitArguments($m[2]) as $param) {
             if (!preg_match('/\$(\w+)\b/', $param, $pm)) {
                 throw new \RuntimeException("Unsupported Oracle function parameter: {$param}");
             }
+
             $name = $pm[1];
-            if (str_contains($param, '...
+
+            if (str_contains($param, '...$')) {
+                if ($variadic !== null) {
+                    throw new \RuntimeException("Oracle function has multiple variadic parameters: {$source}");
+                }
+                $variadic = $name;
+                continue;
+            }
+
+            $params[] = $name;
+
+            if (preg_match('/=\s*(.+)$/s', $param, $defaultMatch)) {
+                $defaults[$name] = trim($defaultMatch[1]);
+            }
+        }
+
+        return [$m[1], $params, $defaults, $variadic];
     }
 
     /**
