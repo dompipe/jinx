@@ -136,22 +136,61 @@ static int ends_with(const char *text, const char *suffix) {
 }
 
 static int command_php_script(int argc, char **argv) {
-    char **php_argv = (char **) calloc((size_t) argc + 1u, sizeof(char *));
+    char **php_argv;
 
-    if (php_argv == NULL) {
-        return fail("could not allocate PHP script argv");
+    /*
+     * Repository test drivers are orchestration code: they launch PHP and
+     * ./jinx separately and compare the results. Keep those drivers hosted
+     * by PHP, but NEVER pass an arbitrary fixture directly back to PHP.
+     */
+    if (strstr(argv[1], "scripts/test-") != NULL) {
+        php_argv = (char **) calloc((size_t) argc + 1u, sizeof(char *));
+        if (php_argv == NULL) {
+            return fail("could not allocate PHP test-driver argv");
+        }
+
+        php_argv[0] = "php";
+        for (int i = 1; i < argc; i++) {
+            php_argv[i] = argv[i];
+        }
+        php_argv[argc] = NULL;
+
+        execvp("php", php_argv);
+        perror("php");
+        free(php_argv);
+        return 1;
     }
 
-    php_argv[0] = "php";
-    for (int i = 1; i < argc; i++) {
-        php_argv[i] = argv[i];
-    }
-    php_argv[argc] = NULL;
+    /*
+     * Normal PHP inputs go through the Oracle/JINX script runner. PHP hosts
+     * the interpreter classes, but the target script itself is not required
+     * or executed by PHP. Unsupported scripts fail instead of falling back.
+     */
+    {
+        const char *runner = getenv("JINX_ORACLE_SCRIPT_RUNNER");
+        size_t out_argc = (size_t) argc + 1u;
 
-    execvp("php", php_argv);
-    perror("php");
-    free(php_argv);
-    return 1;
+        if (runner == NULL || runner[0] == '\0') {
+            runner = "scripts/run-jinx-oracle-script.php";
+        }
+
+        php_argv = (char **) calloc(out_argc + 1u, sizeof(char *));
+        if (php_argv == NULL) {
+            return fail("could not allocate Oracle script-runner argv");
+        }
+
+        php_argv[0] = "php";
+        php_argv[1] = (char *) runner;
+        for (int i = 1; i < argc; i++) {
+            php_argv[i + 1] = argv[i];
+        }
+        php_argv[out_argc] = NULL;
+
+        execvp("php", php_argv);
+        perror("php");
+        free(php_argv);
+        return 1;
+    }
 }
 
 static const char *const first100_names[] = {
