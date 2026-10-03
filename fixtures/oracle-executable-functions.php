@@ -24,7 +24,7 @@ function build_score($name, $base, $bonus)
     return label_score($name, $score);
 }
 
-$result = build_score('jinx', 7, 5);
+$result = build_score(bonus: 5, name: 'jinx', base: 7);
 
 echo $result;
 
