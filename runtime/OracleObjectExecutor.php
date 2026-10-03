@@ -79,6 +79,21 @@ final class OracleObjectExecutor
                 continue;
             }
 
+            if (preg_match('/^echo\s+\$(\w+)->(\w+)\s*\((.*)\)\s*(?:\.\s*(.+))?$/i', $statement, $m)) {
+                $object = $locals[$m[1]] ?? null;
+                if (!is_array($object)) {
+                    throw new \RuntimeException("Oracle method call target is not object: {$statement}");
+                }
+                $value = self::callMethod($class, $object, $m[2], self::evaluateArguments($m[3], $locals, null));
+                $locals[$m[1]] = $object;
+                if (isset($m[4]) && trim($m[4]) !== '') {
+                    $value = self::phpString($value) . self::phpString(self::evaluate($m[4], $locals, null));
+                }
+                $output .= self::phpString($value);
+                $executed++;
+                continue;
+            }
+
             if (preg_match('/^echo\s+(.+)$/i', $statement, $m)) {
                 $output .= self::phpString(self::evaluate($m[1], $locals, null));
                 $executed++;
@@ -111,11 +126,11 @@ final class OracleObjectExecutor
     }
 
     /**
-     * @return array{0:array{name:string,methods:array<string,array{params:list<string>,body:string}>},1:string}
+     * @return array{0:array{name:string,methods:array<string,array{params:list<string>,promoted:list<string>,body:string}>},1:string}
      */
     private static function extractSingleClass(string $source): array
     {
-        if (!preg_match('/class\s+(\w+)\s*\{/i', $source, $m, PREG_OFFSET_CAPTURE)) {
+        if (!preg_match('/(?:(?:final|abstract|readonly)\s+)*class\s+(\w+)\s*\{/i', $source, $m, PREG_OFFSET_CAPTURE)) {
             throw new \RuntimeException('Oracle object fixture must contain one class');
         }
 
@@ -134,18 +149,28 @@ final class OracleObjectExecutor
         ], $main];
     }
 
-    /** @return array<string,array{params:list<string>,body:string}> */
+    /** @return array<string,array{params:list<string>,promoted:list<string>,body:string}> */
     private static function extractMethods(string $classBody): array
     {
         $methods = [];
         $offset = 0;
 
-        while (preg_match('/(?:public|protected|private)?\s*function\s+(\w+)\s*\(([^)]*)\)\s*\{/i', $classBody, $m, PREG_OFFSET_CAPTURE, $offset)) {
+        while (preg_match(
+            '/(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+(\w+)\s*\(([^)]*)\)\s*(?::\s*[?A-Za-z_\\\\][A-Za-z0-9_\\\\|&?]*)?\s*\{/i',
+            $classBody,
+            $m,
+            PREG_OFFSET_CAPTURE,
+            $offset
+        )) {
             $method = $m[1][0];
             $params = [];
+            $promoted = [];
             foreach (array_filter(array_map('trim', explode(',', $m[2][0]))) as $param) {
                 if (preg_match('/\$(\w+)/', $param, $pm)) {
                     $params[] = $pm[1];
+                    if (preg_match('/\b(?:public|protected|private)\b/', $param)) {
+                        $promoted[] = $pm[1];
+                    }
                 }
             }
             $open = strpos($classBody, '{', $m[0][1]);
@@ -155,6 +180,7 @@ final class OracleObjectExecutor
             $close = self::findMatchingBrace($classBody, $open);
             $methods[$method] = [
                 'params' => $params,
+                'promoted' => $promoted,
                 'body' => substr($classBody, $open + 1, $close - $open - 1),
             ];
             $offset = $close + 1;
@@ -163,7 +189,7 @@ final class OracleObjectExecutor
         return $methods;
     }
 
-    /** @param array{name:string,methods:array<string,array{params:list<string>,body:string}>} $class */
+    /** @param array{name:string,methods:array<string,array{params:list<string>,promoted:list<string>,body:string}>} $class */
     private static function callMethod(array $class, array &$object, string $method, array $args): mixed
     {
         if (!isset($class['methods'][$method])) {
@@ -174,6 +200,10 @@ final class OracleObjectExecutor
         $locals = [];
         foreach ($definition['params'] as $i => $param) {
             $locals[$param] = $args[$i] ?? null;
+        }
+
+        foreach ($definition['promoted'] ?? [] as $param) {
+            $object['props'][$param] = $locals[$param] ?? null;
         }
 
         foreach (self::splitStatements($definition['body']) as $statement) {
