@@ -50,6 +50,11 @@ final class OracleStraightLineExecutor
                     $executed++;
                     break;
 
+                case 'O_COALESCE_ASSIGN':
+                    self::executeCoalesceAssignStatement($source, $locals);
+                    $executed++;
+                    break;
+
                 case 'O_COALESCE':
                     self::executeAssignStatement($source, $locals);
                     $executed++;
@@ -129,6 +134,32 @@ final class OracleStraightLineExecutor
         }
 
         $locals[$name][$key] = self::evaluateExpression($m[3], $locals);
+    }
+
+    /** @param array<string,mixed> $locals */
+    private static function executeCoalesceAssignStatement(string $source, array &$locals): void
+    {
+        if (preg_match('/^\$(\w+)\s*\?\?=\s*(.+);?$/', $source, $m)) {
+            $name = $m[1];
+            if (!array_key_exists($name, $locals) || $locals[$name] === null) {
+                $locals[$name] = self::evaluateExpression($m[2], $locals);
+            }
+            return;
+        }
+
+        if (preg_match('/^\$(\w+)\[([^\]]+)\]\s*\?\?=\s*(.+);?$/', $source, $m)) {
+            $name = $m[1];
+            $key = self::evaluateExpression($m[2], $locals);
+            if (!array_key_exists($name, $locals) || !is_array($locals[$name])) {
+                $locals[$name] = [];
+            }
+            if (!array_key_exists($key, $locals[$name]) || $locals[$name][$key] === null) {
+                $locals[$name][$key] = self::evaluateExpression($m[3], $locals);
+            }
+            return;
+        }
+
+        throw new \RuntimeException("Unsupported Oracle coalesce assignment: {$source}");
     }
 
     /** @param array<string,mixed> $locals */
