@@ -229,16 +229,21 @@ final class OracleStraightLineExecutor
             }
         }
 
-        foreach (['+', '.'] as $operator) {
-            $parts = self::splitTopLevelBinary($expr, $operator);
+        foreach ([['.'], ['+', '-'], ['*', '/', '%']] as $operators) {
+            $parts = self::splitTopLevelOperators($expr, $operators);
             if ($parts !== null) {
-                [$leftExpr, $rightExpr] = $parts;
+                [$leftExpr, $operator, $rightExpr] = $parts;
                 $left = self::evaluateExpression($leftExpr, $locals);
                 $right = self::evaluateExpression($rightExpr, $locals);
 
-                return $operator === '+'
-                    ? $left + $right
-                    : (string) $left . (string) $right;
+                return match ($operator) {
+                    '.' => (string) $left . (string) $right,
+                    '+' => $left + $right,
+                    '-' => $left - $right,
+                    '*' => $left * $right,
+                    '/' => $left / $right,
+                    '%' => $left % $right,
+                };
             }
         }
 
@@ -252,6 +257,34 @@ final class OracleStraightLineExecutor
 
         if (preg_match('/^strtoupper\s*\((.+)\)$/i', $expr, $m)) {
             return strtoupper((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^strtolower\s*\((.+)\)$/i', $expr, $m)) {
+            return strtolower((string) self::evaluateExpression($m[1], $locals));
+        }
+
+        if (preg_match('/^substr\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) < 2 || count($args) > 3) {
+                throw new \RuntimeException("Oracle substr() expects 2 or 3 arguments: {$expr}");
+            }
+            $value = (string) self::evaluateExpression($args[0], $locals);
+            $offset = (int) self::evaluateExpression($args[1], $locals);
+            return count($args) === 3
+                ? substr($value, $offset, (int) self::evaluateExpression($args[2], $locals))
+                : substr($value, $offset);
+        }
+
+        if (preg_match('/^str_replace\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) !== 3) {
+                throw new \RuntimeException("Oracle str_replace() expects 3 arguments: {$expr}");
+            }
+            return str_replace(
+                self::evaluateExpression($args[0], $locals),
+                self::evaluateExpression($args[1], $locals),
+                self::evaluateExpression($args[2], $locals)
+            );
         }
 
         if (preg_match('/^base64_encode\s*\((.+)\)$/i', $expr, $m)) {
@@ -284,6 +317,50 @@ final class OracleStraightLineExecutor
                 throw new \RuntimeException("Oracle array_product() expects array: {$expr}");
             }
             return array_product($value);
+        }
+
+        if (preg_match('/^implode\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) === 1) {
+                $values = self::evaluateExpression($args[0], $locals);
+                if (!is_array($values)) {
+                    throw new \RuntimeException("Oracle implode() expects array: {$expr}");
+                }
+                return implode('', $values);
+            }
+            if (count($args) === 2) {
+                $glue = (string) self::evaluateExpression($args[0], $locals);
+                $values = self::evaluateExpression($args[1], $locals);
+                if (!is_array($values)) {
+                    throw new \RuntimeException("Oracle implode() expects array: {$expr}");
+                }
+                return implode($glue, $values);
+            }
+            throw new \RuntimeException("Oracle implode() expects 1 or 2 arguments: {$expr}");
+        }
+
+        if (preg_match('/^max\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) === 1) {
+                $values = self::evaluateExpression($args[0], $locals);
+                if (!is_array($values)) {
+                    throw new \RuntimeException("Oracle max() single argument must be array: {$expr}");
+                }
+                return max($values);
+            }
+            return max(array_map(static fn(string $arg): mixed => self::evaluateExpression($arg, $locals), $args));
+        }
+
+        if (preg_match('/^min\s*\((.+)\)$/is', $expr, $m)) {
+            $args = self::splitTopLevelList($m[1], ',');
+            if (count($args) === 1) {
+                $values = self::evaluateExpression($args[0], $locals);
+                if (!is_array($values)) {
+                    throw new \RuntimeException("Oracle min() single argument must be array: {$expr}");
+                }
+                return min($values);
+            }
+            return min(array_map(static fn(string $arg): mixed => self::evaluateExpression($arg, $locals), $args));
         }
 
         if (preg_match('/^json_encode\s*\((.+)\)$/is', $expr, $m)) {
@@ -552,12 +629,20 @@ final class OracleStraightLineExecutor
     }
 
     /**
-     * @return array{0:string,1:string}|null
+     * Split on the rightmost top-level operator in a precedence group.
+     * Using the rightmost operator preserves left associativity when the
+     * recursive evaluator processes the left-hand expression.
+     *
+     * @param list<string> $operators
+     * @return array{0:string,1:string,2:string}|null
      */
-    private static function splitTopLevelBinary(string $expr, string $operator): ?array
+    private static function splitTopLevelOperators(string $expr, array $operators): ?array
     {
+        usort($operators, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+
         $quote = null;
         $depth = 0;
+        $match = null;
         $length = strlen($expr);
 
         for ($i = 0; $i < $length; $i++) {
@@ -579,21 +664,47 @@ final class OracleStraightLineExecutor
                 continue;
             }
 
-            if ($char === '(' || $char === '[') {
+            if ($char === '(' || $char === '[' || $char === '{') {
                 $depth++;
                 continue;
             }
 
-            if ($char === ')' || $char === ']') {
+            if ($char === ')' || $char === ']' || $char === '}') {
                 $depth = max(0, $depth - 1);
                 continue;
             }
 
-            if ($depth === 0 && $char === $operator) {
-                return [substr($expr, 0, $i), substr($expr, $i + 1)];
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($operators as $operator) {
+                if (substr($expr, $i, strlen($operator)) !== $operator) {
+                    continue;
+                }
+
+                // A leading + or - is unary, not a binary split point.
+                if (($operator === '+' || $operator === '-') && trim(substr($expr, 0, $i)) === '') {
+                    continue;
+                }
+
+                $match = [$i, $operator];
+                $i += strlen($operator) - 1;
+                break;
             }
         }
 
-        return null;
+        if ($match === null) {
+            return null;
+        }
+
+        [$position, $operator] = $match;
+
+        return [
+            substr($expr, 0, $position),
+            $operator,
+            substr($expr, $position + strlen($operator)),
+        ];
     }
+
 }
