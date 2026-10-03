@@ -41,6 +41,47 @@ function run_php(string $fixture): array
     ];
 }
 
+function has_top_level_return(array $program): bool
+{
+    $depth = 0;
+
+    foreach ($program['statements'] ?? [] as $statement) {
+        if (!is_array($statement)) {
+            continue;
+        }
+
+        $op = (string) ($statement['op'] ?? '');
+
+        if ($op === 'O_BLOCK_CLOSE') {
+            $depth = max(0, $depth - 1);
+            continue;
+        }
+
+        if ($depth === 0 && $op === 'O_RETURN') {
+            return true;
+        }
+
+        if (in_array($op, [
+            'O_FUNCTION_DECL',
+            'O_METHOD_DECL',
+            'O_IF',
+            'O_ELSE',
+            'O_FOR',
+            'O_FOREACH',
+            'O_WHILE',
+            'O_DO',
+            'O_SWITCH',
+            'O_TRY',
+            'O_CATCH',
+            'O_FINALLY',
+        ], true)) {
+            $depth++;
+        }
+    }
+
+    return false;
+}
+
 function run_oracle(string $fixture, string $executor): array
 {
     try {
@@ -94,7 +135,7 @@ foreach ($cases as $label => [$relative, $executor]) {
     }
 
     $ops = array_column($oracle['program']['statements'] ?? [], 'op');
-    $phpProgramReturn = in_array('O_RETURN', $ops, true) ? $php['return'] : null;
+    $phpProgramReturn = has_top_level_return($oracle['program'] ?? []) ? $php['return'] : null;
 
     if ($oracle['return'] !== $phpProgramReturn) {
         fail(
