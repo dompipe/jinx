@@ -28,11 +28,14 @@ function jinx_fail(string $message): never
     exit(1);
 }
 
-/** @param list<string> $required @param list<string> $actual */
-function jinx_ops_covered(array $required, array $actual): bool
+/** @param list<string> $supported @param list<string> $actual */
+function jinx_ops_supported(array $supported, array $actual): bool
 {
-    foreach ($required as $op) {
-        if (!in_array($op, $actual, true)) {
+    foreach ($actual as $op) {
+        if ($op === '') {
+            continue;
+        }
+        if (!in_array($op, $supported, true)) {
             return false;
         }
     }
@@ -119,8 +122,8 @@ foreach ($candidates as $family) {
         continue;
     }
 
-    $required = $metadata['ops'] ?? [];
-    if (!is_array($required) || $required === [] || !jinx_ops_covered($required, $ops)) {
+    $supported = $metadata['ops'] ?? [];
+    if (!is_array($supported) || $supported === [] || !jinx_ops_supported($supported, $ops)) {
         continue;
     }
 
