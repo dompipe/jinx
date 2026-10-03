@@ -576,6 +576,15 @@ final class OracleExpressionBatchExecutor
                 continue;
             }
             if ($depth === 0 && substr($expr, $i, strlen($token)) === $token) {
+                if (
+                    $token === '.' &&
+                    $i > 0 &&
+                    $i + 1 < $length &&
+                    ctype_digit($expr[$i - 1]) &&
+                    ctype_digit($expr[$i + 1])
+                ) {
+                    continue;
+                }
                 return $i;
             }
         }
