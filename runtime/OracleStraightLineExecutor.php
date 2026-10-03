@@ -215,8 +215,8 @@ final class OracleStraightLineExecutor
             return self::evaluateArrayLiteral(substr($expr, 1, -1), $locals);
         }
 
-        if (preg_match('/^\((.+)\)$/', $expr, $m)) {
-            return self::evaluateExpression($m[1], $locals);
+        if (self::isWrappedInOuterParens($expr)) {
+            return self::evaluateExpression(substr($expr, 1, -1), $locals);
         }
 
         if (preg_match('/^(.+)\s*\?\?\s*(.+)$/', $expr, $m)) {
@@ -626,6 +626,54 @@ final class OracleStraightLineExecutor
             '\\\\' => '\\',
             '\\"' => '"',
         ]);
+    }
+
+    private static function isWrappedInOuterParens(string $expr): bool
+    {
+        if (!str_starts_with($expr, '(') || !str_ends_with($expr, ')')) {
+            return false;
+        }
+
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0 && $i < $length - 1) {
+                    return false;
+                }
+                if ($depth < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return $depth === 0;
     }
 
     /**
