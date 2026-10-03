@@ -211,6 +211,10 @@ final class OracleStraightLineExecutor
             return [];
         }
 
+        if (preg_match('/^-?\d+\.\d+$/', $expr)) {
+            return (float) $expr;
+        }
+
         if (str_starts_with($expr, '[') && str_ends_with($expr, ']')) {
             return self::evaluateArrayLiteral(substr($expr, 1, -1), $locals);
         }
@@ -947,6 +951,16 @@ final class OracleStraightLineExecutor
 
             foreach ($operators as $operator) {
                 if (substr($expr, $i, strlen($operator)) !== $operator) {
+                    continue;
+                }
+
+                if (
+                    $operator === '.' &&
+                    $i > 0 &&
+                    $i + 1 < $length &&
+                    ctype_digit($expr[$i - 1]) &&
+                    ctype_digit($expr[$i + 1])
+                ) {
                     continue;
                 }
 
