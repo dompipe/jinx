@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/runtime/OracleLoopExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleForeachExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleForExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleDoWhileExecutor.php';
+require_once dirname(__DIR__) . '/runtime/OracleGotoExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleArrayExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleFunctionExecutor.php';
 require_once dirname(__DIR__) . '/runtime/OracleGlobalScopeExecutor.php';

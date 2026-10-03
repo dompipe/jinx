@@ -108,6 +108,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `foreach-loops` | `scripts/test-oracle-foreach-execution.php` |
 | `for-loops` | `scripts/test-oracle-for-execution.php` |
 | `do-while-loops` | `scripts/test-oracle-do-while-execution.php` |
+| `goto-labels` | `scripts/test-oracle-goto-execution.php` |
 | `arrays` | `scripts/test-oracle-array-execution.php` |
 | `functions` | `scripts/test-oracle-function-execution.php` |
 | `global-scope` | `scripts/test-oracle-global-scope-execution.php` |
