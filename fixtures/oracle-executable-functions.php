@@ -17,14 +17,14 @@ function label_score($name, $score)
     return $upper . ':' . $score . ':' . $length;
 }
 
-function build_score($name, $base, $bonus)
+function build_score($name, $base = 7, $bonus = 5)
 {
     $score = add_score($base, $bonus);
 
     return label_score($name, $score);
 }
 
-$result = build_score(bonus: 5, name: 'jinx', base: 7);
+$result = build_score(name: 'jinx');
 
 echo $result;
 
