@@ -63,12 +63,12 @@ final class OracleProgramCompiler
      *   O_CURL_CALL
      *   O_JSON_CALL
      *   O_CLASS_DECL / O_METHOD_DECL / O_PROPERTY_DECL
-     *   O_NAMESPACE / O_USE / O_TRAIT_DECL / O_INTERFACE_DECL / O_ENUM_DECL
+     *   O_NAMESPACE / O_USE / O_TRAIT_DECL / O_INTERFACE_DECL / O_ENUM_DECL / O_ENUM_CASE
      *   O_SWITCH / O_MATCH / O_GLOBAL / O_STATIC_LOCAL
-     *   O_NEW / O_METHOD_CALL / O_STATIC_CALL / O_STATIC_PROPERTY_ASSIGN / O_STATIC_PROPERTY_FETCH / O_PROPERTY_FETCH
+     *   O_NEW / O_METHOD_CALL / O_STATIC_CALL / O_STATIC_PROPERTY_ASSIGN / O_STATIC_PROPERTY_FETCH / O_PROPERTY_ASSIGN / O_PROPERTY_FETCH
      *   O_ECHO / O_PRINT / O_EXIT / O_CLOSURE / O_ARROW_FUNCTION
-     *   O_DIM_ASSIGN / O_DIM_FETCH / O_COALESCE / O_TERNARY
-     *   O_INC / O_DEC / O_COMPOUND_ASSIGN / O_YIELD / O_GOTO / O_LABEL
+     *   O_DIM_ASSIGN / O_DIM_FETCH / O_DESTRUCTURE_ASSIGN / O_COALESCE_ASSIGN / O_COALESCE / O_TERNARY
+     *   O_INC / O_DEC / O_COMPOUND_ASSIGN / O_YIELD_FROM / O_YIELD / O_GOTO / O_LABEL
      *   O_CONST_DECL / O_CLASS_CONST / O_CATCH / O_FINALLY
      *   O_RAW_PHP_STMT
      *
@@ -246,9 +246,10 @@ final class OracleProgramCompiler
         } elseif (preg_match('/^(?:#\[[^\]]+\]\s*)*const\s+([A-Za-z_]\w*)\b/i', $normalized, $m)) {
             $kind = 'O_CONST_DECL';
             $features['name'] = $m[1];
-        } elseif (preg_match('/^namespace\s+(' . $identifier . ')\s*;?$/i', $normalized, $m)) {
+        } elseif (preg_match('/^namespace\s+(' . $identifier . ')\s*(?:;|\{)?$/i', $normalized, $m)) {
             $kind = 'O_NAMESPACE';
             $features['namespace'] = $m[1];
+            $features['namespace_block'] = str_ends_with($normalized, '{');
         } elseif (preg_match('/^use\s+(.+);?$/i', $normalized, $m)) {
             $kind = 'O_USE';
             $features['use_target'] = rtrim($m[1], ';');
@@ -322,6 +323,12 @@ final class OracleProgramCompiler
             $kind = 'O_SWITCH';
         } elseif (preg_match('/\bmatch\s*\(/i', $normalized)) {
             $kind = 'O_MATCH';
+        } elseif (preg_match('/^case\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?;?$/i', $normalized, $m)) {
+            $kind = 'O_ENUM_CASE';
+            $features['name'] = $m[1];
+            if (isset($m[2]) && trim($m[2]) !== '') {
+                $features['backed_value_source'] = rtrim(trim($m[2]), ';');
+            }
         } elseif (preg_match('/^case\b/i', $normalized)) {
             $kind = 'O_CASE';
         } elseif (preg_match('/^default\s*:/i', $normalized)) {
@@ -350,8 +357,12 @@ final class OracleProgramCompiler
             $kind = 'O_EMPTY';
         } elseif (preg_match('/^throw\b/i', $normalized)) {
             $kind = 'O_THROW';
+        } elseif (preg_match('/\byield\s+from\b/i', $normalized)) {
+            $kind = 'O_YIELD_FROM';
         } elseif (preg_match('/\byield\b/i', $normalized)) {
             $kind = 'O_YIELD';
+        } elseif (preg_match('/\?\?=/', $normalized)) {
+            $kind = 'O_COALESCE_ASSIGN';
         } elseif (preg_match('/\?\?/', $normalized)) {
             $kind = 'O_COALESCE';
         } elseif (preg_match('/\?.*:/', $normalized)) {
@@ -372,18 +383,28 @@ final class OracleProgramCompiler
             $features['class'] = $m[1];
         } elseif (preg_match('/' . $identifier . '::\w+\s*\(/', $normalized)) {
             $kind = 'O_STATIC_CALL';
-        } elseif (preg_match('/^(' . $identifier . ')::\$(\w+)\s*=/', $normalized, $m)) {
+        } elseif (preg_match('/^(' . $identifier . ')::\$(\w+)\s*(?:=|\+=|-=|\*=|\/=|%=|\.=)/', $normalized, $m)) {
             $kind = 'O_STATIC_PROPERTY_ASSIGN';
             $features['class'] = $m[1];
             $features['property'] = $m[2];
+            $features['compound_assignment'] = !preg_match('/^' . $identifier . '::\$\w+\s*=/', $normalized);
         } elseif (preg_match('/' . $identifier . '::\$\w+\b/', $normalized)) {
             $kind = 'O_STATIC_PROPERTY_FETCH';
+        } elseif (preg_match('/\?->\w+\s*\(/', $normalized)) {
+            $kind = 'O_NULLSAFE_CALL';
+        } elseif (preg_match('/\?->\w+\b/', $normalized)) {
+            $kind = 'O_NULLSAFE_PROPERTY_FETCH';
+        } elseif (preg_match('/^\$\w+->(\w+)\s*(?:=|\+=|-=|\*=|\/=|%=|\.=)/', $normalized, $m)) {
+            $kind = 'O_PROPERTY_ASSIGN';
+            $features['property'] = $m[1];
         } elseif (preg_match('/->\w+\s*\(/', $normalized)) {
             $kind = 'O_METHOD_CALL';
         } elseif (preg_match('/->\w+\b/', $normalized)) {
             $kind = 'O_PROPERTY_FETCH';
         } elseif (preg_match('/(?:\+\+|--)\s*\$\w+|\$\w+\s*(?:\+\+|--)/', $normalized)) {
             $kind = str_contains($normalized, '--') ? 'O_DEC' : 'O_INC';
+        } elseif (preg_match('/^(?:\[|list\s*\().*=/', $normalized)) {
+            $kind = 'O_DESTRUCTURE_ASSIGN';
         } elseif (preg_match('/^\$\w+(?:\[[^\]]+\])+\s*(?:=)/', $normalized)) {
             $kind = 'O_DIM_ASSIGN';
         } elseif (preg_match('/^\$\w+\s*(?:\+=|-=|\*=|\/=|%=|\.=)/', $normalized)) {
@@ -426,6 +447,7 @@ final class OracleProgramCompiler
             $features['calls'] = array_values(array_unique($calls[1]));
         }
 
+        self::addModernPhpFeatures($normalized, $features);
         self::addZendFeatures($kind, $normalized, $features);
 
         return array_merge([
@@ -435,6 +457,52 @@ final class OracleProgramCompiler
             'sha1' => sha1($normalized),
             'features' => (object) $features,
         ], $extra);
+    }
+
+    /**
+     * Record modern PHP semantics that may be embedded inside otherwise generic statements.
+     * These are representation facts only; they do not imply Oracle execution support.
+     *
+     * @param array<string,mixed> $features
+     */
+    private static function addModernPhpFeatures(string $normalized, array &$features): void
+    {
+        if (str_contains($normalized, '?->')) {
+            $features['nullsafe_operator'] = true;
+        }
+        if (str_contains($normalized, '??=')) {
+            $features['coalesce_assignment'] = true;
+        }
+        if (preg_match('/\byield\s+from\b/i', $normalized)) {
+            $features['yield_from'] = true;
+        }
+        if (preg_match('/\.\.\.\s*\$/', $normalized) || preg_match('/\.\.\.\s*\$[A-Za-z_]/', $normalized)) {
+            $features['argument_unpack'] = true;
+        }
+        if (preg_match('/\b[A-Za-z_]\w*\s*:\s*(?!:)/', $normalized)) {
+            $features['named_argument'] = true;
+        }
+        if (preg_match('/(?:^|[=,(])\s*\.\.\./', $normalized)) {
+            $features['array_spread'] = true;
+        }
+        if (preg_match('/\bstatic::(?:class|\$[A-Za-z_]\w*)/', $normalized)) {
+            $features['late_static_binding'] = true;
+        }
+        if (preg_match('/\breadonly\b/i', $normalized)) {
+            $features['readonly_semantics'] = true;
+        }
+        if (preg_match('/\b(?:int|string|float|bool|array|object|callable|iterable|mixed|self|static|parent|[A-Za-z_]\\w*)\s*\|\s*(?:int|string|float|bool|array|object|callable|iterable|mixed|self|static|parent|[A-Za-z_]\\w*)\b/', $normalized)) {
+            $features['union_type'] = true;
+        }
+        if (preg_match('/\?[A-Za-z_\\\\][A-Za-z0-9_\\\\]*/', $normalized)) {
+            $features['nullable_type'] = true;
+        }
+        if (preg_match('/^use\s+function\b/i', $normalized)) {
+            $features['use_function'] = true;
+        }
+        if (preg_match('/^use\s+const\b/i', $normalized)) {
+            $features['use_const'] = true;
+        }
     }
 
     /**
@@ -452,6 +520,7 @@ final class OracleProgramCompiler
             'O_INTERFACE_DECL' => 'interface_decl',
             'O_TRAIT_DECL' => 'trait_decl',
             'O_ENUM_DECL' => 'enum_decl',
+            'O_ENUM_CASE' => 'enum_case',
             'O_FUNCTION_DECL' => 'function_decl',
             'O_METHOD_DECL' => 'method_decl',
             'O_PROPERTY_DECL' => 'property_decl',
@@ -484,16 +553,22 @@ final class OracleProgramCompiler
             'O_STATIC_CALL' => 'static_call',
             'O_STATIC_PROPERTY_ASSIGN' => 'static_property_assign',
             'O_STATIC_PROPERTY_FETCH' => 'static_property_fetch',
+            'O_PROPERTY_ASSIGN' => 'property_assign',
             'O_PROPERTY_FETCH' => 'property_fetch',
+            'O_NULLSAFE_CALL' => 'nullsafe_call',
+            'O_NULLSAFE_PROPERTY_FETCH' => 'nullsafe_property_fetch',
             'O_DIM_ASSIGN' => 'dim_assign',
             'O_DIM_FETCH' => 'dim_fetch',
             'O_COMPOUND_ASSIGN' => 'compound_assign',
             'O_INC' => 'increment',
             'O_DEC' => 'decrement',
+            'O_DESTRUCTURE_ASSIGN' => 'destructure_assign',
+            'O_COALESCE_ASSIGN' => 'coalesce_assign',
             'O_COALESCE' => 'coalesce',
             'O_TERNARY' => 'ternary',
             'O_CLOSURE' => 'closure',
             'O_ARROW_FUNCTION' => 'arrow_function',
+            'O_YIELD_FROM' => 'yield_from',
             'O_YIELD' => 'yield',
             'O_GOTO' => 'goto',
             'O_LABEL' => 'label',
@@ -572,6 +647,103 @@ final class OracleProgramCompiler
 
             if ($parameters !== '') {
                 $features['parameters'] = self::extractParameterNames($parameters);
+                $features['variadic_parameter'] = str_contains($parameters, '...
+            if (isset($m[2])) {
+                $features['return_type'] = trim($m[2]);
+                $features['nullable_return_type'] = str_starts_with(trim($m[2]), '?');
+                $features['union_return_type'] = str_contains($m[2], '|');
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extractParameterNames(string $parameters): array
+    {
+        $names = [];
+
+        foreach (explode(',', $parameters) as $parameter) {
+            if (preg_match('/\$([A-Za-z_]\w*)/', $parameter, $m)) {
+                $names[] = $m[1];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return array{0:string,1:array<string,mixed>,2:array<string,mixed>}
+     */
+    private static function classifyLoaderStatement(string $loader, ?string $target, string $baseDir, array $seen, bool $literal): array
+    {
+        $kind = str_starts_with($loader, 'require') ? 'O_REQUIRE' : 'O_INCLUDE';
+        $features = [
+            'php_loader' => true,
+            'loader' => $loader,
+            'once' => str_ends_with($loader, '_once'),
+            'literal_target' => $literal,
+        ];
+        $extra = [];
+
+        if ($target === null) {
+            $features['dynamic_target'] = true;
+            $features['php_fallback_required'] = true;
+
+            return [$kind, $features, $extra];
+        }
+
+        $features['target'] = $target;
+
+        $resolved = self::resolveLiteralIncludeTarget($baseDir, $target);
+        if ($resolved !== null) {
+            $features['literal_target_resolved'] = true;
+            $features['target_realpath'] = $resolved;
+
+            if (isset($seen[$resolved])) {
+                $features['oracle_include_cycle'] = true;
+                $features['php_fallback_required'] = true;
+            } else {
+                $included = self::interpretAnyPhpFileToOracleProgram($resolved, $seen);
+                $features['enters_oracle_program'] = true;
+                $features['included_statement_count'] = $included['statement_count'];
+                $features['included_executable'] = $included['executable'];
+                $extra['included_oracle_program'] = $included;
+            }
+        } else {
+            $features['literal_target_resolved'] = false;
+            $features['php_fallback_required'] = true;
+        }
+
+        return [$kind, $features, $extra];
+    }
+
+    private static function resolveLiteralIncludeTarget(string $baseDir, string $target): ?string
+    {
+        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $target)) {
+            return null;
+        }
+
+        $candidate = self::isAbsolutePath($target) ? $target : $baseDir . DIRECTORY_SEPARATOR . $target;
+        $real = realpath($candidate);
+
+        if ($real === false || !is_file($real)) {
+            return null;
+        }
+
+        return $real;
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/') ||
+            str_starts_with($path, '\\') ||
+            (bool) preg_match('/^[A-Za-z]:[\\\\\/]/', $path);
+    }
+}
+);
+                $features['nullable_parameter_type'] = (bool) preg_match('/\?[A-Za-z_\\\\][A-Za-z0-9_\\\\]*\s+\$/', $parameters);
+                $features['union_parameter_type'] = str_contains($parameters, '|');
             }
 
             if (isset($m[2])) {
