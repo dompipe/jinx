@@ -276,6 +276,7 @@ if (count($cases) !== 20) {
 }
 
 $checked = 0;
+$mismatches = [];
 foreach ($cases as $name => $case) {
     $fixture = $caseDir . '/' . $name . '.php';
     file_put_contents($fixture, $case['source']);
@@ -283,12 +284,13 @@ foreach ($cases as $name => $case) {
     $phpResult = run_process([$php, $fixture]);
     $jinxResult = run_process([$jinx, $fixture]);
 
-    if ($jinxResult['exit'] !== $phpResult['exit']) {
-        fail("{$name} ({$case['area']}) exit mismatch: PHP={$phpResult['exit']} JINX={$jinxResult['exit']}\nPHP stdout:\n{$phpResult['stdout']}\nJINX stdout:\n{$jinxResult['stdout']}\nPHP stderr:\n{$phpResult['stderr']}\nJINX stderr:\n{$jinxResult['stderr']}");
-    }
-
-    if ($jinxResult['stdout'] !== $phpResult['stdout']) {
-        fail("{$name} ({$case['area']}) stdout mismatch\nPHP stdout:\n{$phpResult['stdout']}\nJINX stdout:\n{$jinxResult['stdout']}\nPHP stderr:\n{$phpResult['stderr']}\nJINX stderr:\n{$jinxResult['stderr']}");
+    if ($jinxResult['exit'] !== $phpResult['exit'] || $jinxResult['stdout'] !== $phpResult['stdout']) {
+        $mismatches[] = [
+            'name' => $name,
+            'area' => $case['area'],
+            'php' => $phpResult,
+            'jinx' => $jinxResult,
+        ];
     }
 
     $checked++;
@@ -296,6 +298,22 @@ foreach ($cases as $name => $case) {
 
 if ($checked !== 20) {
     fail('expected to check exactly 20 high-value edge fixtures, checked ' . $checked);
+}
+
+if ($mismatches !== []) {
+    foreach ($mismatches as $mismatch) {
+        fwrite(STDERR, "MISMATCH: {$mismatch['name']} ({$mismatch['area']})" . PHP_EOL);
+        fwrite(STDERR, "PHP exit={$mismatch['php']['exit']} stdout=" . json_encode($mismatch['php']['stdout']) . PHP_EOL);
+        fwrite(STDERR, "JINX exit={$mismatch['jinx']['exit']} stdout=" . json_encode($mismatch['jinx']['stdout']) . PHP_EOL);
+        if ($mismatch['php']['stderr'] !== '') {
+            fwrite(STDERR, "PHP stderr=" . json_encode($mismatch['php']['stderr']) . PHP_EOL);
+        }
+        if ($mismatch['jinx']['stderr'] !== '') {
+            fwrite(STDERR, "JINX stderr=" . json_encode($mismatch['jinx']['stderr']) . PHP_EOL);
+        }
+    }
+
+    fail('first-wave high-value edge fixture mismatches=' . count($mismatches) . ' of 20');
 }
 
 ksort($areas);
