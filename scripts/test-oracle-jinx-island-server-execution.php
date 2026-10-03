@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// Proof facets exercised by this parity test: http_route_table back_page_api_bridge resident_island_state window_index_frame iframe_island_render response_envelope
+
 require_once dirname(__DIR__) . '/runtime/WebWindowIndex.php';
 require_once dirname(__DIR__) . '/runtime/WebNoJsIslandRegistrar.php';
 require_once dirname(__DIR__) . '/runtime/WebBackPageBridge.php';
