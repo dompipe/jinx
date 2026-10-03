@@ -156,7 +156,9 @@ final class OracleProgramCompiler
         $tokens = token_get_all($source);
         $chunks = [];
         $current = '';
-        $depth = 0;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
 
         foreach ($tokens as $token) {
             $text = is_array($token) ? $token[1] : $token;
@@ -167,24 +169,43 @@ final class OracleProgramCompiler
 
             $current .= $text;
 
-            if ($text === '{') {
-                $depth++;
-                self::pushChunk($chunks, $current);
-                $current = '';
-                continue;
-            }
+            $length = strlen($text);
+            for ($i = 0; $i < $length; $i++) {
+                $ch = $text[$i];
 
-            if ($text === '}') {
-                $depth = max(0, $depth - 1);
-                self::pushChunk($chunks, $current);
-                $current = '';
-                continue;
-            }
-
-            if ($text === ';') {
-                self::pushChunk($chunks, $current);
-                $current = '';
-                continue;
+                if ($ch === '(') {
+                    $parenDepth++;
+                    continue;
+                }
+                if ($ch === ')') {
+                    $parenDepth = max(0, $parenDepth - 1);
+                    continue;
+                }
+                if ($ch === '[') {
+                    $bracketDepth++;
+                    continue;
+                }
+                if ($ch === ']') {
+                    $bracketDepth = max(0, $bracketDepth - 1);
+                    continue;
+                }
+                if ($ch === '{' && $parenDepth === 0 && $bracketDepth === 0) {
+                    $braceDepth++;
+                    self::pushChunk($chunks, $current);
+                    $current = '';
+                    continue 2;
+                }
+                if ($ch === '}' && $parenDepth === 0 && $bracketDepth === 0) {
+                    $braceDepth = max(0, $braceDepth - 1);
+                    self::pushChunk($chunks, $current);
+                    $current = '';
+                    continue 2;
+                }
+                if ($ch === ';' && $parenDepth === 0 && $bracketDepth === 0) {
+                    self::pushChunk($chunks, $current);
+                    $current = '';
+                    continue 2;
+                }
             }
         }
 
@@ -374,6 +395,8 @@ final class OracleProgramCompiler
             $kind = 'O_COALESCE_ASSIGN';
         } elseif (preg_match('/\?\?/', $normalized)) {
             $kind = 'O_COALESCE';
+        } elseif (preg_match('/^\$\w+(?:\[[^\]]*\])+\s*=/', $normalized)) {
+            $kind = 'O_DIM_ASSIGN';
         } elseif (preg_match('/\?.*:/', $normalized)) {
             $kind = 'O_TERNARY';
         } elseif (preg_match('/\bfn\s*\(/i', $normalized)) {
@@ -414,8 +437,6 @@ final class OracleProgramCompiler
             $kind = str_contains($normalized, '--') ? 'O_DEC' : 'O_INC';
         } elseif (preg_match('/^(?:\[|list\s*\().*=/', $normalized)) {
             $kind = 'O_DESTRUCTURE_ASSIGN';
-        } elseif (preg_match('/^\$\w+(?:\[[^\]]+\])+\s*(?:=)/', $normalized)) {
-            $kind = 'O_DIM_ASSIGN';
         } elseif (preg_match('/^\$\w+\s*(?:\+=|-=|\*=|\/=|%=|\.=)/', $normalized)) {
             $kind = 'O_COMPOUND_ASSIGN';
         } elseif (preg_match('/=\s*\$\w+(?:\[[^\]]+\])+/', $normalized)) {
