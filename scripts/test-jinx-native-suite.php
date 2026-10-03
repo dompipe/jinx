@@ -62,6 +62,7 @@ $scriptTests = [
     'exit die family' => ['scripts/test-oracle-exit-die-execution.php', 'PASS: Oracle executes exit/die PHP subset'],
     'object basics family' => ['scripts/test-oracle-object-basics-execution.php', 'PASS: Oracle executes object basics PHP subset'],
     'static method family' => ['scripts/test-oracle-static-method-execution.php', 'PASS: Oracle executes static-method PHP subset'],
+    'static property family' => ['scripts/test-oracle-static-property-execution.php', 'PASS: Oracle executes static-property PHP subset'],
     'instanceof family' => ['scripts/test-oracle-instanceof-execution.php', 'PASS: Oracle executes instanceof PHP subset'],
     'object clone family' => ['scripts/test-oracle-clone-execution.php', 'PASS: Oracle executes object clone PHP subset'],
     'object inheritance family' => ['scripts/test-oracle-object-inheritance-execution.php', 'PASS: Oracle executes object inheritance PHP subset'],

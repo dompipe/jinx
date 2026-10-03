@@ -117,6 +117,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `exit-die` | `scripts/test-oracle-exit-die-execution.php` |
 | `object-basics` | `scripts/test-oracle-object-basics-execution.php` |
 | `static-method-calls` | `scripts/test-oracle-static-method-execution.php` |
+| `static-properties` | `scripts/test-oracle-static-property-execution.php` |
 | `instanceof-checks` | `scripts/test-oracle-instanceof-execution.php` |
 | `object-clone` | `scripts/test-oracle-clone-execution.php` |
 | `object-inheritance` | `scripts/test-oracle-object-inheritance-execution.php` |
