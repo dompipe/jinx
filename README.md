@@ -148,6 +148,7 @@ Build the native executable first. This creates the repository-root `./jinx` bin
 ./jinx scripts/test-oracle-do-while-execution.php
 ./jinx scripts/test-oracle-global-scope-execution.php
 ./jinx scripts/test-oracle-static-local-execution.php
+./jinx scripts/test-oracle-closure-execution.php
 ./jinx scripts/test-oracle-static-method-execution.php
 ./jinx scripts/test-oracle-static-property-execution.php
 ./jinx scripts/test-oracle-instanceof-execution.php

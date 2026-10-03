@@ -112,6 +112,7 @@ Runtime owners are the corresponding files under `runtime/`. PHP comparison test
 | `functions` | `scripts/test-oracle-function-execution.php` |
 | `global-scope` | `scripts/test-oracle-global-scope-execution.php` |
 | `static-locals` | `scripts/test-oracle-static-local-execution.php` |
+| `closures` | `scripts/test-oracle-closure-execution.php` |
 | `request-globals` | `scripts/test-oracle-request-globals-execution.php` |
 | `include-require` | `scripts/test-oracle-include-require-execution.php` |
 | `exit-die` | `scripts/test-oracle-exit-die-execution.php` |
