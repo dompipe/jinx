@@ -98,11 +98,20 @@ if (($oracle['oracle']['executed_ops'] ?? 0) < 6) {
 }
 
 $ops = array_column($oracle['program']['statements'] ?? [], 'op');
-foreach (['O_CLASS_DECL', 'O_PROPERTY_DECL', 'O_STATIC_PROPERTY_FETCH', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'] as $op) {
+foreach (['O_CLASS_DECL', 'O_PROPERTY_DECL', 'O_STATIC_PROPERTY_ASSIGN', 'O_STATIC_PROPERTY_FETCH', 'O_ASSIGN', 'O_ECHO', 'O_RETURN'] as $op) {
     if (!in_array($op, $ops, true)) {
         fail("fixture did not produce expected {$op}");
     }
 }
+
+$writeRecords = array_values(array_filter(
+    $oracle['program']['statements'] ?? [],
+    static fn (array $statement): bool => str_starts_with((string) ($statement['source'] ?? ''), 'StaticCounter::$counter =')
+));
+same(count($writeRecords), 1, 'fixture has one static-property write record');
+same($writeRecords[0]['op'] ?? null, 'O_STATIC_PROPERTY_ASSIGN', 'static-property write is not mislabeled as fetch');
+same($writeRecords[0]['features']->class ?? null, 'StaticCounter', 'static-property write class feature');
+same($writeRecords[0]['features']->property ?? null, 'counter', 'static-property write property feature');
 
 $source = (string) file_get_contents($fixture);
 foreach (['public static $counter', 'StaticCounter::$counter', 'StaticCounter::$counter + 5'] as $needle) {
