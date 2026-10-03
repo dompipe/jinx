@@ -392,10 +392,37 @@ final class OracleFunctionExecutor
             return self::evaluateExpression(substr($expr, 1, -1), $locals, $functions, $executed);
         }
 
-        foreach (['+', '-', '*', '/', '%', '.'] as $operator) {
-            $parts = self::splitTopLevelBinary($expr, $operator);
+        $ternary = self::splitTopLevelTernary($expr);
+        if ($ternary !== null) {
+            [$conditionExpr, $trueExpr, $falseExpr] = $ternary;
+
+            return self::toPhpBool(self::evaluateExpression($conditionExpr, $locals, $functions, $executed))
+                ? self::evaluateExpression($trueExpr, $locals, $functions, $executed)
+                : self::evaluateExpression($falseExpr, $locals, $functions, $executed);
+        }
+
+        $comparison = self::splitTopLevelOperators($expr, ['===', '!==', '>=', '<=', '==', '!=', '>', '<']);
+        if ($comparison !== null) {
+            [$leftExpr, $operator, $rightExpr] = $comparison;
+            $left = self::evaluateExpression($leftExpr, $locals, $functions, $executed);
+            $right = self::evaluateExpression($rightExpr, $locals, $functions, $executed);
+
+            return match ($operator) {
+                '===' => $left === $right,
+                '!==' => $left !== $right,
+                '==' => $left == $right,
+                '!=' => $left != $right,
+                '>' => $left > $right,
+                '<' => $left < $right,
+                '>=' => $left >= $right,
+                '<=' => $left <= $right,
+            };
+        }
+
+        foreach ([['.'], ['+', '-'], ['*', '/', '%']] as $operators) {
+            $parts = self::splitTopLevelOperators($expr, $operators);
             if ($parts !== null) {
-                [$leftExpr, $rightExpr] = $parts;
+                [$leftExpr, $operator, $rightExpr] = $parts;
                 $left = self::evaluateExpression($leftExpr, $locals, $functions, $executed);
                 $right = self::evaluateExpression($rightExpr, $locals, $functions, $executed);
 
@@ -451,10 +478,23 @@ final class OracleFunctionExecutor
             if ($body === '') {
                 return [];
             }
+
             $values = [];
             foreach (self::splitArguments($body) as $item) {
+                $pair = self::splitTopLevelToken($item, '=>');
+                if ($pair !== null) {
+                    [$keyExpr, $valueExpr] = $pair;
+                    $key = self::evaluateExpression($keyExpr, $locals, $functions, $executed);
+                    if (!is_int($key) && !is_string($key)) {
+                        throw new \RuntimeException("Unsupported Oracle function array key: {$keyExpr}");
+                    }
+                    $values[$key] = self::evaluateExpression($valueExpr, $locals, $functions, $executed);
+                    continue;
+                }
+
                 $values[] = self::evaluateExpression($item, $locals, $functions, $executed);
             }
+
             return $values;
         }
 
@@ -518,6 +558,30 @@ final class OracleFunctionExecutor
                 throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
             }
             return strtoupper((string) ($args[0] ?? ''));
+        }
+
+        if ($lower === 'implode') {
+            if ($namedArgs !== []) {
+                throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
+            }
+            if (count($args) === 1 && is_array($args[0])) {
+                return implode('', $args[0]);
+            }
+            if (count($args) === 2 && is_array($args[1])) {
+                return implode((string) $args[0], $args[1]);
+            }
+            throw new \RuntimeException('Oracle implode() arguments are unsupported in this function family');
+        }
+
+        if ($lower === 'json_encode') {
+            if ($namedArgs !== []) {
+                throw new \RuntimeException('Oracle builtin named arguments are not supported in this function family');
+            }
+            $encoded = json_encode($args[0] ?? null);
+            if ($encoded === false) {
+                throw new \RuntimeException('Oracle json_encode() failed in function family');
+            }
+            return $encoded;
         }
 
         if (!isset($functions[$lower])) {
@@ -667,17 +731,17 @@ final class OracleFunctionExecutor
         return $depth === 0;
     }
 
-    /**
-     * @return array{0:string,1:string}|null
-     */
-    private static function splitTopLevelBinary(string $expr, string $operator): ?array
+    /** @return array{0:string,1:string,2:string}|null */
+    private static function splitTopLevelTernary(string $expr): ?array
     {
         $quote = null;
         $depth = 0;
+        $question = null;
         $length = strlen($expr);
 
         for ($i = 0; $i < $length; $i++) {
             $char = $expr[$i];
+
             if ($quote !== null) {
                 if ($char === '\\') {
                     $i++;
@@ -688,23 +752,169 @@ final class OracleFunctionExecutor
                 }
                 continue;
             }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
                 continue;
             }
-            if ($char === '(') {
+
+            if ($char === '(' || $char === '[') {
                 $depth++;
                 continue;
             }
-            if ($char === ')') {
+
+            if ($char === ')' || $char === ']') {
                 $depth = max(0, $depth - 1);
                 continue;
             }
-            if ($depth === 0 && $char === $operator) {
-                return [substr($expr, 0, $i), substr($expr, $i + 1)];
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            if ($char === '?' && $question === null) {
+                $question = $i;
+                continue;
+            }
+
+            if ($char === ':' && $question !== null) {
+                return [
+                    substr($expr, 0, $question),
+                    substr($expr, $question + 1, $i - $question - 1),
+                    substr($expr, $i + 1),
+                ];
             }
         }
 
         return null;
     }
+
+    /**
+     * @param list<string> $operators
+     * @return array{0:string,1:string,2:string}|null
+     */
+    private static function splitTopLevelOperators(string $expr, array $operators): ?array
+    {
+        usort($operators, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+        $quote = null;
+        $depth = 0;
+        $match = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($operators as $operator) {
+                if (substr($expr, $i, strlen($operator)) !== $operator) {
+                    continue;
+                }
+                if (($operator === '+' || $operator === '-') && trim(substr($expr, 0, $i)) === '') {
+                    continue;
+                }
+
+                $match = [$i, $operator];
+                $i += strlen($operator) - 1;
+                break;
+            }
+        }
+
+        if ($match === null) {
+            return null;
+        }
+
+        [$position, $operator] = $match;
+        return [
+            substr($expr, 0, $position),
+            $operator,
+            substr($expr, $position + strlen($operator)),
+        ];
+    }
+
+    /** @return array{0:string,1:string}|null */
+    private static function splitTopLevelToken(string $expr, string $token): ?array
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expr[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && substr($expr, $i, strlen($token)) === $token) {
+                return [substr($expr, 0, $i), substr($expr, $i + strlen($token))];
+            }
+        }
+
+        return null;
+    }
+
+    private static function toPhpBool(mixed $value): bool
+    {
+        return !(
+            $value === null ||
+            $value === false ||
+            $value === 0 ||
+            $value === 0.0 ||
+            $value === '' ||
+            $value === '0' ||
+            $value === []
+        );
+    }
+
 }
