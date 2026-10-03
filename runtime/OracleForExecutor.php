@@ -412,7 +412,26 @@ final class OracleForExecutor
                 static function (array $match) use (&$locals): string {
                     $localName = $match[1];
                     if (!array_key_exists($localName, $locals)) {
-                        throw new \RuntimeException('Missing Oracle interpolated local: 
+                        throw new \RuntimeException('Missing Oracle interpolated local: $' . $localName);
+                    }
+                    return (string) $locals[$localName];
+                },
+                stripcslashes($m[1])
+            );
+        }
+
+        if (preg_match("/^'((?:\\\\.|[^'])*)'$/s", $expr, $m)) {
+            return stripcslashes($m[1]);
+        }
+
+        if (preg_match('/^implode\s*\((.+),\s*(.+)\)$/is', $expr, $m)) {
+            $glue = self::evaluateExpression($m[1], $locals);
+            $values = self::evaluateExpression($m[2], $locals);
+            if (!is_array($values)) {
+                throw new \RuntimeException("Oracle implode() expects array: {$expr}");
+            }
+            return implode((string) $glue, $values);
+        }
         if ($expr === 'true') {
             return true;
         }
