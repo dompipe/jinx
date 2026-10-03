@@ -73,11 +73,20 @@ foreach ([true, false] as $forceNative) {
 
 $closureFixture = $root . '/fixtures/oracle-native-closures.php';
 $closurePhp = native_source_run([PHP_BINARY, $closureFixture], false);
-$closureExpected = "[11,11,12]\n[13,13,30]\n31\nTypeError\n10\n";
+$closureExpected = "[11,11,12]\n[13,13,30]\n31\nTypeError\n10\n[10,11]\n[7,20]\n";
 if ($closurePhp !== [0, $closureExpected, '']) throw new RuntimeException('unexpected closure baseline: ' . json_encode($closurePhp));
 foreach ([true, false] as $forceNative) {
     $native = native_source_run([$binary, $closureFixture], true, $forceNative);
     if ($native !== $closurePhp) throw new RuntimeException('native closure parity differs: ' . json_encode($native));
+}
+
+$cloneFixture = $root . '/fixtures/oracle-native-clone-methods.php';
+$clonePhp = native_source_run([PHP_BINARY, $cloneFixture], false);
+$cloneExpected = "[3,3,4,4]\n7\nPRIVATE:Error\nMETHOD:Error\nTYPE:TypeError\nMISSING:Error\nNESTED:TypeError\nSTATIC:Error\n9\n[3,13]\n5\n";
+if ($clonePhp !== [0, $cloneExpected, '']) throw new RuntimeException('unexpected clone/method baseline: ' . json_encode($clonePhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $cloneFixture], true, $forceNative);
+    if ($native !== $clonePhp) throw new RuntimeException('native clone/method parity differs: ' . json_encode($native));
 }
 
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
@@ -98,6 +107,14 @@ try {
     $rejected = native_source_run([$binary, '--native-php', $temporary], true);
     if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'closures in Zend containers')) {
         throw new RuntimeException('unsupported closure container was not rejected: ' . json_encode($rejected));
+    }
+    file_put_contents($temporary, '<?php declare(strict_types=1); echo "MUST_NOT_RUN"; class NativeDestructor { public function __destruct() {} }');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '') throw new RuntimeException('unsupported magic method was not rejected before output');
+    file_put_contents($temporary, '<?php declare(strict_types=1); class NativePrivateParent { private function hidden(): int { return 1; } } class NativePrivateChild extends NativePrivateParent {} echo "MUST_NOT_RUN";');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'private inheritance layout')) {
+        throw new RuntimeException('unsupported private inheritance was not rejected: ' . json_encode($rejected));
     }
 } finally {
     unlink($temporary);

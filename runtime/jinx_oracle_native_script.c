@@ -22,6 +22,8 @@ typedef struct NativeProperty {
     int type;
     int is_static;
     int initialized;
+    int is_private;
+    struct NativeClass *owner;
     NativeVariable storage;
     struct NativeProperty *next;
 } NativeProperty;
@@ -30,6 +32,7 @@ typedef struct NativeClass {
     char *name;
     struct NativeClass *parent;
     NativeProperty *properties;
+    struct NativeFunction *methods;
     struct NativeClass *next;
 } NativeClass;
 
@@ -62,6 +65,7 @@ typedef struct NativeRuntime {
     NativeReference *references;
     NativeClass *classes;
     NativeObject *objects;
+    NativeClass *active_class;
     struct NativeFunction *functions;
     struct NativeFunction *checked_functions;
     unsigned call_depth;
@@ -96,12 +100,19 @@ typedef struct NativeFunction {
     int return_type;
     NativeParser body;
     NativeVariable *captures;
+    NativeClass *owner;
+    int is_private;
+    int is_static;
+    JinxValue bound_this;
+    int is_arrow;
     struct NativeFunction *next;
 } NativeFunction;
 
 static void native_statements(NativeParser *parser, JinxValue *result);
 static JinxValue native_function_call(NativeParser *parser, NativeFunction *function, JinxValue *args, size_t count);
 static JinxValue native_closure(NativeParser *parser);
+static JinxValue native_method_call(NativeParser *parser, JinxValue object, const char *name, JinxValue *args, size_t count);
+static JinxValue native_clone(NativeParser *parser, JinxValue value);
 
 static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
     for (NativeFunction *function = runtime->functions; function; function = function->next)
@@ -358,6 +369,10 @@ static NativeSlot native_object_slot(NativeParser *parser, JinxValue object, con
         parser->runtime->error = "native object property is undeclared";
         return slot;
     }
+    if (slot.property->is_private && parser->runtime->active_class != slot.property->owner) {
+        native_raise(parser->runtime, "Error", "Cannot access private property");
+        return (NativeSlot){0};
+    }
     slot.array = instance->properties;
     slot.key = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
     return slot;
@@ -374,6 +389,8 @@ static NativeSlot native_static_slot(NativeParser *parser, const char *class_nam
         NativeClass *class_entry = native_class_find(parser->runtime, class_name);
         slot.property = native_property_find(class_entry, name, 1);
         if (!slot.property) native_raise(parser->runtime, "Error", "Access to undeclared static property");
+        else if (slot.property->is_private && parser->runtime->active_class != slot.property->owner)
+            native_raise(parser->runtime, "Error", "Cannot access private static property");
         else slot.variable = &slot.property->storage;
     }
     return slot;
@@ -609,8 +626,15 @@ static JinxValue native_primary(NativeParser *parser) {
     } else if (parser->kind == '[') {
         value = native_array(parser);
     } else if (parser->kind == N_VAR) {
-        NativeSlot slot = native_slot(parser);
-        value = native_slot_read(parser, slot);
+        NativeParser peek = *parser;
+        native_next(&peek);
+        if (peek.kind == N_OBJECT) {
+            if (!parser->checking) value = native_variable_read(parser, native_variable(runtime, parser->token));
+            native_next(parser);
+        } else {
+            NativeSlot slot = native_slot(parser);
+            value = native_slot_read(parser, slot);
+        }
         if (native_accept(parser, '(')) {
             JinxValue args[16];
             size_t count = 0;
@@ -624,8 +648,12 @@ static JinxValue native_primary(NativeParser *parser) {
                 else value = native_function_call(parser, value.as.ptr, args, count);
             }
         }
-    } else if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
+    } else if (parser->kind == N_ID && (!strcmp(parser->token, "function") || !strcmp(parser->token, "fn"))) {
         value = native_closure(parser);
+    } else if (parser->kind == N_ID && !strcmp(parser->token, "clone")) {
+        native_next(parser);
+        value = native_primary(parser);
+        if (!parser->checking && !runtime->error && !runtime->exception_class) value = native_clone(parser, value);
     } else if (native_accept(parser, '+')) {
         native_expect(parser, '+');
         NativeSlot slot = native_slot(parser);
@@ -743,6 +771,16 @@ static JinxValue native_primary(NativeParser *parser) {
                     value = jinx_value_string(class_name, (uint32_t)strlen(class_name));
                 }
             }
+        } else if (native_accept(parser, '(')) {
+            JinxValue args[16];
+            size_t count = 0;
+            if (parser->kind != ')') do {
+                if (count == 16) { runtime->error = "native method argument limit"; break; }
+                args[count++] = native_expression(parser, 0);
+            } while (native_accept(parser, ','));
+            native_expect(parser, ')');
+            if (!parser->checking && !runtime->error && !runtime->exception_class)
+                value = native_method_call(parser, value, member, args, count);
         } else value = native_slot_read(parser, native_object_slot(parser, value, member));
     }
     return value;
@@ -817,17 +855,21 @@ static int native_function_type(NativeParser *parser) {
         if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
         else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
         else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
+        else if (!strcasecmp(parser->token, "Closure")) type = N_VALUE_CLOSURE;
         else parser->runtime->error = "native function type is not supported";
         native_next(parser);
     }
     return type;
 }
 
-static void native_function_declaration(NativeParser *parser) {
+static void native_function_declaration(NativeParser *parser, NativeClass *owner, int method, int is_private, int is_static) {
     if (!parser->strict_types) { parser->runtime->error = "native function declarations require strict_types=1"; return; }
     native_next(parser);
     if (parser->kind != N_ID) { parser->runtime->error = "native function requires name"; return; }
     NativeFunction definition = {0};
+    definition.owner = owner;
+    definition.is_private = is_private;
+    definition.is_static = is_static;
     definition.name = native_copy(parser->runtime, parser->token, strlen(parser->token));
     native_next(parser);
     native_expect(parser, '(');
@@ -846,7 +888,7 @@ static void native_function_declaration(NativeParser *parser) {
     if (native_accept(parser, ':')) definition.return_type = native_function_type(parser);
     native_expect(parser, '{');
     definition.body = *parser;
-    if (parser->checking && !parser->runtime->error) {
+    if (parser->checking && !method && !parser->runtime->error) {
         NativeFunction *admitted = native_alloc(parser->runtime, sizeof(*admitted));
         if (!admitted) return;
         *admitted = definition;
@@ -862,15 +904,20 @@ static void native_function_declaration(NativeParser *parser) {
     *parser = end;
     parser->checking = checking;
     if (!checking && !parser->runtime->error) {
-        if (native_function_find(parser->runtime, definition.name)) {
+        if (!method && native_function_find(parser->runtime, definition.name)) {
             native_raise(parser->runtime, "Error", "Function already declared");
             return;
         }
         NativeFunction *function = native_alloc(parser->runtime, sizeof(*function));
         if (!function) return;
         *function = definition;
-        function->next = parser->runtime->functions;
-        parser->runtime->functions = function;
+        if (method) {
+            function->next = owner->methods;
+            owner->methods = function;
+        } else {
+            function->next = parser->runtime->functions;
+            parser->runtime->functions = function;
+        }
     }
 }
 
@@ -879,6 +926,12 @@ static JinxValue native_closure(NativeParser *parser) {
     if (!parser->strict_types) { parser->runtime->error = "native closures require strict_types=1"; return result; }
     NativeFunction *function = native_alloc(parser->runtime, sizeof(*function));
     if (!function) return result;
+    function->is_arrow = !strcmp(parser->token, "fn");
+    if (!parser->checking) {
+        function->owner = parser->runtime->active_class;
+        for (NativeVariable *variable = parser->runtime->variables; variable; variable = variable->next)
+            if (!strcmp(variable->name, "this")) function->bound_this = native_variable_read(parser, variable);
+    }
     native_next(parser);
     native_expect(parser, '(');
     if (parser->kind != ')') do {
@@ -912,13 +965,27 @@ static JinxValue native_closure(NativeParser *parser) {
         native_expect(parser, ')');
     }
     if (native_accept(parser, ':')) function->return_type = native_function_type(parser);
-    native_expect(parser, '{');
+    if (function->is_arrow && !parser->checking) {
+        for (NativeVariable *variable = parser->runtime->variables; variable; variable = variable->next) {
+            int parameter = 0;
+            for (size_t i = 0; i < function->count; i++)
+                if (!strcmp(variable->name, function->parameters[i])) parameter = 1;
+            if (parameter || !strcmp(variable->name, "this")) continue;
+            NativeVariable *capture = native_alloc(parser->runtime, sizeof(*capture));
+            if (!capture) return result;
+            capture->name = variable->name;
+            capture->value = native_value_copy(parser, native_variable_read(parser, variable));
+            capture->next = function->captures;
+            function->captures = capture;
+        }
+    }
+    native_expect(parser, function->is_arrow ? N_ARROW : '{');
     function->body = *parser;
     NativeParser end = *parser;
     end.checking = 1;
     JinxValue ignored = jinx_value_null();
-    native_statements(&end, &ignored);
-    native_expect(&end, '}');
+    if (function->is_arrow) ignored = native_expression(&end, 0);
+    else { native_statements(&end, &ignored); native_expect(&end, '}'); }
     int checking = parser->checking;
     *parser = end;
     parser->checking = checking;
@@ -936,11 +1003,17 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
         }
     if (runtime->call_depth >= 64) { runtime->error = "native function call depth limit"; return result; }
     NativeVariable *saved = runtime->variables;
+    NativeClass *saved_class = runtime->active_class;
+    runtime->active_class = function->owner;
     runtime->variables = NULL;
     runtime->call_depth++;
     NativeParser body = function->body;
     body.checking = 0;
     body.returned = 0;
+    if (function->bound_this.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        NativeVariable *self = native_variable(runtime, "this");
+        if (self) self->value = function->bound_this;
+    }
     for (NativeVariable *capture = function->captures; capture && !runtime->error; capture = capture->next) {
         NativeVariable *local = native_variable(runtime, capture->name);
         if (!local) break;
@@ -951,11 +1024,57 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
         NativeVariable *parameter = native_variable(runtime, function->parameters[i]);
         if (parameter) parameter->value = native_value_copy(&body, args[i]);
     }
-    native_statements(&body, &result);
+    if (function->is_arrow) result = native_expression(&body, 0);
+    else native_statements(&body, &result);
     runtime->variables = saved;
+    runtime->active_class = saved_class;
     runtime->call_depth--;
     if (!runtime->error && !runtime->exception_class && function->return_type && result.type != (uint32_t)function->return_type)
         native_raise(runtime, "TypeError", "Invalid function return type");
+    return result;
+}
+
+static NativeFunction *native_method_find(NativeClass *owner, const char *name) {
+    for (; owner; owner = owner->parent)
+        for (NativeFunction *method = owner->methods; method; method = method->next)
+            if (!strcasecmp(method->name, name)) return method;
+    return NULL;
+}
+
+static JinxValue native_method_call(NativeParser *parser, JinxValue object, const char *name, JinxValue *args, size_t count) {
+    if (object.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        native_raise(parser->runtime, "Error", "Method call requires object"); return jinx_value_null();
+    }
+    JinxZendObject *instance = object.as.ptr;
+    NativeFunction *method = native_method_find(native_class_find(parser->runtime, instance->class_name), name);
+    if (!method) { native_raise(parser->runtime, "Error", "Undefined method"); return jinx_value_null(); }
+    if (method->is_private && parser->runtime->active_class != method->owner) {
+        native_raise(parser->runtime, "Error", "Cannot call private method"); return jinx_value_null();
+    }
+    NativeFunction frame = *method;
+    if (!method->is_static) frame.bound_this = object;
+    return native_function_call(parser, &frame, args, count);
+}
+
+static JinxValue native_clone(NativeParser *parser, JinxValue value) {
+    if (value.type != JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        native_raise(parser->runtime, "Error", "Clone requires object"); return jinx_value_null();
+    }
+    JinxZendObject *source = value.as.ptr;
+    NativeClass *owner = native_class_find(parser->runtime, source->class_name);
+    if (!owner) { parser->runtime->error = "native clone requires user class"; return jinx_value_null(); }
+    NativeObject *copy = native_alloc(parser->runtime, sizeof(*copy));
+    if (!copy) return jinx_value_null();
+    copy->object = jinx_zend_object_new(source->class_name);
+    if (!copy->object) { parser->runtime->error = "native clone allocation failed"; return jinx_value_null(); }
+    copy->next = parser->runtime->objects;
+    parser->runtime->objects = copy;
+    JinxZendArray *properties = jinx_zend_array_clone(source->properties);
+    if (!properties) { parser->runtime->error = "native clone property copy failed"; return jinx_value_null(); }
+    jinx_zend_array_release(copy->object->properties);
+    copy->object->properties = properties;
+    JinxValue result = jinx_oracle_zend_object_value_borrowed(copy->object);
+    if (native_method_find(owner, "__clone")) (void)native_method_call(parser, result, "__clone", NULL, 0);
     return result;
 }
 
@@ -972,6 +1091,12 @@ static void native_class_declaration(NativeParser *parser) {
         if (!parser->checking) {
             parent = native_class_find(parser->runtime, parser->token);
             if (!parent) native_raise(parser->runtime, "Error", "Parent class not found");
+            for (NativeClass *ancestor = parent; ancestor; ancestor = ancestor->parent) {
+                for (NativeProperty *property = ancestor->properties; property; property = property->next)
+                    if (property->is_private) parser->runtime->error = "native private inheritance layout is not supported";
+                for (NativeFunction *method = ancestor->methods; method; method = method->next)
+                    if (method->is_private) parser->runtime->error = "native private inheritance layout is not supported";
+            }
         }
         native_next(parser);
     }
@@ -987,13 +1112,25 @@ static void native_class_declaration(NativeParser *parser) {
     }
     native_expect(parser, '{');
     while (parser->kind != '}' && !parser->runtime->error && (parser->checking || !parser->runtime->exception_class)) {
-        if (parser->kind != N_ID || strcmp(parser->token, "public")) {
-            parser->runtime->error = "native class currently admits public properties only";
+        if (parser->kind != N_ID || (strcmp(parser->token, "public") && strcmp(parser->token, "private"))) {
+            parser->runtime->error = "native class requires public/private member";
             break;
         }
+        int is_private = !strcmp(parser->token, "private");
+        if (is_private && parent) { parser->runtime->error = "native private inheritance layout is not supported"; break; }
         native_next(parser);
         int is_static = parser->kind == N_ID && !strcmp(parser->token, "static");
         if (is_static) native_next(parser);
+        if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
+            NativeParser peek = *parser;
+            native_next(&peek);
+            if (!strncmp(peek.token, "__", 2) && strcmp(peek.token, "__clone")) {
+                parser->runtime->error = "native magic methods other than __clone are not yet supported";
+                break;
+            }
+            native_function_declaration(parser, class_entry, 1, is_private, is_static);
+            continue;
+        }
         int type = 0;
         if (parser->kind == N_ID) {
             if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
@@ -1017,6 +1154,8 @@ static void native_class_declaration(NativeParser *parser) {
             property->type = type;
             property->is_static = is_static;
             property->initialized = initialized;
+            property->is_private = is_private;
+            property->owner = class_entry;
             property->storage.value = initial;
             property->next = class_entry->properties;
             class_entry->properties = property;
@@ -1140,7 +1279,7 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             native_expect(parser, ';');
             parser->strict_types = 1;
         } else if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
-            native_function_declaration(parser);
+            native_function_declaration(parser, NULL, 0, 0, 0);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "class")) {
             native_class_declaration(parser);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "try")) {

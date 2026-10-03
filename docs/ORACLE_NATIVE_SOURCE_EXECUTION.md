@@ -42,15 +42,25 @@ TypeError/ArgumentCountError. Both declarations and calls require strict_types=1
 Arguments containing arrays receive independent containers with shared explicit
 reference cells. Caller locals are restored even when a nested call throws.
 Forward calls before declaration, defaults, variadics, by-reference parameters,
-non-scalar type hints and weak scalar coercion are not yet admitted.
+type hints other than scalars/Closure and weak scalar coercion are not yet admitted.
 
 Anonymous functions support explicit `use ($value)` and `use (&$value)` captures,
 scalar signatures and variable calls in expressions. Reference captures retain
 the shared Zend cell after the outer variable is unset. By-value captures take
 an independent snapshot and restore that snapshot on each call. Prefix ++ on
-admitted slots also executes natively. Arrow functions, bound `$this`, closure
-reflection/binding, and closures stored in Zend arrays/reference cells remain
+admitted slots also executes natively. Arrow functions capture local values by
+snapshot. Both ordinary closures and arrows created in an instance method
+retain `$this` and its private-access scope. Closure return hints are admitted.
+Closure reflection/rebinding, and closures stored in Zend arrays/reference cells remain
 outside this subset.
+
+Public/private instance methods execute in native call frames with scalar
+argument/return checks, nested calls, and class-scoped property visibility.
+Private static properties also enforce scope. Native clone copies the object's
+property container, preserves ordinary shallow-copy semantics, and invokes an
+admitted __clone hook. Private scalar state is independent in cloned objects.
+User constructors, property promotion, protected members, private inheritance
+layouts and magic methods other than __clone are not yet admitted.
 
 Include paths are resolved relative to the current source file;
 PHP include_path lookup and missing-file warning behavior are not implemented.
@@ -58,7 +68,7 @@ The interpreter rejects overflow rather than promoting integers to floats.
 Undefined variables currently read as null without PHP's warning.
 Foreach key bindings, by-value foreach, loop break/continue, nested array-offset
 syntax, and structural mutation during foreach are outside this native subset.
-Class methods, registered builtin constructors, constructors with arguments, non-public/readonly properties,
+Registered builtin constructors, constructors with arguments, protected/readonly properties,
 custom exception hierarchies, finally, multiple catches, array/closure callbacks,
 and PHP-identical diagnostic messages are still outside this subset. This work
 proves normalized error classes and preserved state, not full exception parity.
@@ -100,6 +110,9 @@ after nested exceptions, with PHP absent from the target process PATH.
 `fixtures/oracle-native-closures.php` compares reference mutation, repeated
 by-value calls, unset lifetime and catchable typed closure calls in the same
 PHP-independent target environment.
+`fixtures/oracle-native-clone-methods.php` checks private clone state, nested
+methods and errors, access restrictions, private static storage and __clone
+hooks. Closure fixtures also check returned bound closures and arrow snapshots.
 
 The high-value semantic edge suite is a separate gate. The native interpreter
 fixes both include, both filesystem and both reference first-wave cases.
@@ -110,3 +123,7 @@ and static-method/closure callback composition. Reference-capturing closure
 execution reduces this further to 4 out of 20; cloning, closure `$this` binding
 and static-method/closure callback composition remain unsupported. Do not infer full-stack
 success from this focused test.
+
+Native methods, private-state clone and bound arrows now reduce that gate to
+2 failures out of 20: constructor-driven deep cloning and static-method/closure
+callback composition. This is not a claim of arbitrary PHP compatibility.
