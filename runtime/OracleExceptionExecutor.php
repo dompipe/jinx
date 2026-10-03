@@ -77,6 +77,12 @@ final class OracleExceptionExecutor
                     $index++;
                     break;
 
+                case 'O_DIM_ASSIGN':
+                    self::executeDimAssignStatement($source, $locals);
+                    $executed++;
+                    $index++;
+                    break;
+
                 case 'O_ECHO':
                     $output .= (string) self::evaluateExpression(self::stripKeywordStatement($source, 'echo'), $locals);
                     $executed++;
@@ -231,6 +237,19 @@ final class OracleExceptionExecutor
         $locals[$m[1]] = self::evaluateExpression($m[2], $locals);
     }
 
+    /** @param array<string,mixed> $locals */
+    private static function executeDimAssignStatement(string $source, array &$locals): void
+    {
+        if (!preg_match('/^\$(\w+)\[\]\s*=\s*(.+);?$/', $source, $m)) {
+            throw new \RuntimeException("Unsupported Oracle exception dimension assignment: {$source}");
+        }
+
+        if (!isset($locals[$m[1]]) || !is_array($locals[$m[1]])) {
+            $locals[$m[1]] = [];
+        }
+        $locals[$m[1]][] = self::evaluateExpression($m[2], $locals);
+    }
+
     private static function stripKeywordStatement(string $source, string $keyword): string
     {
         $body = preg_replace('/^' . preg_quote($keyword, '/') . '\b/i', '', $source, 1);
@@ -290,6 +309,36 @@ final class OracleExceptionExecutor
             return self::evaluateExpression(substr($expr, 1, -1), $locals);
         }
 
+        if ($expr === '[]') {
+            return [];
+        }
+
+        if (str_starts_with($expr, '[') && str_ends_with($expr, ']')) {
+            $values = [];
+            foreach (self::splitTopLevelList(substr($expr, 1, -1)) as $part) {
+                if (trim($part) !== '') {
+                    $values[] = self::evaluateExpression($part, $locals);
+                }
+            }
+            return $values;
+        }
+
+        if (preg_match('/^json_encode\s*\((.+)\)$/is', $expr, $m)) {
+            $encoded = json_encode(self::evaluateExpression($m[1], $locals));
+            if ($encoded === false) {
+                throw new \RuntimeException('Oracle exception json_encode() failed');
+            }
+            return $encoded;
+        }
+
+        if (preg_match('/^\$(\w+)::class$/', $expr, $m)) {
+            $value = $locals[$m[1]] ?? null;
+            if (is_array($value) && isset($value['class'])) {
+                return (string) $value['class'];
+            }
+            throw new \RuntimeException("Unsupported Oracle exception class fetch: {$expr}");
+        }
+
         if (preg_match('/^\(string\)\s*(.+)$/i', $expr, $m)) {
             return (string) self::evaluateExpression($m[1], $locals);
         }
@@ -331,6 +380,49 @@ final class OracleExceptionExecutor
         }
 
         throw new \RuntimeException("Unsupported Oracle exception expression: {$expr}");
+    }
+
+    /** @return list<string> */
+    private static function splitTopLevelList(string $source): array
+    {
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $depth = 0;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === ',' && $depth === 0) {
+                $parts[] = substr($source, $start, $i - $start);
+                $start = $i + 1;
+            }
+        }
+
+        $parts[] = substr($source, $start);
+        return $parts;
     }
 
     private static function isWrappedInOuterParens(string $expr): bool
