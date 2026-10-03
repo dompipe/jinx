@@ -21,6 +21,15 @@ Run the facet audit when checking whether every declared family facet is represe
 ./jinx scripts/test-oracle-family-facet-audit.php
 ```
 
+For a stricter proof-source diagnostic that **does not allow family metadata to satisfy its own facet claim**, run:
+
+```bash
+./jinx scripts/audit-oracle-family-facet-proof-sources.php
+./jinx scripts/audit-oracle-family-facet-proof-sources.php --strict
+```
+
+The default mode reports every declared facet that cannot be found in the runtime owner, parity test, or companion fixture source and exits successfully so the complete gap list is visible. `--strict` fails when any such gap remains. This is deliberately separate from the release-gating audit until the older family metadata vocabulary has been reconciled with concrete proof-source names.
+
 ## Native JSON boundary
 
 The PHP JSON declarations are all present in the generated dispatch table, but native promotion is intentionally facet-by-facet rather than declaration-by-declaration.
