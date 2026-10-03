@@ -391,7 +391,7 @@ final class OracleProgramCompiler
             $kind = 'O_COALESCE';
         } elseif (preg_match('/^\$\w+(?:\[[^\]]*\])+\s*=/', $normalized)) {
             $kind = 'O_DIM_ASSIGN';
-        } elseif (preg_match('/=\s*\$\w+(?:\[[^\]]+\])+/', $normalized)) {
+        } elseif (preg_match('/^\$\w+\s*=\s*\$\w+(?:\[[^\]]+\])+\s*;?$/', $normalized)) {
             $kind = 'O_DIM_FETCH';
         } elseif (preg_match('/^\$\w+\s*=.*\?.*:/', $normalized)) {
             $kind = 'O_ASSIGN';
