@@ -221,7 +221,9 @@ static NativeProperty *native_property_find(NativeClass *class_entry, const char
 
 static int native_object_matches(NativeRuntime *runtime, JinxValue value, const char *name) {
     if (value.type != JINX_ORACLE_VALUE_ZEND_OBJECT) return 0;
-    NativeClass *owner = native_class_find(runtime, ((JinxZendObject *)value.as.ptr)->class_name);
+    const char *class_name = ((JinxZendObject *)value.as.ptr)->class_name;
+    if (class_name && !strcasecmp(class_name, name)) return 1;
+    NativeClass *owner = native_class_find(runtime, class_name);
     for (; owner; owner = owner->parent) if (!strcasecmp(owner->name, name)) return 1;
     return 0;
 }
