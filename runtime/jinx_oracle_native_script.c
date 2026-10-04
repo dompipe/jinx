@@ -1346,11 +1346,33 @@ static JinxValue native_primary(NativeParser *parser) {
         }
     } else runtime->error = "expression is not yet supported by native Oracle";
     int nullsafe_short = 0;
-    while (!runtime->error && (parser->kind == N_OBJECT || parser->kind == N_SCOPE || parser->kind == N_NULLSAFE)) {
+    while (!runtime->error && (parser->kind == N_OBJECT || parser->kind == N_SCOPE ||
+           parser->kind == N_NULLSAFE || parser->kind == '[')) {
+        int saved_checking = parser->checking;
+        if (nullsafe_short) parser->checking = 1;
+
+        if (parser->kind == '[') {
+            native_next(parser);
+            JinxValue key = native_expression(parser, 0);
+            native_expect(parser, ']');
+            if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                if (value.type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+                    native_raise(runtime, "TypeError", "Cannot use array offset on non-array value");
+                } else {
+                    NativeSlot slot = {0};
+                    slot.array = value.as.ptr;
+                    slot.key = key;
+                    value = native_slot_read(parser, slot);
+                }
+            }
+            parser->checking = saved_checking;
+            if (nullsafe_short) value = jinx_value_null();
+            continue;
+        }
+
         int access = parser->kind;
         if (access == N_NULLSAFE && !parser->checking && !runtime->exception_class && value.type == 0)
             nullsafe_short = 1;
-        int saved_checking = parser->checking;
         if (nullsafe_short) parser->checking = 1;
         native_next(parser);
         if (parser->kind != N_ID) { runtime->error = "native object postfix requires name"; parser->checking = saved_checking; break; }
