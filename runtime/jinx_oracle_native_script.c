@@ -528,8 +528,12 @@ static NativeSlot native_object_slot(NativeParser *parser, JinxValue object, con
             slot.magic_name = native_copy(parser->runtime, name, strlen(name));
             return slot;
         }
-        if (!slot.property) parser->runtime->error = "native object property is undeclared";
-        else native_raise(parser->runtime, "Error", "Cannot access private property");
+        if (!slot.property) {
+            if (class_entry && class_entry->is_readonly)
+                native_raise(parser->runtime, "Error", "Cannot create dynamic property on readonly class");
+            else
+                parser->runtime->error = "native object property is undeclared";
+        } else native_raise(parser->runtime, "Error", "Cannot access private property");
         return slot;
     }
     slot.array = instance->properties;
