@@ -9,7 +9,7 @@ class NativeStaticBase
     }
 }
 
-final class NativeStaticChild extends NativeStaticBase {}
+class NativeStaticChild extends NativeStaticBase {}
 
 echo NativeStaticBase::who(), "\n";
 echo NativeStaticChild::who(), "\n";
