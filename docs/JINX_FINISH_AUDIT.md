@@ -199,13 +199,26 @@ verification are not green. Run each command independently to collect all gaps;
 do not hide failure by appending `|| true` to a release gate.
 # Baseline repair follow-up (2026-10-03)
 
+Native strict function signatures now admit unions of the already supported
+`int`, `string`, `bool`, and `Closure` types, explicit `null`, and nullable
+shorthand. Argument and return checks use the declared type set. Lazy ternary
+expressions and shorthand ternaries execute only the selected branch, using
+PHP truthiness for the native value carriers. The native source fixture tests
+valid values, TypeErrors, skipped branches, selected-branch exceptions, and
+rejection of duplicate/unsupported types before output.
+
+Both second-wave union/nullable fixtures now pass natively: strict wave-two
+coverage is 3/20, with 17 failures remaining. Promoted nullable/union properties,
+additional type kinds, and weak union callback coercion are not implemented.
+This does not add generator suspension/resumption or complete Zend coverage.
+
 Native array literal spread now executes through the Zend array carrier.
 Integer keys are reindexed and string keys preserve insertion order with
 later replacements. `fixtures/oracle-native-array-spread.php` and the native
 source suite verify empty arrays, mixed keys, nested value isolation, and a
 catchable runtime non-array error without PHP available to the child process.
 Traversable unpacking is not implemented. The strict native second wave now
-passes 1/20 (array spread); the remaining 19 cases still fail.
+passed 1/20 (array spread) before the union/nullable improvement above.
 
 The reviewed `posix_mknod` ledger now records its existing extended native
 handler: 975 named routes, 663 extended routes, and 2552 intentional faults.

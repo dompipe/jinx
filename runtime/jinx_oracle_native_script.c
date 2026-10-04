@@ -847,6 +847,15 @@ static int native_precedence(int kind) {
     return -1;
 }
 
+static int native_truth(JinxValue value) {
+    if (!value.type) return 0;
+    if (value.type == N_VALUE_INT || value.type == N_VALUE_BOOL) return value.as.i64 != 0;
+    if (value.type == N_VALUE_FLOAT) return value.as.f64 != 0;
+    if (value.type == N_VALUE_STRING) return value.flags && !(value.flags == 1 && ((char *)value.as.ptr)[0] == '0');
+    if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) return ((JinxZendArray *)value.as.ptr)->count != 0;
+    return 1;
+}
+
 static JinxValue native_expression(NativeParser *parser, int minimum) {
     if (++parser->expression_depth > 128) {
         parser->runtime->error = "native expression nesting limit exceeded";
@@ -896,23 +905,69 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
             left = jinx_value_int(result);
         }
     }
+    if (!parser->runtime->error && !parser->runtime->exception_class && minimum <= 3 && native_accept(parser, '?')) {
+        int checking = parser->checking;
+        int truth = !checking && native_truth(left);
+        JinxValue yes = left;
+        if (parser->kind != ':') {
+            parser->checking = checking || !truth;
+            yes = native_expression(parser, 0);
+        }
+        parser->checking = checking;
+        if (parser->runtime->error || parser->runtime->exception_class) {
+            parser->expression_depth--;
+            return jinx_value_null();
+        }
+        native_expect(parser, ':');
+        parser->checking = checking || truth;
+        JinxValue no = native_expression(parser, 4);
+        parser->checking = checking;
+        if (!checking) left = truth ? yes : no;
+        if (!parser->runtime->exception_class && parser->kind == '?') parser->runtime->error = "unparenthesized nested native ternary is unsupported";
+    }
     parser->expression_depth--;
     return left;
 }
 
 static void native_statements(NativeParser *parser, JinxValue *result);
 
+enum { N_TYPE_SET = 256 };
+
+static int native_type_bit(uint32_t type) {
+    return type == N_VALUE_CLOSURE ? 128 : type <= 7 ? 1 << type : 0;
+}
+
+static int native_type_matches(int type, JinxValue value) {
+    return !type || ((type & N_TYPE_SET) ? (type & native_type_bit(value.type)) != 0 : value.type == (uint32_t)type);
+}
+
 static int native_function_type(NativeParser *parser) {
-    int type = 0;
-    if (parser->kind == N_ID) {
+    int nullable = native_accept(parser, '?');
+    int mask = nullable ? 1 : 0;
+    int first = 0;
+    int members = 0;
+    if (parser->kind != N_ID) {
+        if (nullable) parser->runtime->error = "nullable native type requires name";
+        return 0;
+    }
+    do {
+        int type = 0;
+        if (parser->kind != N_ID) { parser->runtime->error = "native union requires type name"; break; }
         if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
         else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
         else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
         else if (!strcasecmp(parser->token, "Closure")) type = N_VALUE_CLOSURE;
+        else if (!strcmp(parser->token, "null")) type = 0;
         else parser->runtime->error = "native function type is not supported";
+        int bit = native_type_bit((uint32_t)type);
+        if (mask & bit) parser->runtime->error = "duplicate native union type";
+        mask |= bit;
+        if (!members) first = type;
+        members++;
         native_next(parser);
-    }
-    return type;
+    } while (!parser->runtime->error && native_accept(parser, '|'));
+    if (nullable && members != 1) parser->runtime->error = "nullable shorthand cannot contain union";
+    return nullable || members > 1 || !first ? N_TYPE_SET | mask : first;
 }
 
 static void native_function_declaration(NativeParser *parser, NativeClass *owner, int method, int is_private, int is_static) {
@@ -945,6 +1000,9 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
             definition.object_types[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
             native_next(parser);
         } else definition.types[index] = native_function_type(parser);
+        if (definition.promoted[index] && (definition.types[index] & N_TYPE_SET)) {
+            parser->runtime->error = "native promoted nullable/union property is not yet supported"; return;
+        }
         if (parser->kind != N_VAR) { parser->runtime->error = "native function requires parameter"; return; }
         definition.parameters[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
         for (size_t i = 0; i < index; i++)
@@ -1081,7 +1139,7 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
     JinxValue result = jinx_value_null();
     if (count < function->count) { native_raise(runtime, "ArgumentCountError", "Missing function argument"); return result; }
     for (size_t i = 0; i < function->count; i++)
-        if ((function->types[i] && args[i].type != (uint32_t)function->types[i]) ||
+        if (!native_type_matches(function->types[i], args[i]) ||
             (function->object_types[i] && !native_object_matches(runtime, args[i], function->object_types[i]))) {
             native_raise(runtime, "TypeError", "Invalid function argument type"); return result;
         }
@@ -1115,7 +1173,7 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
     runtime->variables = saved;
     runtime->active_class = saved_class;
     runtime->call_depth--;
-    if (!runtime->error && !runtime->exception_class && function->return_type && result.type != (uint32_t)function->return_type)
+    if (!runtime->error && !runtime->exception_class && !native_type_matches(function->return_type, result))
         native_raise(runtime, "TypeError", "Invalid function return type");
     return result;
 }
@@ -1194,6 +1252,9 @@ static JinxValue native_callback_invoke(NativeParser *parser, NativeCallback *ca
             for (size_t i = 0; i < count; i++) {
                 converted[i] = args[i];
                 int type = i < callback->frame.count ? callback->frame.types[i] : 0;
+                if ((type & N_TYPE_SET) && !native_type_matches(type, args[i])) {
+                    parser->runtime->error = "native weak union callback coercion is not yet supported"; return jinx_value_null();
+                }
                 if (type == N_VALUE_INT && args[i].type == N_VALUE_BOOL) converted[i] = jinx_value_int(args[i].as.i64);
                 else if (type == N_VALUE_INT && args[i].type == N_VALUE_STRING) {
                     char *end;

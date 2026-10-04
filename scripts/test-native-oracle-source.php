@@ -24,6 +24,16 @@ function native_source_run(array $command, bool $withoutPhp, bool $forceNative =
     return [proc_close($process), $output, $error];
 }
 
+$unionFixture = $root . '/fixtures/oracle-native-union-types.php';
+$unionPhp = native_source_run([PHP_BINARY, $unionFixture], false);
+$unionExpected = "[7,\"x\",\"yes\",null]\n[null,\"ok\"]\nARG:TypeError\nRETURN:TypeError\nNULLABLE:TypeError\n[3,4,6,\"empty\",8,9]\n[2,\"two\"]\n";
+$unionExpected .= "YES:TypeError\nNO:TypeError\n";
+if ($unionPhp !== [0, $unionExpected, '']) throw new RuntimeException('unexpected union baseline: ' . json_encode($unionPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $unionFixture], true, $forceNative);
+    if ($native !== $unionPhp) throw new RuntimeException('native union/ternary parity differs: ' . json_encode($native));
+}
+
 $spreadFixture = $root . '/fixtures/oracle-native-array-spread.php';
 $spreadPhp = native_source_run([PHP_BINARY, $spreadFixture], false);
 $spreadExpected = "{\"0\":\"zero\",\"a\":2,\"b\":3,\"1\":\"nine\",\"c\":4}\n[8,9,10,11]\n[{\"n\":[1,2]},{\"n\":[9]}]\nERR:Error\n";
@@ -121,6 +131,11 @@ foreach ([true, false] as $forceNative) {
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {
+    foreach (['int|int', '?int|string', 'int|array'] as $type) {
+        file_put_contents($temporary, '<?php declare(strict_types=1); echo "MUST_NOT_RUN"; function nativeRejected(' . $type . ' $value) { return $value; }');
+        $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+        if ($rejected[0] === 0 || $rejected[1] !== '') throw new RuntimeException('invalid or unsupported native union was not rejected before output');
+    }
     file_put_contents($temporary, '<?php echo "MUST_NOT_RUN"; new class {};');
     $rejected = native_source_run([$binary, '--native-php', $temporary], true);
     if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'refusing PHP fallback')) {
