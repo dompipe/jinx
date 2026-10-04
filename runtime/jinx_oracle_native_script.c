@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <strings.h>
+#include <math.h>
 
 typedef struct NativeAllocation {
     void *ptr;
@@ -131,6 +132,8 @@ typedef struct NativeParser {
     const char *namespace_name;
     NativeImport *imports;
     int saw_yield;
+    int control;
+    unsigned loop_depth;
 } NativeParser;
 
 typedef struct NativeCallArguments {
@@ -223,7 +226,8 @@ static int native_function_admitted(NativeRuntime *runtime, const char *name) {
     return 0;
 }
 
-enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT, N_NULLSAFE, N_ELLIPSIS };
+enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT, N_NULLSAFE, N_ELLIPSIS,
+    N_IDENTICAL, N_NOT_IDENTICAL, N_EQUAL, N_NOT_EQUAL, N_LE, N_GE, N_AND, N_OR, N_SHL, N_SHR, N_POWER };
 enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5, N_VALUE_CLOSURE = 100, N_VALUE_GENERATOR = 101 };
 
 static void *native_alloc(NativeRuntime *runtime, size_t size) {
@@ -388,6 +392,17 @@ static void native_next(NativeParser *parser) {
         parser->literal = jinx_value_string(native_copy(runtime, body, (size_t)(end - body)), (uint32_t)(end - body));
         parser->kind = N_LITERAL;
         p = end + length + 1;
+    } else if (!strncmp(p, "===", 3) || !strncmp(p, "!==", 3)) {
+        parser->kind = *p == '=' ? N_IDENTICAL : N_NOT_IDENTICAL;
+        p += 3;
+    } else if (!strncmp(p, "==", 2) || !strncmp(p, "!=", 2) || !strncmp(p, "<=", 2) ||
+               !strncmp(p, ">=", 2) || !strncmp(p, "&&", 2) || !strncmp(p, "||", 2) ||
+               !strncmp(p, "<<", 2) || !strncmp(p, ">>", 2) || !strncmp(p, "**", 2)) {
+        parser->kind = *p == '=' ? N_EQUAL : *p == '!' ? N_NOT_EQUAL :
+            *p == '<' ? (p[1] == '=' ? N_LE : N_SHL) :
+            *p == '>' ? (p[1] == '=' ? N_GE : N_SHR) :
+            *p == '&' ? N_AND : *p == '|' ? N_OR : N_POWER;
+        p += 2;
     } else if (!strncmp(p, "...", 3)) {
         parser->kind = N_ELLIPSIS;
         p += 3;
@@ -497,6 +512,7 @@ static JinxZendValue native_zend_value(NativeParser *parser, JinxValue value) {
         return jinx_zend_null();
     }
     if (value.type == N_VALUE_INT) return jinx_zend_long(value.as.i64);
+    if (value.type == N_VALUE_FLOAT) return jinx_zend_double(value.as.f64);
     if (value.type == N_VALUE_BOOL) return jinx_zend_bool((int)value.as.i64);
     if (value.type == N_VALUE_STRING) return jinx_zend_string_value(jinx_zend_string_new(value.as.ptr, value.flags));
     if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) return jinx_zend_array_value(value.as.ptr);
@@ -522,6 +538,12 @@ static JinxValue native_from_zend(NativeParser *parser, JinxZendValue value) {
         value = value.value.ref->value;
     }
     switch (value.type) {
+        case JINX_ZEND_DOUBLE: {
+            JinxValue result = {0};
+            result.type = N_VALUE_FLOAT;
+            result.as.f64 = value.value.dval;
+            return result;
+        }
         case JINX_ZEND_LONG: return jinx_value_int(value.value.lval);
         case JINX_ZEND_FALSE: return jinx_value_bool(0);
         case JINX_ZEND_TRUE: return jinx_value_bool(1);
@@ -995,7 +1017,7 @@ static JinxValue native_array(NativeParser *parser) {
 
 static int native_builtin_admitted(const char *name) {
     static const char *names[] = {
-        "strlen", "strtoupper", "strtolower", "abs", "json_encode",
+        "strlen", "strtoupper", "strtolower", "abs", "json_encode", "str_replace", "array_keys", "json_decode",
         "file_put_contents", "unlink", "tempnam", "sys_get_temp_dir",
         "fopen", "fwrite", "rewind", "fread", "fclose", "file_exists",
         "file_get_contents", "gettype", "error_reporting", "call_user_func", "array_map", "array_reduce", "array_sum", "count", "iterator_to_array", NULL
@@ -1183,7 +1205,10 @@ static JinxValue native_primary(NativeParser *parser) {
     NativeRuntime *runtime = parser->runtime;
     JinxValue value = jinx_value_null();
     if (runtime->error) return value;
-    if (parser->kind == N_LITERAL) {
+    if (native_accept(parser, '!')) {
+        JinxValue operand = native_expression(parser, 40);
+        if (!parser->checking) value = jinx_value_bool(!native_truth(operand));
+    } else if (parser->kind == N_LITERAL) {
         value = parser->literal;
         native_next(parser);
     } else if (parser->kind == N_ID && !strcmp(parser->token, "yield")) {
@@ -1254,7 +1279,7 @@ static JinxValue native_primary(NativeParser *parser) {
             native_expect(parser, ')');
         }
     } else if (native_accept(parser, '-')) {
-        value = native_primary(parser);
+        value = native_expression(parser, 40);
         if (!parser->checking && value.type != 1) runtime->error = "native unary minus requires integer";
         if (value.as.i64 == INT64_MIN) runtime->error = "native integer overflow";
         else value = jinx_value_int(-value.as.i64);
@@ -1393,6 +1418,14 @@ static JinxValue native_primary(NativeParser *parser) {
                 const char *qualified = native_qualified_name(parser, name, 2, 0);
                 for (NativeConstant *entry = runtime->constants; entry; entry = entry->next)
                     if (!strcmp(entry->name, qualified)) return entry->value;
+                if (!strchr(name, '\\')) {
+                    int imported = 0;
+                    for (NativeImport *entry = parser->imports; entry; entry = entry->next)
+                        if (entry->category == 2 && !strcmp(entry->alias, name)) imported = 1;
+                    if (!imported)
+                        for (NativeConstant *entry = runtime->constants; entry; entry = entry->next)
+                            if (!strcmp(entry->name, name)) return entry->value;
+                }
                 if (parser->checking) return jinx_value_null();
                 native_raise(runtime, "Error", "Undefined constant");
                 return value;
@@ -1533,9 +1566,18 @@ static JinxValue native_primary(NativeParser *parser) {
 
 static int native_precedence(int kind) {
     if (kind == N_COALESCE) return 5;
-    if (kind == '.') return 10;
+    if (kind == N_OR) return 7;
+    if (kind == N_AND) return 8;
+    if (kind == '|') return 10;
+    if (kind == '^') return 11;
+    if (kind == '&') return 12;
+    if (kind == N_EQUAL || kind == N_NOT_EQUAL || kind == N_IDENTICAL || kind == N_NOT_IDENTICAL) return 13;
+    if (kind == '.') return 14;
+    if (kind == '<' || kind == '>' || kind == N_LE || kind == N_GE) return 15;
+    if (kind == N_SHL || kind == N_SHR) return 16;
     if (kind == '+' || kind == '-') return 20;
-    if (kind == '*' || kind == '%') return 30;
+    if (kind == '*' || kind == '%' || kind == '/') return 30;
+    if (kind == N_POWER) return 40;
     return -1;
 }
 
@@ -1548,6 +1590,54 @@ static int native_truth(JinxValue value) {
     return 1;
 }
 
+static int native_numeric_scalar(JinxValue value, double *number) {
+    if (value.type == N_VALUE_INT || value.type == N_VALUE_BOOL) { *number = (double)value.as.i64; return 1; }
+    if (value.type == N_VALUE_FLOAT) { *number = value.as.f64; return 1; }
+    if (value.type != N_VALUE_STRING || !value.flags) return 0;
+    char *end;
+    *number = strtod(value.as.ptr, &end);
+    if (end == value.as.ptr) return 0;
+    while (isspace((unsigned char)*end)) end++;
+    return end == (char *)value.as.ptr + value.flags;
+}
+
+static int native_integral_scalar(JinxValue value, int64_t *number) {
+    if (value.type == N_VALUE_INT) { *number = value.as.i64; return 1; }
+    if (value.type != N_VALUE_STRING || !value.flags) return 0;
+    char *end;
+    errno = 0;
+    *number = strtoll(value.as.ptr, &end, 10);
+    if (errno == ERANGE || end == value.as.ptr) return 0;
+    while (isspace((unsigned char)*end)) end++;
+    return end == (char *)value.as.ptr + value.flags;
+}
+
+static int native_scalar_compare(NativeParser *parser, JinxValue left, JinxValue right) {
+    if (left.type == N_VALUE_BOOL || right.type == N_VALUE_BOOL ||
+        ((!left.type || !right.type) && left.type != N_VALUE_STRING && right.type != N_VALUE_STRING))
+        return native_truth(left) - native_truth(right);
+    if (!left.type) left = jinx_value_string("", 0);
+    if (!right.type) right = jinx_value_string("", 0);
+    if (left.type == N_VALUE_INT && right.type == N_VALUE_INT)
+        return (left.as.i64 > right.as.i64) - (left.as.i64 < right.as.i64);
+    int64_t a_integer, b_integer;
+    if (native_integral_scalar(left, &a_integer) && native_integral_scalar(right, &b_integer))
+        return (a_integer > b_integer) - (a_integer < b_integer);
+    double a, b;
+    if (native_numeric_scalar(left, &a) && native_numeric_scalar(right, &b))
+        return (a > b) - (a < b);
+    if (left.type == JINX_ORACLE_VALUE_ZEND_ARRAY || right.type == JINX_ORACLE_VALUE_ZEND_ARRAY ||
+        left.type == JINX_ORACLE_VALUE_ZEND_OBJECT || right.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+        parser->runtime->error = "native container comparisons require recursive comparison support";
+        return 0;
+    }
+    size_t a_length, b_length;
+    const char *a_text = native_text(parser, left, &a_length);
+    const char *b_text = native_text(parser, right, &b_length);
+    int comparison = memcmp(a_text, b_text, a_length < b_length ? a_length : b_length);
+    return comparison ? comparison : (a_length > b_length) - (a_length < b_length);
+}
+
 static JinxValue native_expression(NativeParser *parser, int minimum) {
     if (++parser->expression_depth > 128) {
         parser->runtime->error = "native expression nesting limit exceeded";
@@ -1555,18 +1645,29 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
         return jinx_value_null();
     }
     JinxValue left = native_primary(parser);
-    while (!parser->runtime->error && !parser->runtime->exception_class && native_precedence(parser->kind) >= minimum) {
+    while (!parser->runtime->error && (parser->checking || !parser->runtime->exception_class) && native_precedence(parser->kind) >= minimum) {
         int operator = parser->kind;
         int precedence = native_precedence(operator);
         native_next(parser);
         int checking = parser->checking;
-        int skip_right = operator == N_COALESCE && left.type != 0 && !checking;
+        int skip_right = !checking && ((operator == N_COALESCE && left.type != 0) ||
+            (operator == N_AND && !native_truth(left)) || (operator == N_OR && native_truth(left)));
         if (skip_right) parser->checking = 1;
-        JinxValue right = native_expression(parser, precedence + (operator == N_COALESCE ? 0 : 1));
+        JinxValue right = native_expression(parser, precedence + (operator == N_COALESCE || operator == N_POWER ? 0 : 1));
         parser->checking = checking;
         if (parser->checking || parser->runtime->error) continue;
         if (operator == N_COALESCE) {
             if (!skip_right) left = right;
+        } else if (operator == N_AND || operator == N_OR) {
+            left = jinx_value_bool(operator == N_AND ? native_truth(left) && native_truth(right) : native_truth(left) || native_truth(right));
+        } else if (operator == N_IDENTICAL || operator == N_NOT_IDENTICAL) {
+            if (left.type == JINX_ORACLE_VALUE_ZEND_ARRAY && right.type == JINX_ORACLE_VALUE_ZEND_ARRAY)
+                parser->runtime->error = "native strict array comparison requires recursive comparison support";
+            else left = jinx_value_bool(native_strict_equal(left, right) == (operator == N_IDENTICAL));
+        } else if (operator == N_EQUAL || operator == N_NOT_EQUAL || operator == '<' || operator == '>' || operator == N_LE || operator == N_GE) {
+            int comparison = native_scalar_compare(parser, left, right);
+            left = jinx_value_bool(operator == N_EQUAL ? comparison == 0 : operator == N_NOT_EQUAL ? comparison != 0 :
+                operator == '<' ? comparison < 0 : operator == '>' ? comparison > 0 : operator == N_LE ? comparison <= 0 : comparison >= 0);
         } else if (operator == '.') {
             size_t a, b;
             const char *first = native_text(parser, left, &a);
@@ -1579,6 +1680,35 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
             memcpy(joined, first, a);
             memcpy(joined + a, second, b);
             left = jinx_value_string(joined, (uint32_t)(a + b));
+        } else if (operator == '/' || operator == N_POWER) {
+            double a, b;
+            if (!native_numeric_scalar(left, &a) || !native_numeric_scalar(right, &b)) {
+                native_raise(parser->runtime, "TypeError", "Unsupported operand types");
+                break;
+            }
+            if (operator == '/' && b == 0) {
+                native_raise(parser->runtime, "DivisionByZeroError", "Division by zero");
+                break;
+            }
+            if (operator == '/' && left.type == N_VALUE_INT && right.type == N_VALUE_INT &&
+                !(left.as.i64 == INT64_MIN && right.as.i64 == -1) && left.as.i64 % right.as.i64 == 0) {
+                left = jinx_value_int(left.as.i64 / right.as.i64);
+                continue;
+            }
+            if (operator == N_POWER && left.type == N_VALUE_INT && right.type == N_VALUE_INT && right.as.i64 >= 0) {
+                int64_t base = left.as.i64, number = 1;
+                uint64_t exponent = (uint64_t)right.as.i64;
+                int overflow = 0;
+                while (exponent && !overflow) {
+                    if (exponent & 1) overflow = __builtin_mul_overflow(number, base, &number);
+                    exponent >>= 1;
+                    if (exponent && !overflow) overflow = __builtin_mul_overflow(base, base, &base);
+                }
+                if (!overflow) { left = jinx_value_int(number); continue; }
+            }
+            double number = operator == '/' ? a / b : pow(a, b);
+            left.type = N_VALUE_FLOAT;
+            left.as.f64 = number;
         } else {
             int64_t result = 0;
             int overflow = 0;
@@ -1589,6 +1719,14 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
             if (operator == '+') overflow = __builtin_add_overflow(left.as.i64, right.as.i64, &result);
             if (operator == '-') overflow = __builtin_sub_overflow(left.as.i64, right.as.i64, &result);
             if (operator == '*') overflow = __builtin_mul_overflow(left.as.i64, right.as.i64, &result);
+            if (operator == '&') result = left.as.i64 & right.as.i64;
+            if (operator == '|') result = left.as.i64 | right.as.i64;
+            if (operator == '^') result = left.as.i64 ^ right.as.i64;
+            if (operator == N_SHL || operator == N_SHR) {
+                if (right.as.i64 < 0) { native_raise(parser->runtime, "ArithmeticError", "Bit shift by negative number"); break; }
+                result = right.as.i64 >= 64 ? (operator == N_SHR && left.as.i64 < 0 ? -1 : 0) :
+                    operator == N_SHL ? (int64_t)((uint64_t)left.as.i64 << right.as.i64) : left.as.i64 >> right.as.i64;
+            }
             if (operator == '%') {
                 if (!right.as.i64) { parser->runtime->error = "Modulo by zero"; break; }
                 result = right.as.i64 == -1 ? 0 : left.as.i64 % right.as.i64;
@@ -1758,6 +1896,7 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
     if (native_accept(parser, ':')) definition.return_type = native_function_type(parser);
     native_expect(parser, '{');
     definition.body = *parser;
+    definition.body.loop_depth = 0;
     if (parser->checking && !method && !parser->runtime->error) {
         NativeFunction *admitted = native_alloc(parser->runtime, sizeof(*admitted));
         if (!admitted) return;
@@ -1765,7 +1904,7 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
         admitted->next = parser->runtime->checked_functions;
         parser->runtime->checked_functions = admitted;
     }
-    NativeParser end = *parser;
+    NativeParser end = definition.body;
     end.saw_yield = 0;
     end.checking = 1;
     JinxValue ignored = jinx_value_null();
@@ -2680,6 +2819,7 @@ static void native_try(NativeParser *parser, JinxValue *result) {
     if (parser->runtime->error) return;
     const char *thrown = parser->runtime->exception_class;
     parser->returned = body.returned;
+    parser->control = body.control;
     for (size_t i = 0; thrown && i < count; i++) {
         if (!native_catch_matches(caught[i], thrown)) continue;
         parser->runtime->exception_class = NULL;
@@ -2694,6 +2834,7 @@ static void native_try(NativeParser *parser, JinxValue *result) {
         handler.checking = 0;
         native_statements(&handler, result);
         parser->returned = handler.returned;
+        parser->control = handler.control;
         break;
     }
     if (has_finally && !parser->runtime->error) {
@@ -2704,7 +2845,10 @@ static void native_try(NativeParser *parser, JinxValue *result) {
         parser->runtime->exception_message = NULL;
         cleanup.checking = 0;
         native_statements(&cleanup, result);
-        if (cleanup.returned || parser->runtime->exception_class) parser->returned = cleanup.returned;
+        if (cleanup.returned || cleanup.control || parser->runtime->exception_class) {
+            parser->returned = cleanup.returned;
+            parser->control = cleanup.control;
+        }
         else {
             *result = pending_result;
             parser->runtime->exception_class = pending_class;
@@ -2897,6 +3041,7 @@ static void native_foreach(NativeParser *parser, JinxValue *result) {
     native_expect(parser, ')');
     native_expect(parser, '{');
     NativeParser body = *parser;
+    body.loop_depth++;
     NativeParser end = body;
     end.saw_yield = 0;
     end.checking = 1;
@@ -2907,6 +3052,7 @@ static void native_foreach(NativeParser *parser, JinxValue *result) {
     *parser = end;
     parser->checking = checking;
     parser->saw_yield = body.saw_yield;
+    parser->loop_depth = body.loop_depth - 1;
     if (checking || parser->runtime->error) return;
     if (iterable.type == N_VALUE_GENERATOR) {
         if (by_reference) { parser->runtime->error = "native generator references are not supported"; return; }
@@ -2919,6 +3065,7 @@ static void native_foreach(NativeParser *parser, JinxValue *result) {
             iteration.checking = 0;
             native_statements(&iteration, result);
             if (iteration.returned) { parser->returned = 1; return; }
+            if (iteration.control == 1) break;
             native_generator_resume(parser, generator, jinx_value_null());
         }
         return;
@@ -2940,15 +3087,227 @@ static void native_foreach(NativeParser *parser, JinxValue *result) {
         iteration.checking = 0;
         native_statements(&iteration, result);
         if (iteration.returned) { parser->returned = 1; return; }
+        if (iteration.control == 1) break;
         if (array->count != count) parser->runtime->error = "native foreach structural mutation is not yet supported";
+    }
+}
+
+static void native_if(NativeParser *parser, JinxValue *result) {
+    int selected = 0;
+    int checking = parser->checking;
+    int returned = 0, control = 0;
+    do {
+        native_next(parser);
+        native_expect(parser, '(');
+        parser->checking = checking || selected;
+        JinxValue condition = native_expression(parser, 0);
+        parser->checking = checking;
+        native_expect(parser, ')');
+        native_expect(parser, '{');
+        NativeParser body = *parser, end = body;
+        end.saw_yield = 0;
+        end.checking = 1;
+        JinxValue ignored = jinx_value_null();
+        native_statements(&end, &ignored);
+        native_expect(&end, '}');
+        if (end.saw_yield) end.runtime->error = "native yield inside if requires nested continuation support";
+        if (!checking && !selected && native_truth(condition) && !parser->runtime->error && !parser->runtime->exception_class) {
+            selected = 1;
+            native_statements(&body, result);
+            returned = body.returned;
+            control = body.control;
+        }
+        *parser = end;
+        parser->checking = checking;
+        parser->saw_yield = body.saw_yield;
+    } while (parser->kind == N_ID && !strcmp(parser->token, "elseif") && !parser->runtime->error);
+    if (parser->kind == N_ID && !strcmp(parser->token, "else")) {
+        native_next(parser);
+        native_expect(parser, '{');
+        NativeParser body = *parser, end = body;
+        end.saw_yield = 0;
+        end.checking = 1;
+        JinxValue ignored = jinx_value_null();
+        native_statements(&end, &ignored);
+        native_expect(&end, '}');
+        if (end.saw_yield) end.runtime->error = "native yield inside else requires nested continuation support";
+        if (!checking && !selected && !parser->runtime->error && !parser->runtime->exception_class) {
+            native_statements(&body, result);
+            returned = body.returned;
+            control = body.control;
+        }
+        *parser = end;
+        parser->checking = checking;
+        parser->saw_yield = body.saw_yield;
+    }
+    parser->returned = returned;
+    parser->control = control;
+}
+
+static void native_loop_clause(NativeParser *parser, int delimiter) {
+    while (parser->kind != delimiter && !parser->runtime->error) {
+        if (parser->kind == N_VAR) {
+            NativeSlot slot = native_slot(parser);
+            if (native_accept(parser, '=')) {
+                JinxValue value = native_expression(parser, 0);
+                native_slot_write(parser, slot, value);
+            } else if (native_accept(parser, '+')) {
+                native_expect(parser, '+');
+                if (!parser->checking) {
+                    JinxValue value = native_slot_read(parser, slot);
+                    int64_t number;
+                    if (value.type != N_VALUE_INT || __builtin_add_overflow(value.as.i64, (int64_t)1, &number))
+                        parser->runtime->error = "unsupported native loop increment";
+                    else native_slot_write(parser, slot, jinx_value_int(number));
+                }
+            } else parser->runtime->error = "native loop clause requires assignment or increment";
+        } else (void)native_expression(parser, 0);
+        if (!native_accept(parser, ',')) break;
+    }
+    native_expect(parser, delimiter);
+}
+
+static void native_loop(NativeParser *parser, JinxValue *result, int mode) {
+    int checking = parser->checking;
+    NativeParser condition = *parser, increment = *parser;
+    native_next(parser);
+    if (mode != 2) {
+        native_expect(parser, '(');
+        if (mode == 1) native_loop_clause(parser, ';');
+        condition = *parser;
+        parser->checking = 1;
+        if (mode != 1 || parser->kind != ';') (void)native_expression(parser, 0);
+        native_expect(parser, mode == 1 ? ';' : ')');
+        if (mode == 1) {
+            increment = *parser;
+            native_loop_clause(parser, ')');
+        }
+        parser->checking = checking;
+    }
+    native_expect(parser, '{');
+    NativeParser body = *parser, end = body;
+    body.loop_depth++;
+    end.loop_depth++;
+    end.checking = 1;
+    end.saw_yield = 0;
+    JinxValue ignored = jinx_value_null();
+    native_statements(&end, &ignored);
+    native_expect(&end, '}');
+    if (mode == 2) {
+        if (end.kind != N_ID || strcmp(end.token, "while")) end.runtime->error = "native do requires while";
+        native_next(&end);
+        native_expect(&end, '(');
+        condition = end;
+        (void)native_expression(&end, 0);
+        native_expect(&end, ')');
+        native_expect(&end, ';');
+    }
+    if (end.saw_yield) end.runtime->error = "native yield inside loops requires nested continuation support";
+    *parser = end;
+    parser->checking = checking;
+    parser->loop_depth = body.loop_depth - 1;
+    parser->saw_yield = body.saw_yield;
+    if (checking || parser->runtime->error || parser->runtime->exception_class) return;
+    unsigned iterations = 0;
+    int first = 1;
+    while (!parser->runtime->error && !parser->runtime->exception_class) {
+        NativeParser test = condition;
+        test.checking = 0;
+        JinxValue truth = jinx_value_bool(1);
+        if (!(mode == 2 && first) && !(mode == 1 && test.kind == ';'))
+            truth = native_expression(&test, 0);
+        first = 0;
+        if (!native_truth(truth) || parser->runtime->error || parser->runtime->exception_class) break;
+        if (++iterations > 1000000) { parser->runtime->error = "native loop iteration limit exceeded"; break; }
+        NativeParser iteration = body;
+        iteration.checking = 0;
+        native_statements(&iteration, result);
+        if (iteration.returned) { parser->returned = 1; return; }
+        if (iteration.control == 1) break;
+        if (mode == 1) {
+            NativeParser step = increment;
+            step.checking = 0;
+            native_loop_clause(&step, ')');
+        }
+    }
+}
+
+static void native_switch(NativeParser *parser, JinxValue *result) {
+    native_next(parser);
+    native_expect(parser, '(');
+    JinxValue subject = native_expression(parser, 0);
+    native_expect(parser, ')');
+    native_expect(parser, '{');
+    NativeParser bodies[128];
+    size_t count = 0, selected = (size_t)-1, fallback = (size_t)-1;
+    int checking = parser->checking;
+    unsigned loop_depth = parser->loop_depth;
+    int saw_yield = parser->saw_yield;
+    while (parser->kind && parser->kind != '}' && !parser->runtime->error) {
+        if (count == 128) { parser->runtime->error = "native switch case limit"; break; }
+        if (parser->kind != N_ID || (strcmp(parser->token, "case") && strcmp(parser->token, "default"))) {
+            parser->runtime->error = "native switch requires case or default";
+            break;
+        }
+        int is_default = !strcmp(parser->token, "default");
+        native_next(parser);
+        if (is_default) {
+            if (fallback != (size_t)-1) parser->runtime->error = "duplicate switch default";
+            fallback = count;
+        } else {
+            parser->checking = checking || selected != (size_t)-1;
+            JinxValue candidate = native_expression(parser, 0);
+            if (!parser->checking && !parser->runtime->error && !parser->runtime->exception_class &&
+                native_scalar_compare(parser, subject, candidate) == 0) selected = count;
+        }
+        parser->checking = 1;
+        native_expect(parser, ':');
+        bodies[count++] = *parser;
+        parser->loop_depth = loop_depth + 1;
+        parser->saw_yield = 0;
+        JinxValue ignored = jinx_value_null();
+        native_statements(parser, &ignored);
+        if (parser->saw_yield) parser->runtime->error = "native yield inside switch requires nested continuation support";
+    }
+    parser->checking = 1;
+    native_expect(parser, '}');
+    parser->checking = checking;
+    parser->loop_depth = loop_depth;
+    parser->saw_yield = saw_yield;
+    if (selected == (size_t)-1) selected = fallback;
+    if (checking || parser->runtime->error || parser->runtime->exception_class) return;
+    for (size_t i = selected; i < count && !parser->runtime->error && !parser->runtime->exception_class; i++) {
+        NativeParser body = bodies[i];
+        body.checking = 0;
+        body.loop_depth = loop_depth + 1;
+        native_statements(&body, result);
+        if (body.returned) { parser->returned = 1; return; }
+        if (body.control) return;
     }
 }
 
 static void native_statements(NativeParser *parser, JinxValue *result) {
     while (parser->kind && parser->kind != '}' && !parser->runtime->error &&
-        (parser->checking || (!parser->runtime->exception_class &&
+        !(parser->kind == N_ID && (!strcmp(parser->token, "case") || !strcmp(parser->token, "default"))) &&
+        (parser->checking || (!parser->control && !parser->runtime->exception_class &&
          (!parser->runtime->active_generator || !parser->runtime->active_generator->suspended)))) {
-        if (parser->kind == N_ID && !strcmp(parser->token, "namespace")) {
+        if (parser->kind == N_ID && !strcmp(parser->token, "switch")) {
+            native_switch(parser, result);
+            if (parser->returned) return;
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "if")) {
+            native_if(parser, result);
+            if (parser->returned || parser->control) return;
+        } else if (parser->kind == N_ID && (!strcmp(parser->token, "while") || !strcmp(parser->token, "for") || !strcmp(parser->token, "do"))) {
+            int mode = !strcmp(parser->token, "for") ? 1 : !strcmp(parser->token, "do") ? 2 : 0;
+            native_loop(parser, result, mode);
+            if (parser->returned) return;
+        } else if (parser->kind == N_ID && (!strcmp(parser->token, "break") || !strcmp(parser->token, "continue"))) {
+            int control = !strcmp(parser->token, "break") ? 1 : 2;
+            if (!parser->loop_depth) { parser->runtime->error = "native break or continue requires loop"; return; }
+            native_next(parser);
+            native_expect(parser, ';');
+            if (!parser->checking) { parser->control = control; return; }
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "namespace")) {
             native_next(parser);
             const char *scope = "";
             if (parser->kind == N_ID) {

@@ -1,0 +1,10 @@
+{
+  "contract": "Required strict native regression proofs; not complete PHP coverage.",
+  "required": {
+    "operators": ["integer-comparison", "logical-short-circuit", "loose-comparison", "division-power", "bitwise", "power-precedence", "large-integer-comparison", "large-power", "large-exact-division", "float-container-roundtrip", "shift-errors"],
+    "control-flow": ["if-else", "elseif", "while", "for", "break-continue", "do-while", "switch", "application-array-filter", "nested-loop-control", "finally-break", "function-return-in-loop", "lazy-branches", "switch-fallthrough", "do-break"],
+    "builtins": ["string-replace", "array-keys", "json-decode"],
+    "namespaces": ["global-constant-fallback"],
+    "errors": ["division-zero"]
+  }
+}
