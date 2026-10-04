@@ -1167,6 +1167,10 @@ static JinxValue native_primary(NativeParser *parser) {
                     NativeCallArguments call = {0};
                     native_parse_call_arguments(parser, &call);
                     if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                        NativeEnum *enum_entry = native_enum_find(runtime, name);
+                        if (enum_entry) {
+                            value = native_enum_static_call(parser, enum_entry, method_name, &call);
+                        } else {
                         NativeClass *lookup_class = native_class_resolve(runtime, name);
                         if (!lookup_class) {
                             native_raise(runtime, "Error", "Class not found for static method call");
@@ -1199,10 +1203,23 @@ static JinxValue native_primary(NativeParser *parser) {
                                 value = native_function_call_named(parser, &frame, &call);
                             }
                         }
+                        }
                     }
                 } else {
-                    NativeSlot slot = native_static_slot(parser, name);
-                    value = native_slot_read(parser, slot);
+                    native_next(parser); /* :: */
+                    if (parser->kind != N_ID) {
+                        runtime->error = "native static member requires name";
+                    } else {
+                        char member_name[256];
+                        strcpy(member_name, parser->token);
+                        native_next(parser);
+                        if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                            NativeEnum *enum_entry = native_enum_find(runtime, name);
+                            NativeEnumCase *case_entry = native_enum_case_find(enum_entry, member_name);
+                            if (!case_entry) native_raise(runtime, "Error", "Undefined enum case or class constant");
+                            else value = jinx_oracle_zend_object_value_borrowed(case_entry->object);
+                        }
+                    }
                 }
             } else {
                 NativeSlot slot = native_static_slot(parser, name);
