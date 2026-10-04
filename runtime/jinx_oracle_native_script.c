@@ -1340,10 +1340,13 @@ static JinxValue native_expression(NativeParser *parser, int minimum) {
 
 static void native_statements(NativeParser *parser, JinxValue *result);
 
-enum { N_TYPE_SET = 256 };
+enum { N_TYPE_SET = 1 << 30 };
 
 static int native_type_bit(uint32_t type) {
-    return type == N_VALUE_CLOSURE ? 128 : type <= 7 ? 1 << type : 0;
+    if (type == N_VALUE_CLOSURE) return 1 << 7;
+    if (type == JINX_ORACLE_VALUE_ZEND_ARRAY) return 1 << 8;
+    if (type == JINX_ORACLE_VALUE_ZEND_OBJECT) return 1 << 9;
+    return type <= 6 ? 1 << type : 0;
 }
 
 static int native_type_matches(int type, JinxValue value) {
