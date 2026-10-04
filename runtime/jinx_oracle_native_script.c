@@ -24,6 +24,7 @@ typedef struct NativeProperty {
     int is_static;
     int initialized;
     int is_private;
+    int is_readonly;
     struct NativeClass *owner;
     char *object_type;
     NativeVariable storage;
@@ -32,6 +33,7 @@ typedef struct NativeProperty {
 
 typedef struct NativeClass {
     char *name;
+    int is_readonly;
     struct NativeClass *parent;
     NativeProperty *properties;
     struct NativeFunction *methods;
@@ -655,6 +657,17 @@ static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue v
         call.values[1] = value;
         (void)native_method_call_named(parser, slot.magic_object, "__set", &call);
         return;
+    }
+    if (slot.property && slot.property->is_readonly && !slot.property->is_static) {
+        JinxZendValue *existing = slot.array ? native_slot_element(parser, slot, 0) : NULL;
+        if (existing) {
+            native_raise(parser->runtime, "Error", "Cannot modify readonly property");
+            return;
+        }
+        if (parser->runtime->active_class != slot.property->owner) {
+            native_raise(parser->runtime, "Error", "Cannot initialize readonly property from global scope");
+            return;
+        }
     }
     if (slot.property && ((slot.property->type && slot.property->type != (int)value.type) ||
         (slot.property->object_type && !native_object_matches(parser->runtime, value, slot.property->object_type)))) {
@@ -1349,6 +1362,7 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
                 property->type = function->types[i];
                 property->object_type = function->object_types[i];
                 property->is_private = function->promoted[i] == 2;
+                property->is_readonly = owner && owner->is_readonly;
                 property->owner = owner;
                 property->initialized = !property->type;
                 property->next = owner->properties;
@@ -1826,7 +1840,7 @@ static JinxValue native_clone(NativeParser *parser, JinxValue value) {
     return result;
 }
 
-static void native_class_declaration(NativeParser *parser) {
+static void native_class_declaration(NativeParser *parser, int readonly_class) {
     native_next(parser);
     if (parser->kind != N_ID) { parser->runtime->error = "native class requires name"; return; }
     char name[256];
@@ -1854,6 +1868,7 @@ static void native_class_declaration(NativeParser *parser) {
         class_entry = native_alloc(parser->runtime, sizeof(*class_entry));
         if (!class_entry) return;
         class_entry->name = native_copy(parser->runtime, name, strlen(name));
+        class_entry->is_readonly = readonly_class;
         class_entry->parent = parent;
         class_entry->next = parser->runtime->classes;
         parser->runtime->classes = class_entry;
@@ -1867,19 +1882,37 @@ static void native_class_declaration(NativeParser *parser) {
         int is_private = !strcmp(parser->token, "private");
         if (is_private && parent) { parser->runtime->error = "native private inheritance layout is not supported"; break; }
         native_next(parser);
+        int member_readonly = parser->kind == N_ID && !strcmp(parser->token, "readonly");
+        if (member_readonly) native_next(parser);
         int is_static = parser->kind == N_ID && !strcmp(parser->token, "static");
         if (is_static) native_next(parser);
+        if ((readonly_class || member_readonly) && is_static) {
+            parser->runtime->error = "readonly property cannot be static";
+            break;
+        }
         if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
             native_function_declaration(parser, class_entry, 1, is_private, is_static);
             continue;
         }
         int type = 0;
+        char *object_type = NULL;
         if (parser->kind == N_ID) {
             if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
             else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
             else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
-            else { parser->runtime->error = "native property type is unsupported"; break; }
+            else if (!strcmp(parser->token, "float")) type = N_VALUE_FLOAT;
+            else if (!strcmp(parser->token, "array")) type = JINX_ORACLE_VALUE_ZEND_ARRAY;
+            else if (!strcmp(parser->token, "object")) type = JINX_ORACLE_VALUE_ZEND_OBJECT;
+            else if (!strcmp(parser->token, "mixed")) type = 0;
+            else {
+                type = JINX_ORACLE_VALUE_ZEND_OBJECT;
+                object_type = native_copy(parser->runtime, parser->token, strlen(parser->token));
+            }
             native_next(parser);
+        }
+        if (readonly_class && !type && !object_type) {
+            parser->runtime->error = "readonly class properties must be typed";
+            break;
         }
         if (parser->kind != N_VAR) { parser->runtime->error = "native property declaration requires variable"; break; }
         char property_name[256];
@@ -1894,14 +1927,22 @@ static void native_class_declaration(NativeParser *parser) {
             if (!property) break;
             property->name = native_copy(parser->runtime, property_name, strlen(property_name));
             property->type = type;
+            property->object_type = object_type;
             property->is_static = is_static;
             property->initialized = initialized;
             property->is_private = is_private;
+            property->is_readonly = readonly_class || member_readonly;
             property->owner = class_entry;
             property->storage.value = initial;
             property->next = class_entry->properties;
             class_entry->properties = property;
-            if (initialized && type && type != (int)initial.type) native_raise(parser->runtime, "TypeError", "Incompatible property default");
+            if (property->is_readonly && initialized) {
+                native_raise(parser->runtime, "Error", "Readonly property cannot have a default value");
+            } else if (initialized && type && type != (int)initial.type) {
+                native_raise(parser->runtime, "TypeError", "Incompatible property default");
+            } else if (initialized && object_type && !native_object_matches(parser->runtime, initial, object_type)) {
+                native_raise(parser->runtime, "TypeError", "Incompatible property default");
+            }
         }
     }
     native_expect(parser, '}');
@@ -2023,7 +2064,14 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
         } else if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
             native_function_declaration(parser, NULL, 0, 0, 0);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "class")) {
-            native_class_declaration(parser);
+            native_class_declaration(parser, 0);
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "readonly")) {
+            native_next(parser);
+            if (parser->kind != N_ID || strcmp(parser->token, "class")) {
+                parser->runtime->error = "native readonly modifier currently requires class";
+            } else {
+                native_class_declaration(parser, 1);
+            }
         } else if (parser->kind == N_ID && !strcmp(parser->token, "try")) {
             native_try(parser, result);
             if (parser->returned) return;
