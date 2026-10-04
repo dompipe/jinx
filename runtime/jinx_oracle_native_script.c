@@ -121,6 +121,7 @@ static JinxValue native_callback_call(NativeParser *parser, JinxValue callback, 
 static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_construct(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot);
+static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value);
 
 static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
     for (NativeFunction *function = runtime->functions; function; function = function->next)
@@ -434,20 +435,30 @@ static NativeSlot native_slot(NativeParser *parser) {
         slot = native_object_slot(parser, native_slot_read(parser, slot), property_name);
     }
     if (property_access) return slot;
-    if (native_accept(parser, '[')) {
-        slot.key = native_expression(parser, 0);
+    size_t offset_depth = 0;
+    while (native_accept(parser, '[')) {
+        JinxValue key = native_expression(parser, 0);
         native_expect(parser, ']');
         if (!parser->checking && !parser->runtime->error) {
-            if (!strcmp(name, "GLOBALS")) {
-                if (slot.key.type != N_VALUE_STRING) parser->runtime->error = "native GLOBALS key must be string";
-                else slot.variable = native_variable(parser->runtime, slot.key.as.ptr);
+            if (!strcmp(name, "GLOBALS") && !offset_depth) {
+                if (key.type != N_VALUE_STRING) parser->runtime->error = "native GLOBALS key must be string";
+                else slot.variable = native_variable(parser->runtime, key.as.ptr);
             } else {
-                JinxValue array = native_variable_read(parser, slot.variable);
+                JinxValue array = native_slot_read(parser, slot);
                 if (array.type != JINX_ORACLE_VALUE_ZEND_ARRAY) parser->runtime->error = "native offset requires array";
-                else slot.array = array.as.ptr;
+                else {
+                    // Outer copies share child containers until an offset path descends.
+                    if (offset_depth) {
+                        native_slot_write(parser, slot, array);
+                        array = native_slot_read(parser, slot);
+                    }
+                    slot.array = array.as.ptr;
+                }
                 slot.variable = NULL;
+                slot.key = key;
             }
         }
+        offset_depth++;
     }
     return slot;
 }

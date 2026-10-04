@@ -24,6 +24,15 @@ function native_source_run(array $command, bool $withoutPhp, bool $forceNative =
     return [proc_close($process), $output, $error];
 }
 
+$nestedFixture = $root . '/fixtures/oracle-native-nested-arrays.php';
+$nestedPhp = native_source_run([PHP_BINARY, $nestedFixture], false);
+$nestedExpected = "{\"a\":{\"x\":{\"n\":1}},\"b\":{\"x\":{\"n\":7}}}\n[{\"x\":{\"y\":[3,4]}},{\"x\":{\"y\":[8,10]}},10]\n";
+if ($nestedPhp !== [0, $nestedExpected, '']) throw new RuntimeException('unexpected nested array baseline: ' . json_encode($nestedPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $nestedFixture], true, $forceNative);
+    if ($native !== $nestedPhp) throw new RuntimeException('native nested array parity differs: ' . json_encode($native));
+}
+
 $unionFixture = $root . '/fixtures/oracle-native-union-types.php';
 $unionPhp = native_source_run([PHP_BINARY, $unionFixture], false);
 $unionExpected = "[7,\"x\",\"yes\",null]\n[null,\"ok\"]\nARG:TypeError\nRETURN:TypeError\nNULLABLE:TypeError\n[3,4,6,\"empty\",8,9]\n[2,\"two\"]\n";

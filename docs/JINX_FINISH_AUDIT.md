@@ -199,6 +199,15 @@ verification are not green. Run each command independently to collect all gaps;
 do not hide failure by appending `|| true` to a release gate.
 # Baseline repair follow-up (2026-10-03)
 
+Native variable array offset paths now support nested access, mutation,
+compound assignment, and reference binding. Descent separates shared child
+containers through the existing slot-write path, preserving reference cells.
+The PHP-independent nested-array fixture proves original/copy isolation at
+two and three levels. Native first-wave parity is now 19/20; the remaining
+failure is exception catch ordering/finally. Second-wave parity remains 3/20.
+Missing-intermediate array autovivification and property/array mixed paths
+remain outside this implementation.
+
 Native strict function signatures now admit unions of the already supported
 `int`, `string`, `bool`, and `Closure` types, explicit `null`, and nullable
 shorthand. Argument and return checks use the declared type set. Lazy ternary
