@@ -6,6 +6,7 @@ $binary = $root . '/jinx';
 
 function big_family_run(array $command, bool $withoutPhp): array
 {
+    $root = dirname(__DIR__);
     $environment = getenv();
     if ($withoutPhp) {
         $environment['PATH'] = '/jinx-test-no-executables';
