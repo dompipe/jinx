@@ -136,7 +136,7 @@ static int native_function_admitted(NativeRuntime *runtime, const char *name) {
     return 0;
 }
 
-enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT };
+enum { N_END = 0, N_ID = 256, N_VAR, N_LITERAL, N_ARROW, N_COALESCE, N_SCOPE, N_OBJECT, N_NULLSAFE };
 enum { N_VALUE_INT = 1, N_VALUE_BOOL = 2, N_VALUE_STRING = 3, N_VALUE_FLOAT = 5, N_VALUE_CLOSURE = 100 };
 
 static void *native_alloc(NativeRuntime *runtime, size_t size) {
@@ -226,6 +226,9 @@ static void native_next(NativeParser *parser) {
         parser->literal = jinx_value_string(native_copy(runtime, body, (size_t)(end - body)), (uint32_t)(end - body));
         parser->kind = N_LITERAL;
         p = end + length + 1;
+    } else if (!strncmp(p, "?->", 3)) {
+        parser->kind = N_NULLSAFE;
+        p += 3;
     } else if (!strncmp(p, "::", 2) || !strncmp(p, "->", 2)) {
         parser->kind = *p == ':' ? N_SCOPE : N_OBJECT;
         p += 2;
@@ -691,7 +694,7 @@ static JinxValue native_primary(NativeParser *parser) {
     } else if (parser->kind == N_VAR) {
         NativeParser peek = *parser;
         native_next(&peek);
-        if (peek.kind == N_OBJECT) {
+        if (peek.kind == N_OBJECT || peek.kind == N_NULLSAFE) {
             if (!parser->checking) value = native_variable_read(parser, native_variable(runtime, parser->token));
             native_next(parser);
         } else {
@@ -826,10 +829,15 @@ static JinxValue native_primary(NativeParser *parser) {
             }
         }
     } else runtime->error = "expression is not yet supported by native Oracle";
-    while (!runtime->error && (parser->kind == N_OBJECT || parser->kind == N_SCOPE)) {
+    int nullsafe_short = 0;
+    while (!runtime->error && (parser->kind == N_OBJECT || parser->kind == N_SCOPE || parser->kind == N_NULLSAFE)) {
         int access = parser->kind;
+        if (access == N_NULLSAFE && !parser->checking && !runtime->exception_class && value.type == 0)
+            nullsafe_short = 1;
+        int saved_checking = parser->checking;
+        if (nullsafe_short) parser->checking = 1;
         native_next(parser);
-        if (parser->kind != N_ID) { runtime->error = "native object postfix requires name"; break; }
+        if (parser->kind != N_ID) { runtime->error = "native object postfix requires name"; parser->checking = saved_checking; break; }
         char member[256];
         strcpy(member, parser->token);
         native_next(parser);
@@ -853,6 +861,8 @@ static JinxValue native_primary(NativeParser *parser) {
             if (!parser->checking && !runtime->error && !runtime->exception_class)
                 value = native_method_call(parser, value, member, args, count);
         } else value = native_slot_read(parser, native_object_slot(parser, value, member));
+        parser->checking = saved_checking;
+        if (nullsafe_short) value = jinx_value_null();
     }
     return value;
 }
