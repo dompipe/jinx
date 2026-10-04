@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function nativeArgs(int $a, int $b = 20, int ...$rest): array
+function nativeArgs(int $a, int $b = 20, int ...$rest)
 {
     return [$a, $b, $rest];
 }
@@ -11,7 +11,7 @@ echo json_encode(nativeArgs(...[2, 3, 4, 5])), "\n";
 echo json_encode(nativeArgs(b: 9, a: 7)), "\n";
 echo json_encode(nativeArgs(6, extra: 12)), "\n";
 
-function nativePair(int $a, int $b = 2): array
+function nativePair(int $a, int $b = 2)
 {
     return [$a, $b];
 }
