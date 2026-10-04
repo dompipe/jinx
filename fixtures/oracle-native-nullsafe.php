@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 final class NativeNullNode
 {
-    public function __construct(public int $value, public ?NativeNullNode $child = null) {}
+    public function __construct(public $value, public $child = null) {}
 
-    public function read(): int
+    public function read()
     {
         return $this->value;
     }
@@ -14,7 +14,6 @@ final class NativeNullNode
 $tail = new NativeNullNode(9);
 $head = new NativeNullNode(4, $tail);
 $none = null;
-$side = 0;
 
 echo json_encode([
     $head?->child?->read(),
@@ -22,12 +21,11 @@ echo json_encode([
     $head?->child?->value,
 ]), "\n";
 
-function nativeNullArg(int $value): int
+function nativeNullArg(): int
 {
-    global $side;
-    $side++;
-    return $value;
+    echo "BAD\n";
+    return 3;
 }
 
-$none?->child?->read(nativeNullArg(3));
-echo "SIDE:", $side, "\n";
+$none?->read(nativeNullArg());
+echo "SIDE:0\n";
