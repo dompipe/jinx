@@ -904,6 +904,92 @@ static JinxValue native_instance(NativeParser *parser, const char *name, int int
     return jinx_oracle_zend_object_value_borrowed(owner->object);
 }
 
+static JinxValue native_cast(NativeParser *parser, const char *type, JinxValue value) {
+    NativeRuntime *runtime = parser->runtime;
+    if (!strcmp(type, "bool")) return jinx_value_bool(native_truth(value));
+    if (!strcmp(type, "string")) {
+        size_t length = 0;
+        const char *text = native_text(parser, value, &length);
+        return jinx_value_string(native_copy(runtime, text, length), (uint32_t)length);
+    }
+    if (!strcmp(type, "int")) {
+        if (value.type == N_VALUE_INT) return value;
+        if (value.type == N_VALUE_BOOL) return jinx_value_int(value.as.i64);
+        if (value.type == N_VALUE_FLOAT) return jinx_value_int((int64_t)value.as.f64);
+        if (value.type == N_VALUE_STRING) {
+            char *end = NULL;
+            errno = 0;
+            long long number = strtoll(value.as.ptr, &end, 10);
+            if (errno == ERANGE) number = value.as.ptr[0] == '-' ? LLONG_MIN : LLONG_MAX;
+            return jinx_value_int(number);
+        }
+        if (value.type == 0) return jinx_value_int(0);
+        return jinx_value_int(1);
+    }
+    if (!strcmp(type, "array")) {
+        if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) return native_value_copy(parser, value);
+        NativeArray *owner = native_alloc(runtime, sizeof(*owner));
+        if (!owner) return jinx_value_null();
+        if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) {
+            JinxZendObject *object = value.as.ptr;
+            owner->array = jinx_zend_array_clone(object->properties);
+        } else {
+            owner->array = jinx_zend_array_new_packed(value.type == 0 ? 0 : 1);
+            if (owner->array && value.type != 0) {
+                JinxZendValue converted = native_zend_value(parser, value);
+                if (!runtime->error && !jinx_zend_array_append(owner->array, converted))
+                    runtime->error = "native scalar-to-array cast failed";
+                if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+            }
+        }
+        if (!owner->array) { runtime->error = "native array cast allocation failed"; return jinx_value_null(); }
+        owner->next = runtime->arrays;
+        runtime->arrays = owner;
+        return jinx_oracle_zend_array_value_borrowed(owner->array);
+    }
+    if (!strcmp(type, "object")) {
+        if (value.type == JINX_ORACLE_VALUE_ZEND_OBJECT) return value;
+        JinxValue object_value = native_instance(parser, "stdClass", 0);
+        if (runtime->error || runtime->exception_class || object_value.type != JINX_ORACLE_VALUE_ZEND_OBJECT)
+            return jinx_value_null();
+        JinxZendObject *object = object_value.as.ptr;
+        if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            JinxZendArray *array = value.as.ptr;
+            for (size_t i = 0; i < array->count; i++) {
+                const JinxZendBucket *bucket = jinx_zend_array_iter_at(array, i);
+                if (!bucket) continue;
+                char numeric[32];
+                const char *key = NULL;
+                size_t length = 0;
+                if (bucket->key) {
+                    key = bucket->key->bytes;
+                    length = bucket->key->len;
+                } else {
+                    int written = snprintf(numeric, sizeof(numeric), "%llu", (unsigned long long)bucket->h);
+                    if (written < 0 || written >= (int)sizeof(numeric)) {
+                        runtime->error = "native object cast numeric key overflow";
+                        break;
+                    }
+                    key = numeric;
+                    length = (size_t)written;
+                }
+                if (!jinx_zend_array_add_assoc(object->properties, key, length, bucket->value)) {
+                    runtime->error = "native array-to-object cast failed";
+                    break;
+                }
+            }
+        } else if (value.type != 0) {
+            JinxZendValue converted = native_zend_value(parser, value);
+            if (!runtime->error && !jinx_zend_array_add_assoc(object->properties, "scalar", 6, converted))
+                runtime->error = "native scalar-to-object cast failed";
+            if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+        }
+        return object_value;
+    }
+    runtime->error = "unsupported native cast";
+    return jinx_value_null();
+}
+
 static JinxValue native_primary(NativeParser *parser) {
     NativeRuntime *runtime = parser->runtime;
     JinxValue value = jinx_value_null();
@@ -950,9 +1036,30 @@ static JinxValue native_primary(NativeParser *parser) {
     } else if (native_accept(parser, '@')) {
         /* Admitted filesystem handlers return false without host PHP warnings. */
         value = native_primary(parser);
-    } else if (native_accept(parser, '(')) {
-        value = native_expression(parser, 0);
-        native_expect(parser, ')');
+    } else if (parser->kind == '(') {
+        NativeParser look = *parser;
+        native_next(&look);
+        int cast = look.kind == N_ID &&
+            (!strcmp(look.token, "int") || !strcmp(look.token, "string") ||
+             !strcmp(look.token, "bool") || !strcmp(look.token, "array") ||
+             !strcmp(look.token, "object"));
+        char cast_name[256] = {0};
+        if (cast) {
+            strcpy(cast_name, look.token);
+            native_next(&look);
+            cast = look.kind == ')';
+        }
+        native_next(parser);
+        if (cast) {
+            native_next(parser);
+            native_expect(parser, ')');
+            value = native_primary(parser);
+            if (!parser->checking && !runtime->error && !runtime->exception_class)
+                value = native_cast(parser, cast_name, value);
+        } else {
+            value = native_expression(parser, 0);
+            native_expect(parser, ')');
+        }
     } else if (native_accept(parser, '-')) {
         value = native_primary(parser);
         if (!parser->checking && value.type != 1) runtime->error = "native unary minus requires integer";
