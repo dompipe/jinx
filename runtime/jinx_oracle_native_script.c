@@ -561,6 +561,32 @@ static JinxValue native_array(NativeParser *parser) {
     }
     native_expect(parser, '[');
     while (parser->kind != ']' && !runtime->error) {
+        if (native_accept(parser, '.')) {
+            native_expect(parser, '.');
+            native_expect(parser, '.');
+            JinxValue source = native_expression(parser, 0);
+            if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                if (source.type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+                    native_raise(runtime, "Error", "Only arrays and Traversables can be unpacked");
+                } else {
+                    JinxZendArray *input = source.as.ptr;
+                    for (size_t i = 0; i < input->count && !runtime->error; i++) {
+                        const JinxZendBucket *bucket = jinx_zend_array_iter_at(input, i);
+                        if (!bucket) continue;
+                        JinxValue item = native_value_copy(parser, native_from_zend(parser, bucket->value));
+                        JinxZendValue converted = native_zend_value(parser, item);
+                        if (runtime->error) break;
+                        int ok = bucket->key
+                            ? jinx_zend_array_add_symtable(array, bucket->key->bytes, bucket->key->len, converted)
+                            : jinx_zend_array_append(array, converted);
+                        if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+                        if (!ok) runtime->error = "native array spread insertion failed";
+                    }
+                }
+            }
+            if (!native_accept(parser, ',')) break;
+            continue;
+        }
         JinxValue key = jinx_value_null();
         JinxValue value = native_expression(parser, 0);
         int keyed = native_accept(parser, N_ARROW);

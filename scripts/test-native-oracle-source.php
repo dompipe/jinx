@@ -24,6 +24,15 @@ function native_source_run(array $command, bool $withoutPhp, bool $forceNative =
     return [proc_close($process), $output, $error];
 }
 
+$spreadFixture = $root . '/fixtures/oracle-native-array-spread.php';
+$spreadPhp = native_source_run([PHP_BINARY, $spreadFixture], false);
+$spreadExpected = "{\"0\":\"zero\",\"a\":2,\"b\":3,\"1\":\"nine\",\"c\":4}\n[8,9,10,11]\n[{\"n\":[1,2]},{\"n\":[9]}]\nERR:Error\n";
+if ($spreadPhp !== [0, $spreadExpected, '']) throw new RuntimeException('unexpected spread baseline: ' . json_encode($spreadPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $spreadFixture], true, $forceNative);
+    if ($native !== $spreadPhp) throw new RuntimeException('native array spread parity differs: ' . json_encode($native));
+}
+
 $php = native_source_run([PHP_BINARY, $fixture], false);
 if ($php !== [0, "oracle:6:6:9:1:3\n23:7\n", '']) {
     throw new RuntimeException('unexpected PHP baseline: ' . json_encode($php));

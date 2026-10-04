@@ -199,6 +199,14 @@ verification are not green. Run each command independently to collect all gaps;
 do not hide failure by appending `|| true` to a release gate.
 # Baseline repair follow-up (2026-10-03)
 
+Native array literal spread now executes through the Zend array carrier.
+Integer keys are reindexed and string keys preserve insertion order with
+later replacements. `fixtures/oracle-native-array-spread.php` and the native
+source suite verify empty arrays, mixed keys, nested value isolation, and a
+catchable runtime non-array error without PHP available to the child process.
+Traversable unpacking is not implemented. The strict native second wave now
+passes 1/20 (array spread); the remaining 19 cases still fail.
+
 The reviewed `posix_mknod` ledger now records its existing extended native
 handler: 975 named routes, 663 extended routes, and 2552 intentional faults.
 `scripts/test-native-posix-mknod.php` verifies native FIFO creation and
@@ -208,4 +216,5 @@ coverage, not proof of privileged device creation or complete error parity.
 The second-wave nested-destructuring fixture now uses explicit keys at its
 outer level, avoiding PHP's prohibition on mixed keyed/unkeyed destructuring.
 Its PHP baseline succeeds with `[10,20,30,"jinx"]`. Second-wave JINX execution
-still fails all 20 fixtures. These repairs do not add source-language support.
+failed all 20 fixtures immediately after the baseline repair. The subsequent
+array-spread implementation above is a separate source-language improvement.
