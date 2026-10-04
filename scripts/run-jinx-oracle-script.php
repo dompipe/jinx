@@ -149,28 +149,27 @@ foreach ($families as $familyName => $metadata) {
         }
     }
 }
-if (str_contains($source, '__get') || str_contains($source, '__call')) {
-    $preferred[] = 'magic-methods';
-}
-if (str_contains($source, 'yield from') || preg_match('/\byield\b/', $source)) {
-    $preferred[] = 'generators';
-}
-if (str_contains($source, 'static::') || str_contains($source, 'new static')) {
-    $preferred[] = 'late-static-binding';
-}
-if (str_contains($source, '?->')) {
-    $preferred[] = 'nullsafe-objects';
-}
-if (str_contains($source, 'readonly')) {
-    $preferred[] = 'readonly-properties';
-}
-if (str_contains($source, 'clone ')) {
-    $preferred[] = 'object-clone';
-}
-if (str_contains($source, 'instanceof')) {
-    $preferred[] = 'instanceof-checks';
+
+$modernPatterns = [
+    'static::' => 'late-static-binding',
+    'new static()' => 'late-static-binding',
+    '?->' => 'nullsafe-objects',
+    'readonly' => 'readonly-properties',
+    '__get' => 'magic-methods',
+    '__call' => 'magic-methods',
+    'yield from' => 'generators',
+    'yield ' => 'generators',
+    'clone ' => 'object-clone',
+    'instanceof' => 'instanceof-checks',
+];
+
+foreach ($modernPatterns as $pattern => $family) {
+    if (str_contains($source, $pattern)) {
+        $preferred[] = $family;
+    }
 }
 
+$preferred = array_values(array_unique($preferred));
 $candidates = array_values(array_unique(array_merge($preferred, array_keys($families))));
 
 foreach ($candidates as $family) {
