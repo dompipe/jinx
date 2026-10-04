@@ -3,6 +3,7 @@
 #include "jinx_oracle_zend_array_carrier.h"
 #include <ctype.h>
 #include <limits.h>
+#include <errno.h>
 #include <strings.h>
 
 typedef struct NativeAllocation {
@@ -24,6 +25,7 @@ typedef struct NativeProperty {
     int initialized;
     int is_private;
     struct NativeClass *owner;
+    char *object_type;
     NativeVariable storage;
     struct NativeProperty *next;
 } NativeProperty;
@@ -96,6 +98,8 @@ typedef struct NativeFunction {
     char *name;
     char *parameters[16];
     int types[16];
+    char *object_types[16];
+    int promoted[16];
     size_t count;
     int return_type;
     NativeParser body;
@@ -113,6 +117,10 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
 static JinxValue native_closure(NativeParser *parser);
 static JinxValue native_method_call(NativeParser *parser, JinxValue object, const char *name, JinxValue *args, size_t count);
 static JinxValue native_clone(NativeParser *parser, JinxValue value);
+static JinxValue native_callback_call(NativeParser *parser, JinxValue callback, JinxValue *args, size_t count);
+static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count);
+static JinxValue native_construct(NativeParser *parser, const char *name, JinxValue *args, size_t count);
+static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot);
 
 static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
     for (NativeFunction *function = runtime->functions; function; function = function->next)
@@ -169,6 +177,13 @@ static NativeProperty *native_property_find(NativeClass *class_entry, const char
         for (NativeProperty *property = class_entry->properties; property; property = property->next)
             if (property->is_static == is_static && !strcmp(property->name, name)) return property;
     return NULL;
+}
+
+static int native_object_matches(NativeRuntime *runtime, JinxValue value, const char *name) {
+    if (value.type != JINX_ORACLE_VALUE_ZEND_OBJECT) return 0;
+    NativeClass *owner = native_class_find(runtime, ((JinxZendObject *)value.as.ptr)->class_name);
+    for (; owner; owner = owner->parent) if (!strcasecmp(owner->name, name)) return 1;
+    return 0;
 }
 
 static void native_next(NativeParser *parser) {
@@ -409,13 +424,16 @@ static NativeSlot native_slot(NativeParser *parser) {
     strcpy(name, parser->token);
     native_next(parser);
     if (!parser->checking) slot.variable = native_variable(parser->runtime, name);
-    if (native_accept(parser, N_OBJECT)) {
+    int property_access = 0;
+    while (native_accept(parser, N_OBJECT)) {
+        property_access = 1;
         if (parser->kind != N_ID) { parser->runtime->error = "native property requires name"; return slot; }
         char property_name[256];
         strcpy(property_name, parser->token);
         native_next(parser);
-        return native_object_slot(parser, native_variable_read(parser, slot.variable), property_name);
+        slot = native_object_slot(parser, native_slot_read(parser, slot), property_name);
     }
+    if (property_access) return slot;
     if (native_accept(parser, '[')) {
         slot.key = native_expression(parser, 0);
         native_expect(parser, ']');
@@ -470,7 +488,8 @@ static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot) {
 
 static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value) {
     if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return;
-    if (slot.property && slot.property->type && slot.property->type != (int)value.type) {
+    if (slot.property && ((slot.property->type && slot.property->type != (int)value.type) ||
+        (slot.property->object_type && !native_object_matches(parser->runtime, value, slot.property->object_type)))) {
         native_raise(parser->runtime, "TypeError", "Cannot assign incompatible value to typed property");
         return;
     }
@@ -571,7 +590,7 @@ static int native_builtin_admitted(const char *name) {
         "strlen", "strtoupper", "strtolower", "abs", "json_encode",
         "file_put_contents", "unlink", "tempnam", "sys_get_temp_dir",
         "fopen", "fwrite", "rewind", "fread", "fclose", "file_exists",
-        "file_get_contents", "gettype", "error_reporting", "call_user_func", NULL
+        "file_get_contents", "gettype", "error_reporting", "call_user_func", "array_map", "array_reduce", NULL
     };
     for (size_t i = 0; names[i]; i++) if (!strcmp(name, names[i])) return 1;
     return 0;
@@ -685,11 +704,25 @@ static JinxValue native_primary(NativeParser *parser) {
             strcpy(class_name, parser->token);
             native_next(parser);
             native_expect(parser, '(');
+            JinxValue args[16];
+            size_t count = 0;
+            if (parser->kind != ')') do {
+                if (count == 16) { runtime->error = "native constructor argument limit"; break; }
+                args[count++] = native_expression(parser, 0);
+            } while (native_accept(parser, ','));
             native_expect(parser, ')');
-            if (!runtime->error) value = native_instance(parser, class_name, 0);
+            if (!runtime->error) value = native_construct(parser, class_name, args, count);
         } else if (parser->kind == N_SCOPE) {
-            NativeSlot slot = native_static_slot(parser, name);
-            value = native_slot_read(parser, slot);
+            NativeParser peek = *parser;
+            native_next(&peek);
+            if (peek.kind == N_ID && !strcasecmp(peek.token, "class")) {
+                native_next(parser);
+                native_next(parser);
+                value = jinx_value_string(native_copy(runtime, name, strlen(name)), (uint32_t)strlen(name));
+            } else {
+                NativeSlot slot = native_static_slot(parser, name);
+                value = native_slot_read(parser, slot);
+            }
         } else if (!strcmp(name, "__DIR__")) value = jinx_value_string(parser->directory, (uint32_t)strlen(parser->directory));
         else if (!strcmp(name, "__FILE__")) value = jinx_value_string(parser->path, (uint32_t)strlen(parser->path));
         else if (!strcmp(name, "true")) value = jinx_value_bool(1);
@@ -732,17 +765,11 @@ static JinxValue native_primary(NativeParser *parser) {
                 NativeFunction *function = native_function_find(runtime, name);
                 if (function) {
                     value = native_function_call(parser, function, args, count);
+                } else if (!strcmp(name, "array_map") || !strcmp(name, "array_reduce")) {
+                    value = native_array_callback(parser, name, args, count);
                 } else if (!strcmp(name, "call_user_func")) {
                     if (!count) native_raise(runtime, "ArgumentCountError", "call_user_func requires a callback");
-                    else if (args[0].type == JINX_ORACLE_VALUE_ZEND_ARRAY) runtime->error = "array callbacks are not yet native";
-                    else if (args[0].type != N_VALUE_STRING || !jinx_lookup_oracle_wrapper(args[0].as.ptr))
-                        native_raise(runtime, "TypeError", "call_user_func requires a valid callback");
-                    else if (!native_builtin_admitted(args[0].as.ptr) || !strcmp(args[0].as.ptr, "call_user_func"))
-                        runtime->error = "callback target is not yet admitted by native interpreter";
-                    else {
-                        value = jinx_call_builtin_through_oracle_checked(args[0].as.ptr, args + 1, count - 1, &ok);
-                        if (!ok) native_raise(runtime, "ArgumentCountError", "Invalid callback argument count");
-                    }
+                    else value = native_callback_call(parser, args[0], args + 1, count - 1);
                 } else {
                     value = jinx_call_builtin_through_oracle_checked(name, args, count, &ok);
                     if (!ok) runtime->error = "native Oracle builtin call failed";
@@ -876,7 +903,22 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
     if (parser->kind != ')') do {
         if (definition.count == 16) { parser->runtime->error = "native function parameter limit"; return; }
         size_t index = definition.count++;
-        definition.types[index] = native_function_type(parser);
+        if (parser->kind == N_ID && (!strcmp(parser->token, "public") || !strcmp(parser->token, "private"))) {
+            if (!method || strcmp(definition.name, "__construct")) {
+                parser->runtime->error = "native promotion requires constructor"; return;
+            }
+            definition.promoted[index] = !strcmp(parser->token, "private") ? 2 : 1;
+            native_next(parser);
+        }
+        if (definition.promoted[index] && parser->kind == N_ID && strcmp(parser->token, "int") &&
+            strcmp(parser->token, "string") && strcmp(parser->token, "bool") && strcasecmp(parser->token, "Closure")) {
+            if (!strcmp(parser->token, "self") || !strcmp(parser->token, "parent") || !strcmp(parser->token, "static")) {
+                parser->runtime->error = "native relative promoted type is not supported"; return;
+            }
+            definition.types[index] = JINX_ORACLE_VALUE_ZEND_OBJECT;
+            definition.object_types[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
+            native_next(parser);
+        } else definition.types[index] = native_function_type(parser);
         if (parser->kind != N_VAR) { parser->runtime->error = "native function requires parameter"; return; }
         definition.parameters[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
         for (size_t i = 0; i < index; i++)
@@ -912,6 +954,21 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
         if (!function) return;
         *function = definition;
         if (method) {
+            for (size_t i = 0; i < function->count; i++) if (function->promoted[i]) {
+                if (native_property_find(owner, function->parameters[i], 0)) {
+                    parser->runtime->error = "duplicate native promoted property"; return;
+                }
+                NativeProperty *property = native_alloc(parser->runtime, sizeof(*property));
+                if (!property) return;
+                property->name = function->parameters[i];
+                property->type = function->types[i];
+                property->object_type = function->object_types[i];
+                property->is_private = function->promoted[i] == 2;
+                property->owner = owner;
+                property->initialized = !property->type;
+                property->next = owner->properties;
+                owner->properties = property;
+            }
             function->next = owner->methods;
             owner->methods = function;
         } else {
@@ -998,7 +1055,8 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
     JinxValue result = jinx_value_null();
     if (count < function->count) { native_raise(runtime, "ArgumentCountError", "Missing function argument"); return result; }
     for (size_t i = 0; i < function->count; i++)
-        if (function->types[i] && args[i].type != (uint32_t)function->types[i]) {
+        if ((function->types[i] && args[i].type != (uint32_t)function->types[i]) ||
+            (function->object_types[i] && !native_object_matches(runtime, args[i], function->object_types[i]))) {
             native_raise(runtime, "TypeError", "Invalid function argument type"); return result;
         }
     if (runtime->call_depth >= 64) { runtime->error = "native function call depth limit"; return result; }
@@ -1023,6 +1081,8 @@ static JinxValue native_function_call(NativeParser *parser, NativeFunction *func
     for (size_t i = 0; i < function->count && !runtime->error; i++) {
         NativeVariable *parameter = native_variable(runtime, function->parameters[i]);
         if (parameter) parameter->value = native_value_copy(&body, args[i]);
+        if (function->promoted[i])
+            native_slot_write(&body, native_object_slot(&body, function->bound_this, function->parameters[i]), args[i]);
     }
     if (function->is_arrow) result = native_expression(&body, 0);
     else native_statements(&body, &result);
@@ -1039,6 +1099,168 @@ static NativeFunction *native_method_find(NativeClass *owner, const char *name) 
         for (NativeFunction *method = owner->methods; method; method = method->next)
             if (!strcasecmp(method->name, name)) return method;
     return NULL;
+}
+
+static JinxValue native_construct(NativeParser *parser, const char *name, JinxValue *args, size_t count) {
+    if (count && !parser->strict_types) { parser->runtime->error = "native constructor arguments require strict_types=1"; return jinx_value_null(); }
+    JinxValue object = native_instance(parser, name, 0);
+    if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return object;
+    NativeClass *owner = native_class_find(parser->runtime, name);
+    if (native_method_find(owner, "__construct")) (void)native_method_call(parser, object, "__construct", args, count);
+    return object;
+}
+
+typedef struct NativeCallback {
+    NativeFunction frame;
+    const char *builtin;
+    int is_function;
+    int weak;
+} NativeCallback;
+
+static NativeCallback native_callback_resolve(NativeParser *parser, JinxValue value) {
+    NativeCallback callback = {0};
+    NativeFunction *function = NULL;
+    if (value.type == N_VALUE_CLOSURE) function = value.as.ptr;
+    else if (value.type == N_VALUE_STRING) {
+        if (strstr(value.as.ptr, "::")) {
+            parser->runtime->error = "native string method callbacks are not yet supported"; return callback;
+        }
+        function = native_function_find(parser->runtime, value.as.ptr);
+        if (!function && native_builtin_admitted(value.as.ptr) && strcmp(value.as.ptr, "call_user_func") &&
+            strcmp(value.as.ptr, "array_map") && strcmp(value.as.ptr, "array_reduce")) callback.builtin = value.as.ptr;
+        if (!function && !callback.builtin && jinx_lookup_oracle_wrapper(value.as.ptr)) {
+            parser->runtime->error = "callback builtin is not yet admitted by native interpreter"; return callback;
+        }
+    } else if (value.type == JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        JinxZendArray *array = value.as.ptr;
+        NativeSlot first = {0}, second = {0};
+        first.array = second.array = array;
+        first.key = jinx_value_int(0);
+        second.key = jinx_value_int(1);
+        JinxZendValue *target = native_slot_element(parser, first, 0);
+        JinxZendValue *method_name = native_slot_element(parser, second, 0);
+        if (array->count == 2 && target && method_name) {
+            JinxValue receiver = native_from_zend(parser, *target);
+            JinxValue name = native_from_zend(parser, *method_name);
+            NativeClass *owner = NULL;
+            if (receiver.type == N_VALUE_STRING) owner = native_class_find(parser->runtime, receiver.as.ptr);
+            else if (receiver.type == JINX_ORACLE_VALUE_ZEND_OBJECT)
+                owner = native_class_find(parser->runtime, ((JinxZendObject *)receiver.as.ptr)->class_name);
+            if (owner && name.type == N_VALUE_STRING) function = native_method_find(owner, name.as.ptr);
+            if (function && ((!function->is_static && receiver.type != JINX_ORACLE_VALUE_ZEND_OBJECT) ||
+                (function->is_private && parser->runtime->active_class != function->owner))) function = NULL;
+            if (function && !function->is_static) callback.frame.bound_this = receiver;
+        }
+    }
+    if (function) {
+        JinxValue bound = callback.frame.bound_this;
+        callback.frame = *function;
+        if (bound.type == JINX_ORACLE_VALUE_ZEND_OBJECT) callback.frame.bound_this = bound;
+        callback.is_function = 1;
+    } else if (!callback.builtin) native_raise(parser->runtime, "TypeError", "Invalid native callback");
+    return callback;
+}
+
+static JinxValue native_callback_invoke(NativeParser *parser, NativeCallback *callback, JinxValue *args, size_t count) {
+    if (callback->is_function) {
+        JinxValue converted[16];
+        if (callback->weak) {
+            for (size_t i = 0; i < count; i++) {
+                converted[i] = args[i];
+                int type = i < callback->frame.count ? callback->frame.types[i] : 0;
+                if (type == N_VALUE_INT && args[i].type == N_VALUE_BOOL) converted[i] = jinx_value_int(args[i].as.i64);
+                else if (type == N_VALUE_INT && args[i].type == N_VALUE_STRING) {
+                    char *end;
+                    errno = 0;
+                    long long number = strtoll(args[i].as.ptr, &end, 10);
+                    int parsed = end != args[i].as.ptr;
+                    while (isspace((unsigned char)*end)) end++;
+                    if (errno == ERANGE) { parser->runtime->error = "native callback numeric range is unsupported"; return jinx_value_null(); }
+                    if (parsed && (size_t)(end - (char *)args[i].as.ptr) == args[i].flags) converted[i] = jinx_value_int(number);
+                    else {
+                        char *numeric_end;
+                        (void)strtod(args[i].as.ptr, &numeric_end);
+                        int numeric = numeric_end != args[i].as.ptr;
+                        while (isspace((unsigned char)*numeric_end)) numeric_end++;
+                        if (numeric && (size_t)(numeric_end - (char *)args[i].as.ptr) == args[i].flags) {
+                            parser->runtime->error = "native callback decimal coercion is not yet supported"; return jinx_value_null();
+                        }
+                    }
+                } else if (type == N_VALUE_STRING && (args[i].type == N_VALUE_INT || args[i].type == N_VALUE_BOOL)) {
+                    size_t length;
+                    const char *text = native_text(parser, args[i], &length);
+                    converted[i] = jinx_value_string(native_copy(parser->runtime, text, length), (uint32_t)length);
+                } else if (type == N_VALUE_BOOL && args[i].type == N_VALUE_INT) converted[i] = jinx_value_bool(args[i].as.i64 != 0);
+                else if (type == N_VALUE_BOOL && args[i].type == N_VALUE_STRING)
+                    converted[i] = jinx_value_bool(args[i].flags && !(args[i].flags == 1 && ((char *)args[i].as.ptr)[0] == '0'));
+            }
+            args = converted;
+        }
+        return native_function_call(parser, &callback->frame, args, count);
+    }
+    int ok = 0;
+    JinxValue result = jinx_call_builtin_through_oracle_checked(callback->builtin, args, count, &ok);
+    if (!ok) native_raise(parser->runtime, "ArgumentCountError", "Invalid callback argument count");
+    if (ok && result.type == N_VALUE_STRING) result.as.ptr = native_copy(parser->runtime, result.as.ptr, result.flags);
+    return result;
+}
+
+static JinxValue native_callback_call(NativeParser *parser, JinxValue value, JinxValue *args, size_t count) {
+    NativeCallback callback = native_callback_resolve(parser, value);
+    if (parser->runtime->error || parser->runtime->exception_class) return jinx_value_null();
+    return native_callback_invoke(parser, &callback, args, count);
+}
+
+static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count) {
+    int reduce = !strcmp(name, "array_reduce");
+    if (count < 2 || (reduce && count > 3)) {
+        native_raise(parser->runtime, "ArgumentCountError", "Invalid array callback argument count"); return jinx_value_null();
+    }
+    if (!reduce && count > 2) { parser->runtime->error = "native array_map supports one input array"; return jinx_value_null(); }
+    if (!reduce && args[0].type == 0) {
+        if (args[1].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+            native_raise(parser->runtime, "TypeError", "Array callback requires array"); return jinx_value_null();
+        }
+        return native_value_copy(parser, args[1]);
+    }
+    NativeCallback callback = native_callback_resolve(parser, args[reduce ? 1 : 0]);
+    callback.weak = 1;
+    if (parser->runtime->error || parser->runtime->exception_class) return jinx_value_null();
+    JinxValue input = args[reduce ? 0 : 1];
+    if (input.type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        native_raise(parser->runtime, "TypeError", "Array callback requires array"); return jinx_value_null();
+    }
+    JinxZendArray *array = input.as.ptr;
+    JinxValue result = reduce && count == 3 ? args[2] : jinx_value_null();
+    NativeArray *owner = NULL;
+    if (!reduce) {
+        owner = native_alloc(parser->runtime, sizeof(*owner));
+        if (!owner) return result;
+        owner->array = jinx_zend_array_new_packed(array->count);
+        if (!owner->array) { parser->runtime->error = "native callback array allocation failed"; return result; }
+        owner->next = parser->runtime->arrays;
+        parser->runtime->arrays = owner;
+        result = jinx_oracle_zend_array_value_borrowed(owner->array);
+    }
+    size_t length = array->count;
+    for (size_t i = 0; i < length && !parser->runtime->error && !parser->runtime->exception_class; i++) {
+        const JinxZendBucket *bucket = jinx_zend_array_iter_at(array, i);
+        if (!bucket) continue;
+        JinxValue arguments[2] = {result, native_from_zend(parser, bucket->value)};
+        JinxValue mapped = native_callback_invoke(parser, &callback, reduce ? arguments : arguments + 1, reduce ? 2 : 1);
+        if (parser->runtime->error || parser->runtime->exception_class) break;
+        if (reduce) result = mapped;
+        else {
+            JinxZendValue converted = native_zend_value(parser, native_value_copy(parser, mapped));
+            if (parser->runtime->error) break;
+            int ok = bucket->key ? jinx_zend_array_add_symtable(owner->array, bucket->key->bytes, bucket->key->len, converted)
+                : jinx_zend_array_add_index(owner->array, (size_t)bucket->h, converted);
+            if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+            if (!ok) parser->runtime->error = "native callback array insertion failed";
+        }
+        if (array->count != length) parser->runtime->error = "native callback structural mutation is not supported";
+    }
+    return result;
 }
 
 static JinxValue native_method_call(NativeParser *parser, JinxValue object, const char *name, JinxValue *args, size_t count) {
@@ -1124,8 +1346,8 @@ static void native_class_declaration(NativeParser *parser) {
         if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
             NativeParser peek = *parser;
             native_next(&peek);
-            if (!strncmp(peek.token, "__", 2) && strcmp(peek.token, "__clone")) {
-                parser->runtime->error = "native magic methods other than __clone are not yet supported";
+            if (!strncmp(peek.token, "__", 2) && strcmp(peek.token, "__clone") && strcmp(peek.token, "__construct")) {
+                parser->runtime->error = "native magic method is not yet supported";
                 break;
             }
             native_function_declaration(parser, class_entry, 1, is_private, is_static);

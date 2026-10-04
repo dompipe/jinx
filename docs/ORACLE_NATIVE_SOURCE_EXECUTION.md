@@ -34,7 +34,9 @@ object identity through ordinary assignments. Uninitialized reads raise Error;
 incompatible typed assignments raise TypeError without replacing the old value.
 Braced try/catch handles Throwable, Error and TypeError (including nested catches),
 and `$e::class` exposes the caught error class. String call_user_func callbacks
-can invoke admitted native builtins; missing targets raise TypeError.
+can invoke admitted native builtins; missing targets raise TypeError. Native
+call_user_func also accepts closures, named user functions, and two-element
+class/object method callbacks, with method visibility checks.
 
 Named user functions now execute in isolated native call frames, including
 nested calls, scalar int/string/bool parameters and return types, and catchable
@@ -59,8 +61,22 @@ argument/return checks, nested calls, and class-scoped property visibility.
 Private static properties also enforce scope. Native clone copies the object's
 property container, preserves ordinary shallow-copy semantics, and invokes an
 admitted __clone hook. Private scalar state is independent in cloned objects.
-User constructors, property promotion, protected members, private inheritance
-layouts and magic methods other than __clone are not yet admitted.
+User constructors now execute natively. Public/private constructor promotion
+supports scalar properties and named user-class object properties. Promoted
+object properties enforce class compatibility on initialization and writes.
+Chained object slots support mutation inside __clone hooks, enabling explicit
+deep copies while ordinary clone remains shallow. Protected members, private
+inheritance layouts and magic methods other than __construct/__clone are not
+yet admitted.
+
+Native array_map accepts one input array, preserves its keys, and supports null
+callbacks as identity copies. Native array_reduce supports optional initial
+values and empty-array results. Both invoke the native callback frames rather
+than a PHP-backed implementation. Internal callbacks support integer numeric
+strings and basic int/bool/string coercion; decimal numeric coercion and broader
+weak typing are not yet admitted. call_user_func retains strict caller typing.
+Multiple-array mapping, invokable objects, string Class::method callbacks and
+structural mutation during traversal remain outside this subset.
 
 Include paths are resolved relative to the current source file;
 PHP include_path lookup and missing-file warning behavior are not implemented.
@@ -68,8 +84,8 @@ The interpreter rejects overflow rather than promoting integers to floats.
 Undefined variables currently read as null without PHP's warning.
 Foreach key bindings, by-value foreach, loop break/continue, nested array-offset
 syntax, and structural mutation during foreach are outside this native subset.
-Registered builtin constructors, constructors with arguments, protected/readonly properties,
-custom exception hierarchies, finally, multiple catches, array/closure callbacks,
+Registered builtin constructors, protected/readonly properties,
+custom exception hierarchies, finally, multiple catches,
 and PHP-identical diagnostic messages are still outside this subset. This work
 proves normalized error classes and preserved state, not full exception parity.
 
@@ -113,6 +129,11 @@ PHP-independent target environment.
 `fixtures/oracle-native-clone-methods.php` checks private clone state, nested
 methods and errors, access restrictions, private static storage and __clone
 hooks. Closure fixtures also check returned bound closures and arrow snapshots.
+`fixtures/oracle-native-callbacks.php` checks callback composition, map keys,
+empty arrays, invalid/private callbacks, reference captures and coercion.
+`fixtures/oracle-native-constructors.php` checks promoted scalar/object state,
+explicit deep and ordinary shallow clone, chained mutation, constructor errors,
+private promotion and rejected object-property assignments.
 
 The high-value semantic edge suite is a separate gate. The native interpreter
 fixes both include, both filesystem and both reference first-wave cases.
@@ -127,3 +148,12 @@ success from this focused test.
 Native methods, private-state clone and bound arrows now reduce that gate to
 2 failures out of 20: constructor-driven deep cloning and static-method/closure
 callback composition. This is not a claim of arbitrary PHP compatibility.
+
+Promoted constructors, chained clone-hook mutations and native callback
+composition now pass all 20 first-wave fixtures. The PHP-independent source
+suite verifies these paths with no PHP executable or bridge available to the
+target process. This does not establish second-wave or arbitrary PHP coverage.
+The differential gate may still route pre-existing unsupported inputs through
+the PHP-hosted bridge. Its 20/20 result is not by itself proof that every fixture
+executes independently of PHP; the separate native source suite proves the
+new constructor/callback paths without that bridge.

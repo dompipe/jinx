@@ -89,6 +89,26 @@ foreach ([true, false] as $forceNative) {
     if ($native !== $clonePhp) throw new RuntimeException('native clone/method parity differs: ' . json_encode($native));
 }
 
+$callbackFixture = $root . '/fixtures/oracle-native-callbacks.php';
+$callbackPhp = native_source_run([PHP_BINARY, $callbackFixture], false);
+$callbackExpected = "{\"values\":[4,8,12],\"sum\":24}\n{\"x\":3,\"4\":6}\n[4,5]\n10\n7\n[\"A\",\"B\"]\n[[],9,null]\n[[2,4],2]\nEMPTY:TypeError\nPRIVATE:TypeError\nTYPE:TypeError\n3\n[4,2]\n[\"3\",\"\"]\n[false,false,true]\n{\"x\":3,\"4\":2}\nSTRICT:TypeError\n";
+$callbackExpected .= "[4,-6,8]\nSPACE:TypeError\n[3,8]\n";
+if ($callbackPhp !== [0, $callbackExpected, '']) throw new RuntimeException('unexpected callback baseline: ' . json_encode($callbackPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $callbackFixture], true, $forceNative);
+    if ($native !== $callbackPhp) throw new RuntimeException('native callback parity differs: ' . json_encode($native));
+}
+
+$constructorFixture = $root . '/fixtures/oracle-native-constructors.php';
+$constructorPhp = native_source_run([PHP_BINARY, $constructorFixture], false);
+$constructorExpected = "[3,14]\n[7,7]\nARG:TypeError\nCOUNT:ArgumentCountError\nOBJECT:TypeError\nPROPERTY:TypeError\n3\n5\nPRIVATE:Error\n";
+$constructorExpected .= "7\nCLASS:TypeError\n";
+if ($constructorPhp !== [0, $constructorExpected, '']) throw new RuntimeException('unexpected constructor baseline: ' . json_encode($constructorPhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $constructorFixture], true, $forceNative);
+    if ($native !== $constructorPhp) throw new RuntimeException('native constructor parity differs: ' . json_encode($native));
+}
+
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {
@@ -115,6 +135,16 @@ try {
     $rejected = native_source_run([$binary, '--native-php', $temporary], true);
     if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'private inheritance layout')) {
         throw new RuntimeException('unsupported private inheritance was not rejected: ' . json_encode($rejected));
+    }
+    file_put_contents($temporary, '<?php declare(strict_types=1); $values = array_map(fn (int $n): int => $n, ["2.5"]); echo "MUST_NOT_RUN";');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'decimal coercion')) {
+        throw new RuntimeException('unsupported callback coercion was not rejected: ' . json_encode($rejected));
+    }
+    file_put_contents($temporary, '<?php declare(strict_types=1); $value = call_user_func("strrev", "abc"); echo "MUST_NOT_RUN";');
+    $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($rejected[0] === 0 || $rejected[1] !== '' || !str_contains($rejected[2], 'callback builtin is not yet admitted')) {
+        throw new RuntimeException('unsupported valid callback was incorrectly classified: ' . json_encode($rejected));
     }
 } finally {
     unlink($temporary);
