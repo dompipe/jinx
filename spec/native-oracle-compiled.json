@@ -1,11 +1,12 @@
 {
-  "format": "JXOR_INT_1",
+  "formats": ["JXOR_INT_1", "JXOR_INT_2"],
   "owner": "native/jinx_oracle_integer_vm.c",
   "compiler": "scripts/compile-oracle-native.php",
   "lowerer": "runtime/OracleNativeExpressionCompiler.php",
   "expressionProof": "scripts/test-native-oracle-expressions.php",
   "cli": ["./jinx program.jxo", "./jinx oracle-run program.jxo"],
-  "instructions": ["CONST", "ADD", "SUB", "MUL", "RETURN_CONST", "RETURN_ADD", "RETURN_SUB", "RETURN_MUL"],
+  "instructions": ["CONST", "ADD", "SUB", "MUL", "RETURN_CONST", "RETURN_ADD", "RETURN_SUB", "RETURN_MUL", "JZ", "JUMP", "MOVE"],
+  "branchContract": "Forward branches with definite initialization at joins; lazy full and shorthand ternary expressions using integer truthiness.",
   "proof": "scripts/test-native-oracle-integer-vm.php",
   "benchmark": "scripts/benchmark-native-oracle-integer.php",
   "contract": "Compiled integer subset with dynamic inputs; native execution independent of PHP and source files. Not full PHP compatibility."

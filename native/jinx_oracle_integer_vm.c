@@ -8,7 +8,7 @@
 #include <inttypes.h>
 #include "../runtime/jinx_oracle_integer_vm.h"
 
-enum { CONSTANT, ADD, SUB, MUL, RETURN_CONSTANT, RETURN_ADD, RETURN_SUB, RETURN_MUL };
+enum { CONSTANT, ADD, SUB, MUL, RETURN_CONSTANT, RETURN_ADD, RETURN_SUB, RETURN_MUL, JZ, JUMP, MOVE };
 typedef struct { int op; unsigned dst, left, right; int64_t value; } Instruction;
 typedef struct {
     Instruction code[4096];
@@ -24,9 +24,43 @@ static int integer(const char *text, int64_t *value) {
     return *text && !*end && errno != ERANGE;
 }
 
+static int returning(int op) { return op >= RETURN_CONSTANT && op <= RETURN_MUL; }
+
+static void merge_initialized(unsigned char *states, unsigned char *reached, unsigned target, const unsigned char *state) {
+    unsigned char *destination = states + target * 256;
+    if (!reached[target]) memcpy(destination, state, 256);
+    else for (unsigned slot = 0; slot < 256; slot++) destination[slot] &= state[slot];
+    reached[target] = 1;
+}
+
+static int validate_flow(const Program *program) {
+    unsigned char *states = calloc(program->count, 256);
+    unsigned char reached[4096] = {1};
+    if (!states) return 0;
+    for (unsigned i = 0; i < program->inputs; i++) states[program->input_slots[i]] = 1;
+    int valid = 1;
+    // Forward-only branches allow one ordered pass to intersect incoming definitions.
+    for (unsigned i = 0; valid && i < program->count; i++) {
+        const Instruction *op = &program->code[i];
+        unsigned char *state = states + i * 256;
+        if (!reached[i]) { valid = 0; break; }
+        if (((op->op >= ADD && op->op <= MUL) || (op->op >= RETURN_ADD && op->op <= RETURN_MUL)) &&
+            (!state[op->left] || !state[op->right])) { valid = 0; break; }
+        if ((op->op == JZ || op->op == MOVE) && !state[op->left]) { valid = 0; break; }
+        if (op->op == CONSTANT || (op->op >= ADD && op->op <= MUL) || op->op == MOVE) state[op->dst] = 1;
+        if (op->op == JZ || op->op == JUMP) merge_initialized(states, reached, op->right, state);
+        if (!returning(op->op) && op->op != JUMP) {
+            if (i + 1 == program->count) { valid = 0; break; }
+            merge_initialized(states, reached, i + 1, state);
+        }
+    }
+    free(states);
+    return valid;
+}
+
 static int load(FILE *file, Program *program) {
     char magic[32], name[32], number[64];
-    if (fscanf(file, "%31s", magic) != 1 || strcmp(magic, "JXOR_INT_1") ||
+    if (fscanf(file, "%31s", magic) != 1 || (strcmp(magic, "JXOR_INT_1") && strcmp(magic, "JXOR_INT_2")) ||
         fscanf(file, "%u %u %u", &program->slots, &program->inputs, &program->count) != 3 ||
         program->slots > 256 || program->inputs > program->slots || !program->count || program->count > 4096) return 0;
     unsigned char initialized[256] = {0};
@@ -46,6 +80,15 @@ static int load(FILE *file, Program *program) {
         } else if (!strcmp(name, "RETURN_CONST")) {
             op->op = RETURN_CONSTANT;
             if (fscanf(file, "%63s", number) != 1 || !integer(number, &op->value)) return 0;
+        } else if (!strcmp(name, "JZ") || !strcmp(name, "JUMP") || !strcmp(name, "MOVE")) {
+            if (strcmp(magic, "JXOR_INT_2")) return 0;
+            op->op = !strcmp(name, "JZ") ? JZ : !strcmp(name, "JUMP") ? JUMP : MOVE;
+            if (op->op == MOVE) {
+                if (fscanf(file, "%u %u", &op->dst, &op->left) != 2 || op->dst >= program->slots || op->left >= program->slots) return 0;
+            } else {
+                if (op->op == JZ && (fscanf(file, "%u", &op->left) != 1 || op->left >= program->slots)) return 0;
+                if (fscanf(file, "%u", &op->right) != 1 || op->right <= i || op->right >= program->count) return 0;
+            }
         } else {
             int returning = !strncmp(name, "RETURN_", 7);
             const char *operation = returning ? name + 7 : name;
@@ -54,12 +97,12 @@ static int load(FILE *file, Program *program) {
             op->op = returning ? opcode + 4 : opcode;
             if (!returning && (fscanf(file, "%u", &op->dst) != 1 || op->dst >= program->slots)) return 0;
             if (fscanf(file, "%u %u", &op->left, &op->right) != 2 || op->left >= program->slots ||
-                op->right >= program->slots || !initialized[op->left] || !initialized[op->right]) return 0;
+                op->right >= program->slots) return 0;
             if (!returning) initialized[op->dst] = 1;
         }
-        if ((op->op >= RETURN_CONSTANT) != (i + 1 == program->count)) return 0;
+        if (returning(op->op) != (i + 1 == program->count)) return 0;
     }
-    return fscanf(file, "%31s", name) == EOF;
+    return fscanf(file, "%31s", name) == EOF && validate_flow(program);
 }
 
 static int execute(const Program *program, const int64_t *inputs, int64_t *result) {
@@ -69,6 +112,11 @@ static int execute(const Program *program, const int64_t *inputs, int64_t *resul
         const Instruction *op = &program->code[i];
         if (op->op == CONSTANT) { locals[op->dst] = op->value; continue; }
         if (op->op == RETURN_CONSTANT) { *result = op->value; return 1; }
+        if (op->op >= JZ) {
+            if (op->op == MOVE) locals[op->dst] = locals[op->left];
+            else if (op->op == JUMP || !locals[op->left]) i = op->right - 1;
+            continue;
+        }
         int operation = op->op >= RETURN_CONSTANT ? op->op - 4 : op->op;
         int64_t value;
         int overflow = operation == ADD ? __builtin_add_overflow(locals[op->left], locals[op->right], &value) :

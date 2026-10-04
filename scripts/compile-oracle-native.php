@@ -31,6 +31,17 @@ try {
     foreach ($ops as $op) {
         if ($returned) throw new RuntimeException('Unreachable operations are not admitted in this backend');
         switch ($op['op']) {
+            case 'OJZ':
+                $lines[] = 'JZ ' . $read($op['src']) . ' ' . $op['target'];
+                break;
+            case 'OJUMP':
+                $lines[] = 'JUMP ' . $op['target'];
+                break;
+            case 'OMOV_COPY':
+                $src = $read($op['src']);
+                $lines[] = 'MOVE ' . $slot($op['dst']) . ' ' . $src;
+                $defined[$op['dst']] = true;
+                break;
             case 'OMOV_CONST_LOCAL':
                 if (!is_int($op['value'])) throw new RuntimeException('Only integer constants supported');
                 $lines[] = 'CONST ' . $slot($op['dst']) . ' ' . $op['value'];
@@ -61,7 +72,8 @@ try {
     }
     if (!$returned) throw new RuntimeException('Native Oracle program requires return');
     if (count($slots) > 256 || count($lines) > 4096) throw new RuntimeException('Program limit exceeded');
-    $artifact = "JXOR_INT_1\n" . count($slots) . ' ' . count($inputs) . ' ' . count($lines) . "\n";
+    $format = array_intersect(array_column($ops, 'op'), ['OJZ', 'OJUMP', 'OMOV_COPY']) ? 'JXOR_INT_2' : 'JXOR_INT_1';
+    $artifact = $format . "\n" . count($slots) . ' ' . count($inputs) . ' ' . count($lines) . "\n";
     foreach ($inputs as $name => $index) $artifact .= 'INPUT ' . $index . ' ' . substr($name, 6) . "\n";
     $artifact .= implode("\n", $lines) . "\n";
     if (file_put_contents($output, $artifact) === false) throw new RuntimeException('Could not write artifact');

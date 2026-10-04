@@ -90,6 +90,31 @@ final class OracleNativeExpressionCompiler
             $right = $this->expression($precedence[$operator] + 1, $depth + 1);
             $left = $this->binary($operator, $left, $right);
         }
+        $ternarySeen = false;
+        $shorthandChain = true;
+        while ($minimum === 0 && $this->peek() === '?') {
+            $this->position++;
+            $shorthand = $this->peek() === ':';
+            if ($ternarySeen && (!$shorthandChain || !$shorthand))
+                throw new \RuntimeException('Nested ternary expressions require parentheses');
+            $ternarySeen = true;
+            $shorthandChain = $shorthand;
+            $condition = $this->materialize($left);
+            $branch = count($this->ops);
+            $this->ops[] = ['op' => 'OJZ', 'src' => $condition, 'target' => 0];
+            $then = $this->peek() === ':' ? $condition : $this->expression(0, $depth + 1);
+            $this->expect(':');
+            $then = $this->materialize($then);
+            $dst = 'temp:' . $this->temporary++;
+            $this->ops[] = ['op' => 'OMOV_COPY', 'dst' => $dst, 'src' => $then];
+            $jump = count($this->ops);
+            $this->ops[] = ['op' => 'OJUMP', 'target' => 0];
+            $this->ops[$branch]['target'] = count($this->ops);
+            $otherwise = $this->materialize($this->expression(1, $depth + 1));
+            $this->ops[] = ['op' => 'OMOV_COPY', 'dst' => $dst, 'src' => $otherwise];
+            $this->ops[$jump]['target'] = count($this->ops);
+            $left = $dst;
+        }
         return $left;
     }
 
