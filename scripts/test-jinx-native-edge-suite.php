@@ -41,8 +41,8 @@ echo "Binary: {$jinx}" . PHP_EOL;
 
 run_native_jinx(
     'native compiled Oracle artifact parity',
-    'scripts/test-native-oracle-integer-vm.php',
-    'PASS: compile once, vary integer runtime inputs, execute without PHP'
+    'scripts/test-native-oracle-expressions.php',
+    'PASS: structured native Oracle expressions'
 );
 
 run_native_jinx(

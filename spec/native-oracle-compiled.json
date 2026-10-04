@@ -2,6 +2,8 @@
   "format": "JXOR_INT_1",
   "owner": "native/jinx_oracle_integer_vm.c",
   "compiler": "scripts/compile-oracle-native.php",
+  "lowerer": "runtime/OracleNativeExpressionCompiler.php",
+  "expressionProof": "scripts/test-native-oracle-expressions.php",
   "cli": ["./jinx program.jxo", "./jinx oracle-run program.jxo"],
   "instructions": ["CONST", "ADD", "SUB", "MUL", "RETURN_CONST", "RETURN_ADD", "RETURN_SUB", "RETURN_MUL"],
   "proof": "scripts/test-native-oracle-integer-vm.php",

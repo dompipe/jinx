@@ -3,29 +3,15 @@ declare(strict_types=1);
 
 // Initial native backend for the existing coalesced integer Oracle instruction set.
 $root = dirname(__DIR__);
-require_once $root . '/runtime/OracleProgramCompiler.php';
-use jinx\oracle\OracleProgramCompiler;
+require_once $root . '/runtime/OracleNativeExpressionCompiler.php';
+use jinx\oracle\OracleNativeExpressionCompiler;
 
 try {
     [$script, $input, $output] = $argv + [1 => null, 2 => null];
     if (!$input || !$output) throw new RuntimeException('Usage: php scripts/compile-oracle-native.php input.php output.jxo');
     $source = file_get_contents($input);
     if ($source === false) throw new RuntimeException('Could not read source');
-    $tokens = token_get_all($source, TOKEN_PARSE);
-    foreach ($tokens as $token) {
-        if (is_string($token)) {
-            if (!str_contains(';=+-*()', $token)) throw new RuntimeException('Unsupported punctuation');
-        } elseif (!in_array($token[0], [T_OPEN_TAG, T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_VARIABLE, T_LNUMBER, T_RETURN, T_DECLARE, T_STRING], true)) {
-            throw new RuntimeException('Unsupported token: ' . token_name($token[0]));
-        } elseif ($token[0] === T_STRING && !in_array($token[1], ['strict_types'], true)) {
-            throw new RuntimeException('Unsupported identifier: ' . $token[1]);
-        } elseif ($token[0] === T_LNUMBER && !ctype_digit($token[1])) {
-            throw new RuntimeException('Only decimal integers are admitted');
-        } elseif ($token[0] === T_LNUMBER && (string)(int)$token[1] !== $token[1]) {
-            throw new RuntimeException('Leading-zero or out-of-range integers are not admitted');
-        }
-    }
-    $compiled = OracleProgramCompiler::compileExecutablePhpFile($input);
+    $compiled = OracleNativeExpressionCompiler::compile($source);
     $ops = $compiled['ops'];
     if (!$ops) throw new RuntimeException('No executable Oracle operations');
     $slots = [];
