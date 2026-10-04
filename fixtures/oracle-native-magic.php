@@ -3,19 +3,19 @@ declare(strict_types=1);
 
 final class NativeMagicBox
 {
-    private array $data = ['x' => 3];
+    private $data = ['x' => 3];
 
-    public function __get(string $name): mixed
+    public function __get($name)
     {
         return $this->data[$name] ?? null;
     }
 
-    public function __set(string $name, mixed $value): void
+    public function __set($name, $value): void
     {
         $this->data[$name] = $value;
     }
 
-    public function __call(string $name, array $arguments): mixed
+    public function __call($name, $arguments)
     {
         return [$name, $arguments];
     }
