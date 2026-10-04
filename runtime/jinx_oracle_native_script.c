@@ -923,7 +923,7 @@ static JinxValue native_cast(NativeParser *parser, const char *type, JinxValue v
             char *end = NULL;
             errno = 0;
             long long number = strtoll(value.as.ptr, &end, 10);
-            if (errno == ERANGE) number = value.as.ptr[0] == '-' ? LLONG_MIN : LLONG_MAX;
+            if (errno == ERANGE) number = ((const char *)value.as.ptr)[0] == '-' ? LLONG_MIN : LLONG_MAX;
             return jinx_value_int(number);
         }
         if (value.type == 0) return jinx_value_int(0);
