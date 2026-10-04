@@ -28,6 +28,14 @@ jobs:
             libcrypt-dev libcurl4-openssl-dev libexif-dev libsodium-dev
       - name: Build native Jinx
         run: ./scripts/build-native-jinx.sh
+      - name: Run strict native source parity
+        run: ./jinx scripts/test-native-oracle-source.php
+      - name: Run high-value edge wave one
+        run: ./jinx scripts/test-php-jinx-high-value-edge-fixtures.php
+      - name: Run high-value edge wave two
+        run: ./jinx scripts/test-php-jinx-high-value-edge-fixtures-two.php
+      - name: Audit strict native source parity
+        run: ./jinx scripts/audit-native-source-parity.php
       - name: Run native method parity probes
         run: php scripts/test-native-method-oracle-asm.php
       - name: Smoke implemented-function benchmark
