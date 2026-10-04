@@ -146,6 +146,7 @@ static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue v
 static int native_slot_isset(NativeParser *parser, NativeSlot slot);
 static void native_slot_unset(NativeParser *parser, NativeSlot slot);
 static int native_truth(JinxValue value);
+static int native_type_matches(int type, JinxValue value);
 
 static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
     for (NativeFunction *function = runtime->functions; function; function = function->next)
