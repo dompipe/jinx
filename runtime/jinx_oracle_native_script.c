@@ -1052,6 +1052,54 @@ static JinxValue native_cast(NativeParser *parser, const char *type, JinxValue v
     return jinx_value_null();
 }
 
+static JinxValue native_match_expression(NativeParser *parser) {
+    NativeRuntime *runtime = parser->runtime;
+    JinxValue result = jinx_value_null();
+    int outer_checking = parser->checking;
+    int selected = 0;
+    int saw_default = 0;
+
+    native_next(parser); /* match */
+    native_expect(parser, '(');
+    JinxValue subject = native_expression(parser, 0);
+    native_expect(parser, ')');
+    native_expect(parser, '{');
+
+    while (parser->kind != '}' && !runtime->error && (parser->checking || !runtime->exception_class)) {
+        int arm_matches = 0;
+        int is_default = parser->kind == N_ID && !strcmp(parser->token, "default");
+        if (is_default) {
+            if (saw_default) { runtime->error = "duplicate native match default arm"; break; }
+            saw_default = 1;
+            native_next(parser);
+            arm_matches = !outer_checking && !selected;
+        } else {
+            int saved = parser->checking;
+            if (outer_checking || selected) parser->checking = 1;
+            JinxValue condition = native_expression(parser, 0);
+            parser->checking = saved;
+            if (!outer_checking && !selected && !runtime->error && !runtime->exception_class)
+                arm_matches = native_strict_equal(subject, condition);
+        }
+
+        native_expect(parser, N_ARROW);
+        int saved = parser->checking;
+        if (outer_checking || selected || !arm_matches) parser->checking = 1;
+        JinxValue arm_result = native_expression(parser, 0);
+        parser->checking = saved;
+        if (!outer_checking && !selected && arm_matches && !runtime->error && !runtime->exception_class) {
+            result = arm_result;
+            selected = 1;
+        }
+        native_accept(parser, ',');
+    }
+    native_expect(parser, '}');
+
+    if (!outer_checking && !selected && !runtime->error && !runtime->exception_class)
+        native_raise(runtime, "UnhandledMatchError", "Unhandled match case");
+    return result;
+}
+
 static JinxValue native_primary(NativeParser *parser) {
     NativeRuntime *runtime = parser->runtime;
     JinxValue value = jinx_value_null();
@@ -1059,6 +1107,8 @@ static JinxValue native_primary(NativeParser *parser) {
     if (parser->kind == N_LITERAL) {
         value = parser->literal;
         native_next(parser);
+    } else if (parser->kind == N_ID && !strcmp(parser->token, "match")) {
+        value = native_match_expression(parser);
     } else if (parser->kind == '[') {
         value = native_array(parser);
     } else if (parser->kind == N_VAR) {
