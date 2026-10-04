@@ -156,6 +156,8 @@ int jinx_zend_array_add_index(JinxZendArray *array, size_t index, JinxZendValue 
 int jinx_zend_array_add_index_separate(JinxZendArray **array, size_t index, JinxZendValue value);
 int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value);
 int jinx_zend_array_add_assoc_separate(JinxZendArray **array, const char *key, size_t key_len, JinxZendValue value);
+int jinx_zend_array_del_index(JinxZendArray *array, size_t index);
+int jinx_zend_array_del_assoc(JinxZendArray *array, const char *key, size_t key_len);
 int jinx_zend_array_numeric_string_key(const char *key, size_t key_len, int64_t *index);
 int jinx_zend_array_add_symtable(JinxZendArray *array, const char *key, size_t key_len, JinxZendValue value);
 JinxZendValue *jinx_zend_array_index(JinxZendArray *array, size_t index);
