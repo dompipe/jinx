@@ -9,15 +9,21 @@ function nativeArgs(int $a, int $b = 20, int ...$rest): array
 echo json_encode(nativeArgs(1)), "\n";
 echo json_encode(nativeArgs(...[2, 3, 4, 5])), "\n";
 echo json_encode(nativeArgs(b: 9, a: 7)), "\n";
+echo json_encode(nativeArgs(6, extra: 12)), "\n";
+
+function nativePair(int $a, int $b = 2): array
+{
+    return [$a, $b];
+}
 
 try {
-    nativeArgs(nope: 1);
+    nativePair(nope: 1);
 } catch (Error $e) {
     echo "UNKNOWN:", $e::class, "\n";
 }
 
 try {
-    nativeArgs(1, a: 2);
+    nativePair(1, a: 2);
 } catch (Error $e) {
     echo "OVERWRITE:", $e::class, "\n";
 }
