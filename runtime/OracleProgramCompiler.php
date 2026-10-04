@@ -393,8 +393,12 @@ final class OracleProgramCompiler
             $kind = 'O_DIM_ASSIGN';
         } elseif (preg_match('/^\$\w+\s*=\s*\$\w+(?:\[[^\]]+\])+\s*;?$/', $normalized)) {
             $kind = 'O_DIM_FETCH';
-        } elseif (preg_match('/^\$\w+\s*=.*\?.*:/', $normalized)) {
-            $kind = 'O_ASSIGN';
+        } elseif (
+            preg_match('/^\$\w+\s*=(?!=)\s*(.+)$/', $normalized, $m)
+            && !str_starts_with(ltrim($m[1]), '[')
+            && self::hasTopLevelTernary(rtrim(trim($m[1]), ';'))
+        ) {
+            $kind = 'O_TERNARY';
         } elseif (preg_match('/\bfn\s*\(/i', $normalized)) {
             $kind = 'O_ARROW_FUNCTION';
         } elseif (preg_match('/\bfunction\s*\(/i', $normalized)) {
@@ -435,7 +439,7 @@ final class OracleProgramCompiler
             $kind = 'O_DESTRUCTURE_ASSIGN';
         } elseif (preg_match('/^\$\w+\s*(?:\+=|-=|\*=|\/=|%=|\.=)/', $normalized)) {
             $kind = 'O_COMPOUND_ASSIGN';
-        } elseif (preg_match('/\?.*:/', $normalized)) {
+        } elseif (!preg_match('/^\$\w+\s*=\s*\[/', $normalized) && preg_match('/\?.*:/', $normalized)) {
             $kind = 'O_TERNARY';
         } elseif (preg_match('/^\$\w+\s*=/', $normalized)) {
             $kind = 'O_ASSIGN';
@@ -638,6 +642,59 @@ final class OracleProgramCompiler
         }
 
         return array_values(array_unique($matches[1]));
+    }
+
+    private static function hasTopLevelTernary(string $expression): bool
+    {
+        $quote = null;
+        $depth = 0;
+        $sawQuestion = false;
+        $length = strlen($expression);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expression[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && $char === '?') {
+                if (($expression[$i + 1] ?? '') === '?') {
+                    $i++;
+                    continue;
+                }
+                $sawQuestion = true;
+                continue;
+            }
+
+            if ($depth === 0 && $char === ':' && $sawQuestion) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
