@@ -581,13 +581,12 @@ static NativeSlot native_slot(NativeParser *parser) {
         native_next(parser);
         slot = native_object_slot(parser, native_slot_read(parser, slot), property_name);
     }
-    if (property_access) return slot;
     size_t offset_depth = 0;
     while (native_accept(parser, '[')) {
         JinxValue key = native_expression(parser, 0);
         native_expect(parser, ']');
         if (!parser->checking && !parser->runtime->error) {
-            if (!strcmp(name, "GLOBALS") && !offset_depth) {
+            if (!property_access && !strcmp(name, "GLOBALS") && !offset_depth) {
                 if (key.type != N_VALUE_STRING) parser->runtime->error = "native GLOBALS key must be string";
                 else slot.variable = native_variable(parser->runtime, key.as.ptr);
             } else {
@@ -602,6 +601,9 @@ static NativeSlot native_slot(NativeParser *parser) {
                     slot.array = array.as.ptr;
                 }
                 slot.variable = NULL;
+                slot.property = NULL;
+                slot.magic_name = NULL;
+                slot.magic_object = jinx_value_null();
                 slot.key = key;
             }
         }
