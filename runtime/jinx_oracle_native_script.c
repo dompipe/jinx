@@ -1086,7 +1086,7 @@ static JinxValue native_primary(NativeParser *parser) {
             native_expect(parser, '(');
             NativeCallArguments call = {0};
             native_parse_call_arguments(parser, &call);
-            if (!runtime->error) {
+            if (!runtime->error && !parser->checking) {
                 const char *resolved_name = native_class_name_resolve(runtime, class_name);
                 if (!resolved_name) native_raise(runtime, "Error", "Cannot resolve relative class name");
                 else value = native_construct_named(parser, resolved_name, &call);
@@ -1097,9 +1097,11 @@ static JinxValue native_primary(NativeParser *parser) {
             if (peek.kind == N_ID && !strcasecmp(peek.token, "class")) {
                 native_next(parser);
                 native_next(parser);
-                const char *resolved_name = native_class_name_resolve(runtime, name);
-                if (!resolved_name) native_raise(runtime, "Error", "Cannot resolve relative class name");
-                else value = jinx_value_string(native_copy(runtime, resolved_name, strlen(resolved_name)), (uint32_t)strlen(resolved_name));
+                if (!parser->checking) {
+                    const char *resolved_name = native_class_name_resolve(runtime, name);
+                    if (!resolved_name) native_raise(runtime, "Error", "Cannot resolve relative class name");
+                    else value = jinx_value_string(native_copy(runtime, resolved_name, strlen(resolved_name)), (uint32_t)strlen(resolved_name));
+                }
             } else if (peek.kind == N_ID) {
                 NativeParser after_member = peek;
                 char method_name[256];
