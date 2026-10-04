@@ -521,6 +521,55 @@ int jinx_zend_array_add_assoc(JinxZendArray *array, const char *key, size_t key_
     return 1;
 }
 
+static void jinx_zend_array_recompute_shape(JinxZendArray *array) {
+    int packed = 1;
+    if (array == 0) return;
+    for (size_t i = 0; i < array->count; i++) {
+        if (array->buckets[i].key != 0 || array->buckets[i].h != i) {
+            packed = 0;
+            break;
+        }
+    }
+    if (packed) array->flags = (array->flags & ~JINX_ZEND_ARRAY_MIXED) | JINX_ZEND_ARRAY_PACKED;
+    else array->flags = (array->flags & ~JINX_ZEND_ARRAY_PACKED) | JINX_ZEND_ARRAY_MIXED;
+    if (array->internal_pointer > array->count) array->internal_pointer = array->count;
+}
+
+static int jinx_zend_array_del_at(JinxZendArray *array, size_t position) {
+    if (array == 0 || position >= array->count || array->buckets == 0) return 0;
+    JinxZendBucket *bucket = &array->buckets[position];
+    if (bucket->key != 0) jinx_zend_string_release(bucket->key);
+    jinx_zend_value_release(bucket->value);
+    if (position + 1u < array->count) {
+        memmove(&array->buckets[position], &array->buckets[position + 1u],
+                (array->count - position - 1u) * sizeof(*array->buckets));
+    }
+    array->count--;
+    memset(&array->buckets[array->count], 0, sizeof(*array->buckets));
+    jinx_zend_array_recompute_shape(array);
+    return 1;
+}
+
+int jinx_zend_array_del_index(JinxZendArray *array, size_t index) {
+    if (array == 0 || array->buckets == 0) return 0;
+    for (size_t i = 0; i < array->count; i++) {
+        if (array->buckets[i].key == 0 && array->buckets[i].h == index)
+            return jinx_zend_array_del_at(array, i);
+    }
+    return 0;
+}
+
+int jinx_zend_array_del_assoc(JinxZendArray *array, const char *key, size_t key_len) {
+    if (array == 0 || key == 0 || array->buckets == 0) return 0;
+    uint64_t hash = jinx_zend_string_hash_bytes(key, key_len);
+    for (size_t i = 0; i < array->count; i++) {
+        if (array->buckets[i].key != 0 && array->buckets[i].h == hash &&
+            jinx_zend_string_equals_bytes(array->buckets[i].key, key, key_len))
+            return jinx_zend_array_del_at(array, i);
+    }
+    return 0;
+}
+
 int jinx_zend_array_numeric_string_key(const char *key, size_t key_len, int64_t *index) {
     const unsigned char *bytes = (const unsigned char *)key;
     size_t pos = 0u;
