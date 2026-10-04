@@ -140,6 +140,9 @@ static JinxValue native_construct_named(NativeParser *parser, const char *name, 
 static NativeFunction *native_method_find(NativeClass *owner, const char *name);
 static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot);
 static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value);
+static int native_slot_isset(NativeParser *parser, NativeSlot slot);
+static void native_slot_unset(NativeParser *parser, NativeSlot slot);
+static int native_truth(JinxValue value);
 
 static NativeFunction *native_function_find(NativeRuntime *runtime, const char *name) {
     for (NativeFunction *function = runtime->functions; function; function = function->next)
@@ -672,6 +675,64 @@ static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue v
     *target = converted;
 }
 
+static int native_slot_isset(NativeParser *parser, NativeSlot slot) {
+    if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return 0;
+    if (slot.magic_name) {
+        JinxZendObject *instance = slot.magic_object.as.ptr;
+        NativeClass *owner = instance ? native_class_find(parser->runtime, instance->class_name) : NULL;
+        if (!native_method_find(owner, "__isset")) return 0;
+        NativeCallArguments call = {0};
+        call.count = 1;
+        call.values[0] = jinx_value_string((void *)slot.magic_name, (uint32_t)strlen(slot.magic_name));
+        JinxValue result = native_method_call_named(parser, slot.magic_object, "__isset", &call);
+        return native_truth(result);
+    }
+    if (slot.variable) return native_variable_read(parser, slot.variable).type != 0;
+    JinxZendValue *element = native_slot_element(parser, slot, 0);
+    if (!element) return 0;
+    JinxValue value = native_from_zend(parser, *element);
+    return value.type != 0;
+}
+
+static void native_slot_unset(NativeParser *parser, NativeSlot slot) {
+    if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return;
+    if (slot.magic_name) {
+        JinxZendObject *instance = slot.magic_object.as.ptr;
+        NativeClass *owner = instance ? native_class_find(parser->runtime, instance->class_name) : NULL;
+        if (native_method_find(owner, "__unset")) {
+            NativeCallArguments call = {0};
+            call.count = 1;
+            call.values[0] = jinx_value_string((void *)slot.magic_name, (uint32_t)strlen(slot.magic_name));
+            (void)native_method_call_named(parser, slot.magic_object, "__unset", &call);
+        }
+        return;
+    }
+    if (slot.variable) {
+        slot.variable->reference = NULL;
+        slot.variable->value = jinx_value_null();
+        if (slot.property && slot.property->is_static) slot.property->initialized = 0;
+        return;
+    }
+    if (slot.array) {
+        if (slot.key.type == N_VALUE_BOOL) slot.key = jinx_value_int(slot.key.as.i64);
+        else if (slot.key.type == 0) slot.key = jinx_value_string("", 0);
+        int64_t index = 0;
+        int numeric = slot.key.type == N_VALUE_INT;
+        if (numeric) index = slot.key.as.i64;
+        else if (slot.key.type == N_VALUE_STRING)
+            numeric = jinx_zend_array_numeric_string_key(slot.key.as.ptr, slot.key.flags, &index);
+        else {
+            parser->runtime->error = "unsupported native unset offset key";
+            return;
+        }
+        if (numeric) {
+            if (index >= 0) (void)jinx_zend_array_del_index(slot.array, (size_t)index);
+        } else {
+            (void)jinx_zend_array_del_assoc(slot.array, slot.key.as.ptr, slot.key.flags);
+        }
+    }
+}
+
 static JinxZendReference *native_slot_reference(NativeParser *parser, NativeSlot slot) {
     if (parser->checking || parser->runtime->error) return NULL;
     if (slot.property) { parser->runtime->error = "typed property references are not yet native"; return NULL; }
@@ -961,6 +1022,12 @@ static JinxValue native_primary(NativeParser *parser) {
                 NativeSlot slot = native_static_slot(parser, name);
                 value = native_slot_read(parser, slot);
             }
+        } else if (!strcmp(name, "isset")) {
+            native_expect(parser, '(');
+            NativeSlot slot = native_slot(parser);
+            native_expect(parser, ')');
+            if (!runtime->error && !runtime->exception_class)
+                value = jinx_value_bool(native_slot_isset(parser, slot));
         } else if (!strcmp(name, "__DIR__")) value = jinx_value_string(parser->directory, (uint32_t)strlen(parser->directory));
         else if (!strcmp(name, "__FILE__")) value = jinx_value_string(parser->path, (uint32_t)strlen(parser->path));
         else if (!strcmp(name, "true")) value = jinx_value_bool(1);
@@ -2029,10 +2096,8 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             NativeSlot slot = native_slot(parser);
             native_expect(parser, ')');
             native_expect(parser, ';');
-            if (!parser->checking && !parser->runtime->error) {
-                if (!slot.variable) parser->runtime->error = "native unset currently requires variable";
-                else { slot.variable->reference = NULL; slot.variable->value = jinx_value_null(); }
-            }
+            if (!parser->checking && !parser->runtime->error)
+                native_slot_unset(parser, slot);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "echo")) {
             native_next(parser);
             do {
