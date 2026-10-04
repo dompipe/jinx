@@ -137,6 +137,7 @@ static JinxValue native_method_call_named(NativeParser *parser, JinxValue object
 static JinxValue native_clone(NativeParser *parser, JinxValue value);
 static JinxValue native_callback_call(NativeParser *parser, JinxValue callback, JinxValue *args, size_t count);
 static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count);
+static JinxValue native_array_sum_builtin(NativeParser *parser, JinxValue *args, size_t count);
 static JinxValue native_construct(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_construct_named(NativeParser *parser, const char *name, NativeCallArguments *call);
 static NativeFunction *native_method_find(NativeClass *owner, const char *name);
