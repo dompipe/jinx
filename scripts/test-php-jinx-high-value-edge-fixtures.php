@@ -22,7 +22,13 @@ function run_process(array $command): array
         2 => ['pipe', 'w'],
     ];
 
-    $process = proc_open($command, $descriptorSpec, $pipes);
+    $environment = getenv();
+    if ($command[0] === dirname(__DIR__) . '/jinx') {
+        $environment['PATH'] = '/jinx-test-no-executables';
+        $environment['JINX_NATIVE_ONLY'] = '1';
+        $environment['JINX_ORACLE_SCRIPT_RUNNER'] = '/jinx-test-bridge-must-not-run';
+    }
+    $process = proc_open($command, $descriptorSpec, $pipes, null, $environment);
     if (!is_resource($process)) {
         fail('could not start process: ' . implode(' ', $command));
     }
@@ -284,7 +290,7 @@ foreach ($cases as $name => $case) {
     $phpResult = run_process([$php, $fixture]);
     $jinxResult = run_process([$jinx, $fixture]);
 
-    if ($jinxResult['exit'] !== $phpResult['exit'] || $jinxResult['stdout'] !== $phpResult['stdout']) {
+    if ($jinxResult !== $phpResult) {
         $mismatches[] = [
             'name' => $name,
             'area' => $case['area'],
@@ -300,6 +306,7 @@ if ($checked !== 20) {
     fail('expected to check exactly 20 high-value edge fixtures, checked ' . $checked);
 }
 
+echo 'STRICT NATIVE PARITY: ' . ($checked - count($mismatches)) . '/' . $checked . ' fixtures across ' . count($areas) . ' semantic areas' . PHP_EOL;
 if ($mismatches !== []) {
     foreach ($mismatches as $mismatch) {
         fwrite(STDERR, "MISMATCH: {$mismatch['name']} ({$mismatch['area']})" . PHP_EOL);

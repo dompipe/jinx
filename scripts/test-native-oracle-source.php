@@ -146,13 +146,52 @@ foreach ([true, false] as $forceNative) {
     if ($native !== $constructorPhp) throw new RuntimeException('native constructor parity differs: ' . json_encode($native));
 }
 
+$generatorFixture = $root . '/fixtures/oracle-native-generator-lifecycle.php';
+$generatorPhp = native_source_run([PHP_BINARY, $generatorFixture], false);
+$generatorNative = native_source_run([$binary, $generatorFixture], true);
+if ($generatorPhp[0] !== 0 || $generatorNative !== $generatorPhp) {
+    throw new RuntimeException('native generator lifecycle differs: ' . json_encode([$generatorPhp, $generatorNative]));
+}
+
+$namespaceFixture = $root . '/fixtures/oracle-native-namespace-resolution.php';
+$namespacePhp = native_source_run([PHP_BINARY, $namespaceFixture], false);
+$namespaceNative = native_source_run([$binary, $namespaceFixture], true);
+if ($namespacePhp[0] !== 0 || $namespaceNative !== $namespacePhp) {
+    throw new RuntimeException('native namespace resolution differs: ' . json_encode([$namespacePhp, $namespaceNative]));
+}
+
+$finallyFixture = $root . '/fixtures/oracle-native-finally-precedence.php';
+$finallyPhp = native_source_run([PHP_BINARY, $finallyFixture], false);
+$finallyNative = native_source_run([$binary, $finallyFixture], true);
+if ($finallyPhp !== [0, "2\ncleanup\n3\nInvalidArgumentException\n", ''] || $finallyNative !== $finallyPhp) {
+    throw new RuntimeException('native finally precedence differs: ' . json_encode($finallyNative));
+}
+
 $temporary = tempnam(sys_get_temp_dir(), 'jinx-native-reject-');
 if ($temporary === false) throw new RuntimeException('could not create rejection fixture');
 try {
-    foreach (['int|int', '?int|string', 'int|array'] as $type) {
+    foreach ([
+        'function nativeNestedYield() { try { yield 1; } finally {} }',
+        'function nativeLoopYield() { foreach ([1] as $value) { yield $value; } }',
+        '$generator = function () { yield 1; };',
+        'function nativeReturnYield() { return yield 1; }',
+    ] as $unsupportedGenerator) {
+        file_put_contents($temporary, '<?php declare(strict_types=1); echo "MUST_NOT_RUN"; ' . $unsupportedGenerator);
+        $rejected = native_source_run([$binary, '--native-php', $temporary], true);
+        if ($rejected[0] === 0 || $rejected[1] !== '') {
+            throw new RuntimeException('unsupported generator continuation was not rejected before output: ' . json_encode($rejected));
+        }
+    }
+    foreach (['int|int', '?int|string'] as $type) {
         file_put_contents($temporary, '<?php declare(strict_types=1); echo "MUST_NOT_RUN"; function nativeRejected(' . $type . ' $value) { return $value; }');
         $rejected = native_source_run([$binary, '--native-php', $temporary], true);
         if ($rejected[0] === 0 || $rejected[1] !== '') throw new RuntimeException('invalid or unsupported native union was not rejected before output');
+    }
+    file_put_contents($temporary, '<?php declare(strict_types=1); function nativeArrayUnion(int|array $value): int|array { return $value; } echo json_encode([nativeArrayUnion(7), nativeArrayUnion([1, 2])]);');
+    $arrayUnionPhp = native_source_run([PHP_BINARY, $temporary], false);
+    $arrayUnionNative = native_source_run([$binary, '--native-php', $temporary], true);
+    if ($arrayUnionPhp !== [0, '[7,[1,2]]', ''] || $arrayUnionNative !== $arrayUnionPhp) {
+        throw new RuntimeException('native int|array union parity differs: ' . json_encode($arrayUnionNative));
     }
     file_put_contents($temporary, '<?php echo "MUST_NOT_RUN"; new class {};');
     $rejected = native_source_run([$binary, '--native-php', $temporary], true);
