@@ -7,7 +7,7 @@ enum NativeMode: string
     case B = 'b';
 }
 
-function nativeModeLabel(NativeMode $mode): string
+function nativeModeLabel($mode): string
 {
     return match ($mode) {
         NativeMode::A => 'alpha',
