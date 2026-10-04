@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <time.h>
 #include <inttypes.h>
+#include "../runtime/jinx_oracle_integer_vm.h"
 
 enum { CONSTANT, ADD, SUB, MUL, RETURN_CONSTANT, RETURN_ADD, RETURN_SUB, RETURN_MUL };
 typedef struct { int op; unsigned dst, left, right; int64_t value; } Instruction;
@@ -80,7 +81,7 @@ static int execute(const Program *program, const int64_t *inputs, int64_t *resul
     return 0;
 }
 
-int main(int argc, char **argv) {
+int jinx_oracle_integer_run(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "Usage: jinx-oracle-int program.jxo [--iterations=N] [name=value ...]\n"); return 1; }
     Program program = {0};
     FILE *file = fopen(argv[1], "r");
@@ -134,3 +135,7 @@ int main(int argc, char **argv) {
         result, iterations, elapsed / iterations, checksum);
     return 0;
 }
+
+#ifdef JINX_ORACLE_INTEGER_STANDALONE
+int main(int argc, char **argv) { return jinx_oracle_integer_run(argc, argv); }
+#endif

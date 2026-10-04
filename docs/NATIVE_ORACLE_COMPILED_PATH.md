@@ -9,14 +9,15 @@ repeated loading/compilation was removed. The original 17.13x screenshot is
 not a demonstrated hot-runtime speedup.
 
 The first native compiled backend consumes the existing coalesced Oracle
-integer instruction set. It is a standalone prototype, not yet integrated
-into the main ./jinx command or the broader Oracle family executor registry.
+integer instruction set. The backend is linked into the main ./jinx command.
+It remains a bounded prototype, not the broader Oracle family executor registry.
 
 Build and use:
 
-    sh scripts/build-native-oracle-integer.sh
+    sh scripts/build-native-jinx.sh
     php scripts/compile-oracle-native.php input.php program.jxo
-    ./build/native/jinx-oracle-int program.jxo x=20 y=7
+    ./jinx program.jxo x=20 y=7
+    ./jinx oracle-run program.jxo x=3 y=9
 
 Example source:
 
@@ -27,7 +28,7 @@ Example source:
 Compile once and supply different x/y values on each run. Inputs are not
 frozen into the artifact. Compilation uses PHP token validation and the
 existing coalesced compiler. Native execution needs no PHP, source file,
-tokenizer, or script bridge. The .jxo artifact is a versioned instruction
+tokenizer, helper process, or script bridge. The .jxo artifact is a versioned instruction
 stream, not embedded PHP or an assembly listing.
 
 Supported initially: integer constants, assignment, add/subtract/multiply
@@ -50,6 +51,6 @@ before timing. This does not establish a 17x application speedup.
 
 Next: structured lowering beyond the narrow existing coalesced compiler,
 runtime strings/arrays and Oracle builtin-ID calls, control-flow instructions,
-main CLI integration, and representative application benchmarks with compile/
+broader main CLI compilation support, and representative application benchmarks with compile/
 load costs reported separately. Keep cached-PHP comparisons alongside any
 uncached fixture comparisons.

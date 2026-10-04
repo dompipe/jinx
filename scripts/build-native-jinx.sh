@@ -135,6 +135,7 @@ php "${ROOT_DIR}/scripts/generate-native-core-metadata.php" \
     -include "${ROOT_DIR}/runtime/jinx_php_manual_manifest.h" \
     "${ROOT_DIR}/native/jinx_cli_with_web_plan.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_native_script.c" \
+    "${ROOT_DIR}/native/jinx_oracle_integer_vm.c" \
     "${ROOT_DIR}/runtime/jinx_zend_engine.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_frame_context.c" \
     "${ROOT_DIR}/runtime/jinx_oracle_asm_context.c" \

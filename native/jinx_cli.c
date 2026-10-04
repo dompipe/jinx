@@ -20,6 +20,7 @@
 #include "../runtime/jinx_zend_array_delete.h"
 #include "../runtime/jinx_pasm_machine.h"
 #include "../runtime/jinx_oracle_native_script.h"
+#include "../runtime/jinx_oracle_integer_vm.h"
 
 #define JINX_NATIVE_SAMPLE_ARGC 32u
 
@@ -69,6 +70,8 @@ static void usage(const char *argv0) {
     printf("  %s oracle-strptime-smoke\n", argv0);
     printf("  %s oracle-script-context-smoke <main-file> <included-file>\n", argv0);
     printf("  %s oracle-call <function> [typed-args...]\n", argv0);
+    printf("  %s oracle-run <program.jxo> [name=integer ...]\n", argv0);
+    printf("  %s <program.jxo> [name=integer ...]\n", argv0);
     printf("  %s oracle-preg-state <typed-pattern> <typed-subject>\n", argv0);
     printf("  %s oracle-method-call <Class::method> <receiver-fixture> [typed-args...]\n", argv0);
     printf("  %s oracle-throwable-construct-smoke <Class>\n", argv0);
@@ -4961,6 +4964,10 @@ int main(int argc, char **argv) {
         usage(argv[0]);
         return 1;
     }
+
+    if (ends_with(argv[1], ".jxo")) return jinx_oracle_integer_run(argc, argv);
+    if (strcmp(argv[1], "oracle-run") == 0)
+        return jinx_oracle_integer_run(argc - 1, argv + 1);
 
     if (ends_with(argv[1], ".php")) {
         const char *native_only = getenv("JINX_NATIVE_ONLY");

@@ -4,7 +4,7 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $directory = $root . '/build/oracle-integer';
 if (!is_dir($directory)) mkdir($directory, 0777, true);
-$binary = $root . '/build/native/jinx-oracle-int';
+$binary = $root . '/jinx';
 function integerVmRun(array $command, bool $native = false): array
 {
     $environment = getenv();
@@ -35,7 +35,14 @@ foreach ([[20, 7], [3, 9], [-5, 2], [9007199254740993, 1]] as [$x, $y]) {
     $data = json_decode($native[1], true, 512, JSON_THROW_ON_ERROR);
     if ($php[0] || $native[0] || $native[2] !== '' || $data['return'] !== json_decode($php[1], true))
         throw new RuntimeException('Dynamic native parity failed: ' . json_encode([$php, $native]));
+    $explicit = integerVmRun([$binary, 'oracle-run', $artifact, "x=$x", "y=$y"], true);
+    if ($explicit[0] || $explicit[2] !== '' || json_decode($explicit[1], true)['return'] !== $data['return'])
+        throw new RuntimeException('Explicit oracle-run parity failed');
 }
+unlink($source);
+$independent = integerVmRun([$binary, $artifact, 'x=20', 'y=7'], true);
+if ($independent[0] || json_decode($independent[1], true)['return'] !== 189)
+    throw new RuntimeException('Artifact execution requires source file');
 if (integerVmRun([$binary, $artifact, 'x=1'], true)[0] === 0) throw new RuntimeException('Missing input accepted');
 if (integerVmRun([$binary, $artifact, 'x=9223372036854775807', 'y=2'], true)[0] === 0) throw new RuntimeException('Overflow accepted');
 foreach (['<?php echo "BAD"; return 1;', '<?php require "other.php"; return 1;', '<?php return strlen($text);'] as $unsupported) {

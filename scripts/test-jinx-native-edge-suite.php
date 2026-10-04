@@ -40,6 +40,12 @@ echo "JINX native high-value edge fixture suite" . PHP_EOL;
 echo "Binary: {$jinx}" . PHP_EOL;
 
 run_native_jinx(
+    'native compiled Oracle artifact parity',
+    'scripts/test-native-oracle-integer-vm.php',
+    'PASS: compile once, vary integer runtime inputs, execute without PHP'
+);
+
+run_native_jinx(
     'strict PHP replacement regression gate',
     'scripts/audit-native-php-replacement.php --gate',
     'REPLACEMENT REGRESSION GATE: 30/30'
