@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function nativeGenerator(): Generator
+function nativeGenerator()
 {
     yield 'a' => 1;
     yield from [2, 3];
