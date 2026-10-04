@@ -40,6 +40,21 @@ typedef struct NativeClass {
     struct NativeClass *next;
 } NativeClass;
 
+typedef struct NativeEnumCase {
+    char *name;
+    JinxValue backing;
+    JinxZendObject *object;
+    struct NativeEnumCase *next;
+} NativeEnumCase;
+
+typedef struct NativeEnum {
+    char *name;
+    int backing_type;
+    NativeEnumCase *cases;
+    NativeEnumCase *cases_tail;
+    struct NativeEnum *next;
+} NativeEnum;
+
 typedef struct NativeObject {
     JinxZendObject *object;
     struct NativeObject *next;
@@ -70,6 +85,7 @@ typedef struct NativeRuntime {
     NativeArray *arrays;
     NativeReference *references;
     NativeClass *classes;
+    NativeEnum *enums;
     NativeObject *objects;
     NativeClass *active_class;
     NativeClass *called_class;
@@ -196,6 +212,31 @@ static NativeClass *native_class_find(NativeRuntime *runtime, const char *name) 
     for (NativeClass *class_entry = runtime->classes; class_entry; class_entry = class_entry->next)
         if (!strcasecmp(class_entry->name, name)) return class_entry;
     return NULL;
+}
+
+static NativeEnum *native_enum_find(NativeRuntime *runtime, const char *name) {
+    for (NativeEnum *entry = runtime->enums; entry; entry = entry->next)
+        if (!strcasecmp(entry->name, name)) return entry;
+    return NULL;
+}
+
+static NativeEnumCase *native_enum_case_find(NativeEnum *entry, const char *name) {
+    if (!entry) return NULL;
+    for (NativeEnumCase *case_entry = entry->cases; case_entry; case_entry = case_entry->next)
+        if (!strcmp(case_entry->name, name)) return case_entry;
+    return NULL;
+}
+
+static int native_strict_equal(JinxValue left, JinxValue right) {
+    if (left.type != right.type) return 0;
+    if (left.type == 0) return 1;
+    if (left.type == N_VALUE_INT || left.type == N_VALUE_BOOL) return left.as.i64 == right.as.i64;
+    if (left.type == N_VALUE_FLOAT) return left.as.f64 == right.as.f64;
+    if (left.type == N_VALUE_STRING)
+        return left.flags == right.flags && (!left.flags || !memcmp(left.as.ptr, right.as.ptr, left.flags));
+    if (left.type == JINX_ORACLE_VALUE_ZEND_OBJECT || left.type == JINX_ORACLE_VALUE_ZEND_ARRAY)
+        return left.as.ptr == right.as.ptr;
+    return left.as.ptr == right.as.ptr;
 }
 
 static NativeClass *native_class_resolve(NativeRuntime *runtime, const char *name) {
@@ -517,9 +558,11 @@ static NativeSlot native_object_slot(NativeParser *parser, JinxValue object, con
     JinxZendObject *instance = object.as.ptr;
     NativeClass *class_entry = native_class_find(parser->runtime, instance->class_name);
     slot.property = native_property_find(class_entry, name, 0);
-    if (!slot.property && !strcasecmp(instance->class_name, "stdClass")) {
+    if (!slot.property && (!strcasecmp(instance->class_name, "stdClass") ||
+        native_enum_find(parser->runtime, instance->class_name))) {
         slot.array = instance->properties;
         slot.key = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
+        if (native_enum_find(parser->runtime, instance->class_name)) slot.magic_name = "__enum_readonly__";
         return slot;
     }
     int inaccessible = slot.property && slot.property->is_private && parser->runtime->active_class != slot.property->owner;
@@ -642,6 +685,10 @@ static JinxZendValue *native_slot_element(NativeParser *parser, NativeSlot slot,
 
 static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot) {
     if (parser->checking) return jinx_value_null();
+    if (slot.magic_name && !strcmp(slot.magic_name, "__enum_readonly__")) {
+        JinxZendValue *element = native_slot_element(parser, slot, 0);
+        return element ? native_from_zend(parser, *element) : jinx_value_null();
+    }
     if (slot.magic_name) {
         NativeCallArguments call = {0};
         call.count = 1;
@@ -660,6 +707,10 @@ static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot) {
 
 static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value) {
     if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return;
+    if (slot.magic_name && !strcmp(slot.magic_name, "__enum_readonly__")) {
+        native_raise(parser->runtime, "Error", "Cannot modify readonly enum property");
+        return;
+    }
     if (slot.magic_name) {
         NativeCallArguments call = {0};
         call.count = 2;
