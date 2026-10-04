@@ -1366,6 +1366,11 @@ static int native_function_type(NativeParser *parser) {
     int mask = nullable ? 1 : 0;
     int first = 0;
     int members = 0;
+    if (!nullable && parser->kind == N_ID && !strcmp(parser->token, "mixed")) {
+        native_next(parser);
+        if (parser->kind == '|') parser->runtime->error = "mixed cannot be part of a native union";
+        return 0;
+    }
     if (parser->kind != N_ID) {
         if (nullable) parser->runtime->error = "nullable native type requires name";
         return 0;
