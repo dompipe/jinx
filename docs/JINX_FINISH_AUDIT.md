@@ -197,3 +197,15 @@ git pull origin master
 Currently wiring, wave two, strict native parity and consequently full-stack
 verification are not green. Run each command independently to collect all gaps;
 do not hide failure by appending `|| true` to a release gate.
+# Baseline repair follow-up (2026-10-03)
+
+The reviewed `posix_mknod` ledger now records its existing extended native
+handler: 975 named routes, 663 extended routes, and 2552 intentional faults.
+`scripts/test-native-posix-mknod.php` verifies native FIFO creation and
+existing-path rejection against PHP for arities 2, 3, and 4. This is bounded
+coverage, not proof of privileged device creation or complete error parity.
+
+The second-wave nested-destructuring fixture now uses explicit keys at its
+outer level, avoiding PHP's prohibition on mixed keyed/unkeyed destructuring.
+Its PHP baseline succeeds with `[10,20,30,"jinx"]`. Second-wave JINX execution
+still fails all 20 fixtures. These repairs do not add source-language support.

@@ -122,7 +122,7 @@ echo json_encode(['ok' => $ok, 'error' => $err]) . "\n";
 PHP);
 
 add_case($cases, 'destructuring-spread', 'array-nested-destructuring', <<<'PHP'
-[$a, [$b, $c], 'name' => $name] = [10, [20, 30], 'name' => 'jinx'];
+[0 => $a, 1 => [$b, $c], 'name' => $name] = [10, [20, 30], 'name' => 'jinx'];
 echo json_encode([$a, $b, $c, $name]) . "\n";
 PHP);
 

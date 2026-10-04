@@ -143,6 +143,7 @@ $tests = [
     'scripts/test-oracle-array-execution.php' => 'PASS: Oracle executes array PHP subset',
     'scripts/test-oracle-function-execution.php' => 'PASS: Oracle executes function PHP subset',
     'scripts/test-native-oracle-wiring.php' => 'PASS: native Oracle wiring inventory and intentional faults verified',
+    'scripts/test-native-posix-mknod.php' => 'PASS: native posix_mknod FIFO creation and existing-path failure',
     'scripts/test-native-error-parity-oracle-asm.php' => 'PASS: native Oracle ASM exceptional scalar/string paths reject where PHP rejects',
     'scripts/test-native-no-fabricated-builtins.php' => 'PASS: promoted native builtins execute exactly while reviewed unsupported builtins still fault',
     'scripts/test-native-return-contracts.php' => 'PASS: native Oracle return contracts reject invalid argument paths, preserve legitimate nulls, and classify stream resources correctly',
