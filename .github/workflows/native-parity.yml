@@ -2,7 +2,7 @@ name: Native PHP parity
 
 on:
   push:
-    branches: [master]
+    branches: [master, oracle-native-big-families]
   workflow_dispatch:
 
 jobs:
@@ -39,5 +39,7 @@ jobs:
         run: |
           php scripts/benchmark-php-vs-native-paired.php 200000 --mode=parallel --only=abs,acos,acosh,asin,atan,atan2,ceil,cos,cosh,exp,expm1,fdiv,fmod,hypot,intdiv,log,log1p,pi,pow,round,sin,sinh,sqrt,tan,tanh
           php scripts/benchmark-php-vs-native-paired.php 200000 --mode=serial --only=abs,acos,acosh,asin,atan,atan2,ceil,cos,cosh,exp,expm1,fdiv,fmod,hypot,intdiv,log,log1p,pi,pow,round,sin,sinh,sqrt,tan,tanh
+      - name: Run strict native big-family parity probes
+        run: php scripts/test-native-oracle-big-families.php
       - name: Run registered Jinx parity suite
         run: php scripts/test-native-jinx.php
