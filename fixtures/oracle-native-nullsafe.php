@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-final class NativeNullNode
+class NativeNullNode
 {
     public function __construct(public $value, public $child = null) {}
 
