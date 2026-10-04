@@ -669,8 +669,9 @@ static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue v
             return;
         }
     }
-    if (slot.property && ((slot.property->type && slot.property->type != (int)value.type) ||
-        (slot.property->object_type && !native_object_matches(parser->runtime, value, slot.property->object_type)))) {
+    if (slot.property && ((slot.property->type && !native_type_matches(slot.property->type, value)) ||
+        (slot.property->object_type && value.type != 0 &&
+         !native_object_matches(parser->runtime, value, slot.property->object_type)))) {
         native_raise(parser->runtime, "TypeError", "Cannot assign incompatible value to typed property");
         return;
     }
@@ -1273,6 +1274,34 @@ static int native_function_type(NativeParser *parser) {
     return nullable || members > 1 || !first ? N_TYPE_SET | mask : first;
 }
 
+static int native_parameter_type(NativeParser *parser, char **object_type) {
+    NativeParser look = *parser;
+    int nullable = native_accept(&look, '?');
+    if (look.kind == N_ID) {
+        const char *name = look.token;
+        int builtin = !strcmp(name, "int") || !strcmp(name, "string") || !strcmp(name, "bool") ||
+            !strcmp(name, "float") || !strcmp(name, "array") || !strcmp(name, "object") ||
+            !strcmp(name, "mixed") || !strcmp(name, "iterable") || !strcasecmp(name, "Closure") ||
+            !strcmp(name, "callable") || !strcmp(name, "static") || !strcmp(name, "self") ||
+            !strcmp(name, "parent") || !strcmp(name, "null");
+        NativeParser after = look;
+        native_next(&after);
+        if (!builtin && after.kind != '|') {
+            if (nullable) native_expect(parser, '?');
+            if (parser->kind != N_ID) {
+                parser->runtime->error = "native object type requires class name";
+                return 0;
+            }
+            *object_type = native_copy(parser->runtime, parser->token, strlen(parser->token));
+            native_next(parser);
+            return nullable
+                ? (N_TYPE_SET | native_type_bit(0) | native_type_bit(JINX_ORACLE_VALUE_ZEND_OBJECT))
+                : JINX_ORACLE_VALUE_ZEND_OBJECT;
+        }
+    }
+    return native_function_type(parser);
+}
+
 static void native_function_declaration(NativeParser *parser, NativeClass *owner, int method, int is_private, int is_static) {
     if (!parser->strict_types) { parser->runtime->error = "native function declarations require strict_types=1"; return; }
     native_next(parser);
@@ -1294,17 +1323,9 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
             definition.promoted[index] = !strcmp(parser->token, "private") ? 2 : 1;
             native_next(parser);
         }
-        if (definition.promoted[index] && parser->kind == N_ID && strcmp(parser->token, "int") &&
-            strcmp(parser->token, "string") && strcmp(parser->token, "bool") && strcasecmp(parser->token, "Closure")) {
-            if (!strcmp(parser->token, "self") || !strcmp(parser->token, "parent") || !strcmp(parser->token, "static")) {
-                parser->runtime->error = "native relative promoted type is not supported"; return;
-            }
-            definition.types[index] = JINX_ORACLE_VALUE_ZEND_OBJECT;
-            definition.object_types[index] = native_copy(parser->runtime, parser->token, strlen(parser->token));
-            native_next(parser);
-        } else definition.types[index] = native_function_type(parser);
-        if (definition.promoted[index] && (definition.types[index] & N_TYPE_SET)) {
-            parser->runtime->error = "native promoted nullable/union property is not yet supported"; return;
+        definition.types[index] = native_parameter_type(parser, &definition.object_types[index]);
+        if (definition.promoted[index] && (definition.types[index] & N_TYPE_SET) && !definition.object_types[index]) {
+            parser->runtime->error = "native promoted scalar union property is not yet supported"; return;
         }
         int variadic = native_accept(parser, N_ELLIPSIS);
         if (variadic) {
@@ -1395,7 +1416,7 @@ static JinxValue native_closure(NativeParser *parser) {
     if (parser->kind != ')') do {
         if (function->count == 16) { parser->runtime->error = "native closure parameter limit"; return result; }
         size_t index = function->count++;
-        function->types[index] = native_function_type(parser);
+        function->types[index] = native_parameter_type(parser, &function->object_types[index]);
         int variadic = native_accept(parser, N_ELLIPSIS);
         if (variadic) {
             if (function->variadic_index_plus_one) { parser->runtime->error = "duplicate native variadic parameter"; return result; }
@@ -1536,7 +1557,8 @@ static JinxValue native_function_call_named(NativeParser *parser, NativeFunction
             }
         }
         if (!native_type_matches(function->types[i], bound[i]) ||
-            (function->object_types[i] && !native_object_matches(runtime, bound[i], function->object_types[i]))) {
+            (function->object_types[i] && bound[i].type != 0 &&
+             !native_object_matches(runtime, bound[i], function->object_types[i]))) {
             native_raise(runtime, "TypeError", "Invalid function argument type");
             break;
         }
@@ -1548,7 +1570,8 @@ static JinxValue native_function_call_named(NativeParser *parser, NativeFunction
             if (!bucket) continue;
             JinxValue item = native_from_zend(parser, bucket->value);
             if (!native_type_matches(function->types[variadic_index], item) ||
-                (function->object_types[variadic_index] && !native_object_matches(runtime, item, function->object_types[variadic_index]))) {
+                (function->object_types[variadic_index] && item.type != 0 &&
+                 !native_object_matches(runtime, item, function->object_types[variadic_index]))) {
                 native_raise(runtime, "TypeError", "Invalid variadic argument type");
                 break;
             }
@@ -1985,9 +2008,10 @@ static void native_class_declaration(NativeParser *parser, int readonly_class) {
             class_entry->properties = property;
             if (property->is_readonly && initialized) {
                 native_raise(parser->runtime, "Error", "Readonly property cannot have a default value");
-            } else if (initialized && type && type != (int)initial.type) {
+            } else if (initialized && type && !native_type_matches(type, initial)) {
                 native_raise(parser->runtime, "TypeError", "Incompatible property default");
-            } else if (initialized && object_type && !native_object_matches(parser->runtime, initial, object_type)) {
+            } else if (initialized && object_type && initial.type != 0 &&
+                       !native_object_matches(parser->runtime, initial, object_type)) {
                 native_raise(parser->runtime, "TypeError", "Incompatible property default");
             }
         }
