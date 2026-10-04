@@ -68,6 +68,7 @@ typedef struct NativeRuntime {
     NativeClass *classes;
     NativeObject *objects;
     NativeClass *active_class;
+    NativeClass *called_class;
     struct NativeFunction *functions;
     struct NativeFunction *checked_functions;
     unsigned call_depth;
@@ -115,6 +116,7 @@ typedef struct NativeFunction {
     NativeParser body;
     NativeVariable *captures;
     NativeClass *owner;
+    NativeClass *called_class;
     int is_private;
     int is_static;
     JinxValue bound_this;
@@ -184,6 +186,20 @@ static NativeClass *native_class_find(NativeRuntime *runtime, const char *name) 
     for (NativeClass *class_entry = runtime->classes; class_entry; class_entry = class_entry->next)
         if (!strcasecmp(class_entry->name, name)) return class_entry;
     return NULL;
+}
+
+static NativeClass *native_class_resolve(NativeRuntime *runtime, const char *name) {
+    if (!strcasecmp(name, "self")) return runtime->active_class;
+    if (!strcasecmp(name, "parent")) return runtime->active_class ? runtime->active_class->parent : NULL;
+    if (!strcasecmp(name, "static")) return runtime->called_class ? runtime->called_class : runtime->active_class;
+    return native_class_find(runtime, name);
+}
+
+static const char *native_class_name_resolve(NativeRuntime *runtime, const char *name) {
+    NativeClass *resolved = native_class_resolve(runtime, name);
+    if (resolved) return resolved->name;
+    if (!strcasecmp(name, "self") || !strcasecmp(name, "parent") || !strcasecmp(name, "static")) return NULL;
+    return name;
 }
 
 static NativeProperty *native_property_find(NativeClass *class_entry, const char *name, int is_static) {
@@ -493,7 +509,11 @@ static NativeSlot native_static_slot(NativeParser *parser, const char *class_nam
     strcpy(name, parser->token);
     native_next(parser);
     if (!parser->checking) {
-        NativeClass *class_entry = native_class_find(parser->runtime, class_name);
+        NativeClass *class_entry = native_class_resolve(parser->runtime, class_name);
+        if (!class_entry) {
+            native_raise(parser->runtime, "Error", "Class not found for static property access");
+            return slot;
+        }
         slot.property = native_property_find(class_entry, name, 1);
         if (!slot.property) native_raise(parser->runtime, "Error", "Access to undeclared static property");
         else if (slot.property->is_private && parser->runtime->active_class != slot.property->owner)
@@ -831,14 +851,55 @@ static JinxValue native_primary(NativeParser *parser) {
             native_expect(parser, '(');
             NativeCallArguments call = {0};
             native_parse_call_arguments(parser, &call);
-            if (!runtime->error) value = native_construct_named(parser, class_name, &call);
+            if (!runtime->error) {
+                const char *resolved_name = native_class_name_resolve(runtime, class_name);
+                if (!resolved_name) native_raise(runtime, "Error", "Cannot resolve relative class name");
+                else value = native_construct_named(parser, resolved_name, &call);
+            }
         } else if (parser->kind == N_SCOPE) {
             NativeParser peek = *parser;
             native_next(&peek);
             if (peek.kind == N_ID && !strcasecmp(peek.token, "class")) {
                 native_next(parser);
                 native_next(parser);
-                value = jinx_value_string(native_copy(runtime, name, strlen(name)), (uint32_t)strlen(name));
+                const char *resolved_name = native_class_name_resolve(runtime, name);
+                if (!resolved_name) native_raise(runtime, "Error", "Cannot resolve relative class name");
+                else value = jinx_value_string(native_copy(runtime, resolved_name, strlen(resolved_name)), (uint32_t)strlen(resolved_name));
+            } else if (peek.kind == N_ID) {
+                NativeParser after_member = peek;
+                char method_name[256];
+                strcpy(method_name, peek.token);
+                native_next(&after_member);
+                if (after_member.kind == '(') {
+                    native_next(parser); /* :: */
+                    native_next(parser); /* method */
+                    native_expect(parser, '(');
+                    NativeCallArguments call = {0};
+                    native_parse_call_arguments(parser, &call);
+                    if (!parser->checking && !runtime->error && !runtime->exception_class) {
+                        NativeClass *lookup_class = native_class_resolve(runtime, name);
+                        if (!lookup_class) {
+                            native_raise(runtime, "Error", "Class not found for static method call");
+                        } else {
+                            NativeFunction *method = native_method_find(lookup_class, method_name);
+                            if (!method) native_raise(runtime, "Error", "Undefined static method");
+                            else if (!method->is_static) native_raise(runtime, "Error", "Non-static method cannot be called statically");
+                            else if (method->is_private && runtime->active_class != method->owner)
+                                native_raise(runtime, "Error", "Cannot call private static method");
+                            else {
+                                NativeFunction frame = *method;
+                                if (!strcasecmp(name, "self") || !strcasecmp(name, "parent"))
+                                    frame.called_class = runtime->called_class ? runtime->called_class : lookup_class;
+                                else
+                                    frame.called_class = lookup_class;
+                                value = native_function_call_named(parser, &frame, &call);
+                            }
+                        }
+                    }
+                } else {
+                    NativeSlot slot = native_static_slot(parser, name);
+                    value = native_slot_read(parser, slot);
+                }
             } else {
                 NativeSlot slot = native_static_slot(parser, name);
                 value = native_slot_read(parser, slot);
@@ -1054,6 +1115,7 @@ static int native_function_type(NativeParser *parser) {
         else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
         else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
         else if (!strcasecmp(parser->token, "Closure")) type = N_VALUE_CLOSURE;
+        else if (!strcmp(parser->token, "static") || !strcmp(parser->token, "self") || !strcmp(parser->token, "parent")) type = JINX_ORACLE_VALUE_ZEND_OBJECT;
         else if (!strcmp(parser->token, "null")) type = 0;
         else parser->runtime->error = "native function type is not supported";
         int bit = native_type_bit((uint32_t)type);
@@ -1352,7 +1414,9 @@ static JinxValue native_function_call_named(NativeParser *parser, NativeFunction
     if (runtime->call_depth >= 64) { runtime->error = "native function call depth limit"; return result; }
     NativeVariable *saved = runtime->variables;
     NativeClass *saved_class = runtime->active_class;
+    NativeClass *saved_called_class = runtime->called_class;
     runtime->active_class = function->owner;
+    if (function->owner) runtime->called_class = function->called_class ? function->called_class : function->owner;
     runtime->variables = NULL;
     runtime->call_depth++;
     NativeParser body = function->body;
@@ -1378,6 +1442,7 @@ static JinxValue native_function_call_named(NativeParser *parser, NativeFunction
     else native_statements(&body, &result);
     runtime->variables = saved;
     runtime->active_class = saved_class;
+    runtime->called_class = saved_called_class;
     runtime->call_depth--;
     if (!runtime->error && !runtime->exception_class && !native_type_matches(function->return_type, result))
         native_raise(runtime, "TypeError", "Invalid function return type");
@@ -1583,6 +1648,7 @@ static JinxValue native_method_call_named(NativeParser *parser, JinxValue object
         native_raise(parser->runtime, "Error", "Cannot call private method"); return jinx_value_null();
     }
     NativeFunction frame = *method;
+    frame.called_class = native_class_find(parser->runtime, instance->class_name);
     if (!method->is_static) frame.bound_this = object;
     return native_function_call_named(parser, &frame, call);
 }
