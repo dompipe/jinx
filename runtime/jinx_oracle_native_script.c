@@ -154,6 +154,8 @@ static JinxValue native_clone(NativeParser *parser, JinxValue value);
 static JinxValue native_callback_call(NativeParser *parser, JinxValue callback, JinxValue *args, size_t count);
 static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_array_sum_builtin(NativeParser *parser, JinxValue *args, size_t count);
+static JinxValue native_count_builtin(NativeParser *parser, JinxValue *args, size_t count);
+static JinxValue native_enum_static_call(NativeParser *parser, NativeEnum *entry, const char *method, NativeCallArguments *call);
 static JinxValue native_construct(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_construct_named(NativeParser *parser, const char *name, NativeCallArguments *call);
 static NativeFunction *native_method_find(NativeClass *owner, const char *name);
@@ -917,7 +919,7 @@ static int native_builtin_admitted(const char *name) {
         "strlen", "strtoupper", "strtolower", "abs", "json_encode",
         "file_put_contents", "unlink", "tempnam", "sys_get_temp_dir",
         "fopen", "fwrite", "rewind", "fread", "fclose", "file_exists",
-        "file_get_contents", "gettype", "error_reporting", "call_user_func", "array_map", "array_reduce", "array_sum", NULL
+        "file_get_contents", "gettype", "error_reporting", "call_user_func", "array_map", "array_reduce", "array_sum", "count", NULL
     };
     for (size_t i = 0; names[i]; i++) if (!strcmp(name, names[i])) return 1;
     return 0;
@@ -1259,6 +1261,8 @@ static JinxValue native_primary(NativeParser *parser) {
                     value = native_array_callback(parser, name, args, count);
                 } else if (!strcmp(name, "array_sum")) {
                     value = native_array_sum_builtin(parser, args, count);
+                } else if (!strcmp(name, "count")) {
+                    value = native_count_builtin(parser, args, count);
                 } else if (!strcmp(name, "call_user_func")) {
                     if (!count) native_raise(runtime, "ArgumentCountError", "call_user_func requires a callback");
                     else value = native_callback_call(parser, args[0], args + 1, count - 1);
@@ -1973,6 +1977,69 @@ static JinxValue native_array_sum_builtin(NativeParser *parser, JinxValue *args,
     return have_float ? jinx_value_float(floating) : jinx_value_int(integer);
 }
 
+static JinxValue native_count_builtin(NativeParser *parser, JinxValue *args, size_t count) {
+    if (count < 1 || count > 2) {
+        native_raise(parser->runtime, "ArgumentCountError", "count expects one or two arguments");
+        return jinx_value_null();
+    }
+    if (args[0].type == JINX_ORACLE_VALUE_ZEND_ARRAY)
+        return jinx_value_int((int64_t)((JinxZendArray *)args[0].as.ptr)->count);
+    native_raise(parser->runtime, "TypeError", "count expects array or Countable");
+    return jinx_value_null();
+}
+
+static JinxValue native_enum_static_call(NativeParser *parser, NativeEnum *entry, const char *method, NativeCallArguments *call) {
+    if (!entry) {
+        native_raise(parser->runtime, "Error", "Enum not found");
+        return jinx_value_null();
+    }
+    if (!strcmp(method, "cases")) {
+        if (call->count) {
+            native_raise(parser->runtime, "ArgumentCountError", "cases expects no arguments");
+            return jinx_value_null();
+        }
+        NativeArray *owner = native_alloc(parser->runtime, sizeof(*owner));
+        if (!owner) return jinx_value_null();
+        owner->array = jinx_zend_array_new_packed(4);
+        if (!owner->array) { parser->runtime->error = "native enum cases array allocation failed"; return jinx_value_null(); }
+        owner->next = parser->runtime->arrays;
+        parser->runtime->arrays = owner;
+        for (NativeEnumCase *case_entry = entry->cases; case_entry; case_entry = case_entry->next) {
+            JinxZendValue converted = jinx_zend_object_value(case_entry->object);
+            if (!jinx_zend_array_append(owner->array, converted)) {
+                parser->runtime->error = "native enum cases append failed";
+                return jinx_value_null();
+            }
+        }
+        return jinx_oracle_zend_array_value_borrowed(owner->array);
+    }
+    if (!strcmp(method, "from") || !strcmp(method, "tryFrom")) {
+        int try_from = !strcmp(method, "tryFrom");
+        if (!entry->backing_type) {
+            native_raise(parser->runtime, "Error", "Unit enum has no from/tryFrom");
+            return jinx_value_null();
+        }
+        if (call->count != 1 || (call->names[0] && strcmp(call->names[0], "value"))) {
+            native_raise(parser->runtime, call->count == 1 ? "Error" : "ArgumentCountError", "Invalid enum from/tryFrom arguments");
+            return jinx_value_null();
+        }
+        JinxValue sought = call->values[0];
+        if ((entry->backing_type == N_VALUE_STRING && sought.type != N_VALUE_STRING) ||
+            (entry->backing_type == N_VALUE_INT && sought.type != N_VALUE_INT)) {
+            native_raise(parser->runtime, "TypeError", "Enum backing value has wrong type");
+            return jinx_value_null();
+        }
+        for (NativeEnumCase *case_entry = entry->cases; case_entry; case_entry = case_entry->next)
+            if (native_strict_equal(case_entry->backing, sought))
+                return jinx_oracle_zend_object_value_borrowed(case_entry->object);
+        if (try_from) return jinx_value_null();
+        native_raise(parser->runtime, "ValueError", "Value is not a valid backing value for enum");
+        return jinx_value_null();
+    }
+    native_raise(parser->runtime, "Error", "Undefined enum static method");
+    return jinx_value_null();
+}
+
 static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count) {
     int reduce = !strcmp(name, "array_reduce");
     if (count < 2 || (reduce && count > 3)) {
@@ -2083,6 +2150,112 @@ static JinxValue native_clone(NativeParser *parser, JinxValue value) {
     JinxValue result = jinx_oracle_zend_object_value_borrowed(copy->object);
     if (native_method_find(owner, "__clone")) (void)native_method_call(parser, result, "__clone", NULL, 0);
     return result;
+}
+
+static void native_enum_declaration(NativeParser *parser) {
+    NativeRuntime *runtime = parser->runtime;
+    native_next(parser);
+    if (parser->kind != N_ID) { runtime->error = "native enum requires name"; return; }
+    char enum_name[256];
+    strcpy(enum_name, parser->token);
+    native_next(parser);
+
+    int backing_type = 0;
+    if (native_accept(parser, ':')) {
+        if (parser->kind != N_ID || (strcmp(parser->token, "string") && strcmp(parser->token, "int"))) {
+            runtime->error = "native backed enum requires string or int";
+            return;
+        }
+        backing_type = !strcmp(parser->token, "string") ? N_VALUE_STRING : N_VALUE_INT;
+        native_next(parser);
+    }
+
+    NativeEnum *entry = NULL;
+    if (!parser->checking) {
+        if (native_enum_find(runtime, enum_name) || native_class_find(runtime, enum_name)) {
+            native_raise(runtime, "Error", "Enum name is already in use");
+            return;
+        }
+        entry = native_alloc(runtime, sizeof(*entry));
+        if (!entry) return;
+        entry->name = native_copy(runtime, enum_name, strlen(enum_name));
+        entry->backing_type = backing_type;
+        entry->next = runtime->enums;
+        runtime->enums = entry;
+    }
+
+    native_expect(parser, '{');
+    while (parser->kind != '}' && !runtime->error && (parser->checking || !runtime->exception_class)) {
+        if (parser->kind != N_ID || strcmp(parser->token, "case")) {
+            runtime->error = "native enum currently supports case declarations";
+            break;
+        }
+        native_next(parser);
+        if (parser->kind != N_ID) { runtime->error = "native enum case requires name"; break; }
+        char case_name[256];
+        strcpy(case_name, parser->token);
+        native_next(parser);
+
+        int has_backing = native_accept(parser, '=');
+        JinxValue backing = has_backing ? native_expression(parser, 0) : jinx_value_null();
+        native_expect(parser, ';');
+
+        if ((backing_type && !has_backing) || (!backing_type && has_backing)) {
+            runtime->error = backing_type ? "backed enum case requires value" : "unit enum case cannot have value";
+            break;
+        }
+        if (backing_type && backing.type != (uint32_t)backing_type) {
+            native_raise(runtime, "TypeError", "Enum case backing value has wrong type");
+            break;
+        }
+
+        if (!parser->checking && entry && !runtime->exception_class) {
+            if (native_enum_case_find(entry, case_name)) {
+                native_raise(runtime, "Error", "Duplicate enum case");
+                break;
+            }
+            for (NativeEnumCase *existing = entry->cases; existing; existing = existing->next) {
+                if (backing_type && native_strict_equal(existing->backing, backing)) {
+                    native_raise(runtime, "Error", "Duplicate enum backing value");
+                    break;
+                }
+            }
+            if (runtime->exception_class) break;
+
+            NativeEnumCase *case_entry = native_alloc(runtime, sizeof(*case_entry));
+            NativeObject *owner = native_alloc(runtime, sizeof(*owner));
+            if (!case_entry || !owner) break;
+            owner->object = jinx_zend_object_new(enum_name);
+            if (!owner->object) { runtime->error = "native enum case object allocation failed"; break; }
+            owner->next = runtime->objects;
+            runtime->objects = owner;
+
+            case_entry->name = native_copy(runtime, case_name, strlen(case_name));
+            case_entry->backing = native_value_copy(parser, backing);
+            case_entry->object = owner->object;
+
+            JinxZendValue name_value = jinx_zend_string_value(jinx_zend_string_new(case_name, strlen(case_name)));
+            if (!name_value.value.str || !jinx_zend_array_add_assoc(owner->object->properties, "name", 4, name_value)) {
+                if (name_value.type == JINX_ZEND_STRING) jinx_zend_value_release(name_value);
+                runtime->error = "native enum name property allocation failed";
+                break;
+            }
+            jinx_zend_value_release(name_value);
+
+            if (backing_type) {
+                JinxZendValue converted = native_zend_value(parser, backing);
+                if (!runtime->error && !jinx_zend_array_add_assoc(owner->object->properties, "value", 5, converted))
+                    runtime->error = "native enum value property allocation failed";
+                if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+                if (runtime->error) break;
+            }
+
+            if (!entry->cases) entry->cases = case_entry;
+            else entry->cases_tail->next = case_entry;
+            entry->cases_tail = case_entry;
+        }
+    }
+    native_expect(parser, '}');
 }
 
 static void native_class_declaration(NativeParser *parser, int readonly_class) {
@@ -2309,6 +2482,8 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             parser->strict_types = 1;
         } else if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
             native_function_declaration(parser, NULL, 0, 0, 0);
+        } else if (parser->kind == N_ID && !strcmp(parser->token, "enum")) {
+            native_enum_declaration(parser);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "class")) {
             native_class_declaration(parser, 0);
         } else if (parser->kind == N_ID && !strcmp(parser->token, "readonly")) {
