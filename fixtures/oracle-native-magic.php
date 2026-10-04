@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-final class NativeMagicBox
+class NativeMagicBox
 {
     private $data = ['x' => 3];
 
