@@ -1325,9 +1325,6 @@ static void native_function_declaration(NativeParser *parser, NativeClass *owner
             native_next(parser);
         }
         definition.types[index] = native_parameter_type(parser, &definition.object_types[index]);
-        if (definition.promoted[index] && (definition.types[index] & N_TYPE_SET) && !definition.object_types[index]) {
-            parser->runtime->error = "native promoted scalar union property is not yet supported"; return;
-        }
         int variadic = native_accept(parser, N_ELLIPSIS);
         if (variadic) {
             if (definition.variadic_index_plus_one) { parser->runtime->error = "duplicate native variadic parameter"; return; }
