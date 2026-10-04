@@ -199,6 +199,19 @@ verification are not green. Run each command independently to collect all gaps;
 do not hide failure by appending `|| true` to a release gate.
 # Baseline repair follow-up (2026-10-03)
 
+Statement-form native `??=` now supports variable, array, and accessible
+instance/static property slots. A non-null existing value skips the RHS;
+uninitialized typed properties are probed without a read error and retain
+their normal assignment type checks. Native `stdClass` construction and
+dynamic property slots cover the second-wave coalescing fixture. Dedicated
+PHP-independent tests include false/zero preservation, references, skipped
+RHS errors, typed slots, and an evaluated RHS TypeError. General dynamic
+properties, magic property hooks, assignment expressions, and full undefined
+property warning parity remain outside this bounded implementation.
+
+Current strict native results: first wave 19/20, second wave 4/20. The 16
+second-wave failures and exception/finally first-wave failure remain blockers.
+
 Native variable array offset paths now support nested access, mutation,
 compound assignment, and reference binding. Descent separates shared child
 containers through the existing slot-write path, preserving reference cells.

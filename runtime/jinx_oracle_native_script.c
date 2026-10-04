@@ -381,6 +381,11 @@ static NativeSlot native_object_slot(NativeParser *parser, JinxValue object, con
     JinxZendObject *instance = object.as.ptr;
     NativeClass *class_entry = native_class_find(parser->runtime, instance->class_name);
     slot.property = native_property_find(class_entry, name, 0);
+    if (!slot.property && !strcasecmp(instance->class_name, "stdClass")) {
+        slot.array = instance->properties;
+        slot.key = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
+        return slot;
+    }
     if (!slot.property) {
         parser->runtime->error = "native object property is undeclared";
         return slot;
@@ -648,7 +653,9 @@ static void native_instance_defaults(NativeParser *parser, NativeClass *class_en
 }
 
 static JinxValue native_instance(NativeParser *parser, const char *name, int internal) {
+    int plain_object = !strcasecmp(name, "stdClass");
     if (parser->checking) {
+        if (plain_object) return jinx_value_null();
         JinxValue argument = jinx_value_string(name, (uint32_t)strlen(name));
         int ok = 0;
         JinxValue registered = jinx_call_builtin_through_oracle_checked("class_exists", &argument, 1, &ok);
@@ -658,7 +665,7 @@ static JinxValue native_instance(NativeParser *parser, const char *name, int int
     }
     if (parser->runtime->exception_class) return jinx_value_null();
     NativeClass *class_entry = native_class_find(parser->runtime, name);
-    if (!class_entry && !internal) {
+    if (!class_entry && !internal && !plain_object) {
         native_raise(parser->runtime, "Error", "Class not found");
         return jinx_value_null();
     }
@@ -1607,6 +1614,27 @@ static void native_statements(NativeParser *parser, JinxValue *result) {
             if (parser->returned) return;
         } else if (parser->kind == N_VAR || native_static_statement(parser)) {
             NativeSlot slot = native_slot(parser);
+            if (native_accept(parser, N_COALESCE)) {
+                native_expect(parser, '=');
+                int checking = parser->checking;
+                JinxValue existing = jinx_value_null();
+                if (!checking && !parser->runtime->error && !parser->runtime->exception_class) {
+                    if (slot.property && slot.property->is_static && !slot.property->initialized) {
+                        existing = jinx_value_null();
+                    } else if (slot.variable) existing = native_variable_read(parser, slot.variable);
+                    else {
+                        JinxZendValue *element = native_slot_element(parser, slot, 0);
+                        if (element) existing = native_from_zend(parser, *element);
+                    }
+                }
+                int skip = !checking && existing.type != 0;
+                parser->checking = checking || skip;
+                JinxValue value = native_expression(parser, 0);
+                parser->checking = checking;
+                native_expect(parser, ';');
+                if (!checking && !skip) native_slot_write(parser, slot, value);
+                continue;
+            }
             int operation = parser->kind;
             int compound = operation == '+' || operation == '*';
             if (compound) native_next(parser);

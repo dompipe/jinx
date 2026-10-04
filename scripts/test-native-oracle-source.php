@@ -24,6 +24,15 @@ function native_source_run(array $command, bool $withoutPhp, bool $forceNative =
     return [proc_close($process), $output, $error];
 }
 
+$coalesceFixture = $root . '/fixtures/oracle-native-coalesce-assignment.php';
+$coalescePhp = native_source_run([PHP_BINARY, $coalesceFixture], false);
+$coalesceExpected = "[{\"n\":4},6]\n[8,0,false,11,11]\n[12,13]\nTYPE:TypeError\nRHS:TypeError\n";
+if ($coalescePhp !== [0, $coalesceExpected, '']) throw new RuntimeException('unexpected coalesce assignment baseline: ' . json_encode($coalescePhp));
+foreach ([true, false] as $forceNative) {
+    $native = native_source_run([$binary, $coalesceFixture], true, $forceNative);
+    if ($native !== $coalescePhp) throw new RuntimeException('native coalesce assignment parity differs: ' . json_encode($native));
+}
+
 $nestedFixture = $root . '/fixtures/oracle-native-nested-arrays.php';
 $nestedPhp = native_source_run([PHP_BINARY, $nestedFixture], false);
 $nestedExpected = "{\"a\":{\"x\":{\"n\":1}},\"b\":{\"x\":{\"n\":7}}}\n[{\"x\":{\"y\":[3,4]}},{\"x\":{\"y\":[8,10]}},10]\n";
