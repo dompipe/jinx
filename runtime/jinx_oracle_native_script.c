@@ -1114,7 +1114,12 @@ static int native_function_type(NativeParser *parser) {
         if (!strcmp(parser->token, "int")) type = N_VALUE_INT;
         else if (!strcmp(parser->token, "string")) type = N_VALUE_STRING;
         else if (!strcmp(parser->token, "bool")) type = N_VALUE_BOOL;
-        else if (!strcasecmp(parser->token, "Closure")) type = N_VALUE_CLOSURE;
+        else if (!strcmp(parser->token, "float")) type = N_VALUE_FLOAT;
+        else if (!strcmp(parser->token, "array")) type = JINX_ORACLE_VALUE_ZEND_ARRAY;
+        else if (!strcmp(parser->token, "object")) type = JINX_ORACLE_VALUE_ZEND_OBJECT;
+        else if (!strcmp(parser->token, "mixed") || !strcmp(parser->token, "void")) type = 0;
+        else if (!strcmp(parser->token, "iterable")) type = JINX_ORACLE_VALUE_ZEND_ARRAY;
+        else if (!strcasecmp(parser->token, "Closure") || !strcmp(parser->token, "callable")) type = N_VALUE_CLOSURE;
         else if (!strcmp(parser->token, "static") || !strcmp(parser->token, "self") || !strcmp(parser->token, "parent")) type = JINX_ORACLE_VALUE_ZEND_OBJECT;
         else if (!strcmp(parser->token, "null")) type = 0;
         else parser->runtime->error = "native function type is not supported";
