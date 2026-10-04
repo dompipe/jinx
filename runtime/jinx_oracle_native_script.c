@@ -855,7 +855,7 @@ static int native_builtin_admitted(const char *name) {
         "strlen", "strtoupper", "strtolower", "abs", "json_encode",
         "file_put_contents", "unlink", "tempnam", "sys_get_temp_dir",
         "fopen", "fwrite", "rewind", "fread", "fclose", "file_exists",
-        "file_get_contents", "gettype", "error_reporting", "call_user_func", "array_map", "array_reduce", NULL
+        "file_get_contents", "gettype", "error_reporting", "call_user_func", "array_map", "array_reduce", "array_sum", NULL
     };
     for (size_t i = 0; names[i]; i++) if (!strcmp(name, names[i])) return 1;
     return 0;
@@ -1086,6 +1086,8 @@ static JinxValue native_primary(NativeParser *parser) {
                     native_raise(runtime, "Error", "Named arguments for native builtins are not yet admitted");
                 } else if (!strcmp(name, "array_map") || !strcmp(name, "array_reduce")) {
                     value = native_array_callback(parser, name, args, count);
+                } else if (!strcmp(name, "array_sum")) {
+                    value = native_array_sum_builtin(parser, args, count);
                 } else if (!strcmp(name, "call_user_func")) {
                     if (!count) native_raise(runtime, "ArgumentCountError", "call_user_func requires a callback");
                     else value = native_callback_call(parser, args[0], args + 1, count - 1);
@@ -1726,6 +1728,51 @@ static JinxValue native_callback_call(NativeParser *parser, JinxValue value, Jin
     NativeCallback callback = native_callback_resolve(parser, value);
     if (parser->runtime->error || parser->runtime->exception_class) return jinx_value_null();
     return native_callback_invoke(parser, &callback, args, count);
+}
+
+static JinxValue native_array_sum_builtin(NativeParser *parser, JinxValue *args, size_t count) {
+    if (count != 1) {
+        native_raise(parser->runtime, "ArgumentCountError", "array_sum expects exactly one argument");
+        return jinx_value_null();
+    }
+    if (args[0].type != JINX_ORACLE_VALUE_ZEND_ARRAY) {
+        native_raise(parser->runtime, "TypeError", "array_sum expects array");
+        return jinx_value_null();
+    }
+    JinxZendArray *array = args[0].as.ptr;
+    int have_float = 0;
+    double floating = 0.0;
+    int64_t integer = 0;
+    for (size_t n = 0; n < array->count; n++) {
+        const JinxZendBucket *bucket = jinx_zend_array_iter_at(array, n);
+        if (!bucket) continue;
+        JinxValue value = native_from_zend(parser, bucket->value);
+        if (value.type == N_VALUE_INT || value.type == N_VALUE_BOOL) {
+            if (have_float) floating += (double)value.as.i64;
+            else {
+                int64_t next;
+                if (__builtin_add_overflow(integer, value.as.i64, &next)) {
+                    floating = (double)integer + (double)value.as.i64;
+                    have_float = 1;
+                } else integer = next;
+            }
+        } else if (value.type == N_VALUE_FLOAT) {
+            if (!have_float) { floating = (double)integer; have_float = 1; }
+            floating += value.as.f64;
+        } else if (value.type == N_VALUE_STRING) {
+            char *end = NULL;
+            errno = 0;
+            double parsed = strtod(value.as.ptr, &end);
+            if (end != value.as.ptr) {
+                while (isspace((unsigned char)*end)) end++;
+                if (!errno && (size_t)(end - (char *)value.as.ptr) == value.flags) {
+                    if (!have_float) { floating = (double)integer; have_float = 1; }
+                    floating += parsed;
+                }
+            }
+        }
+    }
+    return have_float ? jinx_value_float(floating) : jinx_value_int(integer);
 }
 
 static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count) {
