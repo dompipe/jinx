@@ -58,6 +58,8 @@ typedef struct NativeSlot {
     JinxZendArray *array;
     JinxValue key;
     NativeProperty *property;
+    JinxValue magic_object;
+    const char *magic_name;
 } NativeSlot;
 
 typedef struct NativeRuntime {
@@ -135,6 +137,7 @@ static JinxValue native_callback_call(NativeParser *parser, JinxValue callback, 
 static JinxValue native_array_callback(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_construct(NativeParser *parser, const char *name, JinxValue *args, size_t count);
 static JinxValue native_construct_named(NativeParser *parser, const char *name, NativeCallArguments *call);
+static NativeFunction *native_method_find(NativeClass *owner, const char *name);
 static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot);
 static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value);
 
@@ -468,6 +471,28 @@ static void native_parse_call_arguments(NativeParser *parser, NativeCallArgument
     native_expect(parser, ')');
 }
 
+static JinxValue native_call_arguments_array(NativeParser *parser, NativeCallArguments *call) {
+    NativeArray *owner = native_alloc(parser->runtime, sizeof(*owner));
+    if (!owner) return jinx_value_null();
+    owner->array = jinx_zend_array_new_packed(call->count);
+    if (!owner->array) {
+        parser->runtime->error = "native magic argument array allocation failed";
+        return jinx_value_null();
+    }
+    owner->next = parser->runtime->arrays;
+    parser->runtime->arrays = owner;
+    for (size_t index = 0; index < call->count && !parser->runtime->error; index++) {
+        JinxZendValue converted = native_zend_value(parser, call->values[index]);
+        if (parser->runtime->error) break;
+        int ok = call->names[index]
+            ? jinx_zend_array_add_assoc(owner->array, call->names[index], strlen(call->names[index]), converted)
+            : jinx_zend_array_append(owner->array, converted);
+        if (converted.type == JINX_ZEND_STRING) jinx_zend_value_release(converted);
+        if (!ok) parser->runtime->error = "native magic argument insertion failed";
+    }
+    return jinx_oracle_zend_array_value_borrowed(owner->array);
+}
+
 static JinxValue native_variable_read(NativeParser *parser, NativeVariable *variable) {
     if (!variable) return jinx_value_null();
     return variable->reference ? native_from_zend(parser, variable->reference->value) : variable->value;
@@ -488,13 +513,17 @@ static NativeSlot native_object_slot(NativeParser *parser, JinxValue object, con
         slot.key = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
         return slot;
     }
-    if (!slot.property) {
-        parser->runtime->error = "native object property is undeclared";
+    int inaccessible = slot.property && slot.property->is_private && parser->runtime->active_class != slot.property->owner;
+    if (!slot.property || inaccessible) {
+        if (native_method_find(class_entry, "__get") || native_method_find(class_entry, "__set")) {
+            slot.property = NULL;
+            slot.magic_object = object;
+            slot.magic_name = native_copy(parser->runtime, name, strlen(name));
+            return slot;
+        }
+        if (!slot.property) parser->runtime->error = "native object property is undeclared";
+        else native_raise(parser->runtime, "Error", "Cannot access private property");
         return slot;
-    }
-    if (slot.property->is_private && parser->runtime->active_class != slot.property->owner) {
-        native_raise(parser->runtime, "Error", "Cannot access private property");
-        return (NativeSlot){0};
     }
     slot.array = instance->properties;
     slot.key = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
@@ -598,6 +627,12 @@ static JinxZendValue *native_slot_element(NativeParser *parser, NativeSlot slot,
 
 static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot) {
     if (parser->checking) return jinx_value_null();
+    if (slot.magic_name) {
+        NativeCallArguments call = {0};
+        call.count = 1;
+        call.values[0] = jinx_value_string((void *)slot.magic_name, (uint32_t)strlen(slot.magic_name));
+        return native_method_call_named(parser, slot.magic_object, "__get", &call);
+    }
     if (slot.property && slot.property->is_static && !slot.property->initialized) {
         native_raise(parser->runtime, "Error", "Typed static property must not be accessed before initialization");
         return jinx_value_null();
@@ -610,6 +645,14 @@ static JinxValue native_slot_read(NativeParser *parser, NativeSlot slot) {
 
 static void native_slot_write(NativeParser *parser, NativeSlot slot, JinxValue value) {
     if (parser->checking || parser->runtime->error || parser->runtime->exception_class) return;
+    if (slot.magic_name) {
+        NativeCallArguments call = {0};
+        call.count = 2;
+        call.values[0] = jinx_value_string((void *)slot.magic_name, (uint32_t)strlen(slot.magic_name));
+        call.values[1] = value;
+        (void)native_method_call_named(parser, slot.magic_object, "__set", &call);
+        return;
+    }
     if (slot.property && ((slot.property->type && slot.property->type != (int)value.type) ||
         (slot.property->object_type && !native_object_matches(parser->runtime, value, slot.property->object_type)))) {
         native_raise(parser->runtime, "TypeError", "Cannot assign incompatible value to typed property");
@@ -882,8 +925,22 @@ static JinxValue native_primary(NativeParser *parser) {
                             native_raise(runtime, "Error", "Class not found for static method call");
                         } else {
                             NativeFunction *method = native_method_find(lookup_class, method_name);
-                            if (!method) native_raise(runtime, "Error", "Undefined static method");
-                            else if (!method->is_static) native_raise(runtime, "Error", "Non-static method cannot be called statically");
+                            if (!method) {
+                                NativeFunction *magic = native_method_find(lookup_class, "__callStatic");
+                                if (!magic || !magic->is_static) native_raise(runtime, "Error", "Undefined static method");
+                                else {
+                                    JinxValue magic_args = native_call_arguments_array(parser, &call);
+                                    NativeCallArguments forwarded = {0};
+                                    forwarded.count = 2;
+                                    forwarded.values[0] = jinx_value_string(native_copy(runtime, method_name, strlen(method_name)), (uint32_t)strlen(method_name));
+                                    forwarded.values[1] = magic_args;
+                                    NativeFunction frame = *magic;
+                                    frame.called_class = !strcasecmp(name, "self") || !strcasecmp(name, "parent")
+                                        ? (runtime->called_class ? runtime->called_class : lookup_class)
+                                        : lookup_class;
+                                    value = native_function_call_named(parser, &frame, &forwarded);
+                                }
+                            } else if (!method->is_static) native_raise(runtime, "Error", "Non-static method cannot be called statically");
                             else if (method->is_private && runtime->active_class != method->owner)
                                 native_raise(runtime, "Error", "Cannot call private static method");
                             else {
@@ -1647,8 +1704,22 @@ static JinxValue native_method_call_named(NativeParser *parser, JinxValue object
         native_raise(parser->runtime, "Error", "Method call requires object"); return jinx_value_null();
     }
     JinxZendObject *instance = object.as.ptr;
-    NativeFunction *method = native_method_find(native_class_find(parser->runtime, instance->class_name), name);
-    if (!method) { native_raise(parser->runtime, "Error", "Undefined method"); return jinx_value_null(); }
+    NativeClass *dispatch_class = native_class_find(parser->runtime, instance->class_name);
+    NativeFunction *method = native_method_find(dispatch_class, name);
+    if (!method) {
+        NativeFunction *magic = native_method_find(dispatch_class, "__call");
+        if (!magic) { native_raise(parser->runtime, "Error", "Undefined method"); return jinx_value_null(); }
+        JinxValue magic_args = native_call_arguments_array(parser, call);
+        if (parser->runtime->error) return jinx_value_null();
+        NativeCallArguments forwarded = {0};
+        forwarded.count = 2;
+        forwarded.values[0] = jinx_value_string(native_copy(parser->runtime, name, strlen(name)), (uint32_t)strlen(name));
+        forwarded.values[1] = magic_args;
+        NativeFunction frame = *magic;
+        frame.called_class = dispatch_class;
+        frame.bound_this = object;
+        return native_function_call_named(parser, &frame, &forwarded);
+    }
     if (method->is_private && parser->runtime->active_class != method->owner) {
         native_raise(parser->runtime, "Error", "Cannot call private method"); return jinx_value_null();
     }
@@ -1732,12 +1803,6 @@ static void native_class_declaration(NativeParser *parser) {
         int is_static = parser->kind == N_ID && !strcmp(parser->token, "static");
         if (is_static) native_next(parser);
         if (parser->kind == N_ID && !strcmp(parser->token, "function")) {
-            NativeParser peek = *parser;
-            native_next(&peek);
-            if (!strncmp(peek.token, "__", 2) && strcmp(peek.token, "__clone") && strcmp(peek.token, "__construct")) {
-                parser->runtime->error = "native magic method is not yet supported";
-                break;
-            }
             native_function_declaration(parser, class_entry, 1, is_private, is_static);
             continue;
         }
